@@ -8,6 +8,7 @@ import {
   type MarketInput,
   type Profile,
 } from "@/lib/verity";
+import { formatTradingFee, MARKET_CREATION_FEE_USDC } from "@/lib/fees";
 
 interface ComposeBoxProps {
   profile: Profile | null;
@@ -95,6 +96,10 @@ export default function ComposeBox({ profile, onCreated }: ComposeBoxProps) {
 
         {isMarket && (
           <div className="mt-3 grid gap-2 rounded-[13px] border border-dashed border-[var(--border)] bg-[var(--surface-muted)] p-3">
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-[8px] border border-[var(--border)] bg-[var(--surface)] px-3 py-2 font-mono text-[11px] text-[var(--muted)]">
+              <span>Create market fee: {MARKET_CREATION_FEE_USDC.toFixed(2)} USDC</span>
+              <span>Trading fee: {formatTradingFee()} per trader</span>
+            </div>
             <input
               className="h-10 rounded-[8px] border border-[var(--border)] bg-[var(--surface)] px-3 text-sm text-[var(--foreground)] outline-none placeholder:text-[var(--muted)]"
               onChange={(event) => setMarket((current) => ({ ...current, question: event.target.value }))}

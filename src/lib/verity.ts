@@ -29,6 +29,8 @@ export interface MarketPost {
   free_no_votes: number;
   usdc_yes_amount: number;
   usdc_no_amount: number;
+  market_creation_fee_usdc?: number;
+  trading_fee_bps?: number;
   created_at: string;
 }
 

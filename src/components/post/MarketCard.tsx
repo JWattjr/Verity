@@ -1,6 +1,7 @@
 "use client";
 
 import { ArrowDown, ArrowUp, MessageCircle, Repeat2, Share } from "lucide-react";
+import { formatTradingFee, MARKET_CREATION_FEE_USDC, TRADING_FEE_BPS } from "@/lib/fees";
 import type { VoteSide } from "@/lib/verity";
 
 export interface MarketCardProps {
@@ -18,6 +19,8 @@ export interface MarketCardProps {
   yesPercent: number;
   usdcYes: number;
   usdcNo: number;
+  marketCreationFeeUsdc?: number;
+  tradingFeeBps?: number;
   freeYesVotes?: number;
   freeNoVotes?: number;
   comments: number;
@@ -46,6 +49,8 @@ export default function MarketCard({
   yesPercent,
   usdcYes,
   usdcNo,
+  marketCreationFeeUsdc = MARKET_CREATION_FEE_USDC,
+  tradingFeeBps = TRADING_FEE_BPS,
   freeYesVotes = 0,
   freeNoVotes = 0,
   comments,
@@ -135,6 +140,15 @@ export default function MarketCard({
       <div className="mb-3 flex items-center justify-between font-mono text-xs text-[var(--muted)]">
         <span>{freeYesVotes + freeNoVotes} free votes</span>
         <span>Liquidity {totalUsdc.toLocaleString()} USDC</span>
+      </div>
+
+      <div className="mb-3 flex flex-wrap items-center gap-2 font-mono text-[11px] text-[var(--muted)]">
+        <span className="rounded-[5px] border border-[var(--border)] px-2 py-1">
+          Create fee {Number(marketCreationFeeUsdc).toFixed(2)} USDC
+        </span>
+        <span className="rounded-[5px] border border-[var(--border)] px-2 py-1">
+          Trading fee {formatTradingFee(tradingFeeBps)} per trader
+        </span>
       </div>
 
       <div className="mb-3 grid gap-2 rounded-[9px] border border-dashed border-[var(--border)] bg-[var(--surface-muted)] p-3 font-mono text-[11px] text-[var(--muted)]">

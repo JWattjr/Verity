@@ -32,6 +32,8 @@ create table if not exists public.market_posts (
   free_no_votes integer not null default 0,
   usdc_yes_amount numeric not null default 0,
   usdc_no_amount numeric not null default 0,
+  market_creation_fee_usdc numeric not null default 1,
+  trading_fee_bps integer not null default 200,
   created_at timestamp with time zone not null default now()
 );
 

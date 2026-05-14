@@ -172,6 +172,7 @@ function FeedCard({
         freeNoVotes={item.market.free_no_votes}
         freeYesVotes={item.market.free_yes_votes}
         handle={displayHandle(item.author)}
+        marketCreationFeeUsdc={item.market.market_creation_fee_usdc}
         name={displayName(item.author)}
         noCondition={item.market.no_condition}
         onComment={onComment}
@@ -185,6 +186,7 @@ function FeedCard({
         reshared={item.viewerReshared}
         status={item.market.status}
         time={relativeTime(item.created_at)}
+        tradingFeeBps={item.market.trading_fee_bps}
         usdcNo={Number(item.market.usdc_no_amount)}
         usdcYes={Number(item.market.usdc_yes_amount)}
         viewerVote={item.viewerVote}
