@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type MouseEvent } from "react";
 import { ArrowDown, ArrowUp, MessageCircle, Repeat2, Share } from "lucide-react";
 import {
   calculateGrossUsdc,
@@ -12,6 +12,7 @@ import {
 import type { VoteSide } from "@/lib/verity";
 
 export interface MarketCardProps {
+  variant?: "compact" | "detail";
   name: string;
   handle: string;
   time: string;
@@ -36,6 +37,7 @@ export interface MarketCardProps {
   reshared?: boolean;
   onVote?: (side: VoteSide) => void;
   onUsdcVote?: (side: VoteSide, amount: number) => void;
+  onOpenDetails?: () => void;
   onComment?: () => void;
   onReshare?: () => void;
   onShare?: () => void;
@@ -43,6 +45,7 @@ export interface MarketCardProps {
 }
 
 export default function MarketCard({
+  variant = "compact",
   name,
   handle,
   time,
@@ -67,6 +70,7 @@ export default function MarketCard({
   reshared = false,
   onVote,
   onUsdcVote,
+  onOpenDetails,
   onComment,
   onReshare,
   onShare,
@@ -74,6 +78,8 @@ export default function MarketCard({
   const noPercent = 100 - yesPercent;
   const totalUsdc = usdcYes + usdcNo;
   const isClosed = status !== "open";
+  const isDetail = variant === "detail";
+  const creatorLabel = handle === "@unknown" ? name : handle;
   const [backAmount, setBackAmount] = useState("1");
   const parsedBackAmount = Number(backAmount);
   const validBackAmount = Number.isFinite(parsedBackAmount) && parsedBackAmount > 0;
@@ -85,115 +91,131 @@ export default function MarketCard({
     () => (validBackAmount ? calculateGrossUsdc(parsedBackAmount, tradingFeeBps) : 0),
     [parsedBackAmount, tradingFeeBps, validBackAmount],
   );
+  const openDetails = () => {
+    if (!isDetail) onOpenDetails?.();
+  };
+  const stopClick = (event: MouseEvent) => event.stopPropagation();
 
   return (
-    <article className="cursor-pointer rounded-[18px] border border-[var(--border)] bg-[var(--surface)] p-5 shadow-sm transition-colors hover:bg-[var(--surface-solid)]">
-      <div className="mb-4 flex items-start justify-between gap-4">
+    <article
+      className={`rounded-[10px] border border-[var(--border)] bg-[var(--surface)] p-4 shadow-sm transition-colors hover:bg-[var(--surface-solid)] ${
+        isDetail ? "" : "cursor-pointer"
+      }`}
+      onClick={openDetails}
+      onKeyDown={(event) => {
+        if (!isDetail && (event.key === "Enter" || event.key === " ")) {
+          event.preventDefault();
+          openDetails();
+        }
+      }}
+      role={isDetail ? undefined : "link"}
+      tabIndex={isDetail ? undefined : 0}
+    >
+      <div className="mb-3 flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h3 className="text-xl font-black leading-snug text-[var(--foreground)]">{question}</h3>
-          <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-[var(--muted)]">
+          <h3 className="text-[17px] font-bold leading-snug text-[var(--foreground)] sm:text-lg">{question}</h3>
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-[var(--muted)]">
             <span>by</span>
-            <span className="font-bold text-[var(--foreground)]">{name}</span>
-            <span className="font-mono text-[var(--muted)]">{handle}</span>
+            <span className="font-mono text-[var(--foreground)]">{creatorLabel}</span>
             <span className="font-mono text-[var(--muted)]">{"\u00B7"}</span>
             <span className="font-mono">{time}</span>
           </div>
         </div>
 
-        <span className={`shrink-0 pt-1 text-sm font-black ${isClosed ? "text-[var(--muted)]" : "text-brand-secondary"}`}>
+        <span className={`shrink-0 pt-0.5 font-mono text-[11px] font-bold ${isClosed ? "text-[var(--muted)]" : "text-brand-secondary"}`}>
           {isClosed ? "Closed" : "Active"}
         </span>
       </div>
 
       {postContent && postContent !== question && (
-        <p className="mb-4 whitespace-pre-wrap text-[15px] leading-relaxed text-[var(--foreground)]">
+        <p className="mb-3 line-clamp-2 whitespace-pre-wrap text-sm leading-relaxed text-[var(--muted)]">
           {postContent}
         </p>
       )}
 
-      <div className="mb-5 flex flex-wrap gap-2">
-        <span className="rounded-[5px] border border-[var(--border)] px-3 py-1 font-mono text-xs text-[var(--muted)]">
+      <div className="mb-2 flex flex-wrap gap-2">
+        <span className="rounded-[3px] border border-[var(--border)] bg-[var(--surface-solid)] px-2 py-0.5 font-mono text-[11px] text-[var(--muted)]">
           {category}
-        </span>
-        <span className="rounded-[5px] border border-brand-secondary/30 bg-brand-secondary/10 px-3 py-1 font-mono text-xs text-brand-primary">
-          Verifiable
         </span>
       </div>
 
-      <div className="mb-5 rounded-[9px] bg-[var(--surface-muted)] p-4">
-        <div className="mb-3 font-mono text-xs font-black uppercase tracking-[0.16em] text-[var(--foreground)]">
+      <div className="mb-3 rounded-[7px] bg-[var(--surface-muted)] p-3">
+        <div className="mb-3 font-mono text-[11px] font-bold uppercase text-[var(--foreground)]">
           Sentiment
         </div>
-        <div className="flex h-2.5 overflow-hidden rounded-full bg-zinc-200">
+        <div className="flex h-1.5 overflow-hidden rounded-full bg-zinc-200">
           <div className="h-full bg-upvote transition-all" style={{ width: `${yesPercent}%` }} />
           <div className="h-full bg-downvote transition-all" style={{ width: `${noPercent}%` }} />
         </div>
-        <div className="mt-3 flex justify-between font-mono text-[11px] text-[var(--muted)]">
+        <div className="mt-2 flex justify-between font-mono text-[11px] text-[var(--muted)]">
           <span>{yesPercent.toFixed(1)}% Yes</span>
           <span>{noPercent.toFixed(1)}% No</span>
         </div>
       </div>
 
-      <div className="mb-5 rounded-[9px] border border-[var(--border)] bg-[var(--surface-muted)] p-3">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <label className="font-mono text-[11px] font-black uppercase tracking-[0.14em] text-[var(--foreground)]" htmlFor={`back-${question}`}>
-            Back with USDC
-          </label>
-          <span className="font-mono text-[11px] text-[var(--muted)]">
-            Fee {feeAmount.toFixed(4)} USDC {"\u00B7"} Total {grossAmount.toFixed(4)} USDC
-          </span>
-        </div>
-        <div className="grid gap-2 sm:grid-cols-[1fr_1fr_1fr]">
-          <input
-            className="h-11 rounded-[8px] border border-[var(--border)] bg-[var(--surface)] px-3 font-mono text-sm text-[var(--foreground)] outline-none"
-            id={`back-${question}`}
-            min="0"
-            onChange={(event) => setBackAmount(event.target.value)}
-            step="0.01"
-            type="number"
-            value={backAmount}
-          />
+      <div className="mb-3" onClick={stopClick}>
+        <div className={`mb-2 grid gap-2 ${isDetail ? "grid-cols-[minmax(74px,0.8fr)_1fr_1fr]" : "grid-cols-2"}`}>
+          {isDetail && (
+            <input
+              aria-label={`USDC amount for ${question}`}
+              className="h-8 rounded-[5px] border border-[var(--border)] bg-[var(--surface)] px-2 font-mono text-xs text-[var(--foreground)] outline-none"
+              id={`back-${question}`}
+              min="0"
+              onChange={(event) => setBackAmount(event.target.value)}
+              step="0.01"
+              type="number"
+              value={backAmount}
+            />
+          )}
           <button
-            className="flex h-11 items-center justify-center gap-2 rounded-[8px] border border-brand-secondary bg-brand-secondary/15 font-black text-[var(--foreground)] transition-colors hover:bg-brand-secondary/25 disabled:cursor-not-allowed disabled:opacity-60"
+            className="flex h-8 items-center justify-center gap-1 rounded-[5px] border border-brand-secondary bg-brand-secondary/10 text-sm font-medium text-[var(--foreground)] transition-colors hover:bg-brand-secondary/20 disabled:cursor-not-allowed disabled:opacity-60"
             disabled={isClosed || !validBackAmount}
-            onClick={() => onUsdcVote?.("YES", parsedBackAmount)}
+            onClick={() => (isDetail ? onUsdcVote?.("YES", parsedBackAmount) : onOpenDetails?.())}
+            title={yesCondition}
             type="button"
           >
-            Yes <ArrowUp className="h-4 w-4" />
+            Yes
           </button>
           <button
-            className="flex h-11 items-center justify-center gap-2 rounded-[8px] border border-downvote bg-downvote/15 font-black text-[var(--foreground)] transition-colors hover:bg-downvote/25 disabled:cursor-not-allowed disabled:opacity-60"
+            className="flex h-8 items-center justify-center gap-1 rounded-[5px] border border-downvote bg-downvote/10 text-sm font-medium text-[var(--foreground)] transition-colors hover:bg-downvote/20 disabled:cursor-not-allowed disabled:opacity-60"
             disabled={isClosed || !validBackAmount}
-            onClick={() => onUsdcVote?.("NO", parsedBackAmount)}
+            onClick={() => (isDetail ? onUsdcVote?.("NO", parsedBackAmount) : onOpenDetails?.())}
+            title={noCondition}
             type="button"
           >
-            No <ArrowDown className="h-4 w-4" />
+            No
           </button>
         </div>
+        {isDetail && (
+          <div className="flex flex-wrap items-center justify-between gap-2 font-mono text-[10px] text-[var(--muted)]">
+            <span>
+              Fee {feeAmount.toFixed(4)} USDC {"\u00B7"} Total {grossAmount.toFixed(4)} USDC
+            </span>
+            <span className="font-mono text-[11px] text-[var(--muted)]">
+              Trading fee {formatTradingFee(tradingFeeBps)}
+            </span>
+          </div>
+        )}
       </div>
 
-      <div className="mb-3 flex items-center justify-between font-mono text-xs text-[var(--muted)]">
-        <span>{freeYesVotes + freeNoVotes} free votes</span>
-        <span>Liquidity {totalUsdc.toLocaleString()} USDC</span>
-      </div>
-
-      <div className="mb-3 flex flex-wrap items-center gap-2 font-mono text-[11px] text-[var(--muted)]">
-        <span className="rounded-[5px] border border-[var(--border)] px-2 py-1">
-          Create fee {Number(marketCreationFeeUsdc).toFixed(2)} USDC
-        </span>
-        <span className="rounded-[5px] border border-[var(--border)] px-2 py-1">
-          Trading fee {formatTradingFee(tradingFeeBps)} per trader
-        </span>
-      </div>
-
-      <div className="mb-3 grid gap-2 rounded-[9px] border border-dashed border-[var(--border)] bg-[var(--surface-muted)] p-3 font-mono text-[11px] text-[var(--muted)]">
-        {resolutionSource && <span>Source: {resolutionSource}</span>}
-        {yesCondition && <span className="text-brand-secondary">YES: {yesCondition}</span>}
-        {noCondition && <span className="text-downvote">NO: {noCondition}</span>}
+      <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-1 font-mono text-[11px] text-[var(--muted)]">
+        <span>Liquidity ${totalUsdc.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
         <span>Closes {deadline}</span>
+        {isDetail && <span>Create fee {Number(marketCreationFeeUsdc).toFixed(2)} USDC</span>}
+        {isDetail && resolutionSource && <span className="min-w-0 truncate">Source: {resolutionSource}</span>}
       </div>
 
-      <div className="flex max-w-[425px] items-center justify-between border-t border-dashed border-[var(--border)] pt-2 text-[var(--muted)]">
+      {isDetail && (
+        <div className="mb-3 grid gap-2 rounded-[7px] border border-dashed border-[var(--border)] bg-[var(--surface-muted)] p-3 font-mono text-[11px] text-[var(--muted)]">
+          {yesCondition && <span className="text-brand-secondary">YES: {yesCondition}</span>}
+          {noCondition && <span className="text-downvote">NO: {noCondition}</span>}
+        </div>
+      )}
+
+      <div
+        className="flex max-w-[425px] items-center justify-between border-t border-dashed border-[var(--border)] pt-1.5 text-[var(--muted)]"
+        onClick={stopClick}
+      >
         <button aria-label={`Comment on ${question}`} className="group flex items-center gap-2 transition-colors hover:text-[var(--foreground)]" onClick={onComment} type="button">
           <span className="rounded-full p-2 transition-colors group-hover:bg-[var(--surface-hover)]">
             <MessageCircle className="h-4 w-4" />

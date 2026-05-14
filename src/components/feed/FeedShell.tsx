@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import ComposeBox from "@/components/feed/ComposeBox";
 import FeedTabs, { type FeedTabId } from "@/components/feed/FeedTabs";
 import MarketCard from "@/components/post/MarketCard";
@@ -35,6 +36,7 @@ const FEED_CATEGORIES = [
 type FeedCategory = (typeof FEED_CATEGORIES)[number];
 
 export default function FeedShell() {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<FeedTabId>("for-you");
   const [activeCategory, setActiveCategory] = useState<FeedCategory | null>(null);
   const { profile } = useWalletProfile();
@@ -71,7 +73,7 @@ export default function FeedShell() {
 
   async function sharePost(post: FeedPost) {
     const text = post.market?.question || post.content;
-    const url = `${window.location.origin}/`;
+    const url = post.market ? `${window.location.origin}/markets/${post.market.id}` : `${window.location.origin}/`;
 
     if (navigator.share) {
       await navigator.share({ title: "Verity", text, url });
@@ -153,6 +155,7 @@ export default function FeedShell() {
               key={item.id}
               onComment={() => commentOn(item)}
               onLike={() => runAction(() => toggleLike(item.id, profile!.id, item.viewerLiked))}
+              onOpenMarket={(market) => router.push(`/markets/${market.id}`)}
               onReshare={() => runAction(() => toggleReshare(item.id, profile!.id, item.viewerReshared))}
               onShare={() => sharePost(item)}
               onUsdcVote={(market, side, amount) => backMarketWithUsdc(market, side, amount)}
@@ -173,6 +176,7 @@ function FeedCard({
   item,
   onComment,
   onLike,
+  onOpenMarket,
   onReshare,
   onShare,
   onUsdcVote,
@@ -181,6 +185,7 @@ function FeedCard({
   item: FeedPost;
   onComment: () => void;
   onLike: () => void;
+  onOpenMarket: (market: MarketPost) => void;
   onReshare: () => void;
   onShare: () => void;
   onUsdcVote: (market: MarketPost, side: VoteSide, amount: number) => void;
@@ -201,6 +206,7 @@ function FeedCard({
         name={displayName(item.author)}
         noCondition={item.market.no_condition}
         onComment={onComment}
+        onOpenDetails={() => onOpenMarket(item.market!)}
         onReshare={onReshare}
         onShare={onShare}
         onUsdcVote={(side, amount) => onUsdcVote(item.market!, side, amount)}

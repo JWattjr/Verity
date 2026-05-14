@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { SlidersHorizontal } from "lucide-react";
 import MarketCard from "@/components/post/MarketCard";
 import { useFeed } from "@/hooks/useFeed";
@@ -21,6 +22,7 @@ import {
 } from "@/lib/verity";
 
 export default function MarketBoard() {
+  const router = useRouter();
   const { profile } = useWalletProfile();
   const { transferToTreasury } = useUsdcTransfer();
   const { items, loading, error, reload } = useFeed(profile?.id, true);
@@ -50,11 +52,12 @@ export default function MarketBoard() {
 
   async function sharePost(post: FeedPost) {
     const text = post.market?.question || post.content;
+    const url = post.market ? `${window.location.origin}/markets/${post.market.id}` : window.location.origin;
     if (navigator.share) {
-      await navigator.share({ title: "Verity", text, url: window.location.origin });
+      await navigator.share({ title: "Verity", text, url });
       return;
     }
-    await navigator.clipboard.writeText(`${text}\n${window.location.origin}`);
+    await navigator.clipboard.writeText(`${text}\n${url}`);
   }
 
   async function backMarketWithUsdc(market: MarketPost, side: VoteSide, amount: number) {
@@ -118,6 +121,7 @@ export default function MarketBoard() {
                 name={displayName(item.author)}
                 noCondition={item.market.no_condition}
                 onComment={() => commentOn(item)}
+                onOpenDetails={() => router.push(`/markets/${item.market!.id}`)}
                 onReshare={() => runAction(() => toggleReshare(item.id, profile!.id, item.viewerReshared))}
                 onShare={() => sharePost(item)}
                 onUsdcVote={(side, amount) => backMarketWithUsdc(item.market as MarketPost, side, amount)}

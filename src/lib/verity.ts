@@ -264,6 +264,7 @@ async function fetchViewerVotes(
     .from("votes")
     .select("market_id, side")
     .eq("user_id", profileId)
+    .eq("vote_type", "free")
     .in("market_id", marketIds);
 
   if (error) throw error;
