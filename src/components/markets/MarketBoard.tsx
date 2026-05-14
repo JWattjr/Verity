@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { SlidersHorizontal } from "lucide-react";
 import MarketCard from "@/components/post/MarketCard";
 import { useFeed } from "@/hooks/useFeed";
@@ -19,11 +20,22 @@ import {
 export default function MarketBoard() {
   const { profile } = useWalletProfile();
   const { items, loading, error, reload } = useFeed(profile?.id, true);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   async function runAction(action: () => Promise<void>) {
-    if (!profile) return;
-    await action();
-    await reload();
+    if (!profile) {
+      setActionError("Connect your wallet before voting.");
+      return;
+    }
+
+    setActionError(null);
+
+    try {
+      await action();
+      await reload();
+    } catch (caught) {
+      setActionError(caught instanceof Error ? caught.message : "Action failed.");
+    }
   }
 
   async function commentOn(post: FeedPost) {
@@ -58,9 +70,9 @@ export default function MarketBoard() {
         <SlidersHorizontal className="ml-auto h-5 w-5 text-[var(--muted)]" />
       </section>
 
-      {error && (
+      {(error || actionError) && (
         <section className="rounded-[18px] border border-downvote/30 bg-downvote/10 p-4 text-sm text-[var(--foreground)]">
-          {error}
+          {actionError || error}
         </section>
       )}
 
@@ -84,9 +96,9 @@ export default function MarketBoard() {
                 name={displayName(item.author)}
                 noCondition={item.market.no_condition}
                 onComment={() => commentOn(item)}
-                onReshare={() => profile && runAction(() => toggleReshare(item.id, profile.id, item.viewerReshared))}
+                onReshare={() => runAction(() => toggleReshare(item.id, profile!.id, item.viewerReshared))}
                 onShare={() => sharePost(item)}
-                onVote={(side) => profile && runAction(() => castFreeVote(item.market as MarketPost, profile.id, side as VoteSide))}
+                onVote={(side) => runAction(() => castFreeVote(item.market as MarketPost, profile!.id, side as VoteSide))}
                 postContent={item.content}
                 question={item.market.question}
                 resolutionSource={item.market.resolution_source}
