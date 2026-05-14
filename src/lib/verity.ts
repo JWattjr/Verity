@@ -31,6 +31,8 @@ export interface MarketPost {
   usdc_no_amount: number;
   market_creation_fee_usdc?: number;
   trading_fee_bps?: number;
+  creation_fee_tx_hash?: string | null;
+  fee_collector_address?: string | null;
   created_at: string;
 }
 
@@ -71,6 +73,8 @@ export interface MarketInput {
   resolutionSource: string;
   yesCondition: string;
   noCondition: string;
+  creationFeeTxHash?: string;
+  feeCollectorAddress?: string;
 }
 
 function requireClient() {
@@ -261,7 +265,6 @@ async function fetchViewerVotes(
     .from("votes")
     .select("market_id, side")
     .eq("user_id", profileId)
-    .eq("vote_type", "free")
     .in("market_id", marketIds);
 
   if (error) throw error;
@@ -302,6 +305,8 @@ export async function createMarketPost(profileId: string, input: MarketInput) {
     yes_condition: input.yesCondition.trim(),
     no_condition: input.noCondition.trim(),
     status: "open",
+    creation_fee_tx_hash: input.creationFeeTxHash || null,
+    fee_collector_address: input.feeCollectorAddress || null,
   });
 
   if (market.error) throw market.error;
@@ -373,6 +378,67 @@ export async function castFreeVote(market: MarketPost, profileId: string, side: 
   const counter = await supabase
     .from("market_posts")
     .update({ free_yes_votes: yes, free_no_votes: no })
+    .eq("id", market.id);
+
+  if (counter.error) throw counter.error;
+}
+
+export async function castUsdcVote({
+  market,
+  profileId,
+  side,
+  amount,
+  feeAmount,
+  grossAmount,
+  txHash,
+}: {
+  market: MarketPost;
+  profileId: string;
+  side: VoteSide;
+  amount: number;
+  feeAmount: number;
+  grossAmount: number;
+  txHash: string;
+}) {
+  const supabase = requireClient();
+  const closed = market.status !== "open" || new Date(market.deadline).getTime() <= Date.now();
+  if (closed) throw new Error("This market is closed.");
+  if (amount <= 0) throw new Error("Enter a USDC amount greater than 0.");
+
+  const vote = await supabase.from("votes").upsert(
+    {
+      market_id: market.id,
+      user_id: profileId,
+      side,
+      vote_type: "usdc",
+      amount,
+      fee_amount: feeAmount,
+      gross_amount: grossAmount,
+      tx_hash: txHash,
+    },
+    { onConflict: "market_id,user_id,vote_type" },
+  );
+
+  if (vote.error) throw vote.error;
+
+  const { data, error } = await supabase
+    .from("votes")
+    .select("side, amount")
+    .eq("market_id", market.id)
+    .eq("vote_type", "usdc");
+
+  if (error) throw error;
+
+  const yes = (data || [])
+    .filter((row) => row.side === "YES")
+    .reduce((sum, row) => sum + Number(row.amount), 0);
+  const no = (data || [])
+    .filter((row) => row.side === "NO")
+    .reduce((sum, row) => sum + Number(row.amount), 0);
+
+  const counter = await supabase
+    .from("market_posts")
+    .update({ usdc_yes_amount: yes, usdc_no_amount: no })
     .eq("id", market.id);
 
   if (counter.error) throw counter.error;

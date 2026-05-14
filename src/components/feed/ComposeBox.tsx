@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { Image as ImageIcon, BarChart2, Smile, MapPin } from "lucide-react";
+import { useUsdcTransfer } from "@/hooks/useUsdcTransfer";
 import {
   createMarketPost,
   createNormalPost,
@@ -18,6 +19,7 @@ interface ComposeBoxProps {
 const MARKET_CATEGORIES = ["Crypto", "Culture", "Economics", "Miscellaneous", "Politics", "Sports"];
 
 export default function ComposeBox({ profile, onCreated }: ComposeBoxProps) {
+  const { transferToTreasury } = useUsdcTransfer();
   const [content, setContent] = useState("");
   const [isMarket, setIsMarket] = useState(false);
   const [market, setMarket] = useState<MarketInput>({
@@ -54,7 +56,13 @@ export default function ComposeBox({ profile, onCreated }: ComposeBoxProps) {
 
     try {
       if (isMarket) {
-        await createMarketPost(profile.id, { ...market, content });
+        const feePayment = await transferToTreasury(MARKET_CREATION_FEE_USDC);
+        await createMarketPost(profile.id, {
+          ...market,
+          content,
+          creationFeeTxHash: feePayment.hash,
+          feeCollectorAddress: feePayment.treasuryAddress,
+        });
         setMarket({
           content: "",
           question: "",
@@ -97,7 +105,7 @@ export default function ComposeBox({ profile, onCreated }: ComposeBoxProps) {
         {isMarket && (
           <div className="mt-3 grid gap-2 rounded-[13px] border border-dashed border-[var(--border)] bg-[var(--surface-muted)] p-3">
             <div className="flex flex-wrap items-center justify-between gap-2 rounded-[8px] border border-[var(--border)] bg-[var(--surface)] px-3 py-2 font-mono text-[11px] text-[var(--muted)]">
-              <span>Create market fee: {MARKET_CREATION_FEE_USDC.toFixed(2)} USDC</span>
+              <span>Create market fee: {MARKET_CREATION_FEE_USDC.toFixed(2)} USDC paid on submit</span>
               <span>Trading fee: {formatTradingFee()} per trader</span>
             </div>
             <input

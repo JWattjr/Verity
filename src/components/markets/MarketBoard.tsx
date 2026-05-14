@@ -4,10 +4,13 @@ import { useState } from "react";
 import { SlidersHorizontal } from "lucide-react";
 import MarketCard from "@/components/post/MarketCard";
 import { useFeed } from "@/hooks/useFeed";
+import { useUsdcTransfer } from "@/hooks/useUsdcTransfer";
 import { useWalletProfile } from "@/hooks/useWalletProfile";
+import { calculateGrossUsdc, calculateTradingFee } from "@/lib/fees";
 import {
   addComment,
   castFreeVote,
+  castUsdcVote,
   displayHandle,
   displayName,
   relativeTime,
@@ -19,6 +22,7 @@ import {
 
 export default function MarketBoard() {
   const { profile } = useWalletProfile();
+  const { transferToTreasury } = useUsdcTransfer();
   const { items, loading, error, reload } = useFeed(profile?.id, true);
   const [actionError, setActionError] = useState<string | null>(null);
 
@@ -51,6 +55,24 @@ export default function MarketBoard() {
       return;
     }
     await navigator.clipboard.writeText(`${text}\n${window.location.origin}`);
+  }
+
+  async function backMarketWithUsdc(market: MarketPost, side: VoteSide, amount: number) {
+    await runAction(async () => {
+      const feeAmount = calculateTradingFee(amount, market.trading_fee_bps);
+      const grossAmount = calculateGrossUsdc(amount, market.trading_fee_bps);
+      const payment = await transferToTreasury(grossAmount);
+
+      await castUsdcVote({
+        market,
+        profileId: profile!.id,
+        side,
+        amount,
+        feeAmount,
+        grossAmount,
+        txHash: payment.hash,
+      });
+    });
   }
 
   return (
@@ -98,6 +120,7 @@ export default function MarketBoard() {
                 onComment={() => commentOn(item)}
                 onReshare={() => runAction(() => toggleReshare(item.id, profile!.id, item.viewerReshared))}
                 onShare={() => sharePost(item)}
+                onUsdcVote={(side, amount) => backMarketWithUsdc(item.market as MarketPost, side, amount)}
                 onVote={(side) => runAction(() => castFreeVote(item.market as MarketPost, profile!.id, side as VoteSide))}
                 postContent={item.content}
                 question={item.market.question}

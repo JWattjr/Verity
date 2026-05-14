@@ -6,10 +6,13 @@ import FeedTabs, { type FeedTabId } from "@/components/feed/FeedTabs";
 import MarketCard from "@/components/post/MarketCard";
 import PostCard from "@/components/post/PostCard";
 import { useFeed } from "@/hooks/useFeed";
+import { useUsdcTransfer } from "@/hooks/useUsdcTransfer";
 import { useWalletProfile } from "@/hooks/useWalletProfile";
+import { calculateGrossUsdc, calculateTradingFee } from "@/lib/fees";
 import {
   addComment,
   castFreeVote,
+  castUsdcVote,
   displayHandle,
   displayName,
   relativeTime,
@@ -35,6 +38,7 @@ export default function FeedShell() {
   const [activeTab, setActiveTab] = useState<FeedTabId>("for-you");
   const [activeCategory, setActiveCategory] = useState<FeedCategory | null>(null);
   const { profile } = useWalletProfile();
+  const { transferToTreasury } = useUsdcTransfer();
   const { items, loading, error, reload } = useFeed(profile?.id, activeTab === "markets");
   const [actionError, setActionError] = useState<string | null>(null);
 
@@ -75,6 +79,24 @@ export default function FeedShell() {
     }
 
     await navigator.clipboard.writeText(`${text}\n${url}`);
+  }
+
+  async function backMarketWithUsdc(market: MarketPost, side: VoteSide, amount: number) {
+    await runAction(async () => {
+      const feeAmount = calculateTradingFee(amount, market.trading_fee_bps);
+      const grossAmount = calculateGrossUsdc(amount, market.trading_fee_bps);
+      const payment = await transferToTreasury(grossAmount);
+
+      await castUsdcVote({
+        market,
+        profileId: profile!.id,
+        side,
+        amount,
+        feeAmount,
+        grossAmount,
+        txHash: payment.hash,
+      });
+    });
   }
 
   return (
@@ -133,6 +155,7 @@ export default function FeedShell() {
               onLike={() => runAction(() => toggleLike(item.id, profile!.id, item.viewerLiked))}
               onReshare={() => runAction(() => toggleReshare(item.id, profile!.id, item.viewerReshared))}
               onShare={() => sharePost(item)}
+              onUsdcVote={(market, side, amount) => backMarketWithUsdc(market, side, amount)}
               onVote={(market, side) => runAction(() => castFreeVote(market, profile!.id, side))}
             />
           ))
@@ -152,6 +175,7 @@ function FeedCard({
   onLike,
   onReshare,
   onShare,
+  onUsdcVote,
   onVote,
 }: {
   item: FeedPost;
@@ -159,6 +183,7 @@ function FeedCard({
   onLike: () => void;
   onReshare: () => void;
   onShare: () => void;
+  onUsdcVote: (market: MarketPost, side: VoteSide, amount: number) => void;
   onVote: (market: MarketPost, side: VoteSide) => void;
 }) {
   if (item.type === "market" && item.market) {
@@ -178,6 +203,7 @@ function FeedCard({
         onComment={onComment}
         onReshare={onReshare}
         onShare={onShare}
+        onUsdcVote={(side, amount) => onUsdcVote(item.market!, side, amount)}
         onVote={(side) => onVote(item.market!, side)}
         postContent={item.content}
         question={item.market.question}

@@ -1,7 +1,14 @@
 "use client";
 
+import { useMemo, useState } from "react";
 import { ArrowDown, ArrowUp, MessageCircle, Repeat2, Share } from "lucide-react";
-import { formatTradingFee, MARKET_CREATION_FEE_USDC, TRADING_FEE_BPS } from "@/lib/fees";
+import {
+  calculateGrossUsdc,
+  calculateTradingFee,
+  formatTradingFee,
+  MARKET_CREATION_FEE_USDC,
+  TRADING_FEE_BPS,
+} from "@/lib/fees";
 import type { VoteSide } from "@/lib/verity";
 
 export interface MarketCardProps {
@@ -28,6 +35,7 @@ export interface MarketCardProps {
   viewerVote?: VoteSide | null;
   reshared?: boolean;
   onVote?: (side: VoteSide) => void;
+  onUsdcVote?: (side: VoteSide, amount: number) => void;
   onComment?: () => void;
   onReshare?: () => void;
   onShare?: () => void;
@@ -58,6 +66,7 @@ export default function MarketCard({
   viewerVote,
   reshared = false,
   onVote,
+  onUsdcVote,
   onComment,
   onReshare,
   onShare,
@@ -65,6 +74,17 @@ export default function MarketCard({
   const noPercent = 100 - yesPercent;
   const totalUsdc = usdcYes + usdcNo;
   const isClosed = status !== "open";
+  const [backAmount, setBackAmount] = useState("1");
+  const parsedBackAmount = Number(backAmount);
+  const validBackAmount = Number.isFinite(parsedBackAmount) && parsedBackAmount > 0;
+  const feeAmount = useMemo(
+    () => (validBackAmount ? calculateTradingFee(parsedBackAmount, tradingFeeBps) : 0),
+    [parsedBackAmount, tradingFeeBps, validBackAmount],
+  );
+  const grossAmount = useMemo(
+    () => (validBackAmount ? calculateGrossUsdc(parsedBackAmount, tradingFeeBps) : 0),
+    [parsedBackAmount, tradingFeeBps, validBackAmount],
+  );
 
   return (
     <article className="cursor-pointer rounded-[18px] border border-[var(--border)] bg-[var(--surface)] p-5 shadow-sm transition-colors hover:bg-[var(--surface-solid)]">
@@ -135,6 +155,44 @@ export default function MarketCard({
         >
           No <ArrowDown className="h-4 w-4" />
         </button>
+      </div>
+
+      <div className="mb-5 rounded-[9px] border border-[var(--border)] bg-[var(--surface-muted)] p-3">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <label className="font-mono text-[11px] font-black uppercase tracking-[0.14em] text-[var(--foreground)]" htmlFor={`back-${question}`}>
+            Back with USDC
+          </label>
+          <span className="font-mono text-[11px] text-[var(--muted)]">
+            Fee {feeAmount.toFixed(4)} USDC {"\u00B7"} Total {grossAmount.toFixed(4)} USDC
+          </span>
+        </div>
+        <div className="grid gap-2 sm:grid-cols-[1fr_1fr_1fr]">
+          <input
+            className="h-11 rounded-[8px] border border-[var(--border)] bg-[var(--surface)] px-3 font-mono text-sm text-[var(--foreground)] outline-none"
+            id={`back-${question}`}
+            min="0"
+            onChange={(event) => setBackAmount(event.target.value)}
+            step="0.01"
+            type="number"
+            value={backAmount}
+          />
+          <button
+            className="flex h-11 items-center justify-center rounded-[8px] bg-brand-secondary/15 font-black text-[var(--foreground)] transition-colors hover:bg-brand-secondary/25 disabled:cursor-not-allowed disabled:opacity-60"
+            disabled={isClosed || !validBackAmount}
+            onClick={() => onUsdcVote?.("YES", parsedBackAmount)}
+            type="button"
+          >
+            Back YES
+          </button>
+          <button
+            className="flex h-11 items-center justify-center rounded-[8px] bg-downvote/15 font-black text-[var(--foreground)] transition-colors hover:bg-downvote/25 disabled:cursor-not-allowed disabled:opacity-60"
+            disabled={isClosed || !validBackAmount}
+            onClick={() => onUsdcVote?.("NO", parsedBackAmount)}
+            type="button"
+          >
+            Back NO
+          </button>
+        </div>
       </div>
 
       <div className="mb-3 flex items-center justify-between font-mono text-xs text-[var(--muted)]">

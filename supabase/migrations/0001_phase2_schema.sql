@@ -34,6 +34,8 @@ create table if not exists public.market_posts (
   usdc_no_amount numeric not null default 0,
   market_creation_fee_usdc numeric not null default 1,
   trading_fee_bps integer not null default 200,
+  creation_fee_tx_hash text,
+  fee_collector_address text,
   created_at timestamp with time zone not null default now()
 );
 
@@ -44,6 +46,9 @@ create table if not exists public.votes (
   side text not null check (side in ('YES', 'NO')),
   vote_type text not null check (vote_type in ('free', 'usdc')),
   amount numeric not null default 0,
+  fee_amount numeric not null default 0,
+  gross_amount numeric not null default 0,
+  tx_hash text,
   created_at timestamp with time zone not null default now(),
   unique(market_id, user_id, vote_type)
 );
