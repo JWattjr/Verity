@@ -52,6 +52,22 @@ export interface FeedPost {
   viewerVote: VoteSide | null;
 }
 
+export interface MarketComment {
+  id: string;
+  post_id: string;
+  author_id: string;
+  content: string;
+  created_at: string;
+  author: Profile;
+}
+
+export interface MarketPosition {
+  side: VoteSide;
+  vote_type: "free" | "usdc";
+  amount: number;
+  created_at: string;
+}
+
 interface RawFeedPost {
   id: string;
   author_id: string;
@@ -63,6 +79,15 @@ interface RawFeedPost {
   comments: { id: string }[] | null;
   likes: { id: string }[] | null;
   reshares: { id: string }[] | null;
+}
+
+interface RawMarketComment {
+  id: string;
+  post_id: string;
+  author_id: string;
+  content: string;
+  created_at: string;
+  author: Profile | null;
 }
 
 export interface MarketInput {
@@ -344,6 +369,51 @@ export async function addComment(postId: string, profileId: string, content: str
   });
 
   if (error) throw error;
+}
+
+export async function fetchPostComments(postId: string) {
+  const supabase = requireClient();
+  const { data, error } = await supabase
+    .from("comments")
+    .select(
+      `
+      id,
+      post_id,
+      author_id,
+      content,
+      created_at,
+      author:profiles(*)
+    `,
+    )
+    .eq("post_id", postId)
+    .order("created_at", { ascending: false })
+    .limit(50);
+
+  if (error) throw error;
+
+  return ((data || []) as unknown as RawMarketComment[]).map((comment) => ({
+    ...comment,
+    author: comment.author || fallbackProfile(comment.author_id),
+  })) satisfies MarketComment[];
+}
+
+export async function fetchMarketPositions(marketId: string, profileId: string) {
+  const supabase = requireClient();
+  const { data, error } = await supabase
+    .from("votes")
+    .select("side, vote_type, amount, created_at")
+    .eq("market_id", marketId)
+    .eq("user_id", profileId)
+    .order("created_at", { ascending: false });
+
+  if (error) throw error;
+
+  return (data || []).map((position) => ({
+    side: position.side as VoteSide,
+    vote_type: position.vote_type as "free" | "usdc",
+    amount: Number(position.amount || 0),
+    created_at: position.created_at as string,
+  })) satisfies MarketPosition[];
 }
 
 export async function castFreeVote(market: MarketPost, profileId: string, side: VoteSide) {
