@@ -1,14 +1,8 @@
 "use client";
 
-import { useMemo, useState, type MouseEvent } from "react";
+import type { MouseEvent } from "react";
 import { ArrowDown, ArrowUp, MessageCircle, Repeat2, Share } from "lucide-react";
-import {
-  calculateGrossUsdc,
-  calculateTradingFee,
-  formatTradingFee,
-  MARKET_CREATION_FEE_USDC,
-  TRADING_FEE_BPS,
-} from "@/lib/fees";
+import { MARKET_CREATION_FEE_USDC } from "@/lib/fees";
 import type { VoteSide } from "@/lib/verity";
 
 export interface MarketCardProps {
@@ -31,6 +25,12 @@ export interface MarketCardProps {
   tradingFeeBps?: number;
   freeYesVotes?: number;
   freeNoVotes?: number;
+  totalFreeVotes?: number;
+  uniqueVotersCount?: number;
+  qualificationThreshold?: number;
+  uniqueVoterThreshold?: number;
+  dailyVotesRemaining?: number;
+  votingDisabledMessage?: string | null;
   comments: number;
   reshares: number;
   viewerVote?: VoteSide | null;
@@ -61,15 +61,17 @@ export default function MarketCard({
   usdcYes,
   usdcNo,
   marketCreationFeeUsdc = MARKET_CREATION_FEE_USDC,
-  tradingFeeBps = TRADING_FEE_BPS,
   freeYesVotes = 0,
   freeNoVotes = 0,
+  totalFreeVotes,
+  qualificationThreshold = 50,
+  dailyVotesRemaining = 10,
+  votingDisabledMessage,
   comments,
   reshares,
   viewerVote,
   reshared = false,
   onVote,
-  onUsdcVote,
   onOpenDetails,
   onComment,
   onReshare,
@@ -77,22 +79,22 @@ export default function MarketCard({
 }: MarketCardProps) {
   const totalUsdc = usdcYes + usdcNo;
   const hasBackedSentiment = totalUsdc > 0;
-  const displayYesPercent = hasBackedSentiment ? yesPercent : 0;
-  const noPercent = hasBackedSentiment ? 100 - yesPercent : 0;
-  const isClosed = status !== "open";
+  const totalVotes = totalFreeVotes ?? freeYesVotes + freeNoVotes;
+  const freeYesPercent = totalVotes > 0 ? (freeYesVotes / totalVotes) * 100 : 50;
+  const displayYesPercent = hasBackedSentiment ? yesPercent : freeYesPercent;
+  const noPercent = totalVotes > 0 || hasBackedSentiment ? 100 - displayYesPercent : 50;
+  const isOpenForVotes = status === "open_for_votes";
+  const isQualified = status === "qualified";
+  const isTradable = status === "tradable";
+  const isClosed = ["closed", "resolving", "resolved", "voided"].includes(status);
+  const canFreeVote = isOpenForVotes || isQualified;
+  const hasViewerVoted = Boolean(viewerVote);
+  const voteDisabled = !canFreeVote || hasViewerVoted || dailyVotesRemaining <= 0;
+  const voteThresholdMet = totalVotes >= qualificationThreshold;
+  const votesToReview = Math.max(0, qualificationThreshold - totalVotes);
+  const qualificationProgress = Math.min(100, (totalVotes / qualificationThreshold) * 100);
   const isDetail = variant === "detail";
   const creatorLabel = handle === "@unknown" ? name : handle;
-  const [backAmount, setBackAmount] = useState("1");
-  const parsedBackAmount = Number(backAmount);
-  const validBackAmount = Number.isFinite(parsedBackAmount) && parsedBackAmount > 0;
-  const feeAmount = useMemo(
-    () => (validBackAmount ? calculateTradingFee(parsedBackAmount, tradingFeeBps) : 0),
-    [parsedBackAmount, tradingFeeBps, validBackAmount],
-  );
-  const grossAmount = useMemo(
-    () => (validBackAmount ? calculateGrossUsdc(parsedBackAmount, tradingFeeBps) : 0),
-    [parsedBackAmount, tradingFeeBps, validBackAmount],
-  );
   const openDetails = () => {
     if (!isDetail) onOpenDetails?.();
   };
@@ -125,7 +127,7 @@ export default function MarketCard({
         </div>
 
         <span className={`shrink-0 pt-0.5 font-mono text-[11px] font-bold ${isClosed ? "text-[var(--muted)]" : "text-brand-secondary"}`}>
-          {isClosed ? "Closed" : "Active"}
+          {status.replaceAll("_", " ")}
         </span>
       </div>
 
@@ -143,71 +145,83 @@ export default function MarketCard({
 
       <div className="mb-3 rounded-[7px] bg-[var(--surface-muted)] p-3">
         <div className="mb-3 font-mono text-[11px] font-bold uppercase text-[var(--foreground)]">
-          USDC sentiment
+          Vote sentiment
         </div>
         <div className="flex h-1.5 overflow-hidden rounded-full bg-zinc-200">
           <div className="h-full bg-upvote transition-all" style={{ width: `${displayYesPercent}%` }} />
           <div className="h-full bg-downvote transition-all" style={{ width: `${noPercent}%` }} />
         </div>
         <div className="mt-2 flex justify-between font-mono text-[11px] text-[var(--muted)]">
-          {hasBackedSentiment ? (
+          {totalVotes > 0 ? (
             <>
               <span>{displayYesPercent.toFixed(1)}% Yes</span>
               <span>{noPercent.toFixed(1)}% No</span>
             </>
           ) : (
-            <span>No USDC-backed opinions yet</span>
+            <span>No votes yet</span>
           )}
         </div>
       </div>
 
-      <div className="mb-3" onClick={stopClick}>
-        <div className={`mb-2 grid gap-2 ${isDetail ? "grid-cols-[minmax(74px,0.8fr)_1fr_1fr]" : "grid-cols-2"}`}>
-          {isDetail && (
-            <input
-              aria-label={`USDC amount for ${question}`}
-              className="h-8 rounded-[5px] border border-[var(--border)] bg-[var(--surface)] px-2 font-mono text-xs text-[var(--foreground)] outline-none"
-              id={`back-${question}`}
-              min="0"
-              onChange={(event) => setBackAmount(event.target.value)}
-              step="0.01"
-              type="number"
-              value={backAmount}
-            />
-          )}
-          <button
-            className="flex h-8 items-center justify-center gap-1 rounded-[5px] border border-brand-secondary bg-brand-secondary/10 text-sm font-medium text-[var(--foreground)] transition-colors hover:bg-brand-secondary/20 disabled:cursor-not-allowed disabled:opacity-60"
-            disabled={isClosed || !validBackAmount}
-            onClick={() => (isDetail ? onUsdcVote?.("YES", parsedBackAmount) : onOpenDetails?.())}
-            title={yesCondition}
-            type="button"
-          >
-            Yes
+      <div className="mb-3 rounded-[7px] border border-dashed border-[var(--border)] bg-[var(--surface-muted)] p-3 font-mono text-[11px] text-[var(--muted)]">
+        <div className="mb-2 flex flex-wrap justify-between gap-2">
+          <span>{totalVotes} votes cast</span>
+          <span>{voteThresholdMet ? "Review threshold met" : `${votesToReview} to review`}</span>
+        </div>
+        <div className="h-1.5 overflow-hidden rounded-full bg-[var(--surface-solid)]">
+          <div className="h-full bg-brand-secondary" style={{ width: `${qualificationProgress}%` }} />
+        </div>
+        <div className="mt-2">
+          <span>Votes left today: {dailyVotesRemaining}</span>
+        </div>
+      </div>
+
+      {isTradable ? (
+        <div className="mb-3 grid grid-cols-2 gap-2" onClick={stopClick}>
+          <button className="h-9 rounded-[6px] border border-brand-secondary bg-brand-secondary/10 text-sm font-bold text-[var(--foreground)]" type="button">
+            Back YES with USDC
           </button>
-          <button
-            className="flex h-8 items-center justify-center gap-1 rounded-[5px] border border-downvote bg-downvote/10 text-sm font-medium text-[var(--foreground)] transition-colors hover:bg-downvote/20 disabled:cursor-not-allowed disabled:opacity-60"
-            disabled={isClosed || !validBackAmount}
-            onClick={() => (isDetail ? onUsdcVote?.("NO", parsedBackAmount) : onOpenDetails?.())}
-            title={noCondition}
-            type="button"
-          >
-            No
+          <button className="h-9 rounded-[6px] border border-downvote bg-downvote/10 text-sm font-bold text-[var(--foreground)]" type="button">
+            Back NO with USDC
           </button>
         </div>
-        {isDetail && (
-          <div className="flex flex-wrap items-center justify-between gap-2 font-mono text-[10px] text-[var(--muted)]">
-            <span>
-              Fee {feeAmount.toFixed(4)} USDC {"\u00B7"} Total {grossAmount.toFixed(4)} USDC
-            </span>
-            <span className="font-mono text-[11px] text-[var(--muted)]">
-              Trading fee {formatTradingFee(tradingFeeBps)}
-            </span>
+      ) : canFreeVote ? (
+        <div className="mb-3" onClick={stopClick}>
+          {isQualified && (
+            <p className="mb-3 rounded-[7px] border border-brand-secondary/30 bg-brand-secondary/10 p-3 text-sm font-semibold text-[var(--foreground)]">
+              Qualified for USDC trading review
+            </p>
+          )}
+          <div className="mb-2 grid grid-cols-2 gap-2">
+            <button
+              className="flex h-8 items-center justify-center gap-1 rounded-[5px] border border-brand-secondary bg-brand-secondary/10 text-sm font-medium text-[var(--foreground)] transition-colors hover:bg-brand-secondary/20 disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={voteDisabled}
+              onClick={() => onVote?.("YES")}
+              title={yesCondition}
+              type="button"
+            >
+              Upvote
+            </button>
+            <button
+              className="flex h-8 items-center justify-center gap-1 rounded-[5px] border border-downvote bg-downvote/10 text-sm font-medium text-[var(--foreground)] transition-colors hover:bg-downvote/20 disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={voteDisabled}
+              onClick={() => onVote?.("NO")}
+              title={noCondition}
+              type="button"
+            >
+              Downvote
+            </button>
           </div>
-        )}
-      </div>
+          {votingDisabledMessage && <p className="font-mono text-[11px] text-downvote">{votingDisabledMessage}</p>}
+        </div>
+      ) : (
+        <p className="mb-3 rounded-[7px] border border-[var(--border)] bg-[var(--surface-muted)] p-3 text-sm font-semibold text-[var(--muted)]">
+          This market is not open for free voting.
+        </p>
+      )}
 
       <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-1 font-mono text-[11px] text-[var(--muted)]">
-        <span>Liquidity ${totalUsdc.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
+        {isTradable && <span>Liquidity ${totalUsdc.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>}
         <span>Closes {deadline}</span>
         {isDetail && <span>Create fee {Number(marketCreationFeeUsdc).toFixed(2)} USDC</span>}
         {isDetail && resolutionSource && <span className="min-w-0 truncate">Source: {resolutionSource}</span>}
@@ -250,7 +264,7 @@ export default function MarketCard({
           className={`group flex items-center gap-2 transition-colors hover:text-brand-secondary ${
             viewerVote === "YES" ? "text-brand-secondary" : ""
           }`}
-          disabled={isClosed}
+          disabled={voteDisabled}
           onClick={() => onVote?.("YES")}
           type="button"
         >
@@ -266,7 +280,7 @@ export default function MarketCard({
           className={`group flex items-center gap-2 transition-colors hover:text-downvote ${
             viewerVote === "NO" ? "text-downvote" : ""
           }`}
-          disabled={isClosed}
+          disabled={voteDisabled}
           onClick={() => onVote?.("NO")}
           type="button"
         >

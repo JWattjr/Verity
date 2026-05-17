@@ -1,5 +1,6 @@
 import { CircleDollarSign, Wallet } from "lucide-react";
 import PagePanel from "@/components/layout/PagePanel";
+import DailyVotesCard from "@/components/wallet/DailyVotesCard";
 import WalletSummary from "@/components/wallet/WalletSummary";
 
 export default function WalletPage() {
@@ -11,7 +12,9 @@ export default function WalletPage() {
     >
       <WalletSummary />
 
-      <section className="grid gap-3 sm:grid-cols-2">
+      <section className="grid gap-3 sm:grid-cols-3">
+        <DailyVotesCard />
+
         <div className="rounded-[18px] border border-[var(--border)] bg-[var(--surface)] p-5 shadow-sm">
           <div className="flex items-center gap-2 text-[var(--muted)]">
             <Wallet className="h-5 w-5" />

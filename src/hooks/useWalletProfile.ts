@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useAccount } from "wagmi";
-import { getOrCreateProfile, type Profile } from "@/lib/verity";
-import { hasSupabaseConfig } from "@/lib/supabase";
+import { getDevProfile, getOrCreateProfile, type Profile } from "@/lib/verity";
+import { hasApiConfig } from "@/api/client";
 
 export function useWalletProfile() {
   const { address, isConnected } = useAccount();
@@ -15,7 +15,7 @@ export function useWalletProfile() {
     let active = true;
 
     async function load() {
-      if (!address || !isConnected || !hasSupabaseConfig()) {
+      if (!hasApiConfig()) {
         setProfile(null);
         setLoading(false);
         return;
@@ -25,7 +25,7 @@ export function useWalletProfile() {
       setError(null);
 
       try {
-        const nextProfile = await getOrCreateProfile(address);
+        const nextProfile = address && isConnected ? await getOrCreateProfile(address) : await getDevProfile();
         if (active) setProfile(nextProfile);
       } catch (caught) {
         if (active) {
@@ -46,7 +46,7 @@ export function useWalletProfile() {
 
   return {
     address,
-    isConnected,
+    isConnected: isConnected || Boolean(profile),
     profile,
     setProfile,
     loading,

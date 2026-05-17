@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { fetchFeed, type FeedPost } from "@/lib/verity";
-import { hasSupabaseConfig } from "@/lib/supabase";
+import { hasApiConfig } from "@/api/client";
 
 export function useFeed(profileId?: string, onlyMarkets = false) {
   const [items, setItems] = useState<FeedPost[]>([]);
@@ -10,9 +10,9 @@ export function useFeed(profileId?: string, onlyMarkets = false) {
   const [error, setError] = useState<string | null>(null);
 
   const reload = useCallback(async () => {
-    if (!hasSupabaseConfig()) {
+    if (!hasApiConfig()) {
       setItems([]);
-      setError("Add Supabase environment variables to load live Verity data.");
+      setError("Add the API environment variable to load live Verity data.");
       setLoading(false);
       return;
     }

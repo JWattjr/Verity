@@ -3,18 +3,19 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { ArrowDown, ArrowUp, BarChart3, Info, MessageCircle, Repeat2, Share, ShieldCheck } from "lucide-react";
+import VerityAgentPanel from "@/components/markets/VerityAgentPanel";
+import { useDailyVotes } from "@/hooks/useDailyVotes";
 import { useFeed } from "@/hooks/useFeed";
 import { useSetRightPanelSlot } from "@/hooks/useRightPanelSlot";
 import { useUsdcBalance } from "@/hooks/useUsdcBalance";
-import { useUsdcTransfer } from "@/hooks/useUsdcTransfer";
 import { useWalletProfile } from "@/hooks/useWalletProfile";
 import { calculateGrossUsdc, calculateTradingFee, formatTradingFee } from "@/lib/fees";
 import {
   addComment,
+  approveMarketForTrading,
   castFreeVote,
   displayHandle,
   displayName,
-  executeMarketTrade,
   fetchMarketPositions,
   fetchPostComments,
   getMarketPrice,
@@ -34,8 +35,8 @@ interface MarketDetailProps {
 
 export default function MarketDetail({ marketId }: MarketDetailProps) {
   const { profile } = useWalletProfile();
-  const { transferToTreasury } = useUsdcTransfer();
   const balance = useUsdcBalance();
+  const { dailyVotes, reload: reloadDailyVotes } = useDailyVotes(profile?.id);
   const { items, loading, error, reload } = useFeed(profile?.id, true);
   const [actionError, setActionError] = useState<string | null>(null);
   const [comments, setComments] = useState<MarketComment[]>([]);
@@ -122,7 +123,7 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
     setPositions(nextPositions);
   }, [profileId]);
 
-  const runAction = useCallback(async (action: () => Promise<void>) => {
+  const runAction = useCallback(async (action: () => Promise<unknown>) => {
     if (!profileId) {
       setActionError("Connect your wallet before taking that action.");
       return;
@@ -132,12 +133,17 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
 
     try {
       await action();
-      await reload();
+      await Promise.all([reload(), reloadDailyVotes()]);
       if (item?.id && market?.id) await reloadDetailData(item.id, market.id);
     } catch (caught) {
       setActionError(caught instanceof Error ? caught.message : "Action failed.");
     }
-  }, [item, market, profileId, reload, reloadDetailData]);
+  }, [item, market, profileId, reload, reloadDailyVotes, reloadDetailData]);
+
+  const approveTrading = useCallback(async () => {
+    if (!market) return;
+    await runAction(() => approveMarketForTrading(market.id));
+  }, [market, runAction]);
 
   async function sharePost(post: FeedPost) {
     const text = post.market?.question || post.content;
@@ -155,40 +161,10 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
     if (!market) return;
 
     await runAction(async () => {
-      if (!validTradeAmount) throw new Error(tradeAction === "BUY" ? "Enter a USDC amount greater than 0." : "Enter shares greater than 0.");
-
-      if (tradeAction === "BUY") {
-        const feeAmount = calculateTradingFee(tradeAmountNumber, market.trading_fee_bps);
-        const grossAmount = calculateGrossUsdc(tradeAmountNumber, market.trading_fee_bps);
-        const payment = await transferToTreasury(grossAmount);
-
-        await executeMarketTrade({
-          market,
-          profileId: profileId!,
-          side,
-          action: "BUY",
-          amount: tradeAmountNumber,
-          feeAmount,
-          grossAmount,
-          txHash: payment.hash,
-        });
-        return;
-      }
-
-      const proceeds = tradeAmountNumber * getMarketPrice(market, side);
-      const feeAmount = calculateTradingFee(proceeds, market.trading_fee_bps);
-
-      await executeMarketTrade({
-        market,
-        profileId: profileId!,
-        side,
-        amount: tradeAmountNumber,
-        action: "SELL",
-        feeAmount,
-        grossAmount: Math.max(0, proceeds - feeAmount),
-      });
+      void side;
+      throw new Error("USDC trading is pending review and not active in this phase.");
     });
-  }, [market, profileId, runAction, tradeAction, tradeAmountNumber, transferToTreasury, validTradeAmount]);
+  }, [market, runAction]);
 
   async function submitComment() {
     if (!item || !market || !commentDraft.trim()) return;
@@ -212,7 +188,7 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
           action={tradeAction}
           amount={tradeAmount}
           balanceLabel={balance.balance.isLoading ? "..." : balance.formatted}
-          disabled={market.status !== "open" || !validTradeAmount}
+          disabled={market.status !== "tradable" || !validTradeAmount}
           estimatedShares={buyShares}
           fee={tradeFee}
           isConnected={isConnected}
@@ -359,6 +335,10 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
         yesCondition={market.yes_condition}
       />
 
+      <VerityAgentPanel market={market} />
+
+      <CreationReviewPanel market={market} onApprove={approveTrading} />
+
       <PositionPanel
         freeVote={item.viewerVote}
         market={market}
@@ -381,6 +361,8 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
         comments={item.commentsCount}
         freeNoVotes={market.free_no_votes}
         freeYesVotes={market.free_yes_votes}
+        dailyVotesRemaining={dailyVotes.votesRemaining}
+        marketStatus={market.status}
         onComment={() => document.getElementById("market-comment-input")?.focus()}
         onReshare={() => runAction(() => toggleReshare(item.id, profile!.id, item.viewerReshared))}
         onShare={() => sharePost(item)}
@@ -424,8 +406,8 @@ function MarketHero({
             <span>{time}</span>
           </div>
         </div>
-        <span className={`font-mono text-sm font-bold ${market.status === "open" ? "text-brand-secondary" : "text-[var(--muted)]"}`}>
-          {market.status === "open" ? "Active Market" : "Closed Market"}
+        <span className={`font-mono text-sm font-bold ${market.status === "voided" ? "text-[var(--muted)]" : "text-brand-secondary"}`}>
+          {market.status.replaceAll("_", " ")}
         </span>
       </div>
 
@@ -678,6 +660,68 @@ function RulesPanel({
   );
 }
 
+function shortHash(hash?: string | null) {
+  if (!hash) return "";
+  return `${hash.slice(0, 10)}...${hash.slice(-8)}`;
+}
+
+function CreationReviewPanel({
+  market,
+  onApprove,
+}: {
+  market: MarketPost;
+  onApprove: () => void;
+}) {
+  const creationHash = market.creation_fee_tx_hash || market.creationFeeTxHash;
+  const feeCollector = market.fee_collector_address || market.feeCollectorAddress;
+  const fee = market.market_creation_fee_usdc ?? 1;
+  const canApprove = market.status === "qualified";
+  const isTradable = market.status === "tradable";
+
+  return (
+    <section className="rounded-[12px] border border-[var(--border)] bg-[var(--surface)] p-5 shadow-sm">
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="font-black text-[var(--foreground)]">Creation & Review</h2>
+          <p className="mt-1 text-sm text-[var(--muted)]">
+            Prediction posts pay an Arc testnet creation fee before entering social qualification.
+          </p>
+        </div>
+        <span className="rounded-[7px] border border-brand-secondary/30 bg-brand-secondary/10 px-3 py-1 font-mono text-xs font-bold text-[var(--foreground)]">
+          {fee} USDC
+        </span>
+      </div>
+
+      <div className="grid gap-2 font-mono text-xs text-[var(--muted)]">
+        <div className="flex flex-wrap justify-between gap-3 border-t border-dashed border-[var(--border)] pt-3">
+          <span>Arc tx</span>
+          <span className="text-[var(--foreground)]">{creationHash ? shortHash(creationHash) : "Pending"}</span>
+        </div>
+        <div className="flex flex-wrap justify-between gap-3 border-t border-dashed border-[var(--border)] pt-3">
+          <span>Fee collector</span>
+          <span className="text-[var(--foreground)]">{feeCollector ? shortHash(feeCollector) : "Not recorded"}</span>
+        </div>
+        <div className="flex flex-wrap justify-between gap-3 border-t border-dashed border-[var(--border)] pt-3">
+          <span>System review</span>
+          <span className="text-[var(--foreground)]">
+            {isTradable ? "Approved for USDC trading" : canApprove ? "Ready for approval" : "Waiting for qualification"}
+          </span>
+        </div>
+      </div>
+
+      {canApprove && (
+        <button
+          className="mt-4 h-11 w-full rounded-[8px] bg-[var(--inverse)] font-mono text-xs font-black uppercase tracking-[0.14em] text-[var(--inverse-text)] transition-opacity hover:opacity-85"
+          onClick={onApprove}
+          type="button"
+        >
+          Approve for USDC Trading
+        </button>
+      )}
+    </section>
+  );
+}
+
 function PositionPanel({
   freeVote,
   market,
@@ -897,8 +941,10 @@ function CreatorPanel({
 
 function SocialActions({
   comments,
+  dailyVotesRemaining,
   freeNoVotes,
   freeYesVotes,
+  marketStatus,
   onComment,
   onReshare,
   onShare,
@@ -908,8 +954,10 @@ function SocialActions({
   viewerVote,
 }: {
   comments: number;
+  dailyVotesRemaining: number;
   freeNoVotes: number;
   freeYesVotes: number;
+  marketStatus: string;
   onComment: () => void;
   onReshare: () => void;
   onShare: () => void;
@@ -918,13 +966,15 @@ function SocialActions({
   reshared: boolean;
   viewerVote: VoteSide | null;
 }) {
+  const votingDisabled = !["open_for_votes", "qualified"].includes(marketStatus) || Boolean(viewerVote) || dailyVotesRemaining <= 0;
+
   return (
     <section className="rounded-[12px] border border-[var(--border)] bg-[var(--surface)] p-4 shadow-sm">
       <div className="flex items-center justify-between text-[var(--muted)]">
         <IconAction icon={<MessageCircle className="h-4 w-4" />} label={comments} onClick={onComment} />
         <IconAction active={reshared} icon={<Repeat2 className="h-4 w-4" />} label={reshares} onClick={onReshare} />
-        <IconAction active={viewerVote === "YES"} icon={<ArrowUp className="h-4 w-4" />} label={freeYesVotes} onClick={() => onVote("YES")} />
-        <IconAction active={viewerVote === "NO"} icon={<ArrowDown className="h-4 w-4" />} label={freeNoVotes} onClick={() => onVote("NO")} tone="no" />
+        <IconAction active={viewerVote === "YES"} disabled={votingDisabled} icon={<ArrowUp className="h-4 w-4" />} label={freeYesVotes} onClick={() => onVote("YES")} />
+        <IconAction active={viewerVote === "NO"} disabled={votingDisabled} icon={<ArrowDown className="h-4 w-4" />} label={freeNoVotes} onClick={() => onVote("NO")} tone="no" />
         <IconAction icon={<Share className="h-4 w-4" />} onClick={onShare} />
       </div>
     </section>
@@ -933,12 +983,14 @@ function SocialActions({
 
 function IconAction({
   active = false,
+  disabled = false,
   icon,
   label,
   onClick,
   tone = "yes",
 }: {
   active?: boolean;
+  disabled?: boolean;
   icon: ReactNode;
   label?: number;
   onClick: () => void;
@@ -949,6 +1001,7 @@ function IconAction({
       className={`flex items-center gap-2 transition-colors hover:text-[var(--foreground)] ${
         active ? (tone === "yes" ? "text-brand-secondary" : "text-downvote") : ""
       }`}
+      disabled={disabled}
       onClick={onClick}
       type="button"
     >

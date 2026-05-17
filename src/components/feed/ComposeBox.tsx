@@ -2,14 +2,15 @@
 
 import { useMemo, useState } from "react";
 import { Image as ImageIcon, BarChart2, Smile, MapPin } from "lucide-react";
-import { useUsdcTransfer } from "@/hooks/useUsdcTransfer";
+import { MARKET_CREATION_FEE_USDC } from "@/lib/fees";
 import {
   createMarketPost,
   createNormalPost,
   type MarketInput,
   type Profile,
 } from "@/lib/verity";
-import { formatTradingFee, MARKET_CREATION_FEE_USDC } from "@/lib/fees";
+import { reviewPredictionPost, type VerityAgentReview } from "@/lib/verityAgent";
+import { useUsdcTransfer } from "@/hooks/useUsdcTransfer";
 
 interface ComposeBoxProps {
   profile: Profile | null;
@@ -31,38 +32,95 @@ export default function ComposeBox({ profile, onCreated }: ComposeBoxProps) {
     yesCondition: "",
     noCondition: "",
   });
+  const [agentReview, setAgentReview] = useState<VerityAgentReview | null>(null);
+  const [reviewedSignature, setReviewedSignature] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const canSubmit = useMemo(() => {
-    if (!profile || saving) return false;
-    if (!isMarket) return content.trim().length > 0;
-
-    return (
+  const hasMarketFields = useMemo(
+    () =>
       market.question.trim().length > 0 &&
       market.category.trim().length > 0 &&
       market.deadline.trim().length > 0 &&
       market.resolutionSource.trim().length > 0 &&
       market.yesCondition.trim().length > 0 &&
-      market.noCondition.trim().length > 0
+      market.noCondition.trim().length > 0,
+    [market],
+  );
+
+  const marketSignature = useMemo(
+    () =>
+      JSON.stringify({
+        content: content.trim(),
+        question: market.question.trim(),
+        category: market.category.trim(),
+        deadline: market.deadline,
+        resolutionSource: market.resolutionSource.trim(),
+        yesCondition: market.yesCondition.trim(),
+        noCondition: market.noCondition.trim(),
+      }),
+    [content, market],
+  );
+
+  const liveAgentReview = useMemo(
+    () =>
+      reviewPredictionPost({
+        ...market,
+        content,
+      }),
+    [content, market],
+  );
+
+  const reviewIsCurrent = Boolean(agentReview && reviewedSignature === marketSignature);
+  const predictionApproved = Boolean(reviewIsCurrent && agentReview?.approved);
+  const visibleAgentReview = reviewIsCurrent && agentReview ? agentReview : liveAgentReview;
+
+  const canUsePrimaryAction = useMemo(() => {
+    if (!profile || saving) return false;
+    if (!isMarket) return content.trim().length > 0;
+    return hasMarketFields;
+  }, [content, hasMarketFields, isMarket, profile, saving]);
+
+  function runAgentReview() {
+    setAgentReview(liveAgentReview);
+    setReviewedSignature(marketSignature);
+    setError(liveAgentReview.approved ? null : liveAgentReview.summary);
+  }
+
+  const primaryLabel = useMemo(() => {
+    if (saving) return isMarket ? "Posting" : "Posting";
+    if (!isMarket) return "Post";
+    if (!predictionApproved) return "Review";
+    return `Pay ${MARKET_CREATION_FEE_USDC} USDC & Post`;
+  }, [isMarket, predictionApproved, saving]);
+
+  const marketReadyText = useMemo(() => {
+    return (
+      "Verity AI reviews prediction quality before the Arc testnet USDC creation payment is enabled."
     );
-  }, [content, isMarket, market, profile, saving]);
+  }, []);
 
   async function submit() {
-    if (!profile || !canSubmit) return;
+    if (!profile || !canUsePrimaryAction) return;
+
+    if (isMarket && !predictionApproved) {
+      runAgentReview();
+      return;
+    }
 
     setSaving(true);
     setError(null);
 
     try {
       if (isMarket) {
-        const feePayment = await transferToTreasury(MARKET_CREATION_FEE_USDC);
-        await createMarketPost(profile.id, {
+        const payment = await transferToTreasury(MARKET_CREATION_FEE_USDC);
+        const result = await createMarketPost(profile.id, {
           ...market,
           content,
-          creationFeeTxHash: feePayment.hash,
-          feeCollectorAddress: feePayment.treasuryAddress,
+          creationFeeTxHash: payment.hash,
+          feeCollectorAddress: payment.treasuryAddress,
         });
+        if (result.warning) setError(result.warning);
         setMarket({
           content: "",
           question: "",
@@ -72,6 +130,8 @@ export default function ComposeBox({ profile, onCreated }: ComposeBoxProps) {
           yesCondition: "",
           noCondition: "",
         });
+        setAgentReview(null);
+        setReviewedSignature("");
         setIsMarket(false);
       } else {
         await createNormalPost(profile.id, content);
@@ -105,8 +165,8 @@ export default function ComposeBox({ profile, onCreated }: ComposeBoxProps) {
         {isMarket && (
           <div className="mt-3 grid gap-2 rounded-[13px] border border-dashed border-[var(--border)] bg-[var(--surface-muted)] p-3">
             <div className="flex flex-wrap items-center justify-between gap-2 rounded-[8px] border border-[var(--border)] bg-[var(--surface)] px-3 py-2 font-mono text-[11px] text-[var(--muted)]">
-              <span>Create market fee: {MARKET_CREATION_FEE_USDC.toFixed(2)} USDC paid on submit</span>
-              <span>Trading fee: {formatTradingFee()} per trader</span>
+              <span>Prediction posts cost {MARKET_CREATION_FEE_USDC} Arc testnet USDC</span>
+              <span>Verity AI review required</span>
             </div>
             <input
               className="h-10 rounded-[8px] border border-[var(--border)] bg-[var(--surface)] px-3 text-sm text-[var(--foreground)] outline-none placeholder:text-[var(--muted)]"
@@ -151,6 +211,33 @@ export default function ComposeBox({ profile, onCreated }: ComposeBoxProps) {
                 value={market.noCondition}
               />
             </div>
+            <div className="rounded-[10px] border border-[var(--border)] bg-[var(--surface)] p-3">
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                <span className="font-mono text-[11px] font-black uppercase tracking-[0.12em] text-[var(--foreground)]">
+                  Verity AI Agent
+                </span>
+                <span className={`font-mono text-[11px] font-bold ${visibleAgentReview.approved ? "text-brand-secondary" : "text-downvote"}`}>
+                  {visibleAgentReview.score}/100
+                </span>
+              </div>
+              <p className="mb-2 text-sm text-[var(--muted)]">{reviewIsCurrent ? visibleAgentReview.summary : marketReadyText}</p>
+              <div className="grid gap-1">
+                {visibleAgentReview.findings.slice(0, 3).map((finding) => (
+                  <p
+                    className={`text-xs ${
+                      finding.severity === "blocker"
+                        ? "text-downvote"
+                        : finding.severity === "warning"
+                          ? "text-[var(--muted)]"
+                          : "text-brand-secondary"
+                    }`}
+                    key={finding.message}
+                  >
+                    {finding.message}
+                  </p>
+                ))}
+              </div>
+            </div>
           </div>
         )}
 
@@ -158,7 +245,7 @@ export default function ComposeBox({ profile, onCreated }: ComposeBoxProps) {
         
         <div className="mt-2 flex items-center justify-between border-t border-dashed border-[var(--border)] pt-3">
           <div className="flex items-center gap-1 text-[var(--muted)]">
-            <button aria-label="Add image" className="rounded-full p-2 transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--foreground)]">
+            <button aria-label="Add image" className="rounded-full p-2 transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--foreground)]" type="button">
               <ImageIcon className="w-5 h-5" />
             </button>
             <button
@@ -172,25 +259,25 @@ export default function ComposeBox({ profile, onCreated }: ComposeBoxProps) {
             >
               <BarChart2 className="w-5 h-5" />
             </button>
-            <button aria-label="Add emoji" className="hidden rounded-full p-2 transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--foreground)] sm:block">
+            <button aria-label="Add emoji" className="hidden rounded-full p-2 transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--foreground)] sm:block" type="button">
               <Smile className="w-5 h-5" />
             </button>
-            <button aria-label="Add location" className="hidden rounded-full p-2 transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--foreground)] sm:block">
+            <button aria-label="Add location" className="hidden rounded-full p-2 transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--foreground)] sm:block" type="button">
               <MapPin className="w-5 h-5" />
             </button>
           </div>
           
           <button
             className={`rounded-[10px] px-5 py-2 font-mono text-[10px] font-black uppercase tracking-[0.16em] transition-opacity ${
-              canSubmit
+              canUsePrimaryAction
                 ? "bg-[var(--inverse)] text-[var(--inverse-text)] hover:opacity-85"
                 : "cursor-not-allowed bg-zinc-300 text-zinc-500"
             }`}
-            disabled={!canSubmit}
+            disabled={!canUsePrimaryAction}
             onClick={submit}
             type="button"
           >
-            {saving ? "Posting" : isMarket ? "Market" : "Post"}
+            {primaryLabel}
           </button>
         </div>
       </div>

@@ -1,11 +1,12 @@
 # Verity
 
-Verity is a social prediction app built with Next.js, Supabase, RainbowKit, wagmi, and viem. It supports normal social posts plus opinion market posts where users can cast free YES/NO opinions or back a side with Arc testnet USDC.
+Verity is a social prediction app built with a MERN-style architecture: Next.js/React on the frontend, plus a modular Express, Node.js, TypeScript, and MongoDB backend. It supports normal social posts plus opinion market posts where users can cast free YES/NO opinions or back a side with Arc testnet USDC.
 
 ## Current MVP
 
 - Wallet identity with RainbowKit and Arc testnet support
-- Supabase-backed profiles, posts, market posts, comments, likes, reshares, and free votes
+- MongoDB-backed profiles, posts, market posts, comments, likes, reshares, and free votes
+- JWT auth endpoints for email/password registration and login
 - Normal posts with like, comment, reshare, and share actions
 - Opinion market posts with free upvote/downvote sentiment
 - Arc testnet USDC balance reads from the connected wallet
@@ -19,9 +20,38 @@ Verity is a social prediction app built with Next.js, Supabase, RainbowKit, wagm
 - React 19
 - TypeScript
 - Tailwind CSS
-- Supabase
+- MongoDB, Express, Node.js, Mongoose
 - RainbowKit, wagmi, viem
 - Arc testnet USDC ERC20 reads and transfers
+
+## Project Structure
+
+```text
+backend/
+  src/
+    config/
+    middlewares/
+    modules/
+      auth/
+      comments/
+      interactions/
+      markets/
+      posts/
+      users/
+    utils/
+    app.ts
+    server.ts
+src/
+  api/
+    auth.ts
+    client.ts
+    users.ts
+    verity.ts
+  app/
+  components/
+  hooks/
+  lib/
+```
 
 ## Environment
 
@@ -31,11 +61,10 @@ Create `.env.local` from `.env.example`:
 cp .env.example .env.local
 ```
 
-Required public variables:
+Frontend variables:
 
 ```bash
-NEXT_PUBLIC_SUPABASE_URL=
-NEXT_PUBLIC_SUPABASE_ANON_KEY=
+NEXT_PUBLIC_API_URL=http://localhost:5000/api
 NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID=
 NEXT_PUBLIC_ARC_TESTNET_RPC_URL=https://rpc.testnet.arc.network
 NEXT_PUBLIC_ARC_TESTNET_CHAIN_ID=5042002
@@ -43,24 +72,52 @@ NEXT_PUBLIC_ARC_TESTNET_USDC_ADDRESS=0x3600000000000000000000000000000000000000
 NEXT_PUBLIC_VERITY_TREASURY_ADDRESS=
 ```
 
-Do not commit `.env.local`, private keys, or Supabase service role keys.
+Backend defaults live in `backend/.env`:
 
-## Supabase Setup
-
-Run the SQL migrations in order from the Supabase SQL editor:
-
-```text
-supabase/migrations/0001_phase2_schema.sql
-supabase/migrations/0002_add_market_fee_defaults.sql
-supabase/migrations/0003_add_usdc_vote_audit_fields.sql
-supabase/migrations/0004_add_market_positions_trades.sql
+```bash
+PORT=5000
+CLIENT_ORIGIN=http://localhost:3000
+MONGODB_URI=mongodb://127.0.0.1:27017/verity
+JWT_SECRET=replace-with-a-long-random-secret-before-production
+JWT_EXPIRES_IN=7d
 ```
 
-The app uses the publishable anon key from Supabase. Current RLS policies are permissive for the wallet-auth MVP and should be tightened before production.
+Do not commit `.env.local`, private keys, or production secrets.
 
-## Local Development
+## MongoDB Setup
 
-Install dependencies:
+This workstation does not currently expose `mongod` on PATH or a `MongoDB` Windows service. Install MongoDB Community Server for Windows, then start the service from Services or run MongoDB manually before starting the backend.
+
+The default local connection string is:
+
+```text
+mongodb://127.0.0.1:27017/verity
+```
+
+## Backend Development
+
+Install backend dependencies:
+
+```bash
+cd backend
+npm install
+```
+
+Run the API:
+
+```bash
+npm run dev
+```
+
+Health check:
+
+```text
+GET http://localhost:5000/health
+```
+
+## Frontend Development
+
+Install frontend dependencies:
 
 ```bash
 npm install
@@ -78,14 +135,52 @@ Open `http://localhost:3000`. If that port is busy, run:
 npm run dev -- --port 3001
 ```
 
+## API Endpoints
+
+```text
+POST /api/auth/register
+POST /api/auth/login
+GET  /api/auth/me
+
+GET   /api/users/wallet/:walletAddress
+PATCH /api/users/:id
+
+GET  /api/posts
+POST /api/posts
+POST /api/posts/market
+
+GET  /api/comments?postId=:postId
+POST /api/comments
+
+POST /api/interactions/like
+POST /api/interactions/reshare
+
+GET  /api/markets/:marketId/positions?profileId=:profileId
+GET  /api/markets/:marketId/trades
+POST /api/markets/:marketId/free-vote
+POST /api/markets/:marketId/trade
+```
+
+## Migration Mapping
+
+| Previous responsibility | MERN replacement |
+| --- | --- |
+| Hosted Postgres tables | MongoDB collections via Mongoose models |
+| Client data SDK | `src/api/*` REST service layer |
+| Auth provider | JWT endpoints in `backend/src/modules/auth` |
+| Row-level policies | Express validation, services, and middleware |
+| SQL migrations | Mongoose schemas and indexes |
+| Realtime channels | Not used in current MVP; add Socket.io module if needed |
+
 ## Checks
 
 ```bash
 npm run lint
 npm run build
+cd backend && npm run build
 ```
 
-Both should pass before pushing changes.
+All should pass before pushing changes.
 
 ## Product Rules
 
@@ -110,15 +205,3 @@ Opinion market posts:
 - Payout preview is an estimate based on in-app shares and assumes a correct outcome pays `$1` per share.
 - Pricing is currently based on simple implied market share, not a production AMM or order book.
 - Market resolution, oracle/AI settlement, payouts, fee splitting, and dispute flows are not implemented yet.
-- RLS policies are MVP-friendly and need wallet signature auth or Supabase Auth hardening before mainnet.
-
-## Next Phase
-
-Recommended next build phase:
-
-- Add a real market escrow contract
-- Move USDC backing and selling into on-chain contract calls
-- Implement claimable payouts after resolution
-- Add market resolution workflow and audit trail
-- Add historical sentiment snapshots and charting
-- Tighten Supabase write policies around authenticated wallet ownership

@@ -4,14 +4,12 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { SlidersHorizontal } from "lucide-react";
 import MarketCard from "@/components/post/MarketCard";
+import { useDailyVotes } from "@/hooks/useDailyVotes";
 import { useFeed } from "@/hooks/useFeed";
-import { useUsdcTransfer } from "@/hooks/useUsdcTransfer";
 import { useWalletProfile } from "@/hooks/useWalletProfile";
-import { calculateGrossUsdc, calculateTradingFee } from "@/lib/fees";
 import {
   addComment,
   castFreeVote,
-  castUsdcVote,
   displayHandle,
   displayName,
   relativeTime,
@@ -24,11 +22,11 @@ import {
 export default function MarketBoard() {
   const router = useRouter();
   const { profile } = useWalletProfile();
-  const { transferToTreasury } = useUsdcTransfer();
+  const { dailyVotes, reload: reloadDailyVotes } = useDailyVotes(profile?.id);
   const { items, loading, error, reload } = useFeed(profile?.id, true);
   const [actionError, setActionError] = useState<string | null>(null);
 
-  async function runAction(action: () => Promise<void>) {
+  async function runAction(action: () => Promise<unknown>) {
     if (!profile) {
       setActionError("Connect your wallet before voting.");
       return;
@@ -38,7 +36,7 @@ export default function MarketBoard() {
 
     try {
       await action();
-      await reload();
+      await Promise.all([reload(), reloadDailyVotes()]);
     } catch (caught) {
       setActionError(caught instanceof Error ? caught.message : "Action failed.");
     }
@@ -58,24 +56,6 @@ export default function MarketBoard() {
       return;
     }
     await navigator.clipboard.writeText(`${text}\n${url}`);
-  }
-
-  async function backMarketWithUsdc(market: MarketPost, side: VoteSide, amount: number) {
-    await runAction(async () => {
-      const feeAmount = calculateTradingFee(amount, market.trading_fee_bps);
-      const grossAmount = calculateGrossUsdc(amount, market.trading_fee_bps);
-      const payment = await transferToTreasury(grossAmount);
-
-      await castUsdcVote({
-        market,
-        profileId: profile!.id,
-        side,
-        amount,
-        feeAmount,
-        grossAmount,
-        txHash: payment.hash,
-      });
-    });
   }
 
   return (
@@ -124,7 +104,7 @@ export default function MarketBoard() {
                 onOpenDetails={() => router.push(`/markets/${item.market!.id}`)}
                 onReshare={() => runAction(() => toggleReshare(item.id, profile!.id, item.viewerReshared))}
                 onShare={() => sharePost(item)}
-                onUsdcVote={(side, amount) => backMarketWithUsdc(item.market as MarketPost, side, amount)}
+                onUsdcVote={() => setActionError("USDC trading is pending review and not active in this phase.")}
                 onVote={(side) => runAction(() => castFreeVote(item.market as MarketPost, profile!.id, side as VoteSide))}
                 postContent={item.content}
                 question={item.market.question}
@@ -133,10 +113,18 @@ export default function MarketBoard() {
                 reshared={item.viewerReshared}
                 status={item.market.status}
                 time={relativeTime(item.created_at)}
+                dailyVotesRemaining={dailyVotes.votesRemaining}
+                qualificationThreshold={item.market.qualificationThreshold}
+                totalFreeVotes={item.market.totalFreeVotes}
                 tradingFeeBps={item.market.trading_fee_bps}
+                uniqueVoterThreshold={item.market.uniqueVoterThreshold}
+                uniqueVotersCount={item.market.uniqueVotersCount}
                 usdcNo={Number(item.market.usdc_no_amount)}
                 usdcYes={Number(item.market.usdc_yes_amount)}
                 viewerVote={item.viewerVote}
+                votingDisabledMessage={
+                  dailyVotes.votesRemaining <= 0 ? "You have used all 10 votes today. Votes reset tomorrow." : null
+                }
                 yesCondition={item.market.yes_condition}
                 yesPercent={calculateYesPercent(item.market)}
               />

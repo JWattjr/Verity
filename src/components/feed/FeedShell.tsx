@@ -6,14 +6,12 @@ import ComposeBox from "@/components/feed/ComposeBox";
 import FeedTabs, { type FeedTabId } from "@/components/feed/FeedTabs";
 import MarketCard from "@/components/post/MarketCard";
 import PostCard from "@/components/post/PostCard";
+import { useDailyVotes } from "@/hooks/useDailyVotes";
 import { useFeed } from "@/hooks/useFeed";
-import { useUsdcTransfer } from "@/hooks/useUsdcTransfer";
 import { useWalletProfile } from "@/hooks/useWalletProfile";
-import { calculateGrossUsdc, calculateTradingFee } from "@/lib/fees";
 import {
   addComment,
   castFreeVote,
-  castUsdcVote,
   displayHandle,
   displayName,
   relativeTime,
@@ -40,7 +38,7 @@ export default function FeedShell() {
   const [activeTab, setActiveTab] = useState<FeedTabId>("for-you");
   const [activeCategory, setActiveCategory] = useState<FeedCategory | null>(null);
   const { profile } = useWalletProfile();
-  const { transferToTreasury } = useUsdcTransfer();
+  const { dailyVotes, reload: reloadDailyVotes } = useDailyVotes(profile?.id);
   const { items, loading, error, reload } = useFeed(profile?.id, activeTab === "markets");
   const [actionError, setActionError] = useState<string | null>(null);
 
@@ -49,7 +47,7 @@ export default function FeedShell() {
     return items.filter((item) => item.market?.category === activeCategory);
   }, [activeCategory, items]);
 
-  async function runAction(action: () => Promise<void>) {
+  async function runAction(action: () => Promise<unknown>) {
     if (!profile) {
       setActionError("Connect a wallet before taking that action.");
       return;
@@ -59,7 +57,7 @@ export default function FeedShell() {
 
     try {
       await action();
-      await reload();
+      await Promise.all([reload(), reloadDailyVotes()]);
     } catch (caught) {
       setActionError(caught instanceof Error ? caught.message : "Action failed.");
     }
@@ -81,24 +79,6 @@ export default function FeedShell() {
     }
 
     await navigator.clipboard.writeText(`${text}\n${url}`);
-  }
-
-  async function backMarketWithUsdc(market: MarketPost, side: VoteSide, amount: number) {
-    await runAction(async () => {
-      const feeAmount = calculateTradingFee(amount, market.trading_fee_bps);
-      const grossAmount = calculateGrossUsdc(amount, market.trading_fee_bps);
-      const payment = await transferToTreasury(grossAmount);
-
-      await castUsdcVote({
-        market,
-        profileId: profile!.id,
-        side,
-        amount,
-        feeAmount,
-        grossAmount,
-        txHash: payment.hash,
-      });
-    });
   }
 
   return (
@@ -153,12 +133,13 @@ export default function FeedShell() {
             <FeedCard
               item={item}
               key={item.id}
+              dailyVotesRemaining={dailyVotes.votesRemaining}
               onComment={() => commentOn(item)}
               onLike={() => runAction(() => toggleLike(item.id, profile!.id, item.viewerLiked))}
               onOpenMarket={(market) => router.push(`/markets/${market.id}`)}
               onReshare={() => runAction(() => toggleReshare(item.id, profile!.id, item.viewerReshared))}
               onShare={() => sharePost(item)}
-              onUsdcVote={(market, side, amount) => backMarketWithUsdc(market, side, amount)}
+              onUsdcVote={() => setActionError("USDC trading is pending review and not active in this phase.")}
               onVote={(market, side) => runAction(() => castFreeVote(market, profile!.id, side))}
             />
           ))
@@ -174,6 +155,7 @@ export default function FeedShell() {
 
 function FeedCard({
   item,
+  dailyVotesRemaining,
   onComment,
   onLike,
   onOpenMarket,
@@ -183,6 +165,7 @@ function FeedCard({
   onVote,
 }: {
   item: FeedPost;
+  dailyVotesRemaining: number;
   onComment: () => void;
   onLike: () => void;
   onOpenMarket: (market: MarketPost) => void;
@@ -218,10 +201,18 @@ function FeedCard({
         reshared={item.viewerReshared}
         status={item.market.status}
         time={relativeTime(item.created_at)}
+        dailyVotesRemaining={dailyVotesRemaining}
+        qualificationThreshold={item.market.qualificationThreshold}
+        totalFreeVotes={item.market.totalFreeVotes}
         tradingFeeBps={item.market.trading_fee_bps}
+        uniqueVoterThreshold={item.market.uniqueVoterThreshold}
+        uniqueVotersCount={item.market.uniqueVotersCount}
         usdcNo={Number(item.market.usdc_no_amount)}
         usdcYes={Number(item.market.usdc_yes_amount)}
         viewerVote={item.viewerVote}
+        votingDisabledMessage={
+          dailyVotesRemaining <= 0 ? "You have used all 10 votes today. Votes reset tomorrow." : null
+        }
         yesCondition={item.market.yes_condition}
         yesPercent={yesPercent}
       />

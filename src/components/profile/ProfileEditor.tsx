@@ -33,6 +33,27 @@ export default function ProfileEditor() {
         </div>
       </div>
 
+      {profile && (
+        <div className="mt-5 rounded-[10px] border border-dashed border-[var(--border)] bg-[var(--surface-muted)] p-4">
+          <div className="flex items-center justify-between gap-3">
+            <span className="font-mono text-xs font-black uppercase tracking-[0.14em] text-[var(--muted)]">
+              Signal Points
+            </span>
+            <span className="font-mono text-lg font-black text-[var(--foreground)]">
+              {profile.signalPoints || 0}
+            </span>
+          </div>
+          <div className="mt-4 grid grid-cols-3 gap-2">
+            <SignalMetric label="Correct" value={profile.freeVotesCorrect || 0} />
+            <SignalMetric label="Wrong" value={profile.freeVotesWrong || 0} />
+            <SignalMetric label="Total" value={profile.freeVotesTotal || 0} />
+          </div>
+          <p className="mt-2 text-sm text-[var(--muted)]">
+            Signal Points activate when markets resolve. Correct early votes and correct minority votes earn bonus reputation.
+          </p>
+        </div>
+      )}
+
       <ProfileForm
         error={error}
         key={profile?.id || "empty"}
@@ -41,6 +62,15 @@ export default function ProfileEditor() {
         setProfile={setProfile}
       />
     </section>
+  );
+}
+
+function SignalMetric({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-[8px] bg-[var(--surface)] p-3">
+      <p className="font-mono text-base font-black text-[var(--foreground)]">{value}</p>
+      <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--muted)]">{label}</p>
+    </div>
   );
 }
 
