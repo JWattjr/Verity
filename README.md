@@ -1,207 +1,152 @@
 # Verity
 
-Verity is a social prediction app built with a MERN-style architecture: Next.js/React on the frontend, plus a modular Express, Node.js, TypeScript, and MongoDB backend. It supports normal social posts plus opinion market posts where users can cast free YES/NO opinions or back a side with Arc testnet USDC.
+Verity is a social prediction and opinion market platform. It is structured as a **pnpm monorepo** consisting of a modern Next.js frontend and a modular, highly scalable NestJS backend.
 
-## Current MVP
+Users can share normal social posts, create opinion/prediction market posts with YES/NO resolution criteria, cast free sentiment votes, or purchase USDC-backed YES/NO positions using the Arc Testnet.
 
-- Wallet identity with RainbowKit and Arc testnet support
-- MongoDB-backed profiles, posts, market posts, comments, likes, reshares, and free votes
-- JWT auth endpoints for email/password registration and login
-- Normal posts with like, comment, reshare, and share actions
-- Opinion market posts with free upvote/downvote sentiment
-- Arc testnet USDC balance reads from the connected wallet
-- Market creation fee and trading fee defaults
-- USDC-backed buy/sell ledger for YES and NO positions
-- Market detail pages with rules, USDC sentiment, trade ticket, position summary, and payout preview
+---
 
-## Stack
+## Technical Stack
 
-- Next.js 16 App Router
-- React 19
-- TypeScript
-- Tailwind CSS
-- MongoDB, Express, Node.js, Mongoose
-- RainbowKit, wagmi, viem
-- Arc testnet USDC ERC20 reads and transfers
+### Monorepo Structure
+
+- **Package Manager:** `pnpm` with Workspaces
+- **Frontend:** Next.js (App Router), React 19, Tailwind CSS, Radix UI, Lucide Icons
+- **Web3 Integration:** RainbowKit, Wagmi, Viem (Arc Testnet USDC transfers & reads)
+- **Backend:** NestJS 11 (Modular architectural patterns, Dependency Injection)
+- **Database:** MongoDB via Mongoose (ODM), MongoDB Indexing
+- **Validation & Security:** `class-validator`, `class-transformer`, JWT authentication
+
+---
 
 ## Project Structure
 
 ```text
-backend/
-  src/
-    config/
-    middlewares/
-    modules/
-      auth/
-      comments/
-      interactions/
-      markets/
-      posts/
-      users/
-    utils/
-    app.ts
-    server.ts
-src/
-  api/
-    auth.ts
-    client.ts
-    users.ts
-    verity.ts
-  app/
-  components/
-  hooks/
-  lib/
+Verity/
+├── frontend/                  # Next.js Application
+│   ├── src/
+│   │   ├── api/              # API Clients & Service Layer
+│   │   ├── app/              # Next.js App Router Pages
+│   │   ├── components/       # UI & Domain Components
+│   │   ├── hooks/            # Custom React Hooks
+│   │   └── lib/              # Shared Helper Utilities
+│   └── package.json
+│
+├── backend/                   # NestJS Application
+│   ├── src/
+│   │   ├── common/           # HTTP Filters, Guards, Response Interceptors
+│   │   ├── modules/          # Modular NestJS Domain Modules
+│   │   │   ├── auth/         # JWT and Account Authentication
+│   │   │   ├── comments/     # Posts Comments
+│   │   │   ├── interactions/ # Likes & Reshares
+│   │   │   ├── markets/      # Predictions, Trades, Votes, Positions
+│   │   │   ├── posts/        # Feed Posts
+│   │   │   └── users/        # Wallet Profiles & Meta
+│   │   ├── main.ts           # NestJS Server Entry Point
+│   │   └── seed.ts           # MongoDB Seeding & Mock Database Generator
+│   └── package.json
+│
+├── package.json               # Monorepo Workspace Scripts
+├── pnpm-workspace.yaml        # Monorepo Packages Declaration
+└── pnpm-lock.yaml
 ```
 
-## Environment
+---
 
-Create `.env.local` from `.env.example`:
+## Getting Started
+
+### 1. Prerequisites
+
+Ensure you have Node.js (v18+) and `pnpm` installed on your machine. You will also need a running local instance of MongoDB (default: `mongodb://127.0.0.1:27017/verity`).
+
+### 2. Install Monorepo Dependencies
+
+From the root of the workspace, run:
 
 ```bash
-cp .env.example .env.local
+pnpm install:all
 ```
 
-Frontend variables:
+### 3. Setup Environment Variables
+
+#### Frontend Environment
+
+Create a `frontend/.env.local` file from the example:
 
 ```bash
-NEXT_PUBLIC_API_URL=http://localhost:5000/api
-NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID=
-NEXT_PUBLIC_ARC_TESTNET_RPC_URL=https://rpc.testnet.arc.network
-NEXT_PUBLIC_ARC_TESTNET_CHAIN_ID=5042002
-NEXT_PUBLIC_ARC_TESTNET_USDC_ADDRESS=0x3600000000000000000000000000000000000000
-NEXT_PUBLIC_VERITY_TREASURY_ADDRESS=
+cp frontend/.env.example frontend/.env.local
 ```
 
-Backend defaults live in `backend/.env`:
+Add the necessary variables (e.g. WalletConnect Project ID):
+
+- `NEXT_PUBLIC_API_URL` (default: `http://localhost:5050/api`)
+- `NEXT_PUBLIC_APP_URL` (default: `http://localhost:3000`)
+- `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID`
+
+#### Backend Environment
+
+Create a `backend/.env` file from the example:
 
 ```bash
-PORT=5000
-CLIENT_ORIGIN=http://localhost:3000
-MONGODB_URI=mongodb://127.0.0.1:27017/verity
-JWT_SECRET=replace-with-a-long-random-secret-before-production
-JWT_EXPIRES_IN=7d
+cp backend/.env.example backend/.env
 ```
 
-Do not commit `.env.local`, private keys, or production secrets.
+Ensure database connection strings and JWT credentials are set:
 
-## MongoDB Setup
+- `MONGODB_URI` (default: `mongodb://127.0.0.1:27017/verity`)
+- `PORT` (default: `5050`)
+- `JWT_SECRET` (generate a secure secret)
 
-This workstation does not currently expose `mongod` on PATH or a `MongoDB` Windows service. Install MongoDB Community Server for Windows, then start the service from Services or run MongoDB manually before starting the backend.
+---
 
-The default local connection string is:
+## Development Workflow
 
-```text
-mongodb://127.0.0.1:27017/verity
-```
+You can start both applications concurrently from the root directory:
 
-## Backend Development
+### Run Development Servers
 
-Install backend dependencies:
+- **Concurrently (Frontend & Backend):**
+  Use two separate terminal tabs to run:
+  ```bash
+  pnpm dev:frontend
+  pnpm dev:backend
+  ```
+
+### Seed Mock Data
+
+To populate your local MongoDB with a clean, fully-functioning dataset (users, posts, active prediction markets, mock votes, and comments):
 
 ```bash
-cd backend
-npm install
+pnpm --filter verity-backend seed
 ```
 
-Run the API:
+---
+
+## Core Product Rules & Features
+
+### 1. Social Feed
+
+- **Normal Posts:** Supports standard micro-blogging features including liking, replying, and resharing.
+- **Wallet Profiles:** Users are identified securely via their Web3 wallet addresses. Profiles can be edited to include custom names, bios, and avatars.
+
+### 2. Prediction & Signal Markets
+
+- **Creation:** Prediction posts ask a specific Yes/No question and specify a resolution source, YES/NO criteria, a category, and a deadline.
+- **AI Quality Review:** The **Verity AI Agent** automatically grades the quality of a prediction question (e.g., verifying it is highly measurable and objective) before allowing creation.
+- **Free Voting:** Users can cast daily free sentiment votes (YES/NO) to help qualify markets for review.
+- **USDC Trading:** Users can purchase positions on outcome tokens (YES or NO shares) using Arc Testnet USDC.
+- **My Wallet Dashboard:** Shows transaction histories, daily vote usage (capped per day), and active prediction positions.
+
+---
+
+## Verification & Build Checks
+
+Before committing or submitting a pull request, run the following verification checks from the monorepo root:
 
 ```bash
-npm run dev
+# Build the Next.js Frontend
+pnpm build:frontend
+
+# Build the NestJS Backend
+pnpm build:backend
 ```
-
-Health check:
-
-```text
-GET http://localhost:5000/health
-```
-
-## Frontend Development
-
-Install frontend dependencies:
-
-```bash
-npm install
-```
-
-Run the app:
-
-```bash
-npm run dev
-```
-
-Open `http://localhost:3000`. If that port is busy, run:
-
-```bash
-npm run dev -- --port 3001
-```
-
-## API Endpoints
-
-```text
-POST /api/auth/register
-POST /api/auth/login
-GET  /api/auth/me
-
-GET   /api/users/wallet/:walletAddress
-PATCH /api/users/:id
-
-GET  /api/posts
-POST /api/posts
-POST /api/posts/market
-
-GET  /api/comments?postId=:postId
-POST /api/comments
-
-POST /api/interactions/like
-POST /api/interactions/reshare
-
-GET  /api/markets/:marketId/positions?profileId=:profileId
-GET  /api/markets/:marketId/trades
-POST /api/markets/:marketId/free-vote
-POST /api/markets/:marketId/trade
-```
-
-## Migration Mapping
-
-| Previous responsibility | MERN replacement |
-| --- | --- |
-| Hosted Postgres tables | MongoDB collections via Mongoose models |
-| Client data SDK | `src/api/*` REST service layer |
-| Auth provider | JWT endpoints in `backend/src/modules/auth` |
-| Row-level policies | Express validation, services, and middleware |
-| SQL migrations | Mongoose schemas and indexes |
-| Realtime channels | Not used in current MVP; add Socket.io module if needed |
-
-## Checks
-
-```bash
-npm run lint
-npm run build
-cd backend && npm run build
-```
-
-All should pass before pushing changes.
-
-## Product Rules
-
-Normal posts:
-
-- Like, comment, reshare, share
-- No market
-- No USDC backing
-
-Opinion market posts:
-
-- Question, category, deadline, resolution source, YES condition, NO condition, status
-- Free upvote means YES
-- Free downvote means NO
-- YES/NO buttons in the trade ticket are for USDC-backed positions
-- Market sentiment reflects USDC-backed opinions only
-
-## Known Limitations
-
-- USDC-backed buys transfer Arc testnet USDC to the treasury address, but there is not yet an escrow smart contract.
-- Sell orders currently update the in-app ledger only. They do not transfer USDC back on-chain.
-- Payout preview is an estimate based on in-app shares and assumes a correct outcome pays `$1` per share.
-- Pricing is currently based on simple implied market share, not a production AMM or order book.
-- Market resolution, oracle/AI settlement, payouts, fee splitting, and dispute flows are not implemented yet.
