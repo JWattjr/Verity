@@ -1,4 +1,4 @@
-import { IsBoolean, IsMongoId, IsOptional, IsString, Length, IsISO8601 } from "class-validator";
+import { IsBoolean, IsMongoId, IsOptional, IsString, Length, IsISO8601, IsNotEmpty } from "class-validator";
 import { Transform } from "class-transformer";
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 
@@ -92,4 +92,53 @@ export class CreateMarketPostDto {
   @IsString()
   @Length(1, 120, { message: "Prediction posts require the Arc testnet fee collector address." })
   feeCollectorAddress: string;
+}
+
+export class AddCommentDto {
+  @ApiPropertyOptional({ description: "Author User ID", example: "60d0fe4f5311236168a109ca" })
+  @IsString()
+  @IsOptional()
+  authorId?: string;
+
+  @ApiPropertyOptional({ description: "Alternative profile ID", example: "60d0fe4f5311236168a109ca" })
+  @IsString()
+  @IsOptional()
+  profileId?: string;
+
+  @ApiProperty({ description: "Comment body content", example: "This is a great market!" })
+  @IsString()
+  @IsNotEmpty()
+  content: string;
+}
+
+export class ToggleLikeDto {
+  @ApiPropertyOptional({ description: "User ID", example: "60d0fe4f5311236168a109ca" })
+  @IsString()
+  @IsOptional()
+  userId?: string;
+
+  @ApiPropertyOptional({ description: "Alternative profile ID", example: "60d0fe4f5311236168a109ca" })
+  @IsString()
+  @IsOptional()
+  profileId?: string;
+
+  @ApiProperty({ description: "Set active like status", example: true })
+  @IsBoolean()
+  currentlyActive: boolean;
+}
+
+export class ToggleReshareDto {
+  @ApiPropertyOptional({ description: "User ID", example: "60d0fe4f5311236168a109ca" })
+  @IsString()
+  @IsOptional()
+  userId?: string;
+
+  @ApiPropertyOptional({ description: "Alternative profile ID", example: "60d0fe4f5311236168a109ca" })
+  @IsString()
+  @IsOptional()
+  profileId?: string;
+
+  @ApiProperty({ description: "Set active reshare status", example: true })
+  @IsBoolean()
+  currentlyActive: boolean;
 }

@@ -1,59 +1,9 @@
 import { Body, Controller, Get, HttpCode, HttpStatus, Param, Post, Query } from "@nestjs/common";
 import { PostsService } from "./posts.service";
-import { FeedQueryDto, CreatePostDto, CreateMarketPostDto } from "./posts.dto";
+import { FeedQueryDto, CreatePostDto, CreateMarketPostDto, AddCommentDto, ToggleLikeDto, ToggleReshareDto } from "./posts.dto";
 import { CommentsService } from "../comments/comments.service";
 import { InteractionsService } from "../interactions/interactions.service";
-import { ApiTags, ApiOperation, ApiParam, ApiBody, ApiResponse, ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
-import { IsString, IsOptional, IsBoolean, IsNotEmpty } from "class-validator";
-
-class AddCommentDto {
-  @ApiPropertyOptional({ description: "Author User ID", example: "60d0fe4f5311236168a109ca" })
-  @IsString()
-  @IsOptional()
-  authorId?: string;
-
-  @ApiPropertyOptional({ description: "Alternative profile ID", example: "60d0fe4f5311236168a109ca" })
-  @IsString()
-  @IsOptional()
-  profileId?: string;
-
-  @ApiProperty({ description: "Comment body content", example: "This is a great market!" })
-  @IsString()
-  @IsNotEmpty()
-  content: string;
-}
-
-class ToggleLikeDto {
-  @ApiPropertyOptional({ description: "User ID", example: "60d0fe4f5311236168a109ca" })
-  @IsString()
-  @IsOptional()
-  userId?: string;
-
-  @ApiPropertyOptional({ description: "Alternative profile ID", example: "60d0fe4f5311236168a109ca" })
-  @IsString()
-  @IsOptional()
-  profileId?: string;
-
-  @ApiProperty({ description: "Set active like status", example: true })
-  @IsBoolean()
-  currentlyActive: boolean;
-}
-
-class ToggleReshareDto {
-  @ApiPropertyOptional({ description: "User ID", example: "60d0fe4f5311236168a109ca" })
-  @IsString()
-  @IsOptional()
-  userId?: string;
-
-  @ApiPropertyOptional({ description: "Alternative profile ID", example: "60d0fe4f5311236168a109ca" })
-  @IsString()
-  @IsOptional()
-  profileId?: string;
-
-  @ApiProperty({ description: "Set active reshare status", example: true })
-  @IsBoolean()
-  currentlyActive: boolean;
-}
+import { ApiTags, ApiOperation, ApiParam, ApiBody, ApiResponse } from "@nestjs/swagger";
 
 @ApiTags("posts")
 @Controller(["posts", "feed"])

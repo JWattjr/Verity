@@ -1,25 +1,7 @@
 import { Body, Controller, Get, HttpCode, HttpStatus, Param, Post, Query } from "@nestjs/common";
 import { MarketsService } from "./markets.service";
-import { FetchMarketsQueryDto, CastFreeVoteDto, ExecuteTradeDto } from "./markets.dto";
-import { ApiTags, ApiOperation, ApiParam, ApiBody, ApiQuery, ApiResponse, ApiProperty } from "@nestjs/swagger";
-import { IsString, IsNotEmpty, IsIn } from "class-validator";
-
-class ResolveMarketDto {
-  @ApiProperty({ description: "Winning outcome", enum: ["YES", "NO"], example: "YES" })
-  @IsString()
-  @IsIn(["YES", "NO"])
-  winningOutcome: "YES" | "NO";
-
-  @ApiProperty({ description: "Transaction hash of the resolution on-chain", example: "0x123abc..." })
-  @IsString()
-  @IsNotEmpty()
-  txHash: string;
-
-  @ApiProperty({ description: "Admin address performing resolution", example: "0x28738040d191ff30673f546FB6BF997E6cdA6dbF" })
-  @IsString()
-  @IsNotEmpty()
-  adminAddress: string;
-}
+import { FetchMarketsQueryDto, CastFreeVoteDto, ExecuteTradeDto, ResolveMarketDto } from "./markets.dto";
+import { ApiTags, ApiOperation, ApiParam, ApiBody, ApiQuery, ApiResponse } from "@nestjs/swagger";
 
 @ApiTags("markets")
 @Controller("markets")

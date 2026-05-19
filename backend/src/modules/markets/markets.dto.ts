@@ -1,4 +1,4 @@
-import { IsBoolean, IsEnum, IsMongoId, IsNumber, IsOptional, IsString, Length, Min } from "class-validator";
+import { IsBoolean, IsEnum, IsMongoId, IsNumber, IsOptional, IsString, Length, Min, IsIn, IsNotEmpty } from "class-validator";
 import { Transform } from "class-transformer";
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 
@@ -87,5 +87,22 @@ export class ExecuteTradeDto {
   @IsString()
   @Length(0, 120)
   txHash?: string;
+}
+
+export class ResolveMarketDto {
+  @ApiProperty({ description: "Winning outcome", enum: ["YES", "NO"], example: "YES" })
+  @IsString()
+  @IsIn(["YES", "NO"])
+  winningOutcome: "YES" | "NO";
+
+  @ApiProperty({ description: "Transaction hash of the resolution on-chain", example: "0x123abc..." })
+  @IsString()
+  @IsNotEmpty()
+  txHash: string;
+
+  @ApiProperty({ description: "Admin address performing resolution", example: "0x28738040d191ff30673f546FB6BF997E6cdA6dbF" })
+  @IsString()
+  @IsNotEmpty()
+  adminAddress: string;
 }
 
