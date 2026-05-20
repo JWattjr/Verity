@@ -15,6 +15,7 @@ import {
 import { User, UserSchema } from "../users/users.model";
 import { Post, PostSchema } from "../posts/posts.model";
 import { MarketsService } from "./markets.service";
+import { MarketsKeeperService } from "./marketskeeper.service";
 import { MarketsController } from "./markets.controller";
 import { PostsModule } from "../posts/posts.module";
 
@@ -32,7 +33,7 @@ import { PostsModule } from "../posts/posts.module";
     forwardRef(() => PostsModule),
   ],
   controllers: [MarketsController],
-  providers: [MarketsService],
-  exports: [MarketsService],
+  providers: [MarketsService, MarketsKeeperService],
+  exports: [MarketsService, MarketsKeeperService],
 })
 export class MarketsModule {}

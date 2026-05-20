@@ -6,10 +6,12 @@ import "../src/ConditionalTokenVault.sol";
 import "../src/VerityFPMM.sol";
 import "../src/VerityMarketFactory.sol";
 import "./helpers/MockUSDC.sol";
+import "./helpers/MockPyth.sol";
 
 /// @title ConditionalTokenVaultTest
 contract ConditionalTokenVaultTest is Test {
     MockUSDC usdc;
+    MockPyth pyth;
     ConditionalTokenVault vault;
     VerityFPMM fpmm;
     VerityMarketFactory factory;
@@ -23,9 +25,10 @@ contract ConditionalTokenVaultTest is Test {
 
     function setUp() public {
         usdc = new MockUSDC();
+        pyth = new MockPyth();
         vault = new ConditionalTokenVault(address(usdc));
         fpmm = new VerityFPMM(address(vault), address(usdc), treasury);
-        factory = new VerityMarketFactory(address(fpmm), address(vault), address(usdc));
+        factory = new VerityMarketFactory(address(fpmm), address(vault), address(usdc), address(pyth));
 
         // Wire up permissions
         vault.setFPMM(address(fpmm));
@@ -203,5 +206,126 @@ contract ConditionalTokenVaultTest is Test {
         vm.prank(trader);
         vm.expectRevert(ConditionalTokenVault.InsufficientBalance.selector);
         vault.redeem(marketId);
+    }
+
+    // ─── Pyth Network Resolution Tests ───────────────────────────────────
+
+    function test_resolveMarketWithPyth_YesWins() public {
+        bytes32 priceFeedId = keccak256("BTC/USD");
+        uint256 deadline = block.timestamp + 1 days;
+        uint256 fundingDeadline = block.timestamp + 12 hours;
+        
+        factory.registerPythMarket(
+            marketId,
+            creator,
+            deadline,
+            fundingDeadline,
+            priceFeedId,
+            60000,
+            true
+        );
+
+        // Set mock price to 65000 (above target 60000)
+        pyth.setMockPrice(priceFeedId, 65000, 10, -8, deadline);
+
+        // Advance block time past the deadline
+        vm.warp(deadline + 1);
+
+        // Resolve via Pyth
+        bytes[] memory priceUpdate = new bytes[](0);
+        factory.resolveMarketWithPyth{value: 1 wei}(marketId, priceUpdate);
+
+        // Verify market resolved to YES
+        (, , , , , bool resolved, bool voided) = factory.marketRegistry(marketId);
+        assertTrue(resolved, "Market should be resolved");
+        assertFalse(voided, "Market should not be voided");
+        
+        (bool vaultResolved, bool winningIsYes, ) = vault.markets(marketId);
+        assertTrue(vaultResolved, "Vault should be resolved");
+        assertTrue(winningIsYes, "YES outcome should win");
+    }
+
+    function test_resolveMarketWithPyth_NoWins() public {
+        bytes32 priceFeedId = keccak256("BTC/USD");
+        uint256 deadline = block.timestamp + 1 days;
+        uint256 fundingDeadline = block.timestamp + 12 hours;
+        
+        factory.registerPythMarket(
+            marketId,
+            creator,
+            deadline,
+            fundingDeadline,
+            priceFeedId,
+            60000,
+            true
+        );
+
+        // Set mock price to 55000 (below target 60000)
+        pyth.setMockPrice(priceFeedId, 55000, 10, -8, deadline);
+
+        // Advance block time past the deadline
+        vm.warp(deadline + 1);
+
+        // Resolve via Pyth
+        bytes[] memory priceUpdate = new bytes[](0);
+        factory.resolveMarketWithPyth{value: 1 wei}(marketId, priceUpdate);
+
+        // Verify market resolved to NO
+        (, , , , , bool resolved, bool voided) = factory.marketRegistry(marketId);
+        assertTrue(resolved, "Market should be resolved");
+        assertFalse(voided, "Market should not be voided");
+        
+        (bool vaultResolved, bool winningIsYes, ) = vault.markets(marketId);
+        assertTrue(vaultResolved, "Vault should be resolved");
+        assertFalse(winningIsYes, "NO outcome should win");
+    }
+
+    function test_resolveMarketWithPyth_RevertsBeforeDeadline() public {
+        bytes32 priceFeedId = keccak256("BTC/USD");
+        uint256 deadline = block.timestamp + 1 days;
+        uint256 fundingDeadline = block.timestamp + 12 hours;
+        
+        factory.registerPythMarket(
+            marketId,
+            creator,
+            deadline,
+            fundingDeadline,
+            priceFeedId,
+            60000,
+            true
+        );
+
+        // Set mock price
+        pyth.setMockPrice(priceFeedId, 65000, 10, -8, deadline);
+
+        // Do not advance time (block.timestamp < deadline)
+        bytes[] memory priceUpdate = new bytes[](0);
+        vm.expectRevert(VerityMarketFactory.DeadlineNotReached.selector);
+        factory.resolveMarketWithPyth{value: 1 wei}(marketId, priceUpdate);
+    }
+
+    function test_resolveMarketWithPyth_RevertsIfNotAdmin() public {
+        bytes32 priceFeedId = keccak256("BTC/USD");
+        uint256 deadline = block.timestamp + 1 days;
+        uint256 fundingDeadline = block.timestamp + 12 hours;
+        
+        factory.registerPythMarket(
+            marketId,
+            creator,
+            deadline,
+            fundingDeadline,
+            priceFeedId,
+            60000,
+            true
+        );
+
+        pyth.setMockPrice(priceFeedId, 65000, 10, -8, deadline);
+        vm.warp(deadline + 1);
+
+        bytes[] memory priceUpdate = new bytes[](0);
+        vm.deal(creator, 1 ether);
+        vm.expectRevert(VerityMarketFactory.Unauthorized.selector);
+        vm.prank(creator); // Not admin
+        factory.resolveMarketWithPyth{value: 1 wei}(marketId, priceUpdate);
     }
 }

@@ -106,6 +106,18 @@ export class Market {
   @Prop({ type: String, default: null, trim: true })
   resolvedByAdmin: string | null;
 
+  @Prop({ type: String, default: null, trim: true })
+  priceFeedId: string | null;
+
+  @Prop({ type: Number, default: null })
+  targetPrice: number | null;
+
+  @Prop({ type: Boolean, default: null })
+  resolveAbove: boolean | null;
+
+  @Prop({ type: Boolean, default: false })
+  isPythMarket: boolean;
+
   createdAt?: Date;
   updatedAt?: Date;
 }

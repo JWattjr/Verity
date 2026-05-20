@@ -1,6 +1,7 @@
 import { Injectable, OnModuleInit } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import { createPublicClient, http, PublicClient, defineChain } from "viem";
+import { createPublicClient, createWalletClient, http, PublicClient, WalletClient, defineChain } from "viem";
+import { privateKeyToAccount } from "viem/accounts";
 import fpmmAbi from "./abi/VerityFPMM.json";
 import factoryAbi from "./abi/VerityMarketFactory.json";
 
@@ -16,6 +17,8 @@ export const arcTestnet = defineChain({
 @Injectable()
 export class BlockchainService implements OnModuleInit {
   private publicClient: PublicClient;
+  private walletClient: any;
+  private account: any;
   private fpmmAbi = fpmmAbi;
   private factoryAbi = factoryAbi;
   private usdcAbi: any;
@@ -23,6 +26,7 @@ export class BlockchainService implements OnModuleInit {
   private fpmmAddress: `0x${string}`;
   private factoryAddress: `0x${string}`;
   private usdcAddress: `0x${string}`;
+  private pythAddress: `0x${string}`;
 
   constructor(private configService: ConfigService) {}
 
@@ -31,11 +35,23 @@ export class BlockchainService implements OnModuleInit {
     this.fpmmAddress = this.configService.get<string>("FPMM_ADDRESS") as `0x${string}`;
     this.factoryAddress = this.configService.get<string>("FACTORY_ADDRESS") as `0x${string}`;
     this.usdcAddress = this.configService.get<string>("USDC_ADDRESS") as `0x${string}`;
+    this.pythAddress = (this.configService.get<string>("PYTH_ADDRESS") || "0x2880aB155794e7179c9eE2e38200202908C17B43") as `0x${string}`;
 
     this.publicClient = createPublicClient({
       chain: arcTestnet,
       transport: http(rpcUrl),
     }) as PublicClient;
+
+    const rawPrivateKey = this.configService.get<string>("TEST_PRIVATE_KEY") || this.configService.get<string>("KEEPER_PRIVATE_KEY");
+    if (rawPrivateKey) {
+      const privateKey = (rawPrivateKey.startsWith("0x") ? rawPrivateKey : `0x${rawPrivateKey}`) as `0x${string}`;
+      this.account = privateKeyToAccount(privateKey);
+      this.walletClient = createWalletClient({
+        account: this.account,
+        chain: arcTestnet,
+        transport: http(rpcUrl),
+      });
+    }
 
     this.loadAbis();
   }
@@ -176,6 +192,122 @@ export class BlockchainService implements OnModuleInit {
       return result as boolean;
     } catch (error) {
       return false;
+    }
+  }
+
+  async resolveMarketWithPyth(marketId: string, priceUpdate: string[]): Promise<string> {
+    if (!this.walletClient) {
+      throw new Error("Wallet client not initialized (missing TEST_PRIVATE_KEY or KEEPER_PRIVATE_KEY)");
+    }
+
+    const formattedMarketId = this.formatMarketId(marketId);
+    const formattedPriceUpdate = priceUpdate.map(
+      (x) => (x.startsWith("0x") ? x : `0x${x}`) as `0x${string}`,
+    );
+
+    // Get the required update fee from Pyth contract if we have pythAddress
+    let fee = BigInt(0);
+    try {
+      if (this.pythAddress) {
+        fee = (await this.publicClient.readContract({
+          address: this.pythAddress,
+          abi: [
+            {
+              type: "function",
+              name: "getUpdateFee",
+              inputs: [{ name: "updateData", type: "bytes[]" }],
+              outputs: [{ name: "fee", type: "uint256" }],
+              stateMutability: "view",
+            },
+          ],
+          functionName: "getUpdateFee",
+          args: [formattedPriceUpdate],
+        })) as bigint;
+      }
+    } catch (error) {
+      // Fallback: send 1 wei or 0.01 ether
+      fee = BigInt(10000000000000000n); // 0.01 ARC
+    }
+
+    try {
+      const txHash = await this.walletClient.writeContract({
+        address: this.factoryAddress,
+        abi: this.factoryAbi,
+        functionName: "resolveMarketWithPyth",
+        args: [formattedMarketId, formattedPriceUpdate],
+        value: fee,
+        chain: arcTestnet,
+      });
+
+      return txHash;
+    } catch (error) {
+      throw new Error(`Failed to resolve market ${marketId} with Pyth: ${error.message}`);
+    }
+  }
+
+  async registerPythMarket(
+    marketId: string,
+    creator: string,
+    deadline: number,
+    fundingDeadline: number,
+    priceFeedId: string,
+    targetPrice: number,
+    resolveAbove: boolean,
+  ): Promise<string> {
+    if (!this.walletClient) {
+      throw new Error("Wallet client not initialized");
+    }
+
+    const formattedMarketId = this.formatMarketId(marketId);
+    const formattedPriceFeedId = (priceFeedId.startsWith("0x") ? priceFeedId : `0x${priceFeedId}`) as `0x${string}`;
+
+    try {
+      const txHash = await this.walletClient.writeContract({
+        address: this.factoryAddress,
+        abi: this.factoryAbi,
+        functionName: "registerPythMarket",
+        args: [
+          formattedMarketId,
+          creator as `0x${string}`,
+          BigInt(deadline),
+          BigInt(fundingDeadline),
+          formattedPriceFeedId,
+          BigInt(targetPrice),
+          resolveAbove,
+        ],
+        chain: arcTestnet,
+      });
+      return txHash;
+    } catch (error) {
+      throw new Error(`Failed to register Pyth market ${marketId}: ${error.message}`);
+    }
+  }
+
+  async readOnChainMarketState(marketId: string) {
+    const formattedMarketId = this.formatMarketId(marketId);
+    try {
+      const result = await this.publicClient.readContract({
+        address: this.configService.get<string>("CONDITIONAL_TOKEN_VAULT_ADDRESS") as `0x${string}`,
+        abi: [
+          {
+            type: "function",
+            name: "markets",
+            inputs: [{ name: "", type: "bytes32" }],
+            outputs: [
+              { name: "resolved", type: "bool" },
+              { name: "winningIsYes", type: "bool" },
+              { name: "totalCollateral", type: "uint256" },
+            ],
+            stateMutability: "view",
+          },
+        ],
+        functionName: "markets",
+        args: [formattedMarketId],
+      });
+      const [resolved, winningIsYes, totalCollateral] = result as [boolean, boolean, bigint];
+      return { resolved, winningIsYes, totalCollateral };
+    } catch (error) {
+      throw new Error(`Failed to read on-chain market state for ${marketId}: ${error.message}`);
     }
   }
 }

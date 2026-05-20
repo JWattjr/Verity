@@ -3,6 +3,8 @@ pragma solidity ^0.8.24;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "@pythnetwork/pyth-sdk-solidity/IPyth.sol";
+import "@pythnetwork/pyth-sdk-solidity/PythStructs.sol";
 import "./ConditionalTokenVault.sol";
 import "./VerityFPMM.sol";
 
@@ -16,6 +18,7 @@ contract VerityMarketFactory {
     VerityFPMM public immutable fpmm;
     ConditionalTokenVault public immutable vault;
     IERC20 public immutable usdc;
+    IPyth public immutable pyth;
     address public admin;
 
     struct PreMarketDeposit {
@@ -33,13 +36,22 @@ contract VerityMarketFactory {
         bool voided;
     }
 
+    struct PythMarketParams {
+        bytes32 priceFeedId;
+        int64 targetPrice;
+        bool resolveAbove;
+        bool isPythMarket;
+    }
+
     mapping(bytes32 => MarketInfo) public marketRegistry;
+    mapping(bytes32 => PythMarketParams) public pythMarkets;
     mapping(bytes32 => PreMarketDeposit[]) public preMarketDeposits;
     mapping(bytes32 => uint256) public escrowBalances;
     bytes32[] public allMarketIds;
 
     // ─── Events ──────────────────────────────────────────────────────────
     event MarketRegistered(bytes32 indexed marketId, address indexed creator, uint256 deadline, uint256 fundingDeadline);
+    event PythMarketRegistered(bytes32 indexed marketId, bytes32 priceFeedId, int64 targetPrice, bool resolveAbove);
     event MarketFunded(bytes32 indexed marketId, address indexed creator, uint256 amount);
     event MarketResolved(bytes32 indexed marketId, bool winningIsYes);
     event MarketVoided(bytes32 indexed marketId);
@@ -55,6 +67,9 @@ contract VerityMarketFactory {
     error DeadlineInPast();
     error ZeroAmount();
     error InsufficientCreatorDeposit();
+    error NotPythMarket();
+    error DeadlineNotReached();
+    error InsufficientFee();
 
     // ─── Modifiers ───────────────────────────────────────────────────────
     modifier onlyAdmin() {
@@ -63,10 +78,11 @@ contract VerityMarketFactory {
     }
 
     // ─── Constructor ─────────────────────────────────────────────────────
-    constructor(address _fpmm, address _vault, address _usdc) {
+    constructor(address _fpmm, address _vault, address _usdc, address _pyth) {
         fpmm = VerityFPMM(_fpmm);
         vault = ConditionalTokenVault(_vault);
         usdc = IERC20(_usdc);
+        pyth = IPyth(_pyth);
         admin = msg.sender;
     }
 
@@ -104,6 +120,50 @@ contract VerityMarketFactory {
         allMarketIds.push(marketId);
 
         emit MarketRegistered(marketId, creator, deadline, fundingDeadline);
+    }
+
+    /// @notice Register a new market resolved via Pyth price feeds. Called by admin (backend).
+    /// @param marketId Unique market identifier
+    /// @param creator Wallet address of the market creator
+    /// @param deadline Trading deadline timestamp
+    /// @param fundingDeadline Timestamp by which pool must reach MIN_POOL_BALANCE
+    /// @param priceFeedId Pyth price feed ID
+    /// @param targetPrice Threshold price value for YES outcome
+    /// @param resolveAbove true if YES resolves when price >= targetPrice, false if YES resolves when price < targetPrice
+    function registerPythMarket(
+        bytes32 marketId,
+        address creator,
+        uint256 deadline,
+        uint256 fundingDeadline,
+        bytes32 priceFeedId,
+        int64 targetPrice,
+        bool resolveAbove
+    ) external onlyAdmin {
+        if (marketRegistry[marketId].registered) revert MarketAlreadyRegistered();
+        if (deadline <= block.timestamp) revert DeadlineInPast();
+        if (fundingDeadline <= block.timestamp) revert DeadlineInPast();
+
+        marketRegistry[marketId] = MarketInfo({
+            creator: creator,
+            deadline: deadline,
+            fundingDeadline: fundingDeadline,
+            registered: true,
+            funded: false,
+            resolved: false,
+            voided: false
+        });
+
+        pythMarkets[marketId] = PythMarketParams({
+            priceFeedId: priceFeedId,
+            targetPrice: targetPrice,
+            resolveAbove: resolveAbove,
+            isPythMarket: true
+        });
+
+        allMarketIds.push(marketId);
+
+        emit MarketRegistered(marketId, creator, deadline, fundingDeadline);
+        emit PythMarketRegistered(marketId, priceFeedId, targetPrice, resolveAbove);
     }
 
     // ─── Pre-Market Funding (Escrow) ─────────────────────────────────────
@@ -190,6 +250,56 @@ contract VerityMarketFactory {
 
         // Mark pool as resolved on FPMM (allows creator withdrawal)
         fpmm.markResolved(marketId);
+
+        emit MarketResolved(marketId, winningIsYes);
+    }
+
+    /// @notice Admin resolves a Pyth-registered market using historical cryptographic price updates.
+    /// @param marketId Market identifier
+    /// @param priceUpdate Signed price update VAAs from Pyth Hermes API
+    function resolveMarketWithPyth(bytes32 marketId, bytes[] calldata priceUpdate) external payable onlyAdmin {
+        MarketInfo storage info = marketRegistry[marketId];
+        PythMarketParams storage pythParams = pythMarkets[marketId];
+
+        if (!info.registered) revert MarketNotRegistered();
+        if (info.resolved) revert MarketAlreadyResolved();
+        if (info.voided) revert MarketAlreadyVoided();
+        if (!pythParams.isPythMarket) revert NotPythMarket();
+        if (block.timestamp <= info.deadline) revert DeadlineNotReached();
+
+        // Verify price update and fetch the historical price
+        uint256 fee = pyth.getUpdateFee(priceUpdate);
+        if (msg.value < fee) revert InsufficientFee();
+
+        // Wrap priceFeedId in an array to match IPyth interface
+        bytes32[] memory priceIds = new bytes32[](1);
+        priceIds[0] = pythParams.priceFeedId;
+
+        // Parse price update for the exact deadline timestamp (+/- 60 seconds margin)
+        PythStructs.PriceFeed[] memory priceFeeds = pyth.parsePriceFeedUpdates{value: fee}(
+            priceUpdate,
+            priceIds,
+            uint64(info.deadline - 60),
+            uint64(info.deadline + 60)
+        );
+
+        PythStructs.Price memory price = priceFeeds[0].price;
+
+        bool winningIsYes;
+        if (pythParams.resolveAbove) {
+            winningIsYes = (price.price >= pythParams.targetPrice);
+        } else {
+            winningIsYes = (price.price < pythParams.targetPrice);
+        }
+
+        info.resolved = true;
+        vault.resolve(marketId, winningIsYes);
+        fpmm.markResolved(marketId);
+
+        // Refund excess ETH
+        if (msg.value > fee) {
+            payable(msg.sender).transfer(msg.value - fee);
+        }
 
         emit MarketResolved(marketId, winningIsYes);
     }

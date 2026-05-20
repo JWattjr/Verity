@@ -3,3 +3,4 @@ dist
 node_modules
 src/seed.ts
 src/scripts/test-backend-e2e.ts
+src/scripts/test-pyth-live.ts

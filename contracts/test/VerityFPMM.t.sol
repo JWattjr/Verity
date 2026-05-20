@@ -6,10 +6,12 @@ import "../src/ConditionalTokenVault.sol";
 import "../src/VerityFPMM.sol";
 import "../src/VerityMarketFactory.sol";
 import "./helpers/MockUSDC.sol";
+import "./helpers/MockPyth.sol";
 
 /// @title VerityFPMMTest
 contract VerityFPMMTest is Test {
     MockUSDC usdc;
+    MockPyth pyth;
     ConditionalTokenVault vault;
     VerityFPMM fpmm;
     VerityMarketFactory factory;
@@ -25,9 +27,10 @@ contract VerityFPMMTest is Test {
 
     function setUp() public {
         usdc = new MockUSDC();
+        pyth = new MockPyth();
         vault = new ConditionalTokenVault(address(usdc));
         fpmm = new VerityFPMM(address(vault), address(usdc), treasury);
-        factory = new VerityMarketFactory(address(fpmm), address(vault), address(usdc));
+        factory = new VerityMarketFactory(address(fpmm), address(vault), address(usdc), address(pyth));
 
         vault.setFPMM(address(fpmm));
         vault.setFactory(address(factory));

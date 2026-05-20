@@ -7,6 +7,7 @@ import "../src/ConditionalTokenVault.sol";
 import "../src/VerityFPMM.sol";
 import "../src/VerityMarketFactory.sol";
 import "../test/helpers/MockUSDC.sol";
+import "../test/helpers/MockPyth.sol";
 
 contract BroadcasterFinder {
     address public immutable broadcaster;
@@ -20,6 +21,7 @@ contract Deploy is Script {
     struct NetworkConfig {
         string networkName;
         address usdcAddress;
+        address pythAddress;
         bool isTestnet;
     }
 
@@ -35,6 +37,7 @@ contract Deploy is Script {
             config = NetworkConfig({
                 networkName: "Arc Testnet",
                 usdcAddress: 0x3600000000000000000000000000000000000000,
+                pythAddress: 0x2880aB155794e7179c9eE2e38200202908C17B43,
                 isTestnet: true
             });
         }
@@ -43,6 +46,7 @@ contract Deploy is Script {
             config = NetworkConfig({
                 networkName: "Local Testnet",
                 usdcAddress: address(0), // Will deploy MockUSDC
+                pythAddress: address(0), // Will deploy MockPyth
                 isTestnet: true
             });
         }
@@ -80,6 +84,16 @@ contract Deploy is Script {
             console2.log("Using configured USDC at:", usdcAddr);
         }
 
+        address pythAddr = config.pythAddress;
+        if (pythAddr == address(0)) {
+            console2.log("\nNo Pyth address configured. Deploying MockPyth...");
+            MockPyth mockPyth = new MockPyth();
+            pythAddr = address(mockPyth);
+            console2.log("MockPyth deployed at:", pythAddr);
+        } else {
+            console2.log("Using configured Pyth at:", pythAddr);
+        }
+
         // 1. Deploy ConditionalTokenVault
         console2.log("\nDeploying ConditionalTokenVault...");
         ConditionalTokenVault vault = new ConditionalTokenVault(usdcAddr);
@@ -95,7 +109,8 @@ contract Deploy is Script {
         VerityMarketFactory factory = new VerityMarketFactory(
             address(fpmm),
             address(vault),
-            usdcAddr
+            usdcAddr,
+            pythAddr
         );
         console2.log("VerityMarketFactory deployed at:", address(factory));
 
@@ -113,6 +128,7 @@ contract Deploy is Script {
             address(fpmm),
             address(factory),
             usdcAddr,
+            pythAddr,
             deployer,
             treasury,
             config
@@ -124,6 +140,7 @@ contract Deploy is Script {
         address fpmm,
         address factory,
         address usdcAddr,
+        address pythAddr,
         address deployer,
         address treasury,
         NetworkConfig memory config
@@ -132,6 +149,7 @@ contract Deploy is Script {
         console2.log("Network:", config.networkName);
         console2.log("\n--- Contract Addresses ---");
         console2.log("USDC:", usdcAddr);
+        console2.log("Pyth:", pythAddr);
         console2.log("ConditionalTokenVault:", vault);
         console2.log("VerityFPMM (AMM):", fpmm);
         console2.log("VerityMarketFactory (Registry):", factory);

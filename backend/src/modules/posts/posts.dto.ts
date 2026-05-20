@@ -1,4 +1,4 @@
-import { IsBoolean, IsMongoId, IsOptional, IsString, Length, IsISO8601, IsNotEmpty } from "class-validator";
+import { IsBoolean, IsMongoId, IsOptional, IsString, Length, IsISO8601, IsNotEmpty, IsNumber } from "class-validator";
 import { Transform } from "class-transformer";
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 
@@ -92,6 +92,21 @@ export class CreateMarketPostDto {
   @IsString()
   @Length(1, 120, { message: "Prediction posts require the Arc testnet fee collector address." })
   feeCollectorAddress: string;
+
+  @ApiPropertyOptional({ description: "Pyth price feed ID", example: "0xe62665949c883f9e0f6f002eac32e00bd59dfe6c34e92a91c37d6a8322d6489" })
+  @IsOptional()
+  @IsString()
+  priceFeedId?: string;
+
+  @ApiPropertyOptional({ description: "Pyth target resolution price (scaled by feed exponent)", example: 60000 })
+  @IsOptional()
+  @IsNumber()
+  targetPrice?: number;
+
+  @ApiPropertyOptional({ description: "True to resolve YES if price >= targetPrice, false if price < targetPrice", example: true })
+  @IsOptional()
+  @IsBoolean()
+  resolveAbove?: boolean;
 }
 
 export class AddCommentDto {

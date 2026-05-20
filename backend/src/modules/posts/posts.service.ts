@@ -48,6 +48,14 @@ export interface MarketResponse {
   resolved_outcome: string | null;
   resolvedByAdmin: string | null;
   resolved_by_admin: string | null;
+  priceFeedId: string | null;
+  price_feed_id: string | null;
+  targetPrice: number | null;
+  target_price: number | null;
+  resolveAbove: boolean | null;
+  resolve_above: boolean | null;
+  isPythMarket: boolean;
+  is_pyth_market: boolean;
   createdAt: string;
   created_at: string;
   updatedAt: string;
@@ -140,6 +148,14 @@ export class PostsService {
       resolved_outcome: market.resolvedOutcome,
       resolvedByAdmin: market.resolvedByAdmin,
       resolved_by_admin: market.resolvedByAdmin,
+      priceFeedId: market.priceFeedId,
+      price_feed_id: market.priceFeedId,
+      targetPrice: market.targetPrice,
+      target_price: market.targetPrice,
+      resolveAbove: market.resolveAbove,
+      resolve_above: market.resolveAbove,
+      isPythMarket: market.isPythMarket,
+      is_pyth_market: market.isPythMarket,
       createdAt,
       created_at: createdAt,
       updatedAt,
@@ -281,6 +297,8 @@ export class PostsService {
       content: input.content?.trim() || input.question.trim(),
     });
 
+    const isPythMarket = !!input.priceFeedId;
+
     await this.marketModel.create({
       postId: post._id,
       authorId: new Types.ObjectId(profileId),
@@ -294,6 +312,10 @@ export class PostsService {
       creationFeeTxHash: input.creationFeeTxHash.trim(),
       feeCollectorAddress: input.feeCollectorAddress.trim(),
       status: "open_for_votes",
+      priceFeedId: isPythMarket ? input.priceFeedId!.trim() : null,
+      targetPrice: isPythMarket ? input.targetPrice : null,
+      resolveAbove: isPythMarket ? input.resolveAbove : null,
+      isPythMarket,
     });
 
     const feed = await this.fetchFeed(profileId);
