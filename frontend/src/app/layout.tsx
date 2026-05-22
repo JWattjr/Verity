@@ -33,17 +33,17 @@ export default function RootLayout({
     >
       <body className="min-h-screen overflow-y-scroll bg-background text-foreground">
         <AppProviders>
-          <div className="mx-auto flex min-h-screen w-full max-w-[1440px] justify-center gap-4 px-3 xl:gap-6 xl:px-6">
+          <div className="mx-auto flex min-h-screen w-full max-w-[1220px] justify-center gap-4 px-3 xl:gap-6 xl:px-5">
             {/* Left Sidebar */}
-            <header className="sticky top-0 hidden h-screen w-[80px] shrink-0 flex-col py-3 sm:flex xl:w-[280px]">
+            <header className="sticky top-0 hidden h-screen w-[76px] shrink-0 flex-col py-4 sm:flex xl:w-[244px]">
               <Sidebar />
             </header>
 
             {/* Main Feed Content */}
-            <main className="min-w-0 flex-1 max-w-[680px]">{children}</main>
+            <main className="min-w-0 flex-1 max-w-[672px]">{children}</main>
 
             {/* Right Panel (Trending, Top Users) */}
-            <aside className="sticky top-0 hidden h-screen w-[350px] shrink-0 flex-col py-3 lg:flex">
+            <aside className="sticky top-0 hidden h-screen w-[312px] shrink-0 flex-col py-4 lg:flex">
               <RightPanel />
             </aside>
           </div>

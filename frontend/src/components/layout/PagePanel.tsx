@@ -9,16 +9,17 @@ interface PagePanelProps {
 
 export default function PagePanel({ eyebrow, title, description, children }: PagePanelProps) {
   return (
-    <div className="flex flex-col gap-3 py-3">
-      <section className="rounded-[18px] border border-border bg-surface p-5 shadow-sm">
+    <div className="flex flex-col gap-3 py-4">
+      <section className="verity-card relative overflow-hidden p-5">
+        <div className="absolute -right-5 -top-5 h-20 w-20 rounded-full bg-sunburst-yellow/30" />
         {eyebrow && (
-          <p className="font-mono text-xs font-black uppercase tracking-[0.16em] text-muted">
+          <p className="relative font-mono text-xs font-semibold uppercase tracking-[0.16em] text-ember-orange">
             {eyebrow}
           </p>
         )}
-        <h1 className="mt-1 text-2xl font-black tracking-tight text-foreground">{title}</h1>
+        <h1 className="relative mt-1 text-[34px] font-semibold leading-[1.08] tracking-[-0.9px] text-midnight">{title}</h1>
         {description && (
-          <p className="mt-2 text-sm leading-relaxed text-muted">{description}</p>
+          <p className="relative mt-2 max-w-[520px] text-[15px] leading-[1.47] tracking-[-0.2px] text-graphite">{description}</p>
         )}
       </section>
 

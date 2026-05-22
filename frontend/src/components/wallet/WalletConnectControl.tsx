@@ -21,7 +21,7 @@ export default function WalletConnectControl() {
         if (!ready) {
           return (
             <button
-              className="flex h-11 w-full items-center justify-center rounded-[13px] bg-inverse px-4 font-mono text-xs font-black uppercase tracking-[0.14em] text-inverse-text opacity-70"
+              className="verity-pill flex h-11 w-full items-center justify-center bg-inverse px-4 text-sm font-semibold tracking-[-0.18px] text-inverse-text opacity-70"
               type="button"
             >
               Wallet
@@ -32,7 +32,7 @@ export default function WalletConnectControl() {
         if (!connected) {
           return (
             <button
-              className="flex h-11 w-full items-center justify-center gap-2 rounded-[13px] bg-inverse px-4 font-mono text-xs font-black uppercase tracking-[0.14em] text-inverse-text transition-opacity hover:opacity-85"
+              className="verity-pill flex h-11 w-full items-center justify-center gap-2 bg-inverse px-4 text-sm font-semibold tracking-[-0.18px] text-inverse-text transition-opacity hover:opacity-90"
               onClick={openConnectModal}
               type="button"
             >
@@ -45,7 +45,7 @@ export default function WalletConnectControl() {
         if (wrongNetwork) {
           return (
             <button
-              className="flex h-11 w-full items-center justify-center gap-2 rounded-[13px] bg-red-400 px-4 font-mono text-xs font-black uppercase tracking-[0.14em] text-black transition-opacity hover:opacity-85"
+              className="verity-pill flex h-11 w-full items-center justify-center gap-2 bg-ember-orange px-4 text-sm font-semibold tracking-[-0.18px] text-white transition-colors hover:bg-coral-red"
               onClick={openChainModal}
               type="button"
             >
@@ -57,7 +57,7 @@ export default function WalletConnectControl() {
 
         return (
           <button
-            className="flex h-11 w-full items-center justify-center gap-2 rounded-[13px] border border-border bg-surface-muted px-4 font-mono text-xs font-black text-foreground transition-colors hover:bg-surface-hover"
+            className="verity-pill flex h-11 w-full items-center justify-center gap-2 bg-parchment-card px-4 text-sm font-semibold tracking-[-0.18px] text-charcoal-primary shadow-[var(--shadow-subtle)] transition-colors hover:bg-stone-surface"
             onClick={openAccountModal}
             type="button"
           >

@@ -15,6 +15,7 @@ import {
   displayName,
   getMarketPrice,
   relativeTime,
+  TRADING_FEE_BPS,
   type FeedPost,
   type MarketPost,
   type VoteSide,
@@ -83,7 +84,7 @@ export default function FeedShell() {
     setLpLoading(market.id);
     try {
       const isYes = side === "YES";
-      const feeBps = market.trading_fee_bps;
+      const feeBps = market.trading_fee_bps ?? TRADING_FEE_BPS;
       const feeAmount = (amount * feeBps) / 10000;
       const selectedPrice = getMarketPrice(market, side);
       const grossAmount = amount / selectedPrice;
@@ -144,9 +145,29 @@ export default function FeedShell() {
   }
 
   return (
-    <div className="flex flex-col gap-3 py-3">
-      <div className="rounded-[18px] border border-border bg-surface p-3 shadow-sm">
-        <div className="mb-2 text-xs font-black text-foreground">Category</div>
+    <div className="flex flex-col gap-3 py-4">
+      <section className="verity-card relative overflow-hidden p-5">
+        <div className="absolute -right-3 -top-3 h-20 w-20 rounded-full bg-sunburst-yellow/40" />
+        <div className="absolute right-12 top-7 hidden sm:block">
+          <span className="verity-blob block h-12 w-14 rotate-6 bg-meadow-green">
+            <span className="verity-blob-smile" />
+          </span>
+        </div>
+        <div className="relative max-w-[430px]">
+          <p className="mb-2 font-mono text-[11px] font-semibold uppercase tracking-[0.16em] text-ember-orange">
+            Social prediction market
+          </p>
+          <h1 className="text-[34px] font-semibold leading-[1.06] tracking-[-0.9px] text-midnight sm:text-[44px] sm:tracking-[-1.14px]">
+            Back takes. Build markets.
+          </h1>
+          <p className="mt-3 text-[15px] leading-[1.47] tracking-[-0.2px] text-graphite">
+            Upvote or Downvote early signals, then trade YES/NO once a market earns enough conviction.
+          </p>
+        </div>
+      </section>
+
+      <div className="verity-card p-3">
+        <div className="mb-2 text-xs font-semibold tracking-[-0.12px] text-charcoal-primary">Category</div>
         <div className="flex gap-2 overflow-x-auto pb-1">
           {FEED_CATEGORIES.map((category) => {
             const isActive = activeCategory === category;
@@ -154,10 +175,10 @@ export default function FeedShell() {
             return (
               <button
                 aria-pressed={isActive}
-                className={`h-9 shrink-0 rounded-[8px] border px-4 text-sm transition-colors ${
+                className={`verity-pill h-9 shrink-0 px-4 text-sm font-medium tracking-[-0.18px] transition-opacity ${
                   isActive
-                    ? "border-border-strong bg-surface-muted text-foreground"
-                    : "border-border bg-surface-solid text-foreground hover:border-border-strong"
+                    ? "bg-inverse text-inverse-text"
+                    : "bg-parchment-card text-graphite shadow-[var(--shadow-subtle)] hover:bg-stone-surface"
                 }`}
                 key={category}
                 onClick={() => setActiveCategory(isActive ? null : category)}
@@ -174,7 +195,7 @@ export default function FeedShell() {
       <ComposeBox onCreated={reload} profile={profile} />
 
       {error && (
-        <div className="rounded-[18px] border border-brand-accent/30 bg-brand-accent/10 p-4 text-sm font-medium text-foreground">
+        <div className="verity-card p-4 text-sm font-medium text-graphite">
           {error}
         </div>
       )}
@@ -187,7 +208,7 @@ export default function FeedShell() {
         role="tabpanel"
       >
         {loading ? (
-          <div className="rounded-[18px] border border-border bg-surface p-8 text-center text-sm font-medium text-muted shadow-sm">
+          <div className="verity-card p-8 text-center text-sm font-medium text-ash">
             Loading feed...
           </div>
         ) : visibleItems.length > 0 ? (
@@ -209,7 +230,10 @@ export default function FeedShell() {
             />
           ))
         ) : (
-          <div className="rounded-[18px] border border-border bg-surface p-8 text-center text-sm font-medium text-muted shadow-sm">
+          <div className="verity-card flex flex-col items-center gap-3 p-8 text-center text-sm font-medium text-ash">
+            <span className="verity-blob block h-16 w-20 bg-sky-blue">
+              <span className="verity-blob-smile" />
+            </span>
             No feed items yet.
           </div>
         )}
@@ -282,7 +306,7 @@ function FeedCard({
         usdcYes={Number(item.market.usdc_yes_amount)}
         viewerVote={item.viewerVote}
         votingDisabledMessage={
-          dailyVotesRemaining <= 0 ? "You have used all 10 votes today. Votes reset tomorrow." : null
+          dailyVotesRemaining <= 0 ? "You have used all 10 Upvote/Downvote signals today. They reset tomorrow." : null
         }
         yesCondition={item.market.yes_condition}
         yesPercent={yesPercent}

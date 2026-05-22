@@ -34,30 +34,34 @@ export default function VerityAgentPanel({
 
   return (
     <section
-      className={`rounded-[10px] border ${
-        agentReview.approved
-          ? 'border-brand-secondary/30 bg-brand-secondary/10'
-          : 'border-brand-accent/30 bg-brand-accent/10'
-      } ${compact ? 'p-3' : 'p-4'}`}
+      className={`rounded-[10px] bg-white-surface shadow-[var(--shadow-subtle)] ${
+        compact ? 'p-3' : 'p-4'
+      }`}
     >
       <div className="mb-2 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          <Bot className="h-4 w-4 text-foreground" />
-          <h2 className="font-mono text-[11px] font-black uppercase tracking-[0.14em] text-foreground">
+          <span
+            className={`flex h-8 w-8 items-center justify-center rounded-[10px] ${
+              agentReview.approved ? 'bg-meadow-green/10' : 'bg-ember-orange/10'
+            }`}
+          >
+            <Bot className="h-4 w-4 text-charcoal-primary" />
+          </span>
+          <h2 className="font-mono text-[11px] font-semibold uppercase tracking-[0.12em] text-charcoal-primary">
             Verity AI Agent
           </h2>
         </div>
-        <span className="font-mono text-xs font-black text-foreground">
+        <span className="rounded-full bg-parchment-card px-2.5 py-1 font-mono text-xs font-semibold text-charcoal-primary shadow-[var(--shadow-subtle)]">
           {agentReview.score}/100
         </span>
       </div>
       <div className="flex gap-2">
         <Icon
-          className={`mt-0.5 h-4 w-4 shrink-0 ${agentReview.approved ? 'text-brand-secondary' : 'text-brand-accent'}`}
+          className={`mt-0.5 h-4 w-4 shrink-0 ${agentReview.approved ? 'text-meadow-green' : 'text-ember-orange'}`}
         />
         <div className="min-w-0">
           <p
-            className={`${compact ? 'text-xs' : 'text-sm'} font-medium text-foreground`}
+            className={`${compact ? 'text-xs' : 'text-sm'} font-medium tracking-[-0.18px] text-graphite`}
           >
             {agentReview.summary}
           </p>
@@ -67,10 +71,10 @@ export default function VerityAgentPanel({
                 <p
                   className={`text-xs ${
                     finding.severity === 'blocker'
-                      ? 'text-brand-accent'
+                      ? 'text-ember-orange'
                       : finding.severity === 'warning'
-                        ? 'text-muted'
-                        : 'text-brand-secondary'
+                        ? 'text-ash'
+                        : 'text-meadow-green'
                   }`}
                   key={finding.message}
                 >

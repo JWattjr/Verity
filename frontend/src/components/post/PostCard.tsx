@@ -33,33 +33,35 @@ export default function PostCard({
   onLike,
   onReshare,
   onShare,
-  avatarColor = 'bg-zinc-800',
+  avatarColor = 'bg-sunburst-yellow',
 }: PostCardProps) {
   return (
-    <article className="flex cursor-pointer gap-4 rounded-[18px] border border-border bg-surface p-5 shadow-sm transition-colors hover:bg-surface-solid">
+    <article className="verity-card verity-card-hover flex cursor-pointer gap-4 p-5">
       <div className="shrink-0">
-        <div className={`h-10 w-10 rounded-full ${avatarColor}`} />
+        <div className={`verity-blob h-10 w-10 ${avatarColor}`}>
+          <span className="verity-blob-smile" />
+        </div>
       </div>
 
       <div className="min-w-0 flex-1">
         <div className="mb-1 flex items-center gap-1.5 text-sm">
-          <span className="truncate font-black text-foreground hover:underline">
+          <span className="truncate font-semibold tracking-[-0.18px] text-charcoal-primary hover:underline">
             {name}
           </span>
-          <span className="truncate font-mono text-xs text-muted">
+          <span className="truncate font-mono text-xs text-ash">
             {handle}
           </span>
-          <span className="text-muted">{'\u00B7'}</span>
-          <span className="font-mono text-xs text-muted hover:underline">
+          <span className="text-ash">{'\u00B7'}</span>
+          <span className="font-mono text-xs text-ash hover:underline">
             {time}
           </span>
         </div>
 
-        <p className="mb-4 whitespace-pre-wrap text-[15px] leading-relaxed text-foreground">
+        <p className="mb-4 whitespace-pre-wrap text-[15px] leading-[1.47] tracking-[-0.2px] text-graphite">
           {content}
         </p>
 
-        <div className="flex max-w-[360px] items-center justify-between border-t border-dashed border-border pt-2 text-muted">
+        <div className="flex max-w-[360px] items-center justify-between border-t border-dashed border-stone-surface pt-2 text-ash">
           <button
             aria-label="Comment"
             className="group flex items-center gap-2 transition-colors hover:text-foreground"
@@ -75,7 +77,7 @@ export default function PostCard({
           <button
             aria-label="Reshare"
             aria-pressed={reshared}
-            className={`group flex items-center gap-2 transition-colors hover:text-foreground ${reshared ? 'text-brand-secondary' : ''}`}
+            className={`group flex items-center gap-2 transition-colors hover:text-foreground ${reshared ? 'text-meadow-green' : ''}`}
             onClick={onReshare}
             type="button"
           >
@@ -88,11 +90,11 @@ export default function PostCard({
           <button
             aria-label="Like"
             aria-pressed={liked}
-            className={`group flex items-center gap-2 transition-colors hover:text-brand-accent ${liked ? 'text-brand-accent' : ''}`}
+            className={`group flex items-center gap-2 transition-colors hover:text-ember-orange ${liked ? 'text-ember-orange' : ''}`}
             onClick={onLike}
             type="button"
           >
-            <span className="rounded-full p-2 transition-colors group-hover:bg-brand-accent/10">
+            <span className="rounded-full p-2 transition-colors group-hover:bg-ember-orange/10">
               <Heart className={`h-4 w-4 ${liked ? 'fill-current' : ''}`} />
             </span>
             <span className="text-xs">{likes}</span>

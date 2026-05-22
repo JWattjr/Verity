@@ -16,7 +16,7 @@ export default function FeedTabs({ activeTab, onTabChange }: FeedTabsProps) {
   return (
     <div
       aria-label="Feed views"
-      className="sticky top-[84px] z-10 grid grid-cols-2 overflow-hidden rounded-[18px] border border-border bg-surface p-1 shadow-sm sm:top-3"
+      className="verity-card sticky top-[84px] z-10 grid grid-cols-2 overflow-hidden p-1 sm:top-4"
       role="tablist"
     >
       {FEED_TABS.map((tab) => {
@@ -26,8 +26,8 @@ export default function FeedTabs({ activeTab, onTabChange }: FeedTabsProps) {
           <button
             aria-controls="feed-panel"
             aria-selected={isActive}
-            className={`group relative flex h-11 items-center justify-center rounded-[13px] text-xs font-black uppercase tracking-[0.12em] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-inset ${
-              isActive ? "bg-inverse text-inverse-text" : "text-muted hover:bg-surface-hover hover:text-foreground"
+            className={`verity-pill group relative flex h-10 items-center justify-center text-sm font-semibold tracking-[-0.18px] transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-midnight focus-visible:ring-inset ${
+              isActive ? "bg-inverse text-inverse-text" : "text-graphite hover:bg-stone-surface hover:text-charcoal-primary"
             }`}
             id={`feed-tab-${tab.id}`}
             key={tab.id}

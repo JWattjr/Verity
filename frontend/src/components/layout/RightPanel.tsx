@@ -18,10 +18,10 @@ export default function RightPanel() {
     <div className="flex h-full w-full flex-col gap-4 overflow-y-auto pb-8">
       <div className="group relative">
         <div className="pointer-events-none absolute inset-y-0 left-4 flex items-center">
-          <Search className="h-5 w-5 text-muted transition-colors group-focus-within:text-foreground" />
+          <Search className="h-5 w-5 text-ash transition-colors group-focus-within:text-charcoal-primary" />
         </div>
         <input
-          className="w-full rounded-[18px] border border-border bg-surface py-3 pl-12 pr-4 text-foreground shadow-sm outline-none placeholder:text-muted focus:border-border-strong focus:ring-1 focus:ring-border-strong"
+          className="verity-card w-full rounded-[32px] py-3 pl-12 pr-4 text-[15px] tracking-[-0.2px] text-charcoal-primary outline-none placeholder:text-ash focus:ring-2 focus:ring-stone-surface"
           placeholder="Search markets, users..."
           type="text"
         />
@@ -30,10 +30,10 @@ export default function RightPanel() {
       {/* Dynamic slot content injected by child pages (e.g. MarketDetail) */}
       {slotContent}
 
-      <div className="flex flex-col overflow-hidden rounded-[18px] border border-border bg-surface shadow-sm">
-        <div className="border-b border-dashed border-border p-4">
-          <h2 className="flex items-center gap-2 font-mono text-xs font-black uppercase tracking-[0.16em] text-foreground">
-            <TrendingUp className="h-4 w-4 text-brand-secondary" />
+      <div className="verity-card flex flex-col overflow-hidden">
+        <div className="border-b border-dashed border-stone-surface p-4">
+          <h2 className="flex items-center gap-2 font-mono text-xs font-semibold uppercase tracking-[0.16em] text-charcoal-primary">
+            <TrendingUp className="h-4 w-4 text-meadow-green" />
             Trending Markets
           </h2>
         </div>
@@ -46,34 +46,34 @@ export default function RightPanel() {
 
             return (
               <div
-                className="flex cursor-pointer flex-col gap-2 border-b border-dashed border-border p-4 transition-colors hover:bg-surface-hover"
+                className="flex cursor-pointer flex-col gap-2 border-b border-dashed border-stone-surface p-4 transition-colors hover:bg-parchment-card"
                 key={item.id}
               >
-                <span className="font-mono text-[10px] font-black uppercase tracking-[0.16em] text-muted">
+                <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-ash">
                   Trending in {market?.category || "Markets"}
                 </span>
-                <p className="line-clamp-2 text-sm font-bold leading-snug text-foreground">{market?.question}</p>
+                <p className="line-clamp-2 text-sm font-semibold leading-snug tracking-[-0.18px] text-charcoal-primary">{market?.question}</p>
                 <div className="mt-1 flex items-center justify-between">
-                  <span className="font-mono text-xs font-bold text-brand-secondary">{yes.toFixed(0)}% YES</span>
-                  <span className="font-mono text-xs text-muted">{volume.toLocaleString()} USDC</span>
+                  <span className="font-mono text-xs font-semibold text-meadow-green">{yes.toFixed(0)}% YES</span>
+                  <span className="font-mono text-xs text-ash">{volume.toLocaleString()} USDC</span>
                 </div>
               </div>
             );
           }) : (
-            <div className="p-4 text-sm text-muted">No live markets yet.</div>
+            <div className="p-4 text-sm text-ash">No live markets yet.</div>
           )}
         </div>
 
-        <button className="p-4 text-left font-mono text-xs font-black uppercase tracking-[0.12em] text-foreground transition-colors hover:bg-surface-hover">
+        <button className="p-4 text-left font-mono text-xs font-semibold uppercase tracking-[0.12em] text-charcoal-primary transition-colors hover:bg-parchment-card">
           Show more
         </button>
       </div>
 
       {!slotContent && (
-        <div className="flex flex-col overflow-hidden rounded-[18px] border border-border bg-surface shadow-sm">
-          <div className="border-b border-dashed border-border p-4">
-            <h2 className="flex items-center gap-2 font-mono text-xs font-black uppercase tracking-[0.16em] text-foreground">
-              <Trophy className="h-4 w-4 text-yellow-500" />
+        <div className="verity-card flex flex-col overflow-hidden">
+          <div className="border-b border-dashed border-stone-surface p-4">
+            <h2 className="flex items-center gap-2 font-mono text-xs font-semibold uppercase tracking-[0.16em] text-charcoal-primary">
+              <Trophy className="h-4 w-4 text-sunburst-yellow" />
               Top Predictors
             </h2>
           </div>
@@ -81,29 +81,31 @@ export default function RightPanel() {
           <div className="flex flex-col">
             {predictors.length > 0 ? predictors.map((user) => (
               <div
-                className="flex cursor-pointer items-center justify-between p-4 transition-colors hover:bg-surface-hover"
+                className="flex cursor-pointer items-center justify-between p-4 transition-colors hover:bg-parchment-card"
                 key={user.id}
               >
                 <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-full bg-inverse" />
+                  <div className="verity-blob h-10 w-10 bg-sky-blue">
+                    <span className="verity-blob-smile" />
+                  </div>
                   <div className="flex flex-col">
-                    <span className="text-sm font-black leading-none text-foreground hover:underline">{displayName(user)}</span>
-                    <span className="mt-1 font-mono text-xs text-muted">{displayHandle(user)}</span>
+                    <span className="text-sm font-semibold leading-none tracking-[-0.18px] text-charcoal-primary hover:underline">{displayName(user)}</span>
+                    <span className="mt-1 font-mono text-xs text-ash">{displayHandle(user)}</span>
                   </div>
                 </div>
                 <div className="flex flex-col items-end">
-                  <span className="text-sm font-black text-brand-secondary">Live</span>
-                  <span className="font-mono text-[10px] uppercase text-muted">Creator</span>
+                  <span className="text-sm font-semibold text-meadow-green">Live</span>
+                  <span className="font-mono text-[10px] uppercase text-ash">Creator</span>
                 </div>
               </div>
             )) : (
-              <div className="p-4 text-sm text-muted">No predictors yet.</div>
+              <div className="p-4 text-sm text-ash">No predictors yet.</div>
             )}
           </div>
         </div>
       )}
 
-      <div className="flex flex-wrap gap-x-3 gap-y-1 px-4 font-mono text-[11px] text-muted">
+      <div className="flex flex-wrap gap-x-3 gap-y-1 px-4 font-mono text-[11px] text-ash">
         <a href="#" className="hover:underline">Terms of Service</a>
         <a href="#" className="hover:underline">Privacy Policy</a>
         <a href="#" className="hover:underline">Cookie Policy</a>

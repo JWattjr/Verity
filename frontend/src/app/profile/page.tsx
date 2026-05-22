@@ -18,12 +18,12 @@ export default function ProfilePage() {
     >
       <ProfileEditor />
 
-      <section className="rounded-[18px] border border-border bg-surface p-5 shadow-sm">
+      <section className="verity-card p-5">
         <div className="mt-5 grid grid-cols-3 gap-2">
           {STATS.map((stat) => (
-            <div className="rounded-[13px] bg-surface-muted p-4" key={stat.label}>
-              <p className="text-2xl font-black text-foreground">{stat.value}</p>
-              <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
+            <div className="rounded-[12px] bg-parchment-card p-4 shadow-[var(--shadow-subtle)]" key={stat.label}>
+              <p className="text-2xl font-semibold tracking-[-0.44px] text-midnight">{stat.value}</p>
+              <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-ash">
                 {stat.label}
               </p>
             </div>
@@ -35,12 +35,12 @@ export default function ProfilePage() {
         <PortfolioPositions />
       </section>
 
-      <section className="rounded-[18px] border border-border bg-surface p-5 shadow-sm">
-        <h2 className="flex items-center gap-2 font-mono text-xs font-black uppercase tracking-[0.16em] text-foreground">
-          <Trophy className="h-4 w-4 text-yellow-500" />
+      <section className="verity-card p-5">
+        <h2 className="flex items-center gap-2 font-mono text-xs font-semibold uppercase tracking-[0.16em] text-charcoal-primary">
+          <Trophy className="h-4 w-4 text-sunburst-yellow" />
           Badge
         </h2>
-        <p className="mt-3 text-sm text-muted">
+        <p className="mt-3 text-sm tracking-[-0.18px] text-graphite">
           Top 10% predictor in AI/Tech markets this month.
         </p>
       </section>

@@ -17,48 +17,48 @@ export default function DailyVotesCard() {
   const isEmpty = remaining <= 0
 
   return (
-    <div className="rounded-[18px] border border-border bg-surface p-5 shadow-sm">
-      <div className="flex items-center gap-2 text-brand-secondary">
+    <div className="verity-card p-5">
+      <div className="flex items-center gap-2 text-meadow-green">
         <Vote className="h-5 w-5" />
-        <span className="font-mono text-xs font-black uppercase tracking-[0.16em]">
-          Daily Votes
+        <span className="font-mono text-xs font-semibold uppercase tracking-[0.16em]">
+          Daily Signals
         </span>
       </div>
 
-      <p className="mt-4 text-3xl font-black text-foreground">
+      <p className="mt-4 text-3xl font-semibold tracking-[-0.9px] text-midnight">
         {isLoading ? (
           '...'
         ) : (
           <>
             {remaining}
-            <span className="text-lg text-muted">/{limit}</span>
+            <span className="text-lg text-ash">/{limit}</span>
           </>
         )}
       </p>
 
       {/* Progress bar */}
-      <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-surface-muted">
+      <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-stone-surface">
         <div
           className="h-full rounded-full transition-all duration-500 ease-out"
           style={{
             width: `${fillPercent}%`,
             backgroundColor: isEmpty
-              ? 'var(--color-brand-accent)'
+              ? 'var(--color-ember-orange)'
               : isFull
-                ? 'var(--color-brand-secondary)'
-                : 'var(--color-brand-secondary)',
+                ? 'var(--color-meadow-green)'
+                : 'var(--color-meadow-green)',
           }}
         />
       </div>
 
-      <p className="mt-2 font-mono text-xs text-muted">
+      <p className="mt-2 font-mono text-xs text-ash">
         {isLoading
           ? 'Loading...'
           : isEmpty
-            ? 'All votes used - resets tomorrow'
+            ? 'All Upvote/Downvote signals used - resets tomorrow'
             : used > 0
-              ? `${used} vote${used !== 1 ? 's' : ''} used today`
-              : 'All votes available today'}
+              ? `${used} signal${used !== 1 ? 's' : ''} used today`
+              : 'All Upvote/Downvote signals available today'}
       </p>
     </div>
   )

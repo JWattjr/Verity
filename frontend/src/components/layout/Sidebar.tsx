@@ -24,7 +24,7 @@ const NAV_ITEMS = [
   { icon: TrendingUp, label: "Markets", href: "/explore?onlyMarkets=true" },
   { icon: Bell, label: "Notifications", href: "/notifications" },
   { icon: Wallet, label: "Wallet", href: "/wallet" },
-  { icon: User, label: "/profile", href: "/profile" },
+  { icon: User, label: "Profile", href: "/profile" },
 ];
 
 export default function Sidebar() {
@@ -34,14 +34,15 @@ export default function Sidebar() {
   const isConnected = Boolean(profile);
 
   return (
-    <div className="flex h-full flex-col rounded-[18px] border border-border bg-surface p-2 shadow-sm">
+    <div className="verity-card flex h-full flex-col p-2">
       {/* Logo */}
-      <div className="mb-4 flex items-center justify-between">
+      <div className="mb-3 flex items-center justify-between">
         <Link href="/" className="group flex w-fit items-center gap-3 py-4 xl:px-4">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-inverse text-xl font-black text-inverse-text transition-transform group-hover:-translate-y-0.5">
+          <div className="verity-blob flex h-10 w-10 items-center justify-center bg-sunburst-yellow text-lg font-semibold text-midnight transition-transform group-hover:-translate-y-0.5">
             V
+            <span className="verity-blob-smile" />
           </div>
-          <span className="hidden text-2xl font-black tracking-tight text-foreground xl:block">Verity</span>
+          <span className="hidden text-[23px] font-semibold leading-none tracking-[-0.44px] text-charcoal-primary xl:block">Verity</span>
         </Link>
         <div className="hidden xl:block">
           <ThemeToggle />
@@ -49,19 +50,19 @@ export default function Sidebar() {
       </div>
 
       {/* Nav Links */}
-      <nav className="flex-1 space-y-2">
+      <nav className="flex-1 space-y-1.5">
         {NAV_ITEMS.map((item) => {
           const isActive = pathname === item.href;
           const href = item.href === "/profile" ? `/profile` : item.href;
           return (
             <Link key={item.label} href={href} className="group flex w-fit items-center xl:w-full">
-              <div className={`flex items-center gap-4 rounded-[13px] p-3 transition-all duration-200 xl:w-full xl:px-4 xl:py-3 ${
+              <div className={`flex items-center gap-3 rounded-[10px] p-3 text-[15px] transition-all duration-200 xl:w-full xl:px-4 xl:py-3 ${
                 isActive 
-                  ? "bg-inverse text-inverse-text font-black" 
-                  : "text-muted hover:bg-surface-hover hover:text-foreground"
+                  ? "bg-inverse text-inverse-text font-semibold" 
+                  : "text-graphite hover:bg-stone-surface hover:text-charcoal-primary"
               }`}>
-                <item.icon className="h-7 w-7 xl:h-6 xl:w-6" />
-                <span className="hidden text-lg font-bold xl:block">{item.label}</span>
+                <item.icon className="h-6 w-6 xl:h-5 xl:w-5" />
+                <span className="hidden font-medium tracking-[-0.18px] xl:block">{item.label}</span>
               </div>
             </Link>
           );
@@ -70,10 +71,10 @@ export default function Sidebar() {
 
       {/* Action Buttons */}
       <div className="mb-6 mt-auto flex flex-col items-center gap-4 xl:w-full xl:items-stretch">
-        <div className="mb-2 hidden items-center justify-between rounded-[13px] border border-dashed border-border bg-surface-muted p-4 xl:flex">
+        <div className="mb-2 hidden items-center justify-between rounded-[10px] bg-parchment-card p-4 shadow-[var(--shadow-subtle)] xl:flex">
           <div className="flex items-center gap-2">
-            <CircleDollarSign className="h-5 w-5 text-brand-secondary" />
-            <span className="font-mono text-sm font-bold text-foreground">
+            <CircleDollarSign className="h-5 w-5 text-meadow-green" />
+            <span className="font-mono text-sm font-semibold text-charcoal-primary">
               {isBalanceLoading ? "..." : formattedBalance} USDC
             </span>
           </div>
@@ -83,20 +84,22 @@ export default function Sidebar() {
           <WalletConnectControl />
         </div>
         
-        <button className="flex h-14 w-14 items-center justify-center rounded-[13px] bg-inverse text-xl font-black text-inverse-text transition-opacity hover:opacity-85 xl:h-14 xl:w-full">
-          <span className="hidden font-mono text-xs uppercase tracking-[0.16em] xl:block">Post</span>
+        <button className="verity-pill flex h-12 w-12 items-center justify-center bg-inverse text-xl font-semibold text-inverse-text transition-opacity hover:opacity-90 xl:h-12 xl:w-full">
+          <span className="hidden text-sm font-semibold tracking-[-0.18px] xl:block">Post</span>
           <PenSquare className="h-6 w-6 xl:hidden" />
         </button>
       </div>
 
       {/* Mini Profile */}
-      <div className="mb-2 flex cursor-pointer items-center justify-center gap-3 rounded-[13px] p-3 transition-colors hover:bg-surface-hover xl:justify-start xl:p-4">
-        <div className="h-10 w-10 rounded-full bg-inverse" />
+      <div className="mb-2 flex cursor-pointer items-center justify-center gap-3 rounded-[10px] p-3 transition-colors hover:bg-stone-surface xl:justify-start xl:p-4">
+        <div className="verity-blob h-10 w-10 bg-sky-blue">
+          <span className="verity-blob-smile" />
+        </div>
         <div className="hidden xl:flex flex-col">
-          <span className="text-sm font-black text-foreground">
+          <span className="text-sm font-semibold tracking-[-0.18px] text-charcoal-primary">
             {isConnected ? displayName(profile) : "Connect wallet"}
           </span>
-          <span className="font-mono text-xs text-muted">
+          <span className="font-mono text-xs text-ash">
             {isConnected ? displayHandle(profile) : "@wallet"}
           </span>
         </div>
