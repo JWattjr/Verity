@@ -107,6 +107,11 @@ export class CreateMarketPostDto {
   @IsOptional()
   @IsBoolean()
   resolveAbove?: boolean;
+
+  @ApiPropertyOptional({ description: "Pre-generated Market ID / MongoDB ObjectId hex string", example: "60d0fe4f5311236168a109ca" })
+  @IsOptional()
+  @IsMongoId()
+  marketId?: string;
 }
 
 export class AddCommentDto {

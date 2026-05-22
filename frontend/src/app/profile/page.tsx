@@ -1,6 +1,7 @@
-import { BarChart3, Trophy } from "lucide-react";
+import { Trophy } from "lucide-react";
 import PagePanel from "@/components/layout/PagePanel";
 import ProfileEditor from "@/components/profile/ProfileEditor";
+import PortfolioPositions from "@/components/wallet/PortfolioPositions";
 
 const STATS = [
   { label: "Accuracy", value: "0%" },
@@ -30,16 +31,8 @@ export default function ProfilePage() {
         </div>
       </section>
 
-      <section className="rounded-[18px] border border-border bg-surface shadow-sm">
-        <div className="border-b border-dashed border-border p-5">
-          <h2 className="flex items-center gap-2 font-mono text-xs font-black uppercase tracking-[0.16em] text-foreground">
-            <BarChart3 className="h-4 w-4 text-brand-secondary" />
-            Recent Activity
-          </h2>
-        </div>
-        <div className="p-5">
-          <p className="font-medium text-muted">No reputation activity yet.</p>
-        </div>
+      <section className="mt-4">
+        <PortfolioPositions />
       </section>
 
       <section className="rounded-[18px] border border-border bg-surface p-5 shadow-sm">

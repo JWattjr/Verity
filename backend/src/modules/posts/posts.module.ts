@@ -9,6 +9,7 @@ import { PostsService } from "./posts.service";
 import { PostsController } from "./posts.controller";
 import { CommentsModule } from "../comments/comments.module";
 import { InteractionsModule } from "../interactions/interactions.module";
+import { LiquidityModule } from "../liquidity/liquidity.module";
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { InteractionsModule } from "../interactions/interactions.module";
     ]),
     forwardRef(() => CommentsModule),
     InteractionsModule,
+    LiquidityModule,
   ],
   controllers: [PostsController],
   providers: [PostsService],

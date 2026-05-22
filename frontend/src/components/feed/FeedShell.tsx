@@ -9,9 +9,11 @@ import PostCard from "@/components/post/PostCard";
 import { useDailyVotes } from "@/hooks/useDailyVotes";
 import { useFeed } from "@/hooks/useFeed";
 import { useWalletProfile } from "@/hooks/useWalletProfile";
+import { useMarketLiquidity } from "@/hooks/useMarketLiquidity";
 import {
   displayHandle,
   displayName,
+  getMarketPrice,
   relativeTime,
   type FeedPost,
   type MarketPost,
@@ -48,6 +50,60 @@ export default function FeedShell() {
   const { mutateAsync: toggleLike } = useToggleLikeMutation();
   const { mutateAsync: toggleReshare } = useToggleReshareMutation();
   const { mutateAsync: castFreeVote } = useCastFreeVoteMutation();
+  const { fundPreMarket, addPoolLiquidity, buyTokens } = useMarketLiquidity();
+  const [lpLoading, setLpLoading] = useState<string | null>(null);
+
+  async function handleAddLP(market: MarketPost, amount: number) {
+    if (!profile) {
+      toast.error("Connect a wallet before taking that action.");
+      return;
+    }
+    setLpLoading(market.id);
+    try {
+      const isPoolActive = market.status === "tradable";
+      if (!isPoolActive) {
+        await fundPreMarket(market.id, profile.id, amount, false);
+      } else {
+        await addPoolLiquidity(market.id, profile.id, amount);
+      }
+      toast.success("Liquidity added successfully!");
+      await reload();
+    } catch (caught) {
+      toast.error(caught instanceof Error ? caught.message : "Failed to add liquidity.");
+    } finally {
+      setLpLoading(null);
+    }
+  }
+
+  async function handleBuySide(market: MarketPost, side: VoteSide, amount: number) {
+    if (!profile) {
+      toast.error("Connect a wallet before taking that action.");
+      return;
+    }
+    setLpLoading(market.id);
+    try {
+      const isYes = side === "YES";
+      const feeBps = market.trading_fee_bps;
+      const feeAmount = (amount * feeBps) / 10000;
+      const selectedPrice = getMarketPrice(market, side);
+      const grossAmount = amount / selectedPrice;
+
+      await buyTokens(
+        market.id,
+        profile.id,
+        isYes,
+        amount,
+        feeAmount,
+        grossAmount
+      );
+      toast.success(`Successfully bought ${side} tokens!`);
+      await reload();
+    } catch (caught) {
+      toast.error(caught instanceof Error ? caught.message : "Failed to buy tokens.");
+    } finally {
+      setLpLoading(null);
+    }
+  }
 
   const visibleItems = useMemo(() => {
     if (!activeCategory) return items;
@@ -145,8 +201,11 @@ export default function FeedShell() {
               onOpenMarket={(market) => router.push(`/markets/${market.id}`)}
               onReshare={() => runAction(() => toggleReshare({ postId: item.id, profileId: profile!.id, currentlyReshared: item.viewerReshared }))}
               onShare={() => sharePost(item)}
-              onUsdcVote={(market) => router.push(`/markets/${market.id}`)}
+              onUsdcVote={(market, side, amount) => handleBuySide(market, side, amount)}
               onVote={(market, side) => runAction(() => castFreeVote({ marketId: market.id, userId: profile!.id, side }))}
+              isConnected={Boolean(profile)}
+              actionLoading={lpLoading}
+              onAddLP={handleAddLP}
             />
           ))
         ) : (
@@ -169,6 +228,9 @@ function FeedCard({
   onShare,
   onUsdcVote,
   onVote,
+  isConnected,
+  actionLoading,
+  onAddLP,
 }: {
   item: FeedPost;
   dailyVotesRemaining: number;
@@ -179,6 +241,9 @@ function FeedCard({
   onShare: () => void;
   onUsdcVote: (market: MarketPost, side: VoteSide, amount: number) => void;
   onVote: (market: MarketPost, side: VoteSide) => void;
+  isConnected: boolean;
+  actionLoading: string | null;
+  onAddLP: (market: MarketPost, amount: number) => Promise<void>;
 }) {
   if (item.type === "market" && item.market) {
     const yesPercent = calculateYesPercent(item.market);
@@ -221,6 +286,11 @@ function FeedCard({
         }
         yesCondition={item.market.yes_condition}
         yesPercent={yesPercent}
+        liquidity={item.market.liquidity}
+        actionLoading={Boolean(actionLoading && actionLoading.startsWith(item.market.id))}
+        actionLoadingStatus={actionLoading && actionLoading.startsWith(item.market.id) ? actionLoading.replace(`${item.market.id}_`, "") : null}
+        isConnected={isConnected}
+        onAddLP={(amount) => onAddLP(item.market!, amount)}
       />
     );
   }

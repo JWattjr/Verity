@@ -124,6 +124,25 @@ export const factoryAbi = [
     ],
     outputs: [],
   },
+  {
+    name: "createMarketPreDeposit",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "marketId", type: "bytes32" },
+      { name: "creatorLpAmount", type: "uint256" },
+    ],
+    outputs: [],
+  },
+  {
+    name: "claimRefund",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "marketId", type: "bytes32" },
+    ],
+    outputs: [],
+  },
 ] as const;
 
 export const fpmmAbi = [

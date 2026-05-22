@@ -72,8 +72,8 @@ export default function PortfolioPositions() {
                     >
                       {pos.side}
                     </span>
-                    <h3 className="mt-2 text-sm font-black text-foreground leading-snug group-hover:text-accent transition-colors line-clamp-2">
-                      Market ID: {pos.market_id.slice(0, 12)}...
+                    <h3 className="mt-2 text-sm font-black text-foreground leading-snug group-hover:text-brand-secondary transition-colors line-clamp-2">
+                      {pos.market_question || `Market ID: ${pos.market_id.slice(0, 12)}...`}
                     </h3>
                   </div>
 

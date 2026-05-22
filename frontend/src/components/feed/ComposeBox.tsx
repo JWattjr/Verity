@@ -18,6 +18,14 @@ interface ComposeBoxProps {
 
 const MARKET_CREATION_FEE_USDC = 1
 
+function generateObjectId(): string {
+  const timestamp = Math.floor(new Date().getTime() / 1000).toString(16).padStart(8, '0');
+  const machine = Math.floor(Math.random() * 16777215).toString(16).padStart(6, '0');
+  const pid = Math.floor(Math.random() * 65535).toString(16).padStart(4, '0');
+  const increment = Math.floor(Math.random() * 16777215).toString(16).padStart(6, '0');
+  return (timestamp + machine + pid + increment).substring(0, 24);
+}
+
 const MARKET_CATEGORIES = [
   'Crypto',
   'Culture',
@@ -110,7 +118,7 @@ function detectPythMarket(category: string, question: string): DetectedPyth {
 }
 
 export default function ComposeBox({ profile, onCreated }: ComposeBoxProps) {
-  const { transferToTreasury } = useUsdcTransfer()
+  const { createMarketPreDeposit } = useUsdcTransfer()
   const { mutateAsync: createMarketPost } = useCreateMarketPostMutation()
   const { mutateAsync: createNormalPost } = useCreateNormalPostMutation()
   const [content, setContent] = useState('')
@@ -217,7 +225,7 @@ export default function ComposeBox({ profile, onCreated }: ComposeBoxProps) {
     if (saving) return 'Posting'
     if (!isMarket) return 'Post'
     if (!predictionApproved) return 'Review'
-    return `Pay ${MARKET_CREATION_FEE_USDC} USDC & Post`
+    return 'Pay 11 USDC & Post'
   }, [isMarket, predictionApproved, saving])
 
   const marketReadyText = useMemo(() => {
@@ -257,13 +265,15 @@ export default function ComposeBox({ profile, onCreated }: ComposeBoxProps) {
           finalMarket.noCondition = `${detectedPyth.assetName}/USD price is ${detectedPyth.resolveAbove ? '<' : '>='} $${detectedPyth.targetPrice} at the deadline according to Pyth.`
         }
 
-        const payment = await transferToTreasury(MARKET_CREATION_FEE_USDC)
+        const marketId = generateObjectId()
+        const payment = await createMarketPreDeposit(marketId, 10)
         const result = await createMarketPost({
           authorId: profile.id,
+          marketId,
           ...finalMarket,
           content,
           creationFeeTxHash: payment.hash,
-          feeCollectorAddress: payment.treasuryAddress,
+          feeCollectorAddress: payment.factoryAddress,
           priceFeedId,
           targetPrice,
           resolveAbove,
@@ -321,8 +331,7 @@ export default function ComposeBox({ profile, onCreated }: ComposeBoxProps) {
           <div className="mt-3 grid gap-3 rounded-[13px] border border-dashed border-border bg-surface-muted p-3">
             <div className="flex flex-wrap items-center justify-between gap-2 rounded-[8px] border border-border bg-surface px-3 py-2 font-mono text-[11px] text-muted">
               <span>
-                Prediction posts cost {MARKET_CREATION_FEE_USDC} Arc testnet
-                USDC
+                Prediction posts cost 11 USDC (1 USDC fee + 10 USDC creator LP escrow)
               </span>
               <span>Verity AI review required</span>
             </div>

@@ -121,6 +121,7 @@ export interface MarketPosition {
   realized_pnl: number;
   created_at: string;
   updated_at: string;
+  market_question?: string | null;
 }
 
 export interface MarketTrade {
@@ -151,6 +152,7 @@ export interface MarketInput {
   priceFeedId?: string;
   targetPrice?: number;
   resolveAbove?: boolean;
+  marketId?: string;
 }
 
 export function displayName(profile?: Profile | null) {

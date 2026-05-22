@@ -2,7 +2,7 @@
 
 import { useAccount, useChainId, usePublicClient, useWriteContract } from "wagmi";
 import { type Address } from "viem";
-import { arcTestnet, arcUsdcAddress, RESOLVER_ADDRESS, VAULT_ADDRESS, FPMM_ADDRESS, erc20Abi, resolverAbi, vaultAbi, fpmmAbi } from "@/lib/arc";
+import { arcTestnet, arcUsdcAddress, RESOLVER_ADDRESS, VAULT_ADDRESS, FPMM_ADDRESS, FACTORY_ADDRESS, erc20Abi, resolverAbi, vaultAbi, fpmmAbi, factoryAbi } from "@/lib/arc";
 import { toast } from "react-hot-toast";
 
 function formatMarketId(marketId: string): `0x${string}` {
@@ -143,6 +143,33 @@ export function useMarketResolution() {
     }
   }
 
+  async function claimRefund(marketId: string) {
+    const toastId = toast.loading("Preparing to claim pre-market refund...");
+    try {
+      checkPreconditions();
+      const formattedMarketId = formatMarketId(marketId);
+
+      toast.loading("Sending refund claim transaction...", { id: toastId });
+      const txHash = await writeContractAsync({
+        abi: factoryAbi,
+        address: FACTORY_ADDRESS,
+        args: [formattedMarketId],
+        chainId: arcTestnet.id,
+        functionName: "claimRefund",
+      });
+
+      toast.loading("Waiting for refund confirmation on-chain...", { id: toastId });
+      const receipt = await publicClient!.waitForTransactionReceipt({ hash: txHash });
+      
+      toast.success("USDC refund claimed successfully! ✓", { id: toastId });
+      return { txHash, receipt };
+    } catch (error: any) {
+      const msg = error?.shortMessage || error?.message || "Refund claim failed.";
+      toast.error(`Refund claim failed: ${msg}`, { id: toastId });
+      throw error;
+    }
+  }
+
   async function readProposal(marketId: string) {
     try {
       const formattedMarketId = formatMarketId(marketId);
@@ -193,6 +220,7 @@ export function useMarketResolution() {
     disputeResolution,
     redeemWinnings,
     claimCreatorLP,
+    claimRefund,
     readProposal,
     readResolutionBond,
   };

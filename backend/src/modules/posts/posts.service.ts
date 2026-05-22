@@ -1,5 +1,7 @@
-import { Injectable, NotFoundException, UnprocessableEntityException, Inject, forwardRef } from "@nestjs/common";
+import { Injectable, NotFoundException, UnprocessableEntityException, BadRequestException, Inject, forwardRef } from "@nestjs/common";
 import { InjectModel } from "@nestjs/mongoose";
+import { BlockchainService } from "../blockchain/blockchain.service";
+import { LiquidityService } from "../liquidity/liquidity.service";
 import { Model, Types } from "mongoose";
 import { Post, PostDocument } from "./posts.model";
 import { User, UserDocument } from "../users/users.model";
@@ -101,7 +103,27 @@ export class PostsService {
     @InjectModel(Reshare.name) private reshareModel: Model<ReshareDocument>,
     @InjectModel(Vote.name) private voteModel: Model<VoteDocument>,
     @InjectModel(Comment.name) private commentModel: Model<CommentDocument>,
+    private blockchainService: BlockchainService,
+    private liquidityService: LiquidityService,
   ) {}
+
+  validateMarketHeuristics(input: CreateMarketPostDto) {
+    const question = input.question.trim();
+    if (!question.endsWith("?")) {
+      throw new BadRequestException("Market question must end with a question mark '?'.");
+    }
+
+    const resolutionSource = input.resolutionSource.trim();
+    if (resolutionSource.length < 5) {
+      throw new BadRequestException("Resolution source must specify a clear, verifiable platform or oracle.");
+    }
+
+    const yesCondition = input.yesCondition.trim();
+    const noCondition = input.noCondition.trim();
+    if (yesCondition.length < 12 || noCondition.length < 12) {
+      throw new BadRequestException("YES and NO resolution conditions must be detailed and clear (minimum 12 characters).");
+    }
+  }
 
   getMarketWarning(question: string): string | null {
     const normalized = question.toLowerCase();
@@ -292,9 +314,12 @@ export class PostsService {
   }
 
   async createMarketPost(profileId: string, input: CreateMarketPostDto): Promise<{ post: FeedPostResponse; warning: string | null }> {
-    const authorExists = await this.userModel.exists({ _id: profileId });
-    if (!authorExists) {
+    const author = await this.userModel.findById(profileId);
+    if (!author) {
       throw new NotFoundException("User not found.");
+    }
+    if (!author.walletAddress) {
+      throw new BadRequestException("User does not have a linked wallet address.");
     }
     if (!input.creationFeeTxHash?.trim()) {
       throw new UnprocessableEntityException("Prediction posts require a 1 USDC Arc testnet creation transaction.");
@@ -302,6 +327,20 @@ export class PostsService {
     if (!input.feeCollectorAddress?.trim()) {
       throw new UnprocessableEntityException("Prediction posts require the Arc testnet fee collector address.");
     }
+
+    this.validateMarketHeuristics(input);
+
+    const mId = input.marketId ? new Types.ObjectId(input.marketId) : new Types.ObjectId();
+
+    // Verify createMarketPreDeposit transaction on-chain
+    const amountBigint = await this.blockchainService.verifyCreateMarketPreDeposit(
+      input.creationFeeTxHash,
+      mId.toString()
+    );
+    if (amountBigint === null) {
+      throw new BadRequestException("Invalid or failed createMarketPreDeposit transaction on-chain.");
+    }
+    const creatorDepositUsdc = Number(amountBigint) / 1e6;
 
     const post = await this.postModel.create({
       authorId: new Types.ObjectId(profileId),
@@ -312,6 +351,7 @@ export class PostsService {
     const isPythMarket = !!input.priceFeedId;
 
     await this.marketModel.create({
+      _id: mId,
       postId: post._id,
       authorId: new Types.ObjectId(profileId),
       question: input.question.trim(),
@@ -329,6 +369,15 @@ export class PostsService {
       resolveAbove: isPythMarket ? input.resolveAbove : null,
       isPythMarket,
     });
+
+    // Automatically initialize liquidity pool in DB from the pre-deposit
+    await this.liquidityService.initializePoolFromPreDeposit(
+      mId.toString(),
+      profileId,
+      author.walletAddress,
+      input.creationFeeTxHash.trim(),
+      creatorDepositUsdc
+    );
 
     const feed = await this.fetchFeed(profileId);
     const createdPost = feed.find((item) => item.id === post.id);

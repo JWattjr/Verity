@@ -84,6 +84,63 @@ export class LiquidityService {
     return pool;
   }
 
+  async initializePoolFromPreDeposit(
+    marketId: string,
+    creatorId: string,
+    creatorWallet: string,
+    creatorDepositTxHash: string,
+    creatorLpAmountUsdc: number,
+  ): Promise<LiquidityPoolDocument> {
+    const market = await this.marketModel.findById(marketId);
+    if (!market) {
+      throw new NotFoundException("Market not found.");
+    }
+
+    const existingPool = await this.liquidityPoolModel.findOne({ marketId: new Types.ObjectId(marketId) });
+    if (existingPool) {
+      throw new ConflictException("Liquidity pool already initialized.");
+    }
+
+    // Set funding deadline to 7 days from now (or market deadline, whichever is earlier)
+    const now = new Date();
+    const sevenDaysFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+    const fundingDeadline = market.deadline < sevenDaysFromNow ? market.deadline : sevenDaysFromNow;
+
+    const pool = await this.liquidityPoolModel.create({
+      marketId: new Types.ObjectId(marketId),
+      creatorAddress: creatorWallet,
+      creatorLiquidity: creatorLpAmountUsdc,
+      minimumPoolBalance: 40,
+      fundingDeadline,
+      status: "funding",
+    });
+
+    // Create LP Position for creator
+    await this.lpPositionModel.create({
+      poolId: pool._id,
+      userId: new Types.ObjectId(creatorId),
+      walletAddress: creatorWallet,
+      lpShares: creatorLpAmountUsdc, // Since it's pre-deposit, it's 1:1 on-chain when pool starts
+      depositedUsdc: creatorLpAmountUsdc,
+      isCreator: true,
+      depositTxHash: creatorDepositTxHash,
+    });
+
+    // Create event
+    await this.liquidityEventModel.create({
+      poolId: pool._id,
+      userId: new Types.ObjectId(creatorId),
+      type: "creator_deposit",
+      amount: creatorLpAmountUsdc,
+      txHash: creatorDepositTxHash,
+      lpSharesDelta: creatorLpAmountUsdc,
+    });
+
+    await this.syncPoolFromChain(marketId);
+
+    return pool;
+  }
+
   async addLiquidity(marketId: string, userId: string, amount: number, txHash: string): Promise<LPPositionDocument> {
     const pool = await this.liquidityPoolModel.findOne({ marketId: new Types.ObjectId(marketId) });
     if (!pool) {
@@ -229,17 +286,20 @@ export class LiquidityService {
         pool.currentPoolBalance = Number(onChainState.totalDeposited) / 1e6;
         pool.status = onChainState.resolved ? "resolved" : "active";
 
-        if (!onChainState.resolved) {
-          // Sync LP positions from chain for all depositors
-          const positions = await this.lpPositionModel.find({ poolId: pool._id });
-          for (const pos of positions) {
-            try {
-              const shares = await this.blockchainService.readLPShares(marketId, pos.walletAddress);
-              pos.lpShares = Number(shares) / 1e6;
+        // Sync LP positions from chain for all depositors
+        const positions = await this.lpPositionModel.find({ poolId: pool._id });
+        for (const pos of positions) {
+          try {
+            const shares = await this.blockchainService.readLPShares(marketId, pos.walletAddress);
+            const sharesNum = Number(shares) / 1e6;
+            if (sharesNum === 0) {
+              await this.lpPositionModel.deleteOne({ _id: pos._id });
+            } else {
+              pos.lpShares = sharesNum;
               await pos.save();
-            } catch (err) {
-              // Ignore individual sync failures
             }
+          } catch (err) {
+            // Ignore individual sync failures
           }
         }
       } else {
@@ -257,19 +317,27 @@ export class LiquidityService {
 
       await pool.save();
 
-      // Sync Market Status
+      // Sync Market Status & Liquidity
       const market = await this.marketModel.findById(marketId);
       if (market) {
+        let changed = false;
+        if (market.liquidity !== pool.currentPoolBalance) {
+          market.liquidity = pool.currentPoolBalance;
+          changed = true;
+        }
         if (onChainState.resolved) {
           if (market.status !== "resolved") {
             const onChainMarket = await this.blockchainService.readOnChainMarketState(marketId);
             market.status = "resolved";
             market.resolvedOutcome = onChainMarket.winningIsYes ? "YES" : "NO";
             market.resolvedByAdmin = "0xKeeper";
-            await market.save();
+            changed = true;
           }
         } else if (onChainState.active && market.status !== "tradable") {
           market.status = "tradable";
+          changed = true;
+        }
+        if (changed) {
           await market.save();
         }
       }
@@ -280,6 +348,12 @@ export class LiquidityService {
         const escrowBalance = await this.blockchainService.readEscrowBalance(marketId as `0x${string}`);
         pool.currentPoolBalance = Number(escrowBalance) / 1e6;
         await pool.save();
+
+        const market = await this.marketModel.findById(marketId);
+        if (market && market.liquidity !== pool.currentPoolBalance) {
+          market.liquidity = pool.currentPoolBalance;
+          await market.save();
+        }
       } catch (err) {
         // Ignore if both fail
       }
@@ -302,6 +376,7 @@ export class LiquidityService {
   }
 
   async getUserPositions(marketId: string, userId: string) {
+    await this.syncPoolFromChain(marketId);
     const pool = await this.liquidityPoolModel.findOne({ marketId: new Types.ObjectId(marketId) });
     if (!pool) {
       throw new NotFoundException("Pool not found.");

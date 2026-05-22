@@ -1,10 +1,15 @@
-import { ConflictException, Injectable, NotFoundException, UnauthorizedException } from "@nestjs/common";
-import { InjectModel } from "@nestjs/mongoose";
-import { Model } from "mongoose";
-import * as bcrypt from "bcryptjs";
-import { JwtService } from "@nestjs/jwt";
-import { User, UserDocument } from "../users/users.model";
-import { RegisterDto, LoginDto } from "./auth.dto";
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
+import * as bcrypt from 'bcryptjs';
+import { JwtService } from '@nestjs/jwt';
+import { User, UserDocument } from '../users/users.model';
+import { RegisterDto, LoginDto } from './auth.dto';
 
 export interface UserResponse {
   id: string;
@@ -28,8 +33,12 @@ export interface UserResponse {
 }
 
 export function serializeUser(user: UserDocument): UserResponse {
-  const createdAt = user.createdAt ? new Date(user.createdAt).toISOString() : new Date().toISOString();
-  const updatedAt = user.updatedAt ? new Date(user.updatedAt).toISOString() : new Date().toISOString();
+  const createdAt = user.createdAt
+    ? new Date(user.createdAt).toISOString()
+    : new Date().toISOString();
+  const updatedAt = user.updatedAt
+    ? new Date(user.updatedAt).toISOString()
+    : new Date().toISOString();
 
   return {
     id: user.id || (user as any)._id?.toString(),
@@ -70,7 +79,8 @@ export class AuthService {
     });
 
     if (existing) {
-      throw new ConflictException("Email or username is already in use.");
+      // TODO
+      throw new ConflictException('Email or username is already in use.');
     }
 
     const passwordHash = await bcrypt.hash(input.password, 12);
@@ -88,14 +98,16 @@ export class AuthService {
   }
 
   async login(input: LoginDto) {
-    const user = await this.userModel.findOne({ email: input.email.toLowerCase() });
+    const user = await this.userModel.findOne({
+      email: input.email.toLowerCase(),
+    });
     if (!user || !user.passwordHash) {
-      throw new UnauthorizedException("Invalid email or password.");
+      throw new UnauthorizedException('Invalid email or password.');
     }
 
     const matches = await bcrypt.compare(input.password, user.passwordHash);
     if (!matches) {
-      throw new UnauthorizedException("Invalid email or password.");
+      throw new UnauthorizedException('Invalid email or password.');
     }
 
     return {
@@ -107,7 +119,7 @@ export class AuthService {
   async me(userId: string) {
     const user = await this.userModel.findById(userId);
     if (!user) {
-      throw new NotFoundException("User not found.");
+      throw new NotFoundException('User not found.');
     }
     return serializeUser(user);
   }

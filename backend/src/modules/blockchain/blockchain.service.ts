@@ -6,6 +6,7 @@ import {
   http,
   PublicClient,
   defineChain,
+  decodeFunctionData,
 } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import fpmmAbi from './abi/VerityFPMM.json';
@@ -181,6 +182,85 @@ export class BlockchainService implements OnModuleInit {
     } catch (error) {
       // If pool is not active or getYesPrice reverts, return 0.5/0.5 default price
       return { yesPrice: 0.5, noPrice: 0.5 };
+    }
+  }
+
+  async verifyCreateMarketPreDeposit(
+    txHash: string,
+    marketId: string,
+  ): Promise<bigint | null> {
+    try {
+      const hash = txHash.startsWith('0x') ? txHash : `0x${txHash}`;
+      const receipt = await this.publicClient.getTransactionReceipt({
+        hash: hash as `0x${string}`,
+      });
+      if (receipt.status !== 'success') return null;
+
+      // Verify recipient matches factoryAddress
+      if (receipt.to?.toLowerCase() !== this.factoryAddress.toLowerCase()) {
+        return null;
+      }
+
+      // Retrieve transaction input data to verify function call and parameters
+      const tx = await this.publicClient.getTransaction({
+        hash: hash as `0x${string}`,
+      });
+
+      const { functionName, args } = decodeFunctionData({
+        abi: this.factoryAbi,
+        data: tx.input,
+      });
+
+      if (functionName !== 'createMarketPreDeposit') return null;
+      const [txMarketId, txAmount] = args as [string, bigint];
+
+      const formattedInputMarketId = this.formatMarketId(marketId);
+      if (txMarketId.toLowerCase() !== formattedInputMarketId.toLowerCase()) {
+        return null;
+      }
+
+      return txAmount;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  async verifyDepositPreMarketLiquidity(
+    txHash: string,
+    marketId: string,
+  ): Promise<bigint | null> {
+    try {
+      const hash = txHash.startsWith('0x') ? txHash : `0x${txHash}`;
+      const receipt = await this.publicClient.getTransactionReceipt({
+        hash: hash as `0x${string}`,
+      });
+      if (receipt.status !== 'success') return null;
+
+      // Verify recipient matches factoryAddress
+      if (receipt.to?.toLowerCase() !== this.factoryAddress.toLowerCase()) {
+        return null;
+      }
+
+      const tx = await this.publicClient.getTransaction({
+        hash: hash as `0x${string}`,
+      });
+
+      const { functionName, args } = decodeFunctionData({
+        abi: this.factoryAbi,
+        data: tx.input,
+      });
+
+      if (functionName !== 'depositPreMarketLiquidity') return null;
+      const [txMarketId, txAmount] = args as [string, bigint];
+
+      const formattedInputMarketId = this.formatMarketId(marketId);
+      if (txMarketId.toLowerCase() !== formattedInputMarketId.toLowerCase()) {
+        return null;
+      }
+
+      return txAmount;
+    } catch (error) {
+      return null;
     }
   }
 
@@ -550,6 +630,29 @@ export class BlockchainService implements OnModuleInit {
     }
   }
 
+  async getDisputeWindow(): Promise<bigint> {
+    try {
+      const result = await this.publicClient.readContract({
+        address: this.resolverAddress,
+        abi: [
+          {
+            type: 'function',
+            name: 'disputeWindow',
+            inputs: [],
+            outputs: [{ name: '', type: 'uint256' }],
+            stateMutability: 'view',
+          },
+        ],
+        functionName: 'disputeWindow',
+        args: [],
+      });
+      return result as bigint;
+    } catch (error) {
+      // Fallback: 120 seconds
+      return 120n;
+    }
+  }
+
   async readProposal(marketId: string) {
     const formattedMarketId = this.formatMarketId(marketId);
     try {
@@ -728,6 +831,15 @@ export class BlockchainService implements OnModuleInit {
       throw new Error(
         `Failed to resolve disputed market ${marketId}: ${error.message}`,
       );
+    }
+  }
+
+  async getCurrentBlockTimestamp(): Promise<number> {
+    try {
+      const block = await this.publicClient.getBlock({ blockTag: 'latest' });
+      return Number(block.timestamp);
+    } catch (error) {
+      throw new Error(`Failed to get current block timestamp: ${error.message}`);
     }
   }
 }

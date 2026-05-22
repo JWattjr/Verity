@@ -44,6 +44,7 @@ export interface MarketPositionResponse {
   realized_pnl: number;
   created_at: string;
   updated_at: string;
+  market_question?: string | null;
 }
 
 export interface MarketTradeResponse {
@@ -99,9 +100,12 @@ export class MarketsService {
     const createdAt = position.createdAt ? new Date(position.createdAt).toISOString() : new Date().toISOString();
     const updatedAt = position.updatedAt ? new Date(position.updatedAt).toISOString() : new Date().toISOString();
 
+    const m = position.marketId as any;
+    const market_question = m && typeof m === "object" && "question" in m ? m.question : null;
+
     return {
       id: position.id || (position as any)._id?.toString(),
-      market_id: position.marketId.toString(),
+      market_id: m && typeof m === "object" && "_id" in m ? m._id.toString() : position.marketId.toString(),
       user_id: position.userId.toString(),
       side: position.side,
       shares: position.shares,
@@ -110,6 +114,7 @@ export class MarketsService {
       realized_pnl: position.realizedPnl,
       created_at: createdAt,
       updated_at: updatedAt,
+      market_question,
     };
   }
 
@@ -184,7 +189,7 @@ export class MarketsService {
     if (!userExists) {
       throw new NotFoundException("User not found.");
     }
-    if (!["open_for_votes", "qualified"].includes(market.status)) {
+    if (!["open_for_votes", "qualified", "funding_pool", "tradable"].includes(market.status)) {
       throw new ConflictException("This market is not open for free voting.");
     }
 
@@ -220,10 +225,15 @@ export class MarketsService {
       this.voteModel.distinct("userId", { marketId: new Types.ObjectId(marketId), voteType: "free" }).then((ids) => ids.length),
     ]);
     const totalFreeVotes = freeYesVotes + freeNoVotes;
-    const nextStatus =
-      totalFreeVotes >= market.qualificationThreshold && uniqueVotersCount >= market.uniqueVoterThreshold
-        ? "qualified"
-        : market.status;
+
+    let nextStatus = market.status;
+    if (market.status === "open_for_votes") {
+      const hasMetThresholds =
+        totalFreeVotes >= market.qualificationThreshold && uniqueVotersCount >= market.uniqueVoterThreshold;
+      if (hasMetThresholds) {
+        nextStatus = "qualified";
+      }
+    }
 
     const updatedMarket = await this.marketModel.findByIdAndUpdate(
       marketId,
@@ -367,62 +377,72 @@ export class MarketsService {
     const user = await this.userModel.findById(profileId);
     if (user && user.walletAddress) {
       try {
+        const market = await this.marketModel.findById(marketId);
+        const isResolved = market && (market.status === 'resolved' || market.resolvedOutcome);
+        const winningOutcome = market?.resolvedOutcome;
+
         const onChain = await this.blockchainService.getUserOnChainBalances(marketId, user.walletAddress);
 
         // Sync YES Position
-        if (onChain.yesBalance > 0) {
-          await this.marketPositionModel.updateOne(
-            {
+        const isYesLosing = isResolved && winningOutcome === "NO";
+        if (!isYesLosing) {
+          if (onChain.yesBalance > 0) {
+            await this.marketPositionModel.updateOne(
+              {
+                marketId: new Types.ObjectId(marketId),
+                userId: new Types.ObjectId(profileId),
+                side: "YES",
+              },
+              {
+                $set: {
+                  shares: onChain.yesBalance,
+                },
+                $setOnInsert: {
+                  avgPrice: 0.5,
+                  investedUsdc: onChain.yesBalance * 0.5,
+                  realizedPnl: 0,
+                },
+              },
+              { upsert: true }
+            );
+          } else {
+            await this.marketPositionModel.deleteOne({
               marketId: new Types.ObjectId(marketId),
               userId: new Types.ObjectId(profileId),
               side: "YES",
-            },
-            {
-              $set: {
-                shares: onChain.yesBalance,
-              },
-              $setOnInsert: {
-                avgPrice: 0.5,
-                investedUsdc: onChain.yesBalance * 0.5,
-                realizedPnl: 0,
-              },
-            },
-            { upsert: true }
-          );
-        } else {
-          await this.marketPositionModel.deleteOne({
-            marketId: new Types.ObjectId(marketId),
-            userId: new Types.ObjectId(profileId),
-            side: "YES",
-          });
+            });
+          }
         }
 
         // Sync NO Position
-        if (onChain.noBalance > 0) {
-          await this.marketPositionModel.updateOne(
-            {
+        const isNoLosing = isResolved && winningOutcome === "YES";
+        if (!isNoLosing) {
+          if (onChain.noBalance > 0) {
+            await this.marketPositionModel.updateOne(
+              {
+                marketId: new Types.ObjectId(marketId),
+                userId: new Types.ObjectId(profileId),
+                side: "NO",
+              },
+              {
+                $set: {
+                  shares: onChain.noBalance,
+                },
+                $setOnInsert: {
+                  avgPrice: 0.5,
+                  investedUsdc: onChain.noBalance * 0.5,
+                  realizedPnl: 0,
+                },
+              },
+              { upsert: true }
+            );
+          } else {
+            await this.marketPositionModel.deleteOne({
               marketId: new Types.ObjectId(marketId),
               userId: new Types.ObjectId(profileId),
               side: "NO",
-            },
-            {
-              $set: {
-                shares: onChain.noBalance,
-              },
-              $setOnInsert: {
-                avgPrice: 0.5,
-                investedUsdc: onChain.noBalance * 0.5,
-                realizedPnl: 0,
-              },
-            },
-            { upsert: true }
-          );
-        } else {
-          await this.marketPositionModel.deleteOne({
-            marketId: new Types.ObjectId(marketId),
-            userId: new Types.ObjectId(profileId),
-            side: "NO",
-          });
+            });
+          }
         }
       } catch (err) {
         // Fallback to DB if RPC call fails
@@ -595,7 +615,9 @@ export class MarketsService {
     const positions = await this.marketPositionModel.find({
       userId: new Types.ObjectId(userId),
       shares: { $gt: 0 },
-    }).sort({ updatedAt: -1 });
+    })
+      .populate("marketId")
+      .sort({ updatedAt: -1 });
 
     return positions.map((p) => this.serializePosition(p));
   }

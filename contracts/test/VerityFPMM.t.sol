@@ -106,17 +106,20 @@ contract VerityFPMMTest is Test {
     }
 
     function test_creatorEscrowMinimumEnforced() public {
-        factory.registerMarket(marketId, creator, block.timestamp + 30 days, block.timestamp + 7 days);
-        
-        // Non-creator cannot deposit first
-        vm.prank(lp1);
-        vm.expectRevert(VerityMarketFactory.NotCreator.selector);
-        factory.depositPreMarketLiquidity(marketId, 100e6);
-
         // Creator must deposit at least 10 USDC
         vm.prank(creator);
         vm.expectRevert(VerityMarketFactory.InsufficientCreatorDeposit.selector);
-        factory.depositPreMarketLiquidity(marketId, 9e6);
+        factory.createMarketPreDeposit(marketId, 9e6);
+
+        // Success deposit
+        vm.prank(creator);
+        factory.createMarketPreDeposit(marketId, 10e6);
+        
+        factory.registerMarket(marketId, creator, block.timestamp + 30 days, block.timestamp + 7 days);
+
+        // Public LP can deposit
+        vm.prank(lp1);
+        factory.depositPreMarketLiquidity(marketId, 30e6);
     }
 
     function test_creatorSharesAreLocked() public {
@@ -397,6 +400,8 @@ contract VerityFPMMTest is Test {
     function test_claimCreatorLiquidityAfterResolution() public {
         _createActiveMarket();
 
+        uint256 usdcBefore = usdc.balanceOf(creator);
+
         // Resolve
         factory.resolveMarket(marketId, true);
 
@@ -406,13 +411,40 @@ contract VerityFPMMTest is Test {
 
         assertEq(fpmm.lpShares(marketId, creator), 0, "Creator shares should be zero after claim");
 
-        // Creator should now hold YES and NO tokens
+        // Creator should now hold USDC directly, and no outcome tokens
+        uint256 usdcAfter = usdc.balanceOf(creator);
+        assertTrue(usdcAfter > usdcBefore, "Creator should receive USDC");
+
         uint256 yesId = vault.yesTokenId(marketId);
         uint256 noId = vault.noTokenId(marketId);
-        assertTrue(
-            vault.balanceOf(creator, yesId) > 0 || vault.balanceOf(creator, noId) > 0,
-            "Creator should hold tokens"
-        );
+        assertEq(vault.balanceOf(creator, yesId), 0, "Creator should hold 0 YES tokens");
+        assertEq(vault.balanceOf(creator, noId), 0, "Creator should hold 0 NO tokens");
+    }
+
+    function test_removeLiquidityAfterResolution() public {
+        _createActiveMarket();
+
+        vm.prank(lp1);
+        fpmm.addLiquidity(marketId, 100e6);
+
+        // Resolve
+        factory.resolveMarket(marketId, true);
+
+        uint256 usdcBefore = usdc.balanceOf(lp1);
+
+        uint256 shares = fpmm.lpShares(marketId, lp1);
+        vm.prank(lp1);
+        fpmm.removeLiquidity(marketId, shares);
+
+        // LP should receive USDC directly and hold 0 outcome tokens
+        uint256 usdcAfter = usdc.balanceOf(lp1);
+        assertTrue(usdcAfter > usdcBefore, "LP should receive USDC");
+
+        uint256 yesId = vault.yesTokenId(marketId);
+        uint256 noId = vault.noTokenId(marketId);
+        assertEq(vault.balanceOf(lp1, yesId), 0, "LP should hold 0 YES tokens");
+        assertEq(vault.balanceOf(lp1, noId), 0, "LP should hold 0 NO tokens");
+        assertEq(fpmm.lpShares(marketId, lp1), 0, "LP shares should be zero");
     }
 
     function test_claimCreatorLiquidityRevertsBeforeResolution() public {

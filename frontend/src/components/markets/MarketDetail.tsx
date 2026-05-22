@@ -72,7 +72,7 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
   const isConnected = Boolean(profileId)
 
   // 1. All hooks and state declarations at the very top of the component
-  const [actionPending, setActionPending] = useState(false)
+  const [actionPending, setActionPending] = useState<string | null>(null)
   const [commentDraft, setCommentDraft] = useState('')
   const [commentLoading, setCommentLoading] = useState(false)
   const [tradeAmount, setTradeAmount] = useState('1')
@@ -113,7 +113,7 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
     buyTokens,
     sellTokens,
   } = useMarketLiquidity()
-  const { disputeResolution, redeemWinnings, claimCreatorLP } =
+  const { disputeResolution, redeemWinnings, claimCreatorLP, claimRefund } =
     useMarketResolution()
   const { mutateAsync: resolveMarketBackend } = useResolveMarketMutation()
 
@@ -217,13 +217,13 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
   }, [poolStateData, market, totalUsdc])
 
   const runAction = useCallback(
-    async (action: () => Promise<unknown>) => {
+    async (actionType: string, action: () => Promise<unknown>) => {
       if (!profileId) {
         toast.error('Connect your wallet first.')
         return
       }
 
-      setActionPending(true)
+      setActionPending(actionType)
 
       try {
         await action()
@@ -247,7 +247,7 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
         const msg = caught instanceof Error ? caught.message : 'Action failed.'
         toast.error(msg.slice(0, 120))
       } finally {
-        setActionPending(false)
+        setActionPending(null)
       }
     },
     [profileId, reload, reloadDailyVotes, queryClient, detailMarketId],
@@ -255,14 +255,14 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
 
   const handleDispute = useCallback(async () => {
     if (!market || !profileId) return
-    await runAction(async () => {
+    await runAction('dispute', async () => {
       await disputeResolution(market.id)
     })
   }, [market, profileId, disputeResolution, runAction])
 
   const handleRedeem = useCallback(async () => {
     if (!market || !profileId) return
-    await runAction(async () => {
+    await runAction('redeem', async () => {
       const { txHash } = await redeemWinnings(market.id)
       const winningOutcome = market.resolvedOutcome || 'YES'
       await resolveMarketBackend({
@@ -285,19 +285,26 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
 
   const handleClaimCreatorLP = useCallback(async () => {
     if (!market || !profileId) return
-    await runAction(async () => {
+    await runAction('claim_creator_lp', async () => {
       await claimCreatorLP(market.id)
     })
   }, [market, profileId, claimCreatorLP, runAction])
 
+  const handleClaimRefund = useCallback(async () => {
+    if (!market || !profileId) return
+    await runAction('claim_refund', async () => {
+      await claimRefund(market.id)
+    })
+  }, [market, profileId, claimRefund, runAction])
+
   const approveTrading = useCallback(async () => {
     if (!market) return
-    await runAction(() => approveMarketForTrading(market.id))
+    await runAction('approve_trading', () => approveMarketForTrading(market.id))
   }, [market, runAction, approveMarketForTrading])
 
   const handleDevQualify = useCallback(async () => {
     if (!market) return
-    await runAction(async () => {
+    await runAction('dev_qualify', async () => {
       await devQualifyMarket(market.id)
     })
   }, [market, devQualifyMarket, runAction])
@@ -305,7 +312,7 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
   const handleFundPreMarket = useCallback(
     async (amount: number) => {
       if (!market || !profileId) return
-      await runAction(async () => {
+      await runAction('fund_pre_market', async () => {
         await fundPreMarket(market.id, profileId, amount, true)
       })
     },
@@ -315,7 +322,7 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
   const handleAddLP = useCallback(
     async (amount: number) => {
       if (!market || !profileId) return
-      await runAction(async () => {
+      await runAction('add_lp', async () => {
         const isPoolActive = poolStateData?.pool?.status === 'active'
         if (!isPoolActive) {
           await fundPreMarket(market.id, profileId, amount, false)
@@ -337,7 +344,7 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
   const handleRemoveLP = useCallback(
     async (shares: number) => {
       if (!market || !profileId) return
-      await runAction(async () => {
+      await runAction('remove_lp', async () => {
         await removePoolLiquidity(market.id, profileId, shares)
       })
     },
@@ -361,7 +368,7 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
     async (side: VoteSide) => {
       if (!market || !profileId) return
 
-      await runAction(async () => {
+      await runAction('trade', async () => {
         const amount = Number(tradeAmount)
         if (!Number.isFinite(amount) || amount <= 0) {
           throw new Error('Enter a valid USDC amount.')
@@ -433,11 +440,150 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
 
     return (
       <>
+        {(item.viewerVote || positions.length > 0) && (
+          <div className="rounded-[12px] border border-border bg-surface p-4.5 shadow-sm">
+            <div className="flex items-center justify-between mb-3 border-b border-dashed border-border pb-2">
+              <span className="font-mono text-[10px] font-black uppercase tracking-[0.14em] text-foreground">
+                My Holdings
+              </span>
+              {item.viewerVote && (
+                <span className="font-mono text-[10px] text-muted">
+                  Free opinion:{' '}
+                  <span
+                    className={
+                      item.viewerVote === 'YES'
+                        ? 'text-brand-secondary font-bold'
+                        : 'text-brand-accent font-bold'
+                    }
+                  >
+                    {item.viewerVote}
+                  </span>
+                </span>
+              )}
+            </div>
+
+            {positions.length === 0 ? (
+              <p className="text-xs text-muted">
+                No cash positions in this market.
+              </p>
+            ) : (
+              <div className="flex flex-col gap-3">
+                {positions.map((pos) => {
+                  const isResolved = market.status === 'resolved'
+                  const isWinner = isResolved && market.resolvedOutcome === pos.side
+                  const currentPrice = isResolved
+                    ? (isWinner ? 1.0 : 0.0)
+                    : getMarketPrice(market, pos.side)
+                  const currentValue = pos.shares * currentPrice
+                  const isProfit = currentValue >= pos.invested_usdc
+                  const pnl = currentValue - pos.invested_usdc
+                  const pnlPercent =
+                    pos.invested_usdc > 0 ? (pnl / pos.invested_usdc) * 100 : 0
+
+                  return (
+                    <div
+                      key={pos.id}
+                      className="rounded-[8px] bg-surface-muted p-3 border border-border/60"
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        {isResolved ? (
+                          <span
+                            className={`inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-mono font-bold ${
+                              isWinner
+                                ? 'bg-brand-secondary/10 text-brand-secondary border border-brand-secondary/20'
+                                : 'bg-border text-muted border border-border'
+                            }`}
+                          >
+                            {isWinner ? 'WINNING' : 'LOST'} {pos.side} POSITION
+                          </span>
+                        ) : (
+                          <span
+                            className={`inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-mono font-bold ${
+                              pos.side === 'YES'
+                                ? 'bg-brand-secondary/10 text-brand-secondary border border-brand-secondary/20'
+                                : 'bg-brand-accent/10 text-brand-accent border border-brand-accent/20'
+                            }`}
+                          >
+                            {pos.side} POSITION
+                          </span>
+                        )}
+
+                        {!isResolved && (
+                          <button
+                            className="font-mono text-[10px] font-bold text-foreground hover:text-brand-secondary underline underline-offset-2"
+                            onClick={() => {
+                              setTradeAction('SELL')
+                              setSelectedSide(pos.side)
+                            }}
+                            type="button"
+                          >
+                            Quick Sell
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-2 font-mono text-[11px] mt-1.5">
+                        <div>
+                          <span className="text-muted block text-[9px] uppercase">
+                            Shares
+                          </span>
+                          <span className="font-bold text-foreground">
+                            {pos.shares.toFixed(2)}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-muted block text-[9px] uppercase">
+                            Avg Price
+                          </span>
+                          <span className="font-bold text-foreground">
+                            {pos.avg_price.toFixed(2)} USDC
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-muted block text-[9px] uppercase">
+                            Value
+                          </span>
+                          <span
+                            className={
+                              isProfit
+                                ? 'text-brand-secondary font-black'
+                                : 'text-brand-accent font-black'
+                            }
+                          >
+                            ${currentValue.toFixed(2)}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="mt-2 pt-2 border-t border-border/40 flex justify-between items-center font-mono text-[10px]">
+                        <span className="text-muted">Return:</span>
+                        <span
+                          className={
+                            isProfit
+                              ? 'text-brand-secondary font-bold'
+                              : 'text-brand-accent font-bold'
+                          }
+                        >
+                          {isProfit ? '+' : ''}
+                          {pnl.toFixed(2)} USDC ({isProfit ? '+' : ''}
+                          {pnlPercent.toFixed(1)}%)
+                        </span>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
         <TradeTicket
           action={tradeAction}
           amount={tradeAmount}
           balanceLabel={balance.isLoading ? '...' : balance.formattedBalance}
-          disabled={market.status !== 'tradable' || !validTradeAmount}
+          disabled={
+            Boolean(actionPending) || market.status !== 'tradable' || !validTradeAmount
+          }
           estimatedShares={buyShares}
           fee={tradeFee}
           isConnected={isConnected}
@@ -452,6 +598,7 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
           total={tradeTotal}
           yesPrice={yesPercent}
           noPrice={noPercent}
+          actionPending={actionPending === 'trade'}
         />
 
         <MarketStatsPanel
@@ -497,6 +644,7 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
     creatorMarkets,
     creatorTotalVolume,
     executeTrade,
+    positions,
   ])
 
   const rightPanelSlot = useMemo(
@@ -525,6 +673,7 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
     noPercent,
     creatorMarkets,
     creatorTotalVolume,
+    JSON.stringify(positions),
   ].join('|')
 
   useSetRightPanelSlot(rightPanelSlot, rightPanelSlotKey)
@@ -579,15 +728,19 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
         yesPercent={yesPercent}
       />
 
-      {market.status === 'open_for_votes' && (
+      {['open_for_votes', 'qualified', 'funding_pool', 'tradable'].includes(
+        market.status,
+      ) && (
         <VoteQualificationProgressPanel
-          loading={actionPending}
+          loading={actionPending === 'dev_qualify'}
           market={market}
           onDevQualify={handleDevQualify}
         />
       )}
 
-      {market.status === 'funding_pool' && (
+      {['open_for_votes', 'qualified', 'funding_pool'].includes(
+        market.status,
+      ) && (
         <PreMarketFundingPanel
           actionLoading={actionPending}
           authorId={item.author_id || item.authorId}
@@ -634,6 +787,16 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
         />
       )}
 
+      {market.status === 'voided' && (
+        <RefundPanel
+          market={market}
+          lpPositions={lpPositionsData || []}
+          onClaimRefund={handleClaimRefund}
+          actionLoading={actionPending}
+          profileId={profileId}
+        />
+      )}
+
       <RulesPanel
         noCondition={market.no_condition}
         postContent={item.content}
@@ -642,8 +805,6 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
       />
 
       <VerityAgentPanel market={market} />
-
-      <CreationReviewPanel market={market} onApprove={approveTrading} />
 
       <PositionPanel
         freeVote={item.viewerVote}
@@ -673,7 +834,7 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
           document.getElementById('market-comment-input')?.focus()
         }
         onReshare={() =>
-          runAction(() =>
+          runAction('reshare', () =>
             toggleReshare({
               postId: item.id,
               profileId: profile!.id,
@@ -683,7 +844,7 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
         }
         onShare={() => sharePost(item)}
         onVote={(side) =>
-          runAction(() =>
+          runAction('free_vote', () =>
             castFreeVote({ marketId: market.id, userId: profile!.id, side }),
           )
         }
@@ -775,6 +936,7 @@ function TradeTicket({
   sellProceeds,
   total,
   yesPrice,
+  actionPending = false,
 }: {
   action: MarketTradeAction
   amount: string
@@ -794,6 +956,7 @@ function TradeTicket({
   sellProceeds: number
   total: number
   yesPrice: number
+  actionPending?: boolean
 }) {
   return (
     <section className="rounded-[12px] border border-border bg-surface p-4 shadow-sm">
@@ -892,9 +1055,11 @@ function TradeTicket({
         onClick={onTrade}
         type="button"
       >
-        {isConnected
-          ? `${action === 'BUY' ? 'Buy' : 'Sell'} ${selectedSide}`
-          : 'Connect Wallet'}
+        {actionPending
+          ? 'Processing...'
+          : isConnected
+            ? `${action === 'BUY' ? 'Buy' : 'Sell'} ${selectedSide}`
+            : 'Connect Wallet'}
       </button>
     </section>
   )
@@ -1053,73 +1218,6 @@ function shortHash(hash?: string | null) {
   return `${hash.slice(0, 10)}...${hash.slice(-8)}`
 }
 
-function CreationReviewPanel({
-  market,
-  onApprove,
-}: {
-  market: MarketPost
-  onApprove: () => void
-}) {
-  const creationHash = market.creation_fee_tx_hash || market.creationFeeTxHash
-  const feeCollector =
-    market.fee_collector_address || market.feeCollectorAddress
-  const fee = market.market_creation_fee_usdc ?? 1
-  const canApprove = market.status === 'qualified'
-  const isTradable = market.status === 'tradable'
-
-  return (
-    <section className="rounded-[12px] border border-border bg-surface p-5 shadow-sm">
-      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="font-black text-foreground">Creation & Review</h2>
-          <p className="mt-1 text-sm text-muted">
-            Prediction posts pay an Arc testnet creation fee before entering
-            social qualification.
-          </p>
-        </div>
-        <span className="rounded-[7px] border border-brand-secondary/30 bg-brand-secondary/10 px-3 py-1 font-mono text-xs font-bold text-foreground">
-          {fee} USDC
-        </span>
-      </div>
-
-      <div className="grid gap-2 font-mono text-xs text-muted">
-        <div className="flex flex-wrap justify-between gap-3 border-t border-dashed border-border pt-3">
-          <span>Arc tx</span>
-          <span className="text-foreground">
-            {creationHash ? shortHash(creationHash) : 'Pending'}
-          </span>
-        </div>
-        <div className="flex flex-wrap justify-between gap-3 border-t border-dashed border-border pt-3">
-          <span>Fee collector</span>
-          <span className="text-foreground">
-            {feeCollector ? shortHash(feeCollector) : 'Not recorded'}
-          </span>
-        </div>
-        <div className="flex flex-wrap justify-between gap-3 border-t border-dashed border-border pt-3">
-          <span>System review</span>
-          <span className="text-foreground">
-            {isTradable
-              ? 'Approved for USDC trading'
-              : canApprove
-                ? 'Ready for approval'
-                : 'Waiting for qualification'}
-          </span>
-        </div>
-      </div>
-
-      {canApprove && (
-        <button
-          className="mt-4 h-11 w-full rounded-[8px] bg-inverse font-mono text-xs font-black uppercase tracking-[0.14em] text-inverse-text transition-opacity hover:opacity-85"
-          onClick={onApprove}
-          type="button"
-        >
-          Approve for USDC Trading
-        </button>
-      )}
-    </section>
-  )
-}
-
 function PositionPanel({
   freeVote,
   market,
@@ -1143,89 +1241,6 @@ function PositionPanel({
 
   return (
     <div className="grid gap-3">
-      <section className="rounded-[12px] border border-border bg-surface p-5 shadow-sm">
-        <h2 className="font-black text-foreground">My Position</h2>
-        <p className="mt-3 max-w-2xl text-sm leading-relaxed text-foreground">
-          Position values are estimates based on the current state of the
-          market. They will change as additional trades are placed. You can buy
-          and sell until market close.
-        </p>
-
-        {!freeVote && positionRows.length === 0 ? (
-          <p className="mt-5 border-t border-dashed border-border pt-4 text-sm font-medium text-muted">
-            No position is open on this market.
-          </p>
-        ) : (
-          <div className="mt-5 grid gap-4 border-t border-dashed border-border pt-4">
-            {freeVote && (
-              <div className="flex flex-wrap items-center justify-between gap-3 rounded-[8px] bg-surface-muted p-3 font-mono text-xs">
-                <span className="text-muted">Free opinion</span>
-                <span
-                  className={
-                    freeVote === 'YES'
-                      ? 'text-brand-secondary'
-                      : 'text-brand-accent'
-                  }
-                >
-                  {freeVote}
-                </span>
-              </div>
-            )}
-
-            {positionRows.map((position) => (
-              <div className="grid gap-4" key={position.id}>
-                <div>
-                  <span className="font-mono text-xs text-muted">Outcome:</span>
-                  <p className="mt-1 text-sm font-semibold text-foreground">
-                    {position.side === 'YES' ? 'Yes' : 'No'}
-                  </p>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-x-5 gap-y-2 font-mono text-sm text-muted">
-                  <span>
-                    Cost{' '}
-                    <span className="text-foreground">
-                      ${position.invested_usdc.toFixed(2)}
-                    </span>
-                  </span>
-                  <span>
-                    Shares{' '}
-                    <span className="text-foreground">
-                      {position.shares.toLocaleString(undefined, {
-                        maximumFractionDigits: 4,
-                      })}
-                    </span>
-                  </span>
-                  <span>
-                    Current Value{' '}
-                    <span
-                      className={
-                        position.currentValue >= position.invested_usdc
-                          ? 'text-brand-secondary'
-                          : 'text-brand-accent'
-                      }
-                    >
-                      ${position.currentValue.toFixed(2)}
-                    </span>
-                    <Info
-                      aria-label={`Current price ${(position.currentPrice * 100).toFixed(1)} cents`}
-                      className="ml-1 inline h-3 w-3 text-muted"
-                    />
-                  </span>
-                  <button
-                    className="ml-auto text-foreground underline underline-offset-2 hover:text-muted"
-                    onClick={() => onSell(position.side)}
-                    type="button"
-                  >
-                    Sell
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
-
       {positionRows.length > 0 && (
         <section className="rounded-[12px] border border-border bg-surface p-5 shadow-sm">
           <h2 className="font-black text-foreground">My Payout Preview</h2>
@@ -1434,7 +1449,9 @@ function SocialActions({
   viewerVote: VoteSide | null
 }) {
   const votingDisabled =
-    !['open_for_votes', 'qualified'].includes(marketStatus) ||
+    !['open_for_votes', 'qualified', 'funding_pool', 'tradable'].includes(
+      marketStatus,
+    ) ||
     Boolean(viewerVote) ||
     dailyVotesRemaining <= 0
 
@@ -1627,7 +1644,7 @@ function PreMarketFundingPanel({
   authorId: string | undefined
   onFundPreMarket: (amount: number) => Promise<void>
   onAddLP: (amount: number) => Promise<void>
-  actionLoading: boolean
+  actionLoading: string | null
 }) {
   const currentPoolBalance = poolState?.pool?.currentPoolBalance ?? 0
   const minPoolBalance = 40
@@ -1639,7 +1656,7 @@ function PreMarketFundingPanel({
   const progress = Math.min(100, (currentPoolBalance / minPoolBalance) * 100)
 
   const [depositAmount, setDepositAmount] = useState('10')
-  const showCreatorEscrow = !hasCreatorFunded
+  const showCreatorEscrow = false
 
   return (
     <section className="rounded-[12px] border border-border bg-surface p-5 shadow-sm">
@@ -1685,18 +1702,42 @@ function PreMarketFundingPanel({
             {isCurrentUserCreator ? (
               <button
                 className="w-full flex h-11 items-center justify-center rounded-[8px] bg-inverse font-mono text-xs font-black uppercase tracking-[0.14em] text-inverse-text transition-opacity hover:opacity-85 disabled:cursor-not-allowed disabled:opacity-45"
-                disabled={actionLoading || !profileId}
+                disabled={Boolean(actionLoading) || !profileId}
                 onClick={() => onFundPreMarket(10)}
                 type="button"
               >
-                {actionLoading ? 'Processing Escrow...' : 'Fund 10 USDC Escrow'}
+                {actionLoading === 'fund_pre_market' ? 'Processing Escrow...' : 'Fund 10 USDC Escrow'}
               </button>
-            ) : (
-              <p className="text-xs text-muted italic">
-                Waiting for the market creator to make the initial 10 USDC
-                deposit...
-              </p>
-            )}
+            ) : null}
+          </div>
+        ) : currentPoolBalance >= minPoolBalance ? (
+          <div className="flex flex-col items-center justify-center py-6 text-center rounded-[8px] bg-surface-muted border border-border">
+            <svg
+              className="animate-spin h-8 w-8 text-brand-secondary mb-3"
+              fill="none"
+              viewBox="0 0 24 24"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <circle
+                className="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                strokeWidth="4"
+              />
+              <path
+                className="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+              />
+            </svg>
+            <span className="font-mono text-sm font-bold text-foreground">
+              All conditions met
+            </span>
+            <span className="text-xs text-muted mt-1">
+              Deploying market on-chain...
+            </span>
           </div>
         ) : (
           <div className="rounded-[8px] border border-dashed border-border bg-surface-muted p-4">
@@ -1715,12 +1756,12 @@ function PreMarketFundingPanel({
               <button
                 className="flex-1 flex h-11 items-center justify-center rounded-[8px] bg-inverse font-mono text-xs font-black uppercase tracking-[0.14em] text-inverse-text transition-opacity hover:opacity-85 disabled:cursor-not-allowed disabled:opacity-45"
                 disabled={
-                  actionLoading || !profileId || Number(depositAmount) <= 0
+                  Boolean(actionLoading) || !profileId || Number(depositAmount) <= 0
                 }
                 onClick={() => onAddLP(Number(depositAmount))}
                 type="button"
               >
-                {actionLoading ? 'Depositing...' : 'Deposit USDC'}
+                {actionLoading === 'add_lp' ? 'Depositing...' : 'Deposit USDC'}
               </button>
             </div>
             <p className="mt-2 font-mono text-[10px] text-muted leading-relaxed">
@@ -1748,7 +1789,7 @@ function ActiveMarketLPPanel({
   profileId: string | undefined
   onAddLP: (amount: number) => Promise<void>
   onRemoveLP: (shares: number) => Promise<void>
-  actionLoading: boolean
+  actionLoading: string | null
 }) {
   const [addAmount, setAddAmount] = useState('10')
   const [removeShares, setRemoveShares] = useState('10')
@@ -1820,11 +1861,11 @@ function ActiveMarketLPPanel({
             />
             <button
               className="flex-1 flex h-10 items-center justify-center rounded-[8px] bg-inverse font-mono text-xs font-black uppercase tracking-[0.14em] text-inverse-text transition-opacity hover:opacity-85 disabled:cursor-not-allowed disabled:opacity-45"
-              disabled={actionLoading || !profileId || Number(addAmount) <= 0}
+              disabled={Boolean(actionLoading) || !profileId || Number(addAmount) <= 0}
               onClick={() => onAddLP(Number(addAmount))}
               type="button"
             >
-              {actionLoading ? 'Adding...' : 'Add LP'}
+              {actionLoading === 'add_lp' ? 'Adding...' : 'Add LP'}
             </button>
           </div>
         </div>
@@ -1846,7 +1887,7 @@ function ActiveMarketLPPanel({
             <button
               className="flex-1 flex h-10 items-center justify-center rounded-[8px] bg-inverse font-mono text-xs font-black uppercase tracking-[0.14em] text-inverse-text transition-opacity hover:opacity-85 disabled:cursor-not-allowed disabled:opacity-45"
               disabled={
-                actionLoading ||
+                Boolean(actionLoading) ||
                 !profileId ||
                 Number(removeShares) <= 0 ||
                 Number(removeShares) > myShares ||
@@ -1855,7 +1896,7 @@ function ActiveMarketLPPanel({
               onClick={() => onRemoveLP(Number(removeShares))}
               type="button"
             >
-              {actionLoading ? 'Removing...' : 'Remove'}
+              {actionLoading === 'remove_lp' ? 'Removing...' : 'Remove'}
             </button>
           </div>
           {!canRemove && (
@@ -1878,7 +1919,7 @@ function ResolutionPanel({
 }: {
   market: MarketPost
   onDispute: () => Promise<void>
-  actionLoading: boolean
+  actionLoading: string | null
   profileId: string | undefined
 }) {
   const { readProposal, readResolutionBond } = useMarketResolution()
@@ -2009,11 +2050,11 @@ function ResolutionPanel({
                     </p>
                     <button
                       className="mt-3 w-full flex h-10 items-center justify-center rounded-[8px] bg-brand-accent font-mono text-xs font-black uppercase tracking-[0.14em] text-white transition-opacity hover:opacity-85 disabled:cursor-not-allowed disabled:opacity-45"
-                      disabled={actionLoading || !profileId}
+                      disabled={Boolean(actionLoading) || !profileId}
                       onClick={onDispute}
                       type="button"
                     >
-                      {actionLoading
+                      {actionLoading === 'dispute'
                         ? 'Disputing...'
                         : `Dispute Proposal (${bond} USDC)`}
                     </button>
@@ -2124,7 +2165,7 @@ function RedeemPanel({
   lpPositions: any[]
   onRedeem: () => Promise<void>
   onClaimCreatorLP: () => Promise<void>
-  actionLoading: boolean
+  actionLoading: string | null
   profileId: string | undefined
 }) {
   const winningSide = market.resolvedOutcome
@@ -2179,11 +2220,11 @@ function RedeemPanel({
               </div>
               <button
                 className="w-full flex h-10 items-center justify-center rounded-[8px] bg-brand-secondary font-mono text-xs font-black uppercase tracking-[0.14em] text-white transition-opacity hover:opacity-85 disabled:cursor-not-allowed disabled:opacity-45"
-                disabled={actionLoading || !profileId}
+                disabled={Boolean(actionLoading) || !profileId}
                 onClick={onRedeem}
                 type="button"
               >
-                {actionLoading ? 'Redeeming...' : 'Redeem Winnings'}
+                {actionLoading === 'redeem' ? 'Redeeming...' : 'Redeem Winnings'}
               </button>
             </div>
           )}
@@ -2211,14 +2252,67 @@ function RedeemPanel({
           </p>
           <button
             className="w-full flex h-10 items-center justify-center rounded-[8px] bg-inverse font-mono text-xs font-black uppercase tracking-[0.14em] text-inverse-text transition-opacity hover:opacity-85 disabled:cursor-not-allowed disabled:opacity-45"
-            disabled={actionLoading || !profileId}
+            disabled={Boolean(actionLoading) || !profileId}
             onClick={onClaimCreatorLP}
             type="button"
           >
-            {actionLoading ? 'Claiming...' : 'Claim Creator LP'}
+            {actionLoading === 'claim_creator_lp' ? 'Claiming...' : 'Claim Creator LP'}
           </button>
         </div>
       )}
+    </section>
+  )
+}
+
+function RefundPanel({
+  market,
+  lpPositions,
+  onClaimRefund,
+  actionLoading,
+  profileId,
+}: {
+  market: MarketPost
+  lpPositions: any[]
+  onClaimRefund: () => Promise<void>
+  actionLoading: string | null
+  profileId: string | undefined
+}) {
+  const myLPPosition = lpPositions?.find((pos) => pos.userId === profileId)
+  const hasDeposited = myLPPosition && myLPPosition.lpShares > 0
+
+  if (!hasDeposited) return null
+
+  return (
+    <section className="rounded-[12px] border border-border bg-surface p-5 shadow-sm">
+      <h2 className="font-black text-foreground mb-1">Claim Refund</h2>
+      <p className="text-sm text-muted mb-4">
+        This market was voided. You can retrieve your committed pre-market USDC
+        LP deposits.
+      </p>
+
+      <div className="rounded-[8px] bg-surface-muted p-4 border border-border">
+        <div className="flex justify-between items-center mb-3">
+          <div>
+            <span className="font-mono text-[10px] uppercase text-muted font-black">
+              Your Pre-Market Deposit
+            </span>
+            <p className="mt-1 font-mono text-sm font-bold text-foreground">
+              {myLPPosition.lpShares.toFixed(2)} USDC
+            </p>
+          </div>
+          <span className="inline-flex items-center rounded-full bg-brand-secondary/10 px-2 py-1 text-xs font-medium text-brand-secondary">
+            Voided Market Refund
+          </span>
+        </div>
+        <button
+          className="w-full flex h-10 items-center justify-center rounded-[8px] bg-brand-secondary font-mono text-xs font-black uppercase tracking-[0.14em] text-white transition-opacity hover:opacity-85 disabled:cursor-not-allowed disabled:opacity-45"
+          disabled={Boolean(actionLoading) || !profileId}
+          onClick={onClaimRefund}
+          type="button"
+        >
+          {actionLoading === 'claim_refund' ? 'Claiming Refund...' : 'Claim USDC Refund'}
+        </button>
+      </div>
     </section>
   )
 }

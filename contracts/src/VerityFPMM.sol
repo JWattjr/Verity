@@ -261,11 +261,39 @@ contract VerityFPMM is ERC1155Holder {
         pool.totalLPShares -= shareAmount;
         lpShares[marketId][msg.sender] -= shareAmount;
 
-        // Transfer YES + NO tokens to the LP
-        uint256 yesId = vault.yesTokenId(marketId);
-        uint256 noId = vault.noTokenId(marketId);
-        vault.safeTransferFrom(address(this), msg.sender, yesId, yesOut, "");
-        vault.safeTransferFrom(address(this), msg.sender, noId, noOut, "");
+        if (pool.resolved) {
+            // Determine if vault is resolved
+            (bool resolved, bool winningIsYes, ) = vault.markets(marketId);
+            if (resolved) {
+                // Resolved market: pay out the winning portion in USDC
+                uint256 usdcOut = winningIsYes ? yesOut : noOut;
+                if (usdcOut > 0) {
+                    usdc.safeTransfer(msg.sender, usdcOut);
+                }
+            } else {
+                // Voided market: burn equal pairs of YES and NO to get USDC, and send to LP
+                uint256 burnAmount = yesOut < noOut ? yesOut : noOut;
+                if (burnAmount > 0) {
+                    vault.burnPair(marketId, address(this), burnAmount);
+                    usdc.safeTransfer(msg.sender, burnAmount);
+                }
+                // Transfer any remaining dust tokens (should be 0 or tiny)
+                uint256 yesId = vault.yesTokenId(marketId);
+                uint256 noId = vault.noTokenId(marketId);
+                if (yesOut > burnAmount) {
+                    vault.safeTransferFrom(address(this), msg.sender, yesId, yesOut - burnAmount, "");
+                }
+                if (noOut > burnAmount) {
+                    vault.safeTransferFrom(address(this), msg.sender, noId, noOut - burnAmount, "");
+                }
+            }
+        } else {
+            // Unresolved market (normal LP removal): Transfer YES + NO tokens to the LP
+            uint256 yesId = vault.yesTokenId(marketId);
+            uint256 noId = vault.noTokenId(marketId);
+            vault.safeTransferFrom(address(this), msg.sender, yesId, yesOut, "");
+            vault.safeTransferFrom(address(this), msg.sender, noId, noOut, "");
+        }
 
         emit LiquidityRemoved(marketId, msg.sender, shareAmount, yesOut, noOut);
     }
@@ -290,11 +318,30 @@ contract VerityFPMM is ERC1155Holder {
         pool.totalLPShares -= creatorShareAmount;
         lpShares[marketId][msg.sender] = 0;
 
-        // Transfer tokens to creator
-        uint256 yesId = vault.yesTokenId(marketId);
-        uint256 noId = vault.noTokenId(marketId);
-        vault.safeTransferFrom(address(this), msg.sender, yesId, yesOut, "");
-        vault.safeTransferFrom(address(this), msg.sender, noId, noOut, "");
+        // Determine if vault is resolved
+        (bool resolved, bool winningIsYes, ) = vault.markets(marketId);
+        if (resolved) {
+            uint256 usdcOut = winningIsYes ? yesOut : noOut;
+            if (usdcOut > 0) {
+                usdc.safeTransfer(msg.sender, usdcOut);
+            }
+        } else {
+            // Voided: burn pairs and return USDC
+            uint256 burnAmount = yesOut < noOut ? yesOut : noOut;
+            if (burnAmount > 0) {
+                vault.burnPair(marketId, address(this), burnAmount);
+                usdc.safeTransfer(msg.sender, burnAmount);
+            }
+            // Transfer dust if any
+            uint256 yesId = vault.yesTokenId(marketId);
+            uint256 noId = vault.noTokenId(marketId);
+            if (yesOut > burnAmount) {
+                vault.safeTransferFrom(address(this), msg.sender, yesId, yesOut - burnAmount, "");
+            }
+            if (noOut > burnAmount) {
+                vault.safeTransferFrom(address(this), msg.sender, noId, noOut - burnAmount, "");
+            }
+        }
 
         emit CreatorLiquidityClaimed(marketId, msg.sender, yesOut, noOut);
     }
@@ -458,6 +505,17 @@ contract VerityFPMM is ERC1155Holder {
     /// @notice Mark pool as resolved. Called by factory after vault resolution.
     function markResolved(bytes32 marketId) external onlyFactory {
         pools[marketId].resolved = true;
+
+        // Query winning outcome from vault
+        (bool resolved, bool winningIsYes, ) = vault.markets(marketId);
+        if (resolved) {
+            uint256 winningId = winningIsYes ? vault.yesTokenId(marketId) : vault.noTokenId(marketId);
+            uint256 winningBalance = vault.balanceOf(address(this), winningId);
+            if (winningBalance > 0) {
+                // Redeem all winning tokens held by the pool for USDC
+                vault.redeem(marketId);
+            }
+        }
     }
 
     // ─── View Functions ──────────────────────────────────────────────────
