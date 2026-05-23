@@ -27,8 +27,8 @@ const STEPS = [
     color: 'bg-sky-blue/10 text-sky-blue',
   },
   {
-    title: 'Fund the pool',
-    body: 'Qualified markets gather pre-market USDC liquidity. Once the escrow target is met, the active trading pool can open.',
+    title: 'Pool Funding',
+    body: 'Qualified markets gather launch-pool USDC. Funding the pool helps open trading and may earn liquidity rewards when the market trades.',
     icon: CircleDollarSign,
     color: 'bg-meadow-green/10 text-meadow-green',
   },
@@ -59,12 +59,12 @@ const GLOSSARY = [
   {
     term: 'Liquidity',
     detail:
-      'USDC available in a market pool. More liquidity usually makes trading smoother.',
+      'USDC available in a market pool. Liquidity providers help trades execute and may earn rewards from market activity.',
   },
   {
-    term: 'Escrow funding',
+    term: 'Pool Funding',
     detail:
-      'Pre-market USDC commitments that help a qualified market reach the launch threshold.',
+      'USDC contributions that help a qualified market reach its launch threshold and can become reward-earning liquidity.',
   },
   {
     term: 'Resolution',
@@ -203,6 +203,30 @@ export default function HowItWorksPage() {
           <ResolutionCard
             label="Payout"
             text="Winning outcome shares can be redeemed after the market resolves."
+          />
+        </div>
+      </section>
+
+      <section className="verity-card p-5">
+        <div className="mb-5 flex items-center justify-between gap-3">
+          <div>
+            <h2 className="text-[23px] font-semibold leading-[1.2] tracking-[-0.44px] text-charcoal-primary">
+              Ways to earn
+            </h2>
+            <p className="mt-1 text-sm tracking-[-0.18px] text-ash">
+              Rewards depend on market activity and final outcomes.
+            </p>
+          </div>
+          <CircleDollarSign className="h-5 w-5 text-meadow-green" />
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <ResolutionCard
+            label="Fund pools"
+            text="Contribute USDC before a market opens to help it reach launch liquidity and participate in potential liquidity rewards."
+          />
+          <ResolutionCard
+            label="Provide liquidity"
+            text="Add liquidity to active markets so traders can buy and sell more smoothly. Liquidity providers may earn from trading activity."
           />
         </div>
       </section>

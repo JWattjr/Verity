@@ -333,7 +333,7 @@ export default function ComposeBox({ profile, onCreated }: ComposeBoxProps) {
           <div className="mt-3 grid gap-3 rounded-[12px] bg-parchment-card p-3 shadow-[var(--shadow-subtle)]">
             <div className="flex flex-wrap items-center justify-between gap-2 rounded-[10px] bg-white-surface px-3 py-2 font-mono text-[11px] text-ash shadow-[var(--shadow-subtle)]">
               <span>
-                Prediction posts cost 11 USDC (1 USDC fee + 10 USDC creator LP escrow)
+                Prediction posts cost 11 USDC (1 USDC fee + 10 USDC creator launch liquidity)
               </span>
               <span>Verity AI review required</span>
             </div>

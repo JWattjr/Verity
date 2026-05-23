@@ -196,7 +196,7 @@ export default function MarketCard({
             </>
           ) : (
             <>
-              <span>Escrow Funding Progress</span>
+              <span>Pool Funding</span>
               <span className="font-mono text-xs font-semibold text-meadow-green">
                 {liquidity.toFixed(2)} / 40.00 USDC
               </span>

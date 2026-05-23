@@ -1743,10 +1743,10 @@ function PreMarketFundingPanel({
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-[19px] font-semibold leading-[1.28] tracking-[-0.25px] text-charcoal-primary">
-            Pre-Market Escrow Funding
+            Pool Funding
           </h2>
           <p className="mt-1 text-sm tracking-[-0.18px] text-ash">
-            A minimum of 40 USDC is required to deploy the active on-chain pool.
+            Fund this market's launch pool. Contributions help open trading and may earn liquidity rewards.
           </p>
         </div>
         <span className="rounded-full bg-meadow-green/10 px-3 py-1 font-mono text-xs font-semibold text-charcoal-primary shadow-[var(--shadow-subtle)]">
@@ -1756,7 +1756,7 @@ function PreMarketFundingPanel({
 
       <div className="mb-5 rounded-[12px] bg-parchment-card p-4 shadow-[var(--shadow-subtle)]">
         <div className="mb-1 flex justify-between font-mono text-xs text-ash">
-          <span>Escrowed Balance</span>
+          <span>Pool Funding</span>
           <span className="font-semibold text-charcoal-primary">
             {currentPoolBalance} USDC
           </span>
@@ -1786,7 +1786,7 @@ function PreMarketFundingPanel({
                 onClick={() => onFundPreMarket(10)}
                 type="button"
               >
-                {actionLoading === 'fund_pre_market' ? 'Processing Escrow...' : 'Fund 10 USDC Escrow'}
+                {actionLoading === 'fund_pre_market' ? 'Funding...' : 'Fund 10 USDC'}
               </button>
             ) : null}
           </div>
@@ -1822,7 +1822,7 @@ function PreMarketFundingPanel({
         ) : (
           <div className="rounded-[12px] bg-parchment-card p-4 shadow-[var(--shadow-subtle)]">
             <h3 className="mb-3 text-sm font-semibold text-charcoal-primary">
-              Contribute Pre-Market LP
+              Fund the Launch Pool
             </h3>
             <div className="flex gap-2">
               <input
@@ -1841,12 +1841,11 @@ function PreMarketFundingPanel({
                 onClick={() => onAddLP(Number(depositAmount))}
                 type="button"
               >
-                {actionLoading === 'add_lp' ? 'Depositing...' : 'Deposit USDC'}
+                {actionLoading === 'add_lp' ? 'Funding...' : 'Fund'}
               </button>
             </div>
             <p className="mt-2 font-mono text-[10px] leading-relaxed text-ash">
-              * Escrowed USDC will be automatically converted to LP shares once
-              the pool hits the {minPoolBalance} USDC target.
+              Contributions convert to LP shares once the pool hits the {minPoolBalance} USDC launch target.
             </p>
           </div>
         )}
@@ -2333,8 +2332,8 @@ function RedeemPanel({
             </span>
           </div>
           <p className="mb-3 text-xs leading-relaxed text-ash">
-            As the market creator, your 10 USDC initial liquidity escrow can now
-            be claimed and disbursed according to the final pool ratios.
+            As the market creator, your initial launch liquidity can now be
+            claimed and disbursed according to the final pool ratios.
           </p>
           <button
             className="verity-pill flex h-10 w-full items-center justify-center bg-inverse font-mono text-xs font-semibold uppercase tracking-[0.12em] text-inverse-text transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-45"
@@ -2374,15 +2373,14 @@ function RefundPanel({
         Claim Refund
       </h2>
       <p className="mb-4 text-sm tracking-[-0.18px] text-ash">
-        This market was voided. You can retrieve your committed pre-market USDC
-        LP deposits.
+        This market was voided. You can retrieve your committed pool funding.
       </p>
 
       <div className="rounded-[12px] bg-parchment-card p-4 shadow-[var(--shadow-subtle)]">
         <div className="mb-3 flex items-center justify-between gap-3">
           <div>
             <span className="font-mono text-[10px] font-semibold uppercase text-ash">
-              Your Pre-Market Deposit
+              Your Pool Funding
             </span>
             <p className="mt-1 font-mono text-sm font-semibold text-charcoal-primary">
               {myLPPosition.lpShares.toFixed(2)} USDC
