@@ -4,16 +4,15 @@ import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { BadgeCheck, Share } from 'lucide-react'
 import FollowButton from '@/components/profile/FollowButton'
-import MarketCard from '@/components/post/MarketCard'
-import PostCard from '@/components/post/PostCard'
+import ProfileActivityTabs, {
+  type ProfileActivityTab,
+} from '@/components/social/ProfileActivityTabs'
+import SocialUserListModal from '@/components/social/SocialUserListModal'
 import { useFeed } from '@/hooks/useFeed'
 import { useWalletProfile } from '@/hooks/useWalletProfile'
 import {
   displayHandle,
   displayName,
-  relativeTime,
-  type FeedPost,
-  type MarketPost,
   type Profile,
 } from '@/lib/verity'
 
@@ -21,13 +20,12 @@ interface PublicProfileViewProps {
   userId: string
 }
 
-type ProfileTab = 'posts' | 'markets' | 'comments' | 'likes'
-
 export default function PublicProfileView({ userId }: PublicProfileViewProps) {
   const router = useRouter()
   const { profile: viewerProfile } = useWalletProfile()
   const { items, loading, error } = useFeed(viewerProfile?.id)
-  const [activeTab, setActiveTab] = useState<ProfileTab>('posts')
+  const [activeTab, setActiveTab] = useState<ProfileActivityTab>('posts')
+  const [peopleModal, setPeopleModal] = useState<'followers' | 'following' | null>(null)
 
   const decodedUserId = decodeURIComponent(userId)
   const profile = useMemo(() => {
@@ -52,17 +50,13 @@ export default function PublicProfileView({ userId }: PublicProfileViewProps) {
   }, [items, profile])
 
   const marketItems = profileItems.filter((item) => item.market)
-  const visibleItems =
-    activeTab === 'markets'
-      ? marketItems
-      : activeTab === 'posts'
-        ? profileItems
-        : []
-  const totalVolume = marketItems.reduce((sum, item) => {
-    const market = item.market
-    if (!market) return sum
-    return sum + Number(market.usdc_yes_amount) + Number(market.usdc_no_amount)
-  }, 0)
+  const knownUsers = useMemo(() => {
+    const users = new Map<string, Profile>()
+    items.forEach((item) => users.set(item.author.id, item.author))
+    if (viewerProfile) users.set(viewerProfile.id, viewerProfile)
+    if (profile) users.set(profile.id, profile)
+    return Array.from(users.values())
+  }, [items, profile, viewerProfile])
   const accuracy =
     profile?.freeVotesTotal && profile.freeVotesTotal > 0
       ? Math.round(((profile.freeVotesCorrect || 0) / profile.freeVotesTotal) * 100)
@@ -118,18 +112,26 @@ export default function PublicProfileView({ userId }: PublicProfileViewProps) {
               </p>
             )}
             <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm tracking-[-0.18px] text-graphite">
-              <span>
+              <button
+                className="hover:text-ember-orange"
+                onClick={() => setPeopleModal('following')}
+                type="button"
+              >
                 <strong className="font-semibold text-midnight">
                   {(profile.followingCount || 0).toLocaleString()}
                 </strong>{' '}
                 Following
-              </span>
-              <span>
+              </button>
+              <button
+                className="hover:text-ember-orange"
+                onClick={() => setPeopleModal('followers')}
+                type="button"
+              >
                 <strong className="font-semibold text-midnight">
                   {(profile.followersCount || 0).toLocaleString()}
                 </strong>{' '}
                 Followers
-              </span>
+              </button>
               <span className="font-mono text-xs text-ash">
                 {profileItems.length} posts
               </span>
@@ -146,86 +148,22 @@ export default function PublicProfileView({ userId }: PublicProfileViewProps) {
         <ProfileTabs activeTab={activeTab} onChange={setActiveTab} />
       </section>
 
-      <section className="flex flex-col gap-3">
-        {visibleItems.length > 0 ? (
-          visibleItems.map((item) => (
-            <ProfileFeedItem
-              item={item}
-              key={item.id}
-              onOpenMarket={(market) => router.push(`/markets/${market.id}`)}
-            />
-          ))
-        ) : (
-          <div className="verity-card p-8 text-center text-sm tracking-[-0.18px] text-ash">
-            {activeTab === 'posts'
-              ? 'No posts yet.'
-              : activeTab === 'markets'
-                ? 'No markets yet.'
-                : 'Coming soon.'}
-          </div>
-        )}
-      </section>
-    </div>
-  )
-}
-
-function ProfileFeedItem({
-  item,
-  onOpenMarket,
-}: {
-  item: FeedPost
-  onOpenMarket: (market: MarketPost) => void
-}) {
-  if (item.market) {
-    const market = item.market
-    const totalUsdc = Number(market.usdc_yes_amount) + Number(market.usdc_no_amount)
-    const yesPercent =
-      totalUsdc > 0 ? (Number(market.usdc_yes_amount) / totalUsdc) * 100 : 50
-
-    return (
-      <MarketCard
-        category={market.category}
-        comments={item.commentsCount}
-        dailyVotesRemaining={10}
-        deadline={new Date(market.deadline).toLocaleString()}
-        freeNoVotes={market.free_no_votes}
-        freeYesVotes={market.free_yes_votes}
-        handle={displayHandle(item.author)}
-        liquidity={market.liquidity}
-        marketCreationFeeUsdc={market.market_creation_fee_usdc}
-        name={displayName(item.author)}
-        noCondition={market.no_condition}
-        onOpenDetails={() => onOpenMarket(market)}
-        postContent={item.content}
-        profileHref={`/profile/${encodeURIComponent(item.author.id)}`}
-        question={market.question}
-        resolutionSource={market.resolution_source}
-        reshares={item.resharesCount}
-        status={market.status}
-        time={relativeTime(item.created_at)}
-        totalFreeVotes={market.totalFreeVotes}
-        usdcNo={Number(market.usdc_no_amount)}
-        usdcYes={Number(market.usdc_yes_amount)}
-        viewerVote={item.viewerVote}
-        yesCondition={market.yes_condition}
-        yesPercent={yesPercent}
+      <ProfileActivityTabs
+        activeTab={activeTab}
+        items={profileItems}
+        onOpenMarket={(market) => router.push(`/markets/${market.id}`)}
+        onOpenPost={(post) => router.push(`/posts/${post.id}`)}
+        profile={profile}
       />
-    )
-  }
 
-  return (
-    <PostCard
-      comments={item.commentsCount}
-      content={item.content}
-      handle={displayHandle(item.author)}
-      liked={item.viewerLiked}
-      likes={item.likesCount}
-      name={displayName(item.author)}
-      profileHref={`/profile/${encodeURIComponent(item.author.id)}`}
-      reshares={item.resharesCount}
-      reshared={item.viewerReshared}
-      time={relativeTime(item.created_at)}
-    />
+      <SocialUserListModal
+        open={peopleModal !== null}
+        onClose={() => setPeopleModal(null)}
+        subtitle="People already active on Verity."
+        title={peopleModal === 'followers' ? 'Followers' : 'Following'}
+        users={knownUsers}
+      />
+    </div>
   )
 }
 
@@ -252,10 +190,10 @@ function ProfileTabs({
   activeTab,
   onChange,
 }: {
-  activeTab: ProfileTab
-  onChange: (tab: ProfileTab) => void
+  activeTab: ProfileActivityTab
+  onChange: (tab: ProfileActivityTab) => void
 }) {
-  const tabs: Array<{ id: ProfileTab; label: string }> = [
+  const tabs: Array<{ id: ProfileActivityTab; label: string }> = [
     { id: 'posts', label: 'Posts' },
     { id: 'markets', label: 'Markets' },
     { id: 'comments', label: 'Comments' },

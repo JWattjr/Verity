@@ -3,7 +3,8 @@
 import Link from 'next/link'
 import { useState, type MouseEvent } from 'react'
 import { ArrowDown, ArrowUp, MessageCircle, Repeat2, Share } from 'lucide-react'
-import type { VoteSide } from '@/lib/verity'
+import UserHoverCard from '@/components/social/UserHoverCard'
+import type { Profile, VoteSide } from '@/lib/verity'
 
 export interface MarketCardProps {
   variant?: 'compact' | 'detail'
@@ -48,6 +49,7 @@ export interface MarketCardProps {
   isConnected?: boolean
   onAddLP?: (amount: number) => Promise<void>
   profileHref?: string
+  profile?: Profile
 }
 
 export default function MarketCard({
@@ -88,6 +90,7 @@ export default function MarketCard({
   isConnected = false,
   onAddLP,
   profileHref,
+  profile,
 }: MarketCardProps) {
   const [lpAmount, setLpAmount] = useState('10')
   const [tradeAmount, setTradeAmount] = useState('10')
@@ -143,13 +146,15 @@ export default function MarketCard({
           <div className="mt-2 flex flex-wrap items-center gap-2 text-[12px] tracking-[-0.14px] text-ash">
             <span>by</span>
             {profileHref ? (
-              <Link
-                className="font-medium text-charcoal-primary hover:underline"
-                href={profileHref}
-                onClick={stopClick}
-              >
-                {creatorLabel}
-              </Link>
+              <UserHoverCard href={profileHref} profile={profile}>
+                <Link
+                  className="font-medium text-charcoal-primary hover:underline"
+                  href={profileHref}
+                  onClick={stopClick}
+                >
+                  {creatorLabel}
+                </Link>
+              </UserHoverCard>
             ) : (
               <span className="font-medium text-charcoal-primary">{creatorLabel}</span>
             )}

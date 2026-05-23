@@ -220,6 +220,7 @@ export default function FeedShell() {
               onComment={() => commentOn(item)}
               onLike={() => runAction(() => toggleLike({ postId: item.id, profileId: profile!.id, currentlyLiked: item.viewerLiked }))}
               onOpenMarket={(market) => router.push(`/markets/${market.id}`)}
+              onOpenPost={(post) => router.push(`/posts/${post.id}`)}
               onReshare={() => runAction(() => toggleReshare({ postId: item.id, profileId: profile!.id, currentlyReshared: item.viewerReshared }))}
               onShare={() => sharePost(item)}
               onUsdcVote={(market, side, amount) => handleBuySide(market, side, amount)}
@@ -248,6 +249,7 @@ function FeedCard({
   onComment,
   onLike,
   onOpenMarket,
+  onOpenPost,
   onReshare,
   onShare,
   onUsdcVote,
@@ -261,6 +263,7 @@ function FeedCard({
   onComment: () => void;
   onLike: () => void;
   onOpenMarket: (market: MarketPost) => void;
+  onOpenPost: (post: FeedPost) => void;
   onReshare: () => void;
   onShare: () => void;
   onUsdcVote: (market: MarketPost, side: VoteSide, amount: number) => void;
@@ -290,6 +293,7 @@ function FeedCard({
         onUsdcVote={(side, amount) => onUsdcVote(item.market!, side, amount)}
         onVote={(side) => onVote(item.market!, side)}
         postContent={item.content}
+        profile={item.author}
         profileHref={`/profile/${encodeURIComponent(item.author.id)}`}
         question={item.market.question}
         resolutionSource={item.market.resolution_source}
@@ -329,12 +333,14 @@ function FeedCard({
       likes={item.likesCount}
       name={displayName(item.author)}
       onComment={onComment}
+      onOpenDetails={() => onOpenPost(item)}
       onLike={onLike}
       onReshare={onReshare}
       onShare={onShare}
       reshares={item.resharesCount}
       reshared={item.viewerReshared}
       time={relativeTime(item.created_at)}
+      profile={item.author}
       profileHref={`/profile/${encodeURIComponent(item.author.id)}`}
     />
   );

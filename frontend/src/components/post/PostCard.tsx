@@ -1,7 +1,9 @@
 'use client'
 
 import Link from 'next/link'
+import UserHoverCard from '@/components/social/UserHoverCard'
 import { Heart, MessageCircle, Repeat2, Share } from 'lucide-react'
+import type { Profile } from '@/lib/verity'
 
 export interface PostCardProps {
   name: string
@@ -17,8 +19,10 @@ export interface PostCardProps {
   onLike?: () => void
   onReshare?: () => void
   onShare?: () => void
+  onOpenDetails?: () => void
   avatarColor?: string
   profileHref?: string
+  profile?: Profile
 }
 
 export default function PostCard({
@@ -35,27 +39,54 @@ export default function PostCard({
   onLike,
   onReshare,
   onShare,
+  onOpenDetails,
   avatarColor = 'bg-sunburst-yellow',
   profileHref,
+  profile,
 }: PostCardProps) {
   return (
-    <article className="verity-card verity-card-hover flex cursor-pointer gap-4 p-5">
+    <article
+      className="verity-card verity-card-hover flex cursor-pointer gap-4 p-5"
+      onClick={onOpenDetails}
+      onKeyDown={(event) => {
+        if (onOpenDetails && (event.key === 'Enter' || event.key === ' ')) {
+          event.preventDefault()
+          onOpenDetails()
+        }
+      }}
+      role={onOpenDetails ? 'link' : undefined}
+      tabIndex={onOpenDetails ? 0 : undefined}
+    >
       <div className="shrink-0">
-        <div className={`verity-blob h-10 w-10 ${avatarColor}`}>
-          <span className="verity-blob-smile" />
-        </div>
+        {profileHref ? (
+          <UserHoverCard href={profileHref} profile={profile}>
+            <Link
+              className={`verity-blob h-10 w-10 ${avatarColor}`}
+              href={profileHref}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <span className="verity-blob-smile" />
+            </Link>
+          </UserHoverCard>
+        ) : (
+          <div className={`verity-blob h-10 w-10 ${avatarColor}`}>
+            <span className="verity-blob-smile" />
+          </div>
+        )}
       </div>
 
       <div className="min-w-0 flex-1">
         <div className="mb-1 flex items-center gap-1.5 text-sm">
           {profileHref ? (
-            <Link
-              className="truncate font-semibold tracking-[-0.18px] text-charcoal-primary hover:underline"
-              href={profileHref}
-              onClick={(event) => event.stopPropagation()}
-            >
-              {name}
-            </Link>
+            <UserHoverCard href={profileHref} profile={profile}>
+              <Link
+                className="truncate font-semibold tracking-[-0.18px] text-charcoal-primary hover:underline"
+                href={profileHref}
+                onClick={(event) => event.stopPropagation()}
+              >
+                {name}
+              </Link>
+            </UserHoverCard>
           ) : (
             <span className="truncate font-semibold tracking-[-0.18px] text-charcoal-primary hover:underline">
               {name}
@@ -84,7 +115,10 @@ export default function PostCard({
           {content}
         </p>
 
-        <div className="flex max-w-[360px] items-center justify-between border-t border-dashed border-stone-surface pt-2 text-ash">
+        <div
+          className="flex max-w-[360px] items-center justify-between border-t border-dashed border-stone-surface pt-2 text-ash"
+          onClick={(event) => event.stopPropagation()}
+        >
           <button
             aria-label="Comment"
             className="group flex items-center gap-2 transition-colors hover:text-foreground"
