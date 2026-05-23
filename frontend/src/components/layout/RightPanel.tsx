@@ -112,7 +112,7 @@ export default function RightPanel() {
         <a href="#" className="hover:underline">Privacy Policy</a>
         <a href="#" className="hover:underline">Cookie Policy</a>
         <a href="#" className="hover:underline">Accessibility</a>
-        <a href="#" className="hover:underline">Docs</a>
+        <Link href="/how-it-works" className="hover:underline">How it works</Link>
         <span>{"\u00A9"} 2026 Verity</span>
       </div>
     </div>

@@ -9,6 +9,7 @@ import {
   User, 
   Wallet,
   TrendingUp,
+  CircleHelp,
   CircleDollarSign,
   PenSquare
 } from "lucide-react";
@@ -22,6 +23,7 @@ const NAV_ITEMS = [
   { icon: Home, label: "Home", href: "/" },
   { icon: Search, label: "Explore", href: "/explore" },
   { icon: TrendingUp, label: "Markets", href: "/explore?onlyMarkets=true" },
+  { icon: CircleHelp, label: "How it works", href: "/how-it-works" },
   { icon: Bell, label: "Notifications", href: "/notifications" },
   { icon: Wallet, label: "Wallet", href: "/wallet" },
   { icon: User, label: "Profile", href: "/profile" },
