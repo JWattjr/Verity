@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useState, type MouseEvent } from 'react'
 import { ArrowDown, ArrowUp, MessageCircle, Repeat2, Share } from 'lucide-react'
 import type { VoteSide } from '@/lib/verity'
@@ -46,6 +47,7 @@ export interface MarketCardProps {
   actionLoadingStatus?: string | null
   isConnected?: boolean
   onAddLP?: (amount: number) => Promise<void>
+  profileHref?: string
 }
 
 export default function MarketCard({
@@ -85,6 +87,7 @@ export default function MarketCard({
   actionLoadingStatus = null,
   isConnected = false,
   onAddLP,
+  profileHref,
 }: MarketCardProps) {
   const [lpAmount, setLpAmount] = useState('10')
   const [tradeAmount, setTradeAmount] = useState('10')
@@ -139,7 +142,17 @@ export default function MarketCard({
           </h3>
           <div className="mt-2 flex flex-wrap items-center gap-2 text-[12px] tracking-[-0.14px] text-ash">
             <span>by</span>
-            <span className="font-medium text-charcoal-primary">{creatorLabel}</span>
+            {profileHref ? (
+              <Link
+                className="font-medium text-charcoal-primary hover:underline"
+                href={profileHref}
+                onClick={stopClick}
+              >
+                {creatorLabel}
+              </Link>
+            ) : (
+              <span className="font-medium text-charcoal-primary">{creatorLabel}</span>
+            )}
             <span className="text-ash">{'\u00B7'}</span>
             <span className="font-mono">{time}</span>
           </div>

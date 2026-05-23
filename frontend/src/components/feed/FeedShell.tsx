@@ -290,6 +290,7 @@ function FeedCard({
         onUsdcVote={(side, amount) => onUsdcVote(item.market!, side, amount)}
         onVote={(side) => onVote(item.market!, side)}
         postContent={item.content}
+        profileHref={`/profile/${encodeURIComponent(item.author.id)}`}
         question={item.market.question}
         resolutionSource={item.market.resolution_source}
         reshares={item.resharesCount}
@@ -334,6 +335,7 @@ function FeedCard({
       reshares={item.resharesCount}
       reshared={item.viewerReshared}
       time={relativeTime(item.created_at)}
+      profileHref={`/profile/${encodeURIComponent(item.author.id)}`}
     />
   );
 }

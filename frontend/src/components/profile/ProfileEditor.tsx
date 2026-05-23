@@ -1,90 +1,264 @@
 'use client'
 
-import { useState } from 'react'
-import { BadgeCheck, Save } from 'lucide-react'
-import WalletConnectControl from '@/components/wallet/WalletConnectControl'
+import { useMemo, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { BadgeCheck, Edit3, Save, Share } from 'lucide-react'
+import MarketCard from '@/components/post/MarketCard'
+import PostCard from '@/components/post/PostCard'
+import { useFeed } from '@/hooks/useFeed'
 import { useWalletProfile } from '@/hooks/useWalletProfile'
-import { displayHandle, displayName, type Profile } from '@/lib/verity'
+import {
+  displayHandle,
+  displayName,
+  relativeTime,
+  type FeedPost,
+  type MarketPost,
+  type Profile,
+} from '@/lib/verity'
 import { useUpdateProfileMutation } from '@/store/verity/verityQueries'
 
+type ProfileTab = 'posts' | 'markets' | 'comments' | 'likes'
+
 export default function ProfileEditor() {
+  const router = useRouter()
   const { profile, isLoading } = useWalletProfile()
+  const { items } = useFeed(profile?.id)
+  const [editing, setEditing] = useState(false)
+  const [activeTab, setActiveTab] = useState<ProfileTab>('posts')
   const isConnected = Boolean(profile)
+  const profileItems = useMemo(
+    () => (profile ? items.filter((item) => item.author.id === profile.id) : []),
+    [items, profile],
+  )
+  const marketItems = profileItems.filter((item) => item.market)
+  const visibleItems =
+    activeTab === 'markets'
+      ? marketItems
+      : activeTab === 'posts'
+        ? profileItems
+        : []
 
   return (
-    <section className="verity-card p-5">
-      <div className="mb-5">
-        <WalletConnectControl />
-      </div>
+    <div className="flex flex-col gap-3 py-4">
+      <section className="verity-card overflow-hidden">
+        <div className="h-28 bg-midnight" />
 
-      <div className="flex items-center gap-4">
-        <div
-          className="verity-blob h-16 w-16 bg-cover bg-center bg-sky-blue"
-          style={
-            profile?.avatar_url
-              ? { backgroundImage: `url(${profile.avatar_url})` }
-              : undefined
-          }
-        />
-        <div>
-          <div className="flex items-center gap-2">
-            <h2 className="text-xl font-semibold tracking-[-0.25px] text-charcoal-primary">
-              {isConnected ? displayName(profile) : 'Connect wallet'}
-            </h2>
-            {profile && (
-              <BadgeCheck className="h-5 w-5 text-meadow-green" />
+        <div className="px-5 pb-5">
+          <div className="-mt-10 flex items-end justify-between gap-3">
+            <ProfileAvatar profile={profile} />
+            <div className="mb-2 flex gap-2">
+              <button
+                className="verity-pill hidden h-10 items-center justify-center gap-2 bg-parchment-card px-4 text-sm font-semibold tracking-[-0.18px] text-charcoal-primary shadow-[var(--shadow-subtle)] transition-colors hover:bg-stone-surface sm:inline-flex"
+                onClick={() => {
+                  if (typeof window !== 'undefined') {
+                    void navigator.clipboard?.writeText(window.location.href)
+                  }
+                }}
+                type="button"
+              >
+                Share profile <Share className="h-4 w-4" />
+              </button>
+              <button
+                className="verity-pill flex h-10 items-center justify-center gap-2 bg-midnight px-4 text-sm font-semibold tracking-[-0.18px] text-white transition-colors hover:bg-charcoal-primary"
+                onClick={() => setEditing((current) => !current)}
+                type="button"
+              >
+                {editing ? 'Close editor' : 'Edit profile'} <Edit3 className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+
+          <div className="mt-3">
+            <div className="flex items-center gap-2">
+              <h1 className="text-[28px] font-semibold leading-[1.1] tracking-[-0.7px] text-midnight">
+                {isConnected ? displayName(profile) : 'Connect wallet'}
+              </h1>
+              {profile && <BadgeCheck className="h-5 w-5 text-sky-blue" />}
+            </div>
+            <p className="mt-1 font-mono text-sm text-ash">
+              {isConnected ? displayHandle(profile) : '@wallet'}
+            </p>
+            {profile?.bio ? (
+              <p className="mt-3 max-w-[560px] text-[15px] leading-[1.47] tracking-[-0.2px] text-graphite">
+                {profile.bio}
+              </p>
+            ) : (
+              <p className="mt-3 max-w-[560px] text-[15px] leading-[1.47] tracking-[-0.2px] text-ash">
+                Add a bio so people know what markets you care about.
+              </p>
             )}
-          </div>
-          <p className="font-mono text-sm text-ash">
-            {isConnected ? displayHandle(profile) : '@wallet'}
-          </p>
-        </div>
-      </div>
 
-      {profile && (
-        <div className="mt-5 rounded-[12px] bg-parchment-card p-4 shadow-[var(--shadow-subtle)]">
-          <div className="flex items-center justify-between gap-3">
-            <span className="font-mono text-xs font-semibold uppercase tracking-[0.14em] text-ash">
-              Signal Points
-            </span>
-            <span className="font-mono text-lg font-semibold text-midnight">
-              {profile.signalPoints || 0}
-            </span>
+            <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm tracking-[-0.18px] text-graphite">
+              <span>
+                <strong className="font-semibold text-midnight">
+                  {(profile?.followingCount || 0).toLocaleString()}
+                </strong>{' '}
+                Following
+              </span>
+              <span>
+                <strong className="font-semibold text-midnight">
+                  {(profile?.followersCount || 0).toLocaleString()}
+                </strong>{' '}
+                Followers
+              </span>
+              <span className="font-mono text-xs text-ash">
+                {profileItems.length} posts
+              </span>
+              <span className="font-mono text-xs text-ash">
+                {marketItems.length} markets
+              </span>
+            </div>
           </div>
-          <div className="mt-4 grid grid-cols-3 gap-2">
-            <SignalMetric
-              label="Correct"
-              value={profile.freeVotesCorrect || 0}
-            />
-            <SignalMetric label="Wrong" value={profile.freeVotesWrong || 0} />
-            <SignalMetric label="Total" value={profile.freeVotesTotal || 0} />
-          </div>
-          <p className="mt-2 text-sm tracking-[-0.18px] text-graphite">
-            Signal Points activate when markets resolve. Correct early Upvote/Downvote signals and correct minority signals earn bonus reputation.
-          </p>
         </div>
+
+        <ProfileTabs activeTab={activeTab} onChange={setActiveTab} />
+      </section>
+
+      {editing && (
+        <section className="verity-card p-5">
+          <ProfileForm
+            error={null}
+            key={profile?.id || 'empty'}
+            loading={isLoading}
+            profile={profile}
+          />
+        </section>
       )}
 
-      <ProfileForm
-        error={null}
-        key={profile?.id || 'empty'}
-        loading={isLoading}
-        profile={profile}
-      />
-    </section>
+      <section className="flex flex-col gap-3">
+        {visibleItems.length > 0 ? (
+          visibleItems.map((item) => (
+            <ProfileFeedItem
+              item={item}
+              key={item.id}
+              onOpenMarket={(market) => router.push(`/markets/${market.id}`)}
+            />
+          ))
+        ) : (
+          <div className="verity-card p-8 text-center text-sm tracking-[-0.18px] text-ash">
+            {activeTab === 'posts'
+              ? 'No posts yet.'
+              : activeTab === 'markets'
+                ? 'No markets yet.'
+                : 'Coming soon.'}
+          </div>
+        )}
+      </section>
+    </div>
   )
 }
 
-function SignalMetric({ label, value }: { label: string; value: number }) {
+function ProfileAvatar({ profile }: { profile: Profile | null }) {
+  const avatarUrl = profile?.avatar_url || profile?.avatarUrl
+
+  if (avatarUrl) {
+    return (
+      <div
+        className="h-24 w-24 shrink-0 rounded-[28px] bg-cover bg-center ring-4 ring-white shadow-[var(--shadow-subtle)]"
+        style={{ backgroundImage: `url(${avatarUrl})` }}
+      />
+    )
+  }
+
   return (
-    <div className="rounded-[10px] bg-white-surface p-3 shadow-[var(--shadow-subtle)]">
-      <p className="font-mono text-base font-semibold text-charcoal-primary">
-        {value}
-      </p>
-      <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-ash">
-        {label}
-      </p>
+    <div className="verity-blob h-24 w-24 shrink-0 bg-sky-blue ring-4 ring-white">
+      <span className="verity-blob-smile" />
     </div>
+  )
+}
+
+function ProfileTabs({
+  activeTab,
+  onChange,
+}: {
+  activeTab: ProfileTab
+  onChange: (tab: ProfileTab) => void
+}) {
+  const tabs: Array<{ id: ProfileTab; label: string }> = [
+    { id: 'posts', label: 'Posts' },
+    { id: 'markets', label: 'Markets' },
+    { id: 'comments', label: 'Comments' },
+    { id: 'likes', label: 'Likes' },
+  ]
+
+  return (
+    <div className="grid grid-cols-4 border-t border-dashed border-stone-surface px-2">
+      {tabs.map((tab) => (
+        <button
+          className={`relative h-12 text-sm font-semibold tracking-[-0.18px] transition-colors ${
+            activeTab === tab.id ? 'text-charcoal-primary' : 'text-ash hover:text-charcoal-primary'
+          }`}
+          key={tab.id}
+          onClick={() => onChange(tab.id)}
+          type="button"
+        >
+          {tab.label}
+          {activeTab === tab.id && (
+            <span className="absolute bottom-0 left-1/2 h-1 w-12 -translate-x-1/2 rounded-full bg-ember-orange" />
+          )}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+function ProfileFeedItem({
+  item,
+  onOpenMarket,
+}: {
+  item: FeedPost
+  onOpenMarket: (market: MarketPost) => void
+}) {
+  if (item.market) {
+    const market = item.market
+    const totalUsdc = Number(market.usdc_yes_amount) + Number(market.usdc_no_amount)
+    const yesPercent =
+      totalUsdc > 0 ? (Number(market.usdc_yes_amount) / totalUsdc) * 100 : 50
+
+    return (
+      <MarketCard
+        category={market.category}
+        comments={item.commentsCount}
+        dailyVotesRemaining={10}
+        deadline={new Date(market.deadline).toLocaleString()}
+        freeNoVotes={market.free_no_votes}
+        freeYesVotes={market.free_yes_votes}
+        handle={displayHandle(item.author)}
+        liquidity={market.liquidity}
+        marketCreationFeeUsdc={market.market_creation_fee_usdc}
+        name={displayName(item.author)}
+        noCondition={market.no_condition}
+        onOpenDetails={() => onOpenMarket(market)}
+        postContent={item.content}
+        profileHref={`/profile/${encodeURIComponent(item.author.id)}`}
+        question={market.question}
+        resolutionSource={market.resolution_source}
+        reshares={item.resharesCount}
+        status={market.status}
+        time={relativeTime(item.created_at)}
+        totalFreeVotes={market.totalFreeVotes}
+        usdcNo={Number(market.usdc_no_amount)}
+        usdcYes={Number(market.usdc_yes_amount)}
+        viewerVote={item.viewerVote}
+        yesCondition={market.yes_condition}
+        yesPercent={yesPercent}
+      />
+    )
+  }
+
+  return (
+    <PostCard
+      comments={item.commentsCount}
+      content={item.content}
+      handle={displayHandle(item.author)}
+      liked={item.viewerLiked}
+      likes={item.likesCount}
+      name={displayName(item.author)}
+      profileHref={`/profile/${encodeURIComponent(item.author.id)}`}
+      reshares={item.resharesCount}
+      reshared={item.viewerReshared}
+      time={relativeTime(item.created_at)}
+    />
   )
 }
 

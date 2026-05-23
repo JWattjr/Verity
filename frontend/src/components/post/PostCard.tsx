@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { Heart, MessageCircle, Repeat2, Share } from 'lucide-react'
 
 export interface PostCardProps {
@@ -17,6 +18,7 @@ export interface PostCardProps {
   onReshare?: () => void
   onShare?: () => void
   avatarColor?: string
+  profileHref?: string
 }
 
 export default function PostCard({
@@ -34,6 +36,7 @@ export default function PostCard({
   onReshare,
   onShare,
   avatarColor = 'bg-sunburst-yellow',
+  profileHref,
 }: PostCardProps) {
   return (
     <article className="verity-card verity-card-hover flex cursor-pointer gap-4 p-5">
@@ -45,12 +48,32 @@ export default function PostCard({
 
       <div className="min-w-0 flex-1">
         <div className="mb-1 flex items-center gap-1.5 text-sm">
-          <span className="truncate font-semibold tracking-[-0.18px] text-charcoal-primary hover:underline">
-            {name}
-          </span>
-          <span className="truncate font-mono text-xs text-ash">
-            {handle}
-          </span>
+          {profileHref ? (
+            <Link
+              className="truncate font-semibold tracking-[-0.18px] text-charcoal-primary hover:underline"
+              href={profileHref}
+              onClick={(event) => event.stopPropagation()}
+            >
+              {name}
+            </Link>
+          ) : (
+            <span className="truncate font-semibold tracking-[-0.18px] text-charcoal-primary hover:underline">
+              {name}
+            </span>
+          )}
+          {profileHref ? (
+            <Link
+              className="truncate font-mono text-xs text-ash hover:underline"
+              href={profileHref}
+              onClick={(event) => event.stopPropagation()}
+            >
+              {handle}
+            </Link>
+          ) : (
+            <span className="truncate font-mono text-xs text-ash">
+              {handle}
+            </span>
+          )}
           <span className="text-ash">{'\u00B7'}</span>
           <span className="font-mono text-xs text-ash hover:underline">
             {time}

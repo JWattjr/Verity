@@ -205,6 +205,13 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
   const comments = fetchedComments || []
   const positions = fetchedPositions || []
   const trades = fetchedTrades || []
+  const selectedSideShares = useMemo(
+    () =>
+      positions
+        .filter((position) => position.side === selectedSide)
+        .reduce((sum, position) => sum + Number(position.shares || 0), 0),
+    [positions, selectedSide],
+  )
 
   const volume = useMemo(() => {
     return trades.reduce((sum, t) => sum + Number(t.amount_usdc || 0), 0)
@@ -599,6 +606,7 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
           yesPrice={yesPercent}
           noPrice={noPercent}
           actionPending={actionPending === 'trade'}
+          maxSellShares={selectedSideShares}
         />
 
         <MarketStatsPanel
@@ -938,6 +946,7 @@ function TradeTicket({
   total,
   yesPrice,
   actionPending = false,
+  maxSellShares,
 }: {
   action: MarketTradeAction
   amount: string
@@ -958,33 +967,53 @@ function TradeTicket({
   total: number
   yesPrice: number
   actionPending?: boolean
+  maxSellShares: number
 }) {
-  return (
-    <section className="verity-card p-4">
-      <div className="mb-4 flex items-center justify-between">
-        <h2 className="font-semibold tracking-[-0.18px] text-charcoal-primary">Place a Trade</h2>
-        <span className="font-mono text-[11px] text-ash">Arc USDC</span>
-      </div>
+  const quickBuyAmounts = [1, 5, 10, 100]
+  const sellPercentages = [25, 50, 75, 100]
+  const amountNumber = Number(amount)
+  const previewValue =
+    Number.isFinite(amountNumber) && amountNumber > 0 ? amountNumber : 0
 
-      <div className="mb-3 grid grid-cols-2 rounded-[32px] bg-parchment-card p-1 shadow-[var(--shadow-subtle)]">
+  function addBuyAmount(value: number) {
+    const nextAmount = Number.isFinite(amountNumber) ? amountNumber + value : value
+    onAmountChange(String(nextAmount))
+  }
+
+  function setSellPercentage(percent: number) {
+    const shares = (maxSellShares * percent) / 100
+    onAmountChange(shares > 0 ? shares.toFixed(4) : '0')
+  }
+
+  return (
+    <section className="verity-card overflow-hidden">
+      <div className="flex items-center justify-between border-b border-dashed border-stone-surface px-4 py-3">
+        <div className="flex gap-4">
         {(['BUY', 'SELL'] as const).map((nextAction) => (
           <button
             aria-pressed={action === nextAction}
-            className={`verity-pill h-9 text-sm font-semibold tracking-[-0.18px] transition-colors ${
-              action === nextAction
-                ? 'bg-white-surface text-charcoal-primary shadow-[var(--shadow-subtle)]'
-                : 'text-ash hover:text-charcoal-primary'
+            className={`relative h-8 text-sm font-semibold tracking-[-0.18px] transition-colors ${
+              action === nextAction ? 'text-charcoal-primary' : 'text-ash hover:text-charcoal-primary'
             }`}
             key={nextAction}
             onClick={() => onActionChange(nextAction)}
             type="button"
           >
             {nextAction === 'BUY' ? 'Buy' : 'Sell'}
+            {action === nextAction && (
+              <span className="absolute bottom-0 left-0 h-0.5 w-full rounded-full bg-charcoal-primary" />
+            )}
           </button>
         ))}
+        </div>
+        <span className="font-mono text-[11px] font-semibold text-charcoal-primary">
+          Market
+        </span>
       </div>
 
-      <div className="mb-3 grid grid-cols-2 gap-2">
+      <div className="p-4">
+
+      <div className="mb-6 grid grid-cols-2 gap-3">
         <OutcomeButton
           active={selectedSide === 'YES'}
           label="Yes"
@@ -1001,29 +1030,63 @@ function TradeTicket({
         />
       </div>
 
-      <label
-        className="mb-2 block font-mono text-[11px] font-semibold uppercase text-ash"
-        htmlFor="market-trade-amount"
-      >
-        {action === 'BUY'
-          ? 'Amount (USDC)'
-          : `Shares to sell (${selectedSide})`}
-      </label>
-      <input
-        className="h-11 w-full rounded-[10px] bg-white-surface px-3 font-mono text-sm text-charcoal-primary shadow-[var(--shadow-subtle)] outline-none focus:ring-2 focus:ring-stone-surface"
-        id="market-trade-amount"
-        min="0"
-        onChange={(event) => onAmountChange(event.target.value)}
-        step="0.01"
-        type="number"
-        value={amount}
-      />
-
-      <div className="mt-3 grid gap-1 font-mono text-[11px] text-ash">
-        <div className="flex justify-between">
-          <span>Current balance</span>
-          <span>{balanceLabel} USDC</span>
+      <div className="mb-3 flex items-end justify-between gap-3">
+        <div>
+          <label
+            className="block text-[15px] font-semibold tracking-[-0.2px] text-charcoal-primary"
+            htmlFor="market-trade-amount"
+          >
+            {action === 'BUY' ? 'Amount' : 'Shares'}
+          </label>
+          <p className="mt-0.5 font-mono text-[11px] text-ash">
+            {action === 'BUY'
+              ? `${balanceLabel} USDC balance`
+              : `${maxSellShares.toFixed(4)} ${selectedSide} available`}
+          </p>
         </div>
+        <input
+          aria-label={action === 'BUY' ? 'USDC amount' : 'Shares to sell'}
+          className="h-14 w-32 bg-transparent text-right font-mono text-[34px] font-semibold leading-none tracking-[-1px] text-midnight outline-none placeholder:text-ash"
+          id="market-trade-amount"
+          min="0"
+          onChange={(event) => onAmountChange(event.target.value)}
+          placeholder="0"
+          step="0.01"
+          type="number"
+          value={amount}
+        />
+      </div>
+
+      {action === 'BUY' ? (
+        <div className="mb-4 flex flex-wrap justify-end gap-2">
+          {quickBuyAmounts.map((value) => (
+            <button
+              className="verity-pill h-8 bg-parchment-card px-3 font-mono text-xs font-semibold text-graphite shadow-[var(--shadow-subtle)] transition-colors hover:bg-stone-surface"
+              key={value}
+              onClick={() => addBuyAmount(value)}
+              type="button"
+            >
+              +${value}
+            </button>
+          ))}
+        </div>
+      ) : (
+        <div className="mb-4 flex flex-wrap justify-end gap-2">
+          {sellPercentages.map((percent) => (
+            <button
+              className="verity-pill h-8 bg-parchment-card px-3 font-mono text-xs font-semibold text-graphite shadow-[var(--shadow-subtle)] transition-colors hover:bg-stone-surface disabled:cursor-not-allowed disabled:opacity-45"
+              disabled={maxSellShares <= 0}
+              key={percent}
+              onClick={() => setSellPercentage(percent)}
+              type="button"
+            >
+              {percent === 100 ? 'Max' : `${percent}%`}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div className="grid gap-1 rounded-[12px] bg-parchment-card p-3 font-mono text-[11px] text-ash shadow-[var(--shadow-subtle)]">
         <div className="flex justify-between">
           <span>Price</span>
           <span>{(price * 100).toFixed(1)}¢</span>
@@ -1045,7 +1108,12 @@ function TradeTicket({
         <div className="flex justify-between text-charcoal-primary">
           <span>{action === 'BUY' ? 'Total' : 'Net proceeds'}</span>
           <span>
-            {action === 'BUY' ? total.toFixed(4) : netProceeds.toFixed(4)} USDC
+            {previewValue > 0
+              ? action === 'BUY'
+                ? total.toFixed(4)
+                : netProceeds.toFixed(4)
+              : '0.0000'}{' '}
+            USDC
           </span>
         </div>
       </div>
@@ -1062,6 +1130,7 @@ function TradeTicket({
             ? `${action === 'BUY' ? 'Buy' : 'Sell'} ${selectedSide}`
             : 'Connect Wallet'}
       </button>
+      </div>
     </section>
   )
 }
@@ -1082,7 +1151,7 @@ function OutcomeButton({
   return (
     <button
       aria-pressed={active}
-      className={`rounded-[12px] px-3 py-3 text-left shadow-[var(--shadow-subtle)] transition-colors ${
+      className={`rounded-[12px] px-3 py-3 text-center shadow-[var(--shadow-subtle)] transition-colors ${
         active
           ? side === 'YES'
             ? 'bg-meadow-green/12'
@@ -1092,7 +1161,17 @@ function OutcomeButton({
       onClick={() => onClick(side)}
       type="button"
     >
-      <span className="block text-sm font-semibold text-charcoal-primary">{label}</span>
+      <span
+        className={`block text-sm font-semibold ${
+          active
+            ? side === 'YES'
+              ? 'text-meadow-green'
+              : 'text-ember-orange'
+            : 'text-charcoal-primary'
+        }`}
+      >
+        {label}
+      </span>
       <span className="font-mono text-[11px] text-ash">
         {price.toFixed(1)}¢ implied
       </span>

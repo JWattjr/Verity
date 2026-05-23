@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Search, TrendingUp, Trophy } from "lucide-react";
 import { useFeed } from "@/hooks/useFeed";
 import { useRightPanelSlot } from "@/hooks/useRightPanelSlot";
@@ -80,8 +81,9 @@ export default function RightPanel() {
 
           <div className="flex flex-col">
             {predictors.length > 0 ? predictors.map((user) => (
-              <div
+              <Link
                 className="flex cursor-pointer items-center justify-between p-4 transition-colors hover:bg-parchment-card"
+                href={`/profile/${encodeURIComponent(user.id)}`}
                 key={user.id}
               >
                 <div className="flex items-center gap-3">
@@ -97,7 +99,7 @@ export default function RightPanel() {
                   <span className="text-sm font-semibold text-meadow-green">Live</span>
                   <span className="font-mono text-[10px] uppercase text-ash">Creator</span>
                 </div>
-              </div>
+              </Link>
             )) : (
               <div className="p-4 text-sm text-ash">No predictors yet.</div>
             )}

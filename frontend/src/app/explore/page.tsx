@@ -1,5 +1,6 @@
 import { Search, Sparkles, TrendingUp } from "lucide-react";
 import PagePanel from "@/components/layout/PagePanel";
+import PeopleDiscovery from "@/components/profile/PeopleDiscovery";
 
 const TOPICS = ["AI/Tech", "Crypto", "Culture", "Economics", "Politics", "Sports"];
 
@@ -56,6 +57,8 @@ export default function ExplorePage() {
           ))}
         </div>
       </section>
+
+      <PeopleDiscovery />
 
       <section className="verity-card overflow-hidden">
         <div className="border-b border-dashed border-stone-surface p-5">
