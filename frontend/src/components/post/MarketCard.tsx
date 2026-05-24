@@ -495,7 +495,7 @@ function getStatusTone(status: string) {
     case 'tradable':
       return 'bg-meadow-green/12 text-meadow-green'
     case 'resolved':
-      return 'bg-midnight text-white'
+      return 'bg-brand-primary text-white shadow-[var(--shadow-sm)]'
     case 'voided':
       return 'bg-stone-surface text-ash'
     case 'resolving':

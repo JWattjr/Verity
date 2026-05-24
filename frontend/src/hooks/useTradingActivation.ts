@@ -72,7 +72,7 @@ export function useTradingActivation() {
     isActivated: allowance >= ACTIVATED_ALLOWANCE_FLOOR,
     isActivating: activationMutation.isPending,
     isArcTestnet,
-    isChecking: allowanceQuery.isLoading || allowanceQuery.isFetching,
+    isChecking: allowanceQuery.isLoading,
     refetchActivation: allowanceQuery.refetch,
   };
 }

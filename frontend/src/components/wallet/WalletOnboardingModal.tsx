@@ -26,6 +26,8 @@ type OnboardingStep =
   | "username"
   | "success";
 
+const ONBOARDING_STORAGE_PREFIX = "verity-wallet-onboarding-complete";
+
 function looksGeneratedUsername(username?: string | null) {
   return !username || /^user_[a-f0-9]{4}_\d{4}$/i.test(username);
 }
@@ -41,6 +43,24 @@ function getUsernameError(username: string) {
     return "Use letters, numbers, and underscores only.";
   }
   return null;
+}
+
+function getOnboardingStorageKey(address?: string) {
+  return address
+    ? `${ONBOARDING_STORAGE_PREFIX}:${address.toLowerCase()}`
+    : null;
+}
+
+function getStoredOnboardingComplete(address?: string) {
+  if (typeof window === "undefined") return false;
+  const key = getOnboardingStorageKey(address);
+  return key ? window.localStorage.getItem(key) === "true" : false;
+}
+
+function setStoredOnboardingComplete(address?: string) {
+  if (typeof window === "undefined") return;
+  const key = getOnboardingStorageKey(address);
+  if (key) window.localStorage.setItem(key, "true");
 }
 
 export default function WalletOnboardingModal() {
@@ -59,15 +79,22 @@ export default function WalletOnboardingModal() {
 
   const [username, setUsername] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
+  const [networkError, setNetworkError] = useState<string | null>(null);
   const [isSavingUsername, setIsSavingUsername] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [setupComplete, setSetupComplete] = useState(false);
 
   useEffect(() => {
     if (!address) {
       setShowSuccess(false);
       setUsername("");
       setFormError(null);
+      setNetworkError(null);
+      setSetupComplete(false);
+      return;
     }
+
+    setSetupComplete(getStoredOnboardingComplete(address));
   }, [address]);
 
   useEffect(() => {
@@ -86,6 +113,7 @@ export default function WalletOnboardingModal() {
 
   const step: OnboardingStep | null = useMemo(() => {
     if (!isConnected || !address) return null;
+    if (setupComplete && !showSuccess) return null;
     if (!isArcTestnet) return "network";
     if (isChecking || profileLoading) return "checking";
     if (!isActivated) return "activate";
@@ -102,17 +130,42 @@ export default function WalletOnboardingModal() {
     needsUsername,
     profile,
     profileLoading,
+    setupComplete,
     showSuccess,
   ]);
+
+  useEffect(() => {
+    if (!address || setupComplete || !isActivated || !profile || needsUsername) return;
+    setStoredOnboardingComplete(address);
+    setSetupComplete(true);
+  }, [address, isActivated, needsUsername, profile, setupComplete]);
 
   async function handleActivate() {
     setFormError(null);
     try {
       await activateTrading();
-      if (!needsUsername) setShowSuccess(true);
+      if (profile && !needsUsername) {
+        setStoredOnboardingComplete(address);
+        setSetupComplete(true);
+        setShowSuccess(true);
+      }
     } catch (caught) {
       setFormError(
         caught instanceof Error ? caught.message : "Wallet activation failed.",
+      );
+    }
+  }
+
+  async function handleSwitchNetwork() {
+    setNetworkError(null);
+
+    try {
+      await switchChainAsync({ chainId: arcTestnet.id });
+    } catch (caught) {
+      setNetworkError(
+        caught instanceof Error
+          ? caught.message
+          : "Your wallet could not switch networks automatically.",
       );
     }
   }
@@ -138,6 +191,8 @@ export default function WalletOnboardingModal() {
         },
       });
       await refetch();
+      setStoredOnboardingComplete(address);
+      setSetupComplete(true);
       setShowSuccess(true);
     } catch (caught) {
       setFormError(
@@ -195,18 +250,27 @@ export default function WalletOnboardingModal() {
           {step === "network" && (
             <StepShell
               accent="orange"
-              body={`Verity trading runs on Arc Testnet. Switch networks before activating ${shortAddress(address)}.`}
+              body={`You're connected as ${shortAddress(address)}, but Verity trading runs on Arc Testnet. Use the wallet prompt below, or add the network manually with these details.`}
               icon={<ShieldCheck className="h-5 w-5" />}
-              title="Switch to Arc Testnet"
+              title="Switch your wallet to Arc"
             >
+              <ManualNetworkDetails />
               <button
-                className="verity-pill mt-5 flex h-11 w-full items-center justify-center bg-midnight text-sm font-semibold tracking-[-0.18px] text-white transition-opacity hover:opacity-90 disabled:opacity-60"
+                className="verity-pill mt-5 flex h-11 w-full items-center justify-center gap-2 bg-brand-primary text-sm font-semibold tracking-[-0.18px] text-white transition-opacity hover:opacity-90 disabled:opacity-60"
                 disabled={isSwitching}
-                onClick={() => switchChainAsync({ chainId: arcTestnet.id })}
+                onClick={handleSwitchNetwork}
                 type="button"
               >
-                {isSwitching ? "Switching..." : "Switch network"}
+                {isSwitching ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Opening wallet
+                  </>
+                ) : (
+                  "Switch to Arc Testnet"
+                )}
               </button>
+              <ErrorLine message={networkError} />
             </StepShell>
           )}
 
@@ -431,6 +495,35 @@ function MiniCard({
       <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-ash">
         {label}
       </p>
+    </div>
+  );
+}
+
+function ManualNetworkDetails() {
+  const rows = [
+    { label: "Network", value: arcTestnet.name },
+    { label: "Chain ID", value: String(arcTestnet.id) },
+    { label: "RPC", value: arcTestnet.rpcUrls.default.http[0] },
+    { label: "Currency", value: arcTestnet.nativeCurrency.symbol },
+  ];
+
+  return (
+    <div className="mt-4 rounded-[10px] bg-parchment-card p-4 shadow-[var(--shadow-subtle)]">
+      <p className="font-mono text-xs font-semibold uppercase tracking-[0.16em] text-ash">
+        Manual wallet details
+      </p>
+      <div className="mt-3 grid gap-2">
+        {rows.map((row) => (
+          <div className="grid grid-cols-[84px_1fr] gap-3" key={row.label}>
+            <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-ash">
+              {row.label}
+            </span>
+            <span className="break-all font-mono text-xs font-semibold text-charcoal-primary">
+              {row.value}
+            </span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
