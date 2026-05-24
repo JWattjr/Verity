@@ -117,7 +117,7 @@ export default function HowItWorksPage() {
           </p>
           <div className="mt-6 flex flex-wrap gap-2">
             <Link
-              className="verity-pill flex h-11 items-center gap-2 bg-midnight px-5 text-sm font-semibold tracking-[-0.18px] text-white transition-colors hover:bg-charcoal-primary"
+              className="verity-pill flex h-11 items-center gap-2 bg-brand-primary px-5 text-sm font-semibold tracking-[-0.18px] text-white transition-opacity hover:opacity-90"
               href="/"
             >
               Go to feed <ArrowRight className="h-4 w-4" />

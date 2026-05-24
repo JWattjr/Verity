@@ -1,9 +1,11 @@
 'use client'
 
+import Link from 'next/link'
 import {
   AlertTriangle,
   CheckCircle2,
   CircleDollarSign,
+  ExternalLink,
   Network,
   Wallet,
 } from 'lucide-react'
@@ -30,11 +32,22 @@ export default function WalletSummary() {
 
       <section className="grid gap-3 sm:grid-cols-2">
         <div className="verity-card p-5">
-          <div className="flex items-center gap-2 text-meadow-green">
-            <CircleDollarSign className="h-5 w-5" />
-            <span className="font-mono text-xs font-semibold uppercase tracking-[0.16em]">
-              Arc USDC
-            </span>
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2 text-meadow-green">
+              <CircleDollarSign className="h-5 w-5" />
+              <span className="font-mono text-xs font-semibold uppercase tracking-[0.16em]">
+                Arc USDC
+              </span>
+            </div>
+            <Link
+              className="verity-pill flex h-8 items-center gap-1.5 bg-parchment-card px-3 text-xs font-semibold tracking-[-0.14px] text-charcoal-primary shadow-[var(--shadow-subtle)] transition-colors hover:bg-stone-surface"
+              href="https://faucet.circle.com/"
+              rel="noreferrer"
+              target="_blank"
+            >
+              Add more
+              <ExternalLink className="h-3.5 w-3.5" />
+            </Link>
           </div>
           <p className="mt-4 text-3xl font-semibold tracking-[-0.9px] text-midnight">
             {isLoading ? '...' : formattedBalance}
