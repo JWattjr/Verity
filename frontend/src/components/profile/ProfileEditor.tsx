@@ -9,11 +9,7 @@ import ProfileActivityTabs, {
 import SocialUserListModal from '@/components/social/SocialUserListModal'
 import { useFeed } from '@/hooks/useFeed'
 import { useWalletProfile } from '@/hooks/useWalletProfile'
-import {
-  displayHandle,
-  displayName,
-  type Profile,
-} from '@/lib/verity'
+import { displayHandle, displayName, type Profile } from '@/lib/verity'
 import { useProfileActivityQuery } from '@/store/verity/verityQueries'
 
 export default function ProfileEditor() {
@@ -21,17 +17,17 @@ export default function ProfileEditor() {
   const { profile, isLoading } = useWalletProfile()
   const { items } = useFeed(profile?.id)
   const [activeTab, setActiveTab] = useState<ProfileActivityTab>('posts')
-  const [peopleModal, setPeopleModal] = useState<'followers' | 'following' | null>(null)
+  const [peopleModal, setPeopleModal] = useState<
+    'followers' | 'following' | null
+  >(null)
   const isConnected = Boolean(profile)
 
-  const { data: tabItems = [], isLoading: activityLoading } = useProfileActivityQuery(
-    profile?.id || '',
-    activeTab,
-    profile?.id
-  )
+  const { data: tabItems = [], isLoading: activityLoading } =
+    useProfileActivityQuery(profile?.id || '', activeTab, profile?.id)
 
   const localProfileItems = useMemo(
-    () => (profile ? items.filter((item) => item.author.id === profile.id) : []),
+    () =>
+      profile ? items.filter((item) => item.author.id === profile.id) : [],
     [items, profile],
   )
   const marketItems = localProfileItems.filter((item) => item.market)
@@ -43,11 +39,11 @@ export default function ProfileEditor() {
   }, [items, profile])
 
   return (
-    <div className="flex flex-col gap-3 py-4">
+    <div className="flex flex-col gap-3 py-3 sm:py-4">
       <section className="verity-card overflow-hidden">
-        <div className="h-28 bg-midnight" />
+        <div className="h-24 bg-brand-primary sm:h-28" />
 
-        <div className="px-5 pb-5">
+        <div className="px-4 pb-4 sm:px-5 sm:pb-5">
           <div className="-mt-10 flex items-end justify-between gap-3">
             <ProfileAvatar profile={profile} />
             <div className="mb-2 flex gap-2">
@@ -126,7 +122,6 @@ export default function ProfileEditor() {
         <ProfileTabs activeTab={activeTab} onChange={setActiveTab} />
       </section>
 
-
       {profile && (
         <ProfileActivityTabs
           activeTab={activeTab}
@@ -154,14 +149,14 @@ function ProfileAvatar({ profile }: { profile: Profile | null }) {
   if (avatarUrl) {
     return (
       <div
-        className="h-24 w-24 shrink-0 rounded-[28px] bg-cover bg-center ring-4 ring-white shadow-[var(--shadow-subtle)]"
+        className="h-20 w-20 shrink-0 rounded-[24px] bg-cover bg-center ring-4 ring-white shadow-[var(--shadow-subtle)] sm:h-24 sm:w-24 sm:rounded-[28px]"
         style={{ backgroundImage: `url(${avatarUrl})` }}
       />
     )
   }
 
   return (
-    <div className="verity-blob h-24 w-24 shrink-0 bg-sky-blue ring-4 ring-white">
+    <div className="verity-blob h-20 w-20 shrink-0 bg-sky-blue ring-4 ring-white sm:h-24 sm:w-24">
       <span className="verity-blob-smile" />
     </div>
   )
@@ -187,7 +182,9 @@ function ProfileTabs({
       {tabs.map((tab) => (
         <button
           className={`relative h-12 text-[13px] sm:text-sm font-semibold tracking-[-0.18px] transition-colors ${
-            activeTab === tab.id ? 'text-charcoal-primary' : 'text-ash hover:text-charcoal-primary'
+            activeTab === tab.id
+              ? 'text-charcoal-primary'
+              : 'text-ash hover:text-charcoal-primary'
           }`}
           key={tab.id}
           onClick={() => onChange(tab.id)}
@@ -195,11 +192,10 @@ function ProfileTabs({
         >
           {tab.label}
           {activeTab === tab.id && (
-            <span className="absolute bottom-0 left-1/2 h-1 w-12 -translate-x-1/2 rounded-full bg-ember-orange" />
+            <span className="absolute bottom-0 left-1/2 h-1 w-9 -translate-x-1/2 rounded-full bg-ember-orange sm:w-12" />
           )}
         </button>
       ))}
     </div>
   )
 }
-

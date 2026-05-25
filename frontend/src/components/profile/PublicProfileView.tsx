@@ -10,11 +10,7 @@ import ProfileActivityTabs, {
 import SocialUserListModal from '@/components/social/SocialUserListModal'
 import { useFeed } from '@/hooks/useFeed'
 import { useWalletProfile } from '@/hooks/useWalletProfile'
-import {
-  displayHandle,
-  displayName,
-  type Profile,
-} from '@/lib/verity'
+import { displayHandle, displayName, type Profile } from '@/lib/verity'
 import { useProfileActivityQuery } from '@/store/verity/verityQueries'
 
 interface PublicProfileViewProps {
@@ -26,7 +22,9 @@ export default function PublicProfileView({ userId }: PublicProfileViewProps) {
   const { profile: viewerProfile } = useWalletProfile()
   const { items, loading, error } = useFeed(viewerProfile?.id)
   const [activeTab, setActiveTab] = useState<ProfileActivityTab>('posts')
-  const [peopleModal, setPeopleModal] = useState<'followers' | 'following' | null>(null)
+  const [peopleModal, setPeopleModal] = useState<
+    'followers' | 'following' | null
+  >(null)
 
   const decodedUserId = decodeURIComponent(userId)
   const profile = useMemo(() => {
@@ -40,7 +38,8 @@ export default function PublicProfileView({ userId }: PublicProfileViewProps) {
     })
     if (viewerProfile) {
       authors.set(viewerProfile.id, viewerProfile)
-      if (viewerProfile.username) authors.set(viewerProfile.username, viewerProfile)
+      if (viewerProfile.username)
+        authors.set(viewerProfile.username, viewerProfile)
     }
     return authors.get(decodedUserId) || null
   }, [decodedUserId, items, viewerProfile])
@@ -48,7 +47,7 @@ export default function PublicProfileView({ userId }: PublicProfileViewProps) {
   const { data: tabItems = [] } = useProfileActivityQuery(
     profile?.id || '',
     activeTab,
-    viewerProfile?.id
+    viewerProfile?.id,
   )
 
   const localProfileItems = useMemo(() => {
@@ -66,7 +65,9 @@ export default function PublicProfileView({ userId }: PublicProfileViewProps) {
   }, [items, profile, viewerProfile])
   const accuracy =
     profile?.freeVotesTotal && profile.freeVotesTotal > 0
-      ? Math.round(((profile.freeVotesCorrect || 0) / profile.freeVotesTotal) * 100)
+      ? Math.round(
+          ((profile.freeVotesCorrect || 0) / profile.freeVotesTotal) * 100,
+        )
       : 0
 
   if (loading && !profile) {
@@ -82,11 +83,11 @@ export default function PublicProfileView({ userId }: PublicProfileViewProps) {
   }
 
   return (
-    <div className="flex flex-col gap-3 py-4">
+    <div className="flex flex-col gap-3 py-3 sm:py-4">
       <section className="verity-card overflow-hidden">
-        <div className="h-28 bg-midnight" />
+        <div className="h-24 bg-midnight sm:h-28" />
 
-        <div className="px-5 pb-5">
+        <div className="px-4 pb-4 sm:px-5 sm:pb-5">
           <div className="-mt-10 flex items-end justify-between gap-3">
             <ProfileAvatar profile={profile} />
             <div className="mb-2 flex gap-2">
@@ -101,7 +102,7 @@ export default function PublicProfileView({ userId }: PublicProfileViewProps) {
               >
                 Share profile <Share className="h-4 w-4" />
               </button>
-              <FollowButton profile={profile} />
+              <FollowButton compact profile={profile} />
             </div>
           </div>
 
@@ -112,7 +113,9 @@ export default function PublicProfileView({ userId }: PublicProfileViewProps) {
               </h1>
               <BadgeCheck className="h-5 w-5 text-sky-blue" />
             </div>
-            <p className="mt-1 font-mono text-sm text-ash">{displayHandle(profile)}</p>
+            <p className="mt-1 font-mono text-sm text-ash">
+              {displayHandle(profile)}
+            </p>
             {profile.bio && (
               <p className="mt-3 max-w-[560px] text-[15px] leading-[1.47] tracking-[-0.2px] text-graphite">
                 {profile.bio}
@@ -180,14 +183,14 @@ function ProfileAvatar({ profile }: { profile: Profile }) {
   if (avatarUrl) {
     return (
       <div
-        className="h-24 w-24 shrink-0 rounded-[28px] bg-cover bg-center ring-4 ring-white shadow-[var(--shadow-subtle)]"
+        className="h-20 w-20 shrink-0 rounded-[24px] bg-cover bg-center ring-4 ring-white shadow-[var(--shadow-subtle)] sm:h-24 sm:w-24 sm:rounded-[28px]"
         style={{ backgroundImage: `url(${avatarUrl})` }}
       />
     )
   }
 
   return (
-    <div className="verity-blob h-24 w-24 shrink-0 bg-sky-blue ring-4 ring-white">
+    <div className="verity-blob h-20 w-20 shrink-0 bg-sky-blue ring-4 ring-white sm:h-24 sm:w-24">
       <span className="verity-blob-smile" />
     </div>
   )
@@ -213,7 +216,9 @@ function ProfileTabs({
       {tabs.map((tab) => (
         <button
           className={`relative h-12 text-[13px] sm:text-sm font-semibold tracking-[-0.18px] transition-colors ${
-            activeTab === tab.id ? 'text-charcoal-primary' : 'text-ash hover:text-charcoal-primary'
+            activeTab === tab.id
+              ? 'text-charcoal-primary'
+              : 'text-ash hover:text-charcoal-primary'
           }`}
           key={tab.id}
           onClick={() => onChange(tab.id)}
@@ -221,7 +226,7 @@ function ProfileTabs({
         >
           {tab.label}
           {activeTab === tab.id && (
-            <span className="absolute bottom-0 left-1/2 h-1 w-12 -translate-x-1/2 rounded-full bg-ember-orange" />
+            <span className="absolute bottom-0 left-1/2 h-1 w-9 -translate-x-1/2 rounded-full bg-ember-orange sm:w-12" />
           )}
         </button>
       ))}

@@ -451,7 +451,7 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
     return (
       <>
         {(item.viewerVote || positions.length > 0) && (
-          <div className="verity-card p-5">
+          <div className="verity-card p-4 sm:p-5">
             <div className="mb-3 flex items-center justify-between gap-3 border-b border-dashed border-stone-surface pb-3">
               <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.12em] text-charcoal-primary">
                 My Holdings
@@ -1253,7 +1253,7 @@ function SentimentPanel({
   yesPercent: number
 }) {
   return (
-    <section className="verity-card p-5">
+    <section className="verity-card p-4 sm:p-5">
       <div className="mb-4 flex items-center justify-between">
         <div>
           <h2 className="font-semibold tracking-[-0.18px] text-charcoal-primary">
@@ -1467,7 +1467,7 @@ function CommentsPanel({
   }, [comments])
 
   return (
-    <section className="verity-card p-5">
+    <section className="verity-card p-4 sm:p-5">
       <div className="mb-4 flex items-center gap-2">
         <MessageCircle className="h-4 w-4 text-ash" />
         <h2 className="font-semibold tracking-[-0.18px] text-charcoal-primary">
@@ -1792,7 +1792,7 @@ function VoteQualificationProgressPanel({
   const isDev = process.env.NEXT_PUBLIC_NODE_ENV !== 'production'
 
   return (
-    <section className="verity-card p-5">
+    <section className="verity-card p-4 sm:p-5">
       <div className="mb-4 flex items-center justify-between">
         <div>
           <h2 className="text-[19px] font-semibold leading-[1.28] tracking-[-0.25px] text-charcoal-primary">
@@ -1885,7 +1885,7 @@ function PreMarketFundingPanel({
   const showCreatorEscrow = false
 
   return (
-    <section className="verity-card p-5">
+    <section className="verity-card p-4 sm:p-5">
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-[19px] font-semibold leading-[1.28] tracking-[-0.25px] text-charcoal-primary">
@@ -2034,7 +2034,7 @@ function ActiveMarketLPPanel({
   const currentPoolBalance = poolState?.pool?.currentPoolBalance ?? 0
 
   return (
-    <section className="verity-card p-5">
+    <section className="verity-card p-4 sm:p-5">
       <h2 className="mb-1 text-[19px] font-semibold leading-[1.28] tracking-[-0.25px] text-charcoal-primary">
         Liquidity Provider Management
       </h2>
@@ -2216,7 +2216,7 @@ function ResolutionPanel({
   const isPyth = Boolean(market.priceFeedId || market.price_feed_id)
 
   return (
-    <section className="verity-card p-5">
+    <section className="verity-card p-4 sm:p-5">
       <div className="mb-2 flex items-center gap-2">
         <span className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-meadow-green/10">
           <ShieldCheck className="h-5 w-5 text-meadow-green" />
@@ -2416,7 +2416,7 @@ function RedeemPanel({
   const winningShares = isWinner ? myPosition.shares : 0
 
   return (
-    <section className="verity-card p-5">
+    <section className="verity-card p-4 sm:p-5">
       <h2 className="mb-1 text-[19px] font-semibold leading-[1.28] tracking-[-0.25px] text-charcoal-primary">
         Claim Winnings
       </h2>
@@ -2526,7 +2526,7 @@ function RefundPanel({
   if (!hasDeposited) return null
 
   return (
-    <section className="verity-card p-5">
+    <section className="verity-card p-4 sm:p-5">
       <h2 className="mb-1 text-[19px] font-semibold leading-[1.28] tracking-[-0.25px] text-charcoal-primary">
         Claim Refund
       </h2>

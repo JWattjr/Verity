@@ -28,7 +28,7 @@ const STEPS = [
   },
   {
     title: 'Pool Funding',
-    body: 'Qualified markets gather launch-pool USDC. Funding the pool helps open trading and may earn liquidity rewards when the market trades.',
+    body: 'Qualified markets gather launch-pool USDC. If the market completes bonding and opens, creators and liquidity providers may earn fees and rewards from market activity.',
     icon: CircleDollarSign,
     color: 'bg-meadow-green/10 text-meadow-green',
   },
@@ -59,12 +59,12 @@ const GLOSSARY = [
   {
     term: 'Liquidity',
     detail:
-      'USDC available in a market pool. Liquidity providers help trades execute and may earn rewards from market activity.',
+      'USDC available in a market pool. Liquidity providers help trades execute and may earn fees or rewards after a market completes bonding and trades.',
   },
   {
     term: 'Pool Funding',
     detail:
-      'USDC contributions that help a qualified market reach its launch threshold and can become reward-earning liquidity.',
+      'USDC contributions that help a qualified market reach its launch threshold. If bonding completes, those contributions can become reward-earning liquidity.',
   },
   {
     term: 'Resolution',
@@ -98,8 +98,8 @@ const SOCIAL = [
 
 export default function HowItWorksPage() {
   return (
-    <div className="flex flex-col gap-3 py-4">
-      <section className="verity-card relative overflow-hidden p-6 sm:p-8">
+    <div className="flex flex-col gap-3 py-3 sm:py-4">
+      <section className="verity-card relative overflow-hidden p-5 sm:p-8">
         <div className="absolute -right-10 -top-10 h-32 w-32 rounded-full bg-sunburst-yellow/25" />
         <div className="absolute right-20 top-16 h-14 w-14 rounded-full bg-sky-blue/10" />
 
@@ -107,7 +107,7 @@ export default function HowItWorksPage() {
           <p className="font-mono text-xs font-semibold uppercase tracking-[0.16em] text-ember-orange">
             Verity Guide
           </p>
-          <h1 className="mt-2 text-[42px] font-semibold leading-[1.05] tracking-[-1.14px] text-midnight sm:text-[52px]">
+          <h1 className="mt-2 text-[34px] font-semibold leading-[1.05] tracking-[-0.9px] text-midnight sm:text-[52px] sm:tracking-[-1.14px]">
             How Verity works
           </h1>
           <p className="mt-4 text-[17px] leading-[1.5] tracking-[-0.22px] text-graphite">
@@ -117,7 +117,7 @@ export default function HowItWorksPage() {
           </p>
           <div className="mt-6 flex flex-wrap gap-2">
             <Link
-              className="verity-pill flex h-11 items-center gap-2 bg-midnight px-5 text-sm font-semibold tracking-[-0.18px] text-white transition-colors hover:bg-charcoal-primary"
+              className="verity-pill flex h-11 items-center gap-2 bg-brand-primary px-5 text-sm font-semibold tracking-[-0.18px] text-white transition-opacity hover:opacity-90"
               href="/"
             >
               Go to feed <ArrowRight className="h-4 w-4" />
@@ -134,7 +134,7 @@ export default function HowItWorksPage() {
 
       <section className="grid gap-3 md:grid-cols-2">
         {STEPS.map((step, index) => (
-          <article className="verity-card p-5" key={step.title}>
+          <article className="verity-card p-4 sm:p-5" key={step.title}>
             <div className="mb-5 flex items-center justify-between">
               <span
                 className={`flex h-11 w-11 items-center justify-center rounded-[12px] ${step.color}`}
@@ -156,7 +156,7 @@ export default function HowItWorksPage() {
       </section>
 
       <section className="verity-card overflow-hidden">
-        <div className="border-b border-dashed border-stone-surface p-5">
+        <div className="border-b border-dashed border-stone-surface p-4 sm:p-5">
           <h2 className="flex items-center gap-2 font-mono text-xs font-semibold uppercase tracking-[0.16em] text-charcoal-primary">
             <ShieldCheck className="h-4 w-4 text-meadow-green" />
             Core Terms
@@ -165,7 +165,7 @@ export default function HowItWorksPage() {
         <div className="grid md:grid-cols-2">
           {GLOSSARY.map((item) => (
             <article
-              className="border-b border-dashed border-stone-surface p-5 md:odd:border-r"
+              className="border-b border-dashed border-stone-surface p-4 md:odd:border-r sm:p-5"
               key={item.term}
             >
               <h3 className="font-semibold tracking-[-0.18px] text-charcoal-primary">
@@ -179,7 +179,7 @@ export default function HowItWorksPage() {
         </div>
       </section>
 
-      <section className="verity-card p-5">
+      <section className="verity-card p-4 sm:p-5">
         <div className="mb-5 flex items-center justify-between gap-3">
           <div>
             <h2 className="text-[23px] font-semibold leading-[1.2] tracking-[-0.44px] text-charcoal-primary">
@@ -207,7 +207,7 @@ export default function HowItWorksPage() {
         </div>
       </section>
 
-      <section className="verity-card p-5">
+      <section className="verity-card p-4 sm:p-5">
         <div className="mb-5 flex items-center justify-between gap-3">
           <div>
             <h2 className="text-[23px] font-semibold leading-[1.2] tracking-[-0.44px] text-charcoal-primary">
@@ -222,16 +222,20 @@ export default function HowItWorksPage() {
         <div className="grid gap-3 sm:grid-cols-2">
           <ResolutionCard
             label="Fund pools"
-            text="Contribute USDC before a market opens to help it reach launch liquidity and participate in potential liquidity rewards."
+            text="Contribute USDC before a market opens. If the market completes bonding, funders can participate in potential liquidity rewards."
           />
           <ResolutionCard
             label="Provide liquidity"
-            text="Add liquidity to active markets so traders can buy and sell more smoothly. Liquidity providers may earn from trading activity."
+            text="Add liquidity to active markets so traders can buy and sell more smoothly. Liquidity providers may earn fees and rewards from trading activity."
+          />
+          <ResolutionCard
+            label="Create markets"
+            text="Creators who launch markets that complete bonding may share in fees or rewards when those markets attract trading activity."
           />
         </div>
       </section>
 
-      <section className="verity-card p-5">
+      <section className="verity-card p-4 sm:p-5">
         <h2 className="text-[23px] font-semibold leading-[1.2] tracking-[-0.44px] text-charcoal-primary">
           Social features
         </h2>

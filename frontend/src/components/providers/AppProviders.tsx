@@ -5,9 +5,11 @@ import { RainbowKitProvider, getDefaultConfig } from "@rainbow-me/rainbowkit";
 import { useState, type ReactNode } from "react";
 import { WagmiProvider } from "wagmi";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { ThemeProvider } from "next-themes";
 import { arcTestnet, arcTransport } from "@/lib/arc";
 import { RightPanelSlotProvider } from "@/hooks/useRightPanelSlot";
 import { Toaster } from "react-hot-toast";
+import WalletOnboardingModal from "@/components/wallet/WalletOnboardingModal";
 
 const config = getDefaultConfig({
   appName: "Verity",
@@ -37,10 +39,13 @@ export default function AppProviders({ children }: { children: ReactNode }) {
     <WagmiProvider config={config}>
       <QueryClientProvider client={queryClient}>
         <RainbowKitProvider>
-          <RightPanelSlotProvider>
-            {children}
-            <Toaster position="top-right" toastOptions={{ duration: 5000 }} />
-          </RightPanelSlotProvider>
+          <ThemeProvider attribute="data-theme" defaultTheme="system" enableSystem>
+            <RightPanelSlotProvider>
+              {children}
+              <WalletOnboardingModal />
+              <Toaster position="top-right" toastOptions={{ duration: 5000 }} />
+            </RightPanelSlotProvider>
+          </ThemeProvider>
         </RainbowKitProvider>
       </QueryClientProvider>
     </WagmiProvider>
