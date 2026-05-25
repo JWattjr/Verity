@@ -60,7 +60,8 @@ async function fetchPrivyUserDetails(
   }
 
   try {
-    const authHeader = 'Basic ' + Buffer.from(`${appId}:${appSecret}`).toString('base64');
+    const authHeader =
+      'Basic ' + Buffer.from(`${appId}:${appSecret}`).toString('base64');
     const response = await fetch(`https://api.privy.io/v1/users/${privyDid}`, {
       method: 'GET',
       headers: {
@@ -146,17 +147,8 @@ export class JwtAuthGuard implements CanActivate {
         );
       });
 
-      console.log(
-        'JwtAuthGuard: token successfully verified. decoded =',
-        decoded,
-      );
-
       // Look up user by privyDid (decoded.sub)
       let user = await this.userModel.findOne({ privyDid: decoded.sub });
-      console.log(
-        `JwtAuthGuard: Lookup by privyDid(${decoded.sub}):`,
-        user ? `Found user ID ${user.id}, walletAddress = ${user.walletAddress}` : 'Not found',
-      );
 
       // As long as they have a smart wallet, they are authenticated already
       if (user && user.walletAddress) {
@@ -168,50 +160,37 @@ export class JwtAuthGuard implements CanActivate {
         return true;
       }
 
-      console.log(
-        `JwtAuthGuard: User not found or missing wallet address in DB. Fetching from Privy API...`,
-      );
       const privyDetails = await fetchPrivyUserDetails(decoded.sub);
-      console.log(
-        `JwtAuthGuard: Retrieved Privy details for ${decoded.sub}:`,
-        privyDetails,
-      );
 
       const walletParam = request.params['walletAddress'];
       const urlWallet =
         typeof walletParam === 'string' ? walletParam.toLowerCase() : null;
-      const targetWallet = urlWallet || privyDetails.walletAddress?.toLowerCase() || null;
+      const targetWallet =
+        urlWallet || privyDetails.walletAddress?.toLowerCase() || null;
 
       if (!user) {
         if (targetWallet) {
           // Check if user already exists by walletAddress
           user = await this.userModel.findOne({ walletAddress: targetWallet });
-          console.log(
-            `JwtAuthGuard: Lookup by targetWallet(${targetWallet}):`,
-            user ? `Found user ID ${user.id}` : 'Not found',
-          );
+
           if (user) {
             user.privyDid = decoded.sub;
             if (privyDetails.email && !user.email) {
               user.email = privyDetails.email.toLowerCase();
             }
             await user.save();
-            console.log(
-              `JwtAuthGuard: Linked existing user ID ${user.id} with privyDid = ${decoded.sub} and email = ${user.email}`,
-            );
           } else {
             // Securely register new user bound to their Privy DID
             const username = `user_${targetWallet.slice(-4).toLowerCase()}_${Math.floor(Math.random() * 9000 + 1000)}`;
             user = await this.userModel.create({
               walletAddress: targetWallet,
               privyDid: decoded.sub,
-              email: privyDetails.email ? privyDetails.email.toLowerCase() : null,
+              email: privyDetails.email
+                ? privyDetails.email.toLowerCase()
+                : null,
               username,
               displayName: `User ${targetWallet.slice(-4).toUpperCase()}`,
             });
-            console.log(
-              `JwtAuthGuard: Created new user ID ${user.id} for walletAddress = ${targetWallet}, privyDid = ${decoded.sub}, email = ${user.email}`,
-            );
           }
         } else {
           // Create placeholder user with just privyDid and email
@@ -222,9 +201,6 @@ export class JwtAuthGuard implements CanActivate {
             username,
             displayName: `User Privy`,
           });
-          console.log(
-            `JwtAuthGuard: Created initial user ID ${user.id} with privyDid = ${decoded.sub} and email = ${user.email} (waiting for wallet)`,
-          );
         }
       } else {
         // User exists by privyDid, but has no wallet address. Link it if available now!
@@ -232,16 +208,10 @@ export class JwtAuthGuard implements CanActivate {
         if (targetWallet && !user.walletAddress) {
           user.walletAddress = targetWallet;
           needsSave = true;
-          console.log(
-            `JwtAuthGuard: Linking walletAddress = ${targetWallet} to existing user ID ${user.id}`,
-          );
         }
         if (privyDetails.email && !user.email) {
           user.email = privyDetails.email.toLowerCase();
           needsSave = true;
-          console.log(
-            `JwtAuthGuard: Linking email = ${privyDetails.email} to existing user ID ${user.id}`,
-          );
         }
         if (needsSave) {
           await user.save();
@@ -249,9 +219,6 @@ export class JwtAuthGuard implements CanActivate {
       }
 
       if (!user) {
-        console.warn(
-          'JwtAuthGuard: No user found or created, throwing UnauthorizedException.',
-        );
         throw new UnauthorizedException(
           'User not registered in local database.',
         );
@@ -265,7 +232,6 @@ export class JwtAuthGuard implements CanActivate {
 
       return true;
     } catch (error) {
-      console.error('JwtAuthGuard verification failed:', error);
       throw new UnauthorizedException(
         error instanceof Error
           ? error.message

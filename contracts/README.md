@@ -1,77 +1,102 @@
-# Verity Prediction Market Smart Contracts
+# Verity Smart Contracts
 
-This directory contains the smart contracts for the Verity prediction market platform, built using the **Foundry** development framework.
+Foundry-based Solidity smart contracts powering Verity's on-chain prediction market infrastructure on the **Arc Testnet**. These contracts manage the full market lifecycle: USDC escrow, conditional outcome token minting, AMM trading, liquidity provisioning, and optimistic dispute-based resolution.
 
-## Contract Architecture
+## Contracts
 
-The core of Verity's prediction market is composed of four primary smart contracts:
+### `ConditionalTokenVault.sol`
 
-1. **`ConditionalTokenVault.sol`**:
-   - Manages escrowed collateral (USDC).
-   - Mints conditional YES/NO outcome tokens for a market in exchange for USDC collateral.
-   - Handles the payout distribution/collateral redemptions once a market is resolved.
+ERC-1155 conditional token system. Accepts USDC collateral and mints paired YES/NO outcome tokens for a given market ID. After resolution, winning token holders redeem their shares 1:1 for the escrowed USDC.
 
-2. **`VerityMarketFactory.sol`**:
-   - Acts as the central registry for all prediction markets on-chain.
-   - Enforces market creation fee collection.
-   - Holds pre-market liquidity escrow deposits.
-   - Automatically deploys and initializes the corresponding `VerityFPMM` market pool once the 40 USDC funding threshold is crossed.
-   - Provides callback pathways (`resolveMarketFromResolver`) allowing resolution from external resolution contracts.
+### `VerityMarketFactory.sol`
 
-3. **`VerityFPMM.sol`**:
-   - The Fixed Product Market Maker (AMM) contract.
-   - Allows users to buy/sell YES and NO outcome tokens using USDC.
-   - Manages LP positions, share minting/burning, and LP lock-up rules.
+Central market registry. Handles:
 
-4. **`VerityOptimisticResolver.sol`**:
-   - Manages subjective prediction market resolution.
-   - Anyone can propose an outcome by staking a 10 USDC proposer bond.
-   - Staking a 10 USDC dispute bond flags the proposal as disputed and forwards decision-making to the `arbitrator`.
-   - Finalizes undisputed proposals after the configured dispute window (e.g. 2 minutes for testing, 2 hours on prod) and resolves the market on-chain.
+- Market creation with a 1 USDC fee
+- Pre-market liquidity escrow deposits (via `createMarketPreDeposit` and `depositPreMarketLiquidity`)
+- Automatic FPMM pool deployment when the escrow reaches the 40 USDC threshold
+- Resolution callbacks from authorized resolver contracts
+- Refund claims for voided markets
 
----
+### `VerityFPMM.sol`
 
-## Development Guide
+Fixed Product Market Maker. Provides constant-product AMM pricing for YES/NO outcome tokens. Supports:
 
-### Project Setup
-First, ensure you have Foundry installed. If not, follow the [Foundry Book Installation Guide](https://book.getfoundry.sh/getting-started/installation).
+- `buy` / `sell` — trade outcome tokens against USDC
+- `addLiquidity` / `addLiquidityFor` — LP deposits that mint proportional LP shares
+- `removeLiquidity` — LP withdrawals with a 24-hour lock from last deposit
+- `claimCreatorLiquidity` — creator-specific LP claim after market resolution
+- Trading fee collection (configurable BPS, default 2%)
 
-Initialize dependencies:
+### `VerityOptimisticResolver.sol`
+
+Dispute-window resolution system for subjective markets:
+
+- `proposeResolution` / `proposeResolutionFor` — stake a 10 USDC bond to propose YES or NO
+- `disputeResolution` / `disputeResolutionFor` — stake a 10 USDC bond to flag a proposal as disputed, forwarding to the arbitrator
+- `finalizeResolution` — settles undisputed proposals after the dispute window (configurable: 120s for testing, 2 hours in production)
+- Bond payouts: winner gets both bonds back; disputed outcomes are settled by the arbitrator
+
+### `VerityRouter.sol`
+
+User-facing proxy that bundles approve + execute into single transactions. Used by smart wallets (Account Abstraction / ERC-4337) to perform actions in one call:
+
+- `createMarketPreDeposit` — pull USDC, approve factory, call `createMarketPreDepositFor`
+- `depositPreMarketLiquidity` — pull USDC, approve factory, deposit on behalf of user
+- `buy` — pull USDC, buy tokens via FPMM, transfer outcome tokens back to user
+- `addLiquidity` — pull USDC, deposit LP via FPMM on behalf of user
+- `proposeResolution` / `disputeResolution` — pull bond USDC, execute via resolver
+
+## Dependencies
+
+- [OpenZeppelin Contracts](https://github.com/openzeppelin/openzeppelin-contracts) — `IERC20`, `SafeERC20`, `ERC1155Holder`
+- [Forge Std](https://github.com/foundry-rs/forge-std) — testing utilities
+- [Pyth SDK Solidity](https://www.npmjs.com/package/@pythnetwork/pyth-sdk-solidity) — price feed integration for objective markets
+
+## Test Suite
+
+Four test files covering the core contracts:
+
+| Test                             | What it covers                                                         |
+| -------------------------------- | ---------------------------------------------------------------------- |
+| `ConditionalTokenVault.t.sol`    | Token minting, redemption, collateral escrow                           |
+| `VerityFPMM.t.sol`               | AMM pricing, buy/sell, LP add/remove, fee collection, lock enforcement |
+| `VerityOptimisticResolver.t.sol` | Proposal, dispute, finalization, bond payouts                          |
+| `VerityRouter.t.sol`             | Router proxy operations, USDC flow through approve-execute patterns    |
+
+## Development
+
+### Prerequisites
+
+- [Foundry](https://book.getfoundry.sh/getting-started/installation) installed
+- Solidity 0.8.24 (configured in `foundry.toml`)
+
+### Build
+
 ```bash
-forge install
+forge install   # Initialize git submodule dependencies
+forge build     # Compile contracts → out/
 ```
 
-### Build & Compile
-Compile the smart contracts and generate the ABI artifacts:
-```bash
-forge build
-```
-The compiled JSON artifacts will be placed in the `out/` directory.
+### Test
 
-### Run Tests
-Execute the Solidity unit and integration test suite:
 ```bash
-forge test
+forge test          # Run all tests
+forge test -vvvv    # Verbose with stack traces and gas
 ```
 
-For verbose output/stack traces:
-```bash
-forge test -vvvv
-```
+### Deploy to Arc Testnet
 
-### Deploying to Arc Testnet
-A deployment script is provided at `script/Deploy.s.sol`. To execute a live deployment to Arc Testnet:
-
-1. Run the script using forge:
 ```bash
 forge script script/Deploy.s.sol:Deploy \
   --rpc-url https://rpc.testnet.arc.network \
-  --private-key <your_private_key> \
+  --private-key <YOUR_PRIVATE_KEY> \
   --broadcast
 ```
 
-2. Note the deployed contract addresses printed in the deployment summary. Update your backend `.env` file with these values:
-   - `CONDITIONAL_TOKEN_VAULT_ADDRESS`
-   - `FPMM_ADDRESS`
-   - `FACTORY_ADDRESS`
-   - `RESOLVER_ADDRESS`
+After deployment, update the contract addresses in `backend/.env` and `frontend/.env`:
+
+- `CONDITIONAL_TOKEN_VAULT_ADDRESS`
+- `FPMM_ADDRESS`
+- `FACTORY_ADDRESS`
+- `RESOLVER_ADDRESS`

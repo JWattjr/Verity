@@ -1,152 +1,191 @@
 # Verity
 
-Verity is a social prediction and opinion market platform. It is structured as a **pnpm monorepo** consisting of a modern Next.js frontend and a modular, highly scalable NestJS backend.
+![Arc Testnet](https://img.shields.io/badge/Arc-Testnet-blue)
+![Prediction Markets](https://img.shields.io/badge/Protocol-Prediction_Markets-emerald)
 
-Users can share normal social posts, create opinion/prediction market posts with YES/NO resolution criteria, cast free sentiment votes, or purchase USDC-backed YES/NO positions using the Arc Testnet.
+> A social prediction network where opinions become USDC-backed markets.
 
----
+## Problem Statement
 
-## Technical Stack
+Social media is full of opinions, but opinions are cheap when there's nothing at stake.
 
-### Monorepo Structure
+- Hot takes flood feeds with zero accountability.
+- There's no mechanism to separate genuine conviction from performative commentary.
+- Prediction markets exist, but they're isolated from the social graphs where discourse actually happens.
 
-- **Package Manager:** `pnpm` with Workspaces
-- **Frontend:** Next.js (App Router), React 19, Tailwind CSS, Radix UI, Lucide Icons
-- **Web3 Integration:** RainbowKit, Wagmi, Viem (Arc Testnet USDC transfers & reads)
-- **Backend:** NestJS 11 (Modular architectural patterns, Dependency Injection)
-- **Database:** MongoDB via Mongoose (ODM), MongoDB Indexing
-- **Validation & Security:** `class-validator`, `class-transformer`, JWT authentication
+## Solution
 
----
+Verity merges social media with on-chain prediction markets, letting users put USDC behind their opinions on the Arc Testnet.
 
-## Project Structure
+1. **Social-First Markets**
+   - Any post can become a YES/NO prediction market with clear resolution criteria, a deadline, and a verifiable source.
+2. **Community Signal Layer**
+   - Free daily Upvote/Downvote signals let the community qualify which ideas deserve real liquidity, before any money is at stake.
+3. **On-Chain AMM Trading**
+   - Qualified markets graduate to USDC-backed FPMM pools where users buy and sell outcome tokens at market-driven prices.
+4. **Autonomous Resolution**
+   - An AI agent powered by configurable LLMs (Claude, Gemini, OpenAI) and Tavily web search automatically resolves expired markets. Pyth price feeds handle objective price-based markets.
 
-```text
-Verity/
-├── frontend/                  # Next.js Application
-│   ├── src/
-│   │   ├── api/              # API Clients & Service Layer
-│   │   ├── app/              # Next.js App Router Pages
-│   │   ├── components/       # UI & Domain Components
-│   │   ├── hooks/            # Custom React Hooks
-│   │   └── lib/              # Shared Helper Utilities
-│   └── package.json
-│
-├── backend/                   # NestJS Application
-│   ├── src/
-│   │   ├── common/           # HTTP Filters, Guards, Response Interceptors
-│   │   ├── modules/          # Modular NestJS Domain Modules
-│   │   │   ├── auth/         # JWT and Account Authentication
-│   │   │   ├── comments/     # Posts Comments
-│   │   │   ├── interactions/ # Likes & Reshares
-│   │   │   ├── markets/      # Predictions, Trades, Votes, Positions
-│   │   │   ├── posts/        # Feed Posts
-│   │   │   └── users/        # Wallet Profiles & Meta
-│   │   ├── main.ts           # NestJS Server Entry Point
-│   │   └── seed.ts           # MongoDB Seeding & Mock Database Generator
-│   └── package.json
-│
-├── package.json               # Monorepo Workspace Scripts
-├── pnpm-workspace.yaml        # Monorepo Packages Declaration
-└── pnpm-lock.yaml
+## How It Works
+
+### 1. Market Lifecycle
+
+A prediction market on Verity follows a progressive lifecycle:
+
+```plaintext
+Post Created → Open for Votes → Qualified (50+ signals)
+→ Funding Pool (USDC deposits) → Tradable (AMM live)
+→ Resolving → Resolved (YES/NO payout)
 ```
 
----
+### 2. Trading Mechanics
+
+Users buy outcome tokens (YES or NO shares) through a Fixed Product Market Maker. Prices shift based on demand — the more people buy YES, the higher the YES price.
+
+```javascript
+// Buy YES tokens on a market
+const trade = {
+  marketId: '...',
+  side: 'YES',
+  amountUsdc: 10,
+  tradingFeeBps: 200, // 2% fee
+}
+```
+
+### 3. Resolution Flow
+
+```mermaid
+sequenceDiagram
+    Market->>Keeper: Deadline passes
+    Keeper->>Keeper: Check market type
+    alt Pyth Price Market
+        Keeper->>Pyth: Fetch historical VAA
+        Pyth-->>Keeper: Price update binary
+        Keeper->>Contract: resolveMarketWithPyth(VAA)
+    else Subjective Market
+        Keeper->>Tavily: Web search for evidence
+        Tavily-->>Keeper: Search results
+        Keeper->>LLM: Analyze evidence → YES/NO/INVALID
+        LLM-->>Keeper: Proposed outcome + reasoning
+        Keeper->>Resolver: proposeResolution(outcome)
+        Note over Resolver: Dispute window (2min test / 2hr prod)
+        Keeper->>Resolver: finalizeResolution()
+    end
+    Resolver->>Factory: resolveMarketFromResolver()
+    Factory->>Vault: Enable redemptions
+    Vault-->>User: Winning shares → USDC payout
+```
+
+## Architecture
+
+```plaintext
+Verity/
+├── contracts/           # Foundry Smart Contracts (Solidity)
+│   └── src/
+│       ├── ConditionalTokenVault.sol   # USDC escrow + outcome token minting
+│       ├── VerityMarketFactory.sol     # Market registry + pool deployment
+│       ├── VerityFPMM.sol              # Fixed Product Market Maker (AMM)
+│       ├── VerityOptimisticResolver.sol # Dispute-window resolution system
+│       └── VerityRouter.sol            # One-click user actions proxy
+├── backend/             # NestJS 11 API Server
+│   └── src/
+│       ├── modules/
+│       │   ├── agent/           # AI resolution agent (Claude/Gemini/OpenAI)
+│       │   ├── auth/            # Privy JWT auth + database-first guard
+│       │   ├── blockchain/      # Viem on-chain reads/writes + AA decoder
+│       │   ├── liquidity/       # LP pool state, positions, chain sync
+│       │   ├── markets/         # Market CRUD, voting, trading, keeper loop
+│       │   ├── notifications/   # Activity feed notifications
+│       │   ├── posts/           # Social feed + market post creation
+│       │   ├── socket/          # WebSocket real-time updates
+│       │   └── users/           # Wallet profiles + signal tracking
+│       └── common/              # Guards, filters, interceptors
+└── frontend/            # Next.js (App Router) + React 19
+    └── src/
+        ├── app/                 # Pages: feed, markets, profile, wallet, notifications
+        ├── components/          # Feed, market cards, onboarding modal, layout
+        ├── hooks/               # Market liquidity, USDC transfers, portfolio, socket
+        ├── lib/                 # Arc chain config, contract ABIs, type definitions
+        └── store/               # Zustand stores + TanStack Query API layer
+```
+
+## Core Components
+
+### Smart Contracts (Foundry / Solidity 0.8.24)
+
+Five contracts deployed on Arc Testnet handle the full market lifecycle: a **ConditionalTokenVault** for USDC escrow and outcome token minting, a **VerityMarketFactory** for market registration and automatic pool deployment, a **VerityFPMM** for AMM trading, and a **VerityOptimisticResolver** for dispute-window based resolution
+
+### Backend API (NestJS 11)
+
+A modular REST API with Swagger documentation, Privy-based JWT authentication with database-first lookups, WebSocket broadcasting for real-time feed updates, and an automated keeper service that resolves expired markets every 30 seconds using AI agents or Pyth price oracles.
+
+### Frontend (Next.js + React 19)
+
+A premium social feed interface with Privy smart wallet onboarding (Account Abstraction), USDC-backed market trading, daily free signal voting, real-time WebSocket updates, and a responsive dark/light theme system.
 
 ## Getting Started
 
 ### 1. Prerequisites
 
-Ensure you have Node.js (v18+) and `pnpm` installed on your machine. You will also need a running local instance of MongoDB (default: `mongodb://127.0.0.1:27017/verity`).
+- **Node.js 18+** & **pnpm**
+- **MongoDB** (local or remote)
+- **Foundry** (for contract development)
 
-### 2. Install Monorepo Dependencies
+### 2. Setup Environment
 
-From the root of the workspace, run:
-
-```bash
-pnpm install:all
-```
-
-### 3. Setup Environment Variables
-
-#### Frontend Environment
-
-Create a `frontend/.env.local` file from the example:
+Clone and install dependencies:
 
 ```bash
-cp frontend/.env.example frontend/.env.local
+git clone https://github.com/JWattjr/Verity.git
+cd Verity
+pnpm install
 ```
 
-Add the necessary variables (e.g. WalletConnect Project ID):
-
-- `NEXT_PUBLIC_API_URL` (default: `http://localhost:5050/api`)
-- `NEXT_PUBLIC_APP_URL` (default: `http://localhost:3000`)
-- `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID`
-
-#### Backend Environment
-
-Create a `backend/.env` file from the example:
+Configure the services:
 
 ```bash
-cp backend/.env.example backend/.env
+# Backend configuration
+cd backend && cp .env.example .env
+
+# Frontend configuration
+cd ../frontend && cp .env.example .env
 ```
 
-Ensure database connection strings and JWT credentials are set:
+### 3. Build & Deploy Contracts
 
-- `MONGODB_URI` (default: `mongodb://127.0.0.1:27017/verity`)
-- `PORT` (default: `5050`)
-- `JWT_SECRET` (generate a secure secret)
+If you wish to deploy your own instance of the contracts:
+
+```bash
+cd contracts
+forge build
+forge script script/Deploy.s.sol:Deploy \
+  --rpc-url https://rpc.testnet.arc.network \
+  --private-key <YOUR_PRIVATE_KEY> \
+  --broadcast
+```
+
+### 4. Boot the Ecosystem
+
+Run the frontend and backend concurrently:
+
+```bash
+# Terminal 1
+pnpm dev:backend
+
+# Terminal 2
+pnpm dev:frontend
+```
+
+## How to Test the Product
+
+1. **Log In**: Visit `http://localhost:3000` and sign in with your email via Privy.
+2. **Onboard**: Activate your smart wallet, choose a username, and fund with testnet USDC from the faucet.
+3. **Post a Claim**: Create a normal post or a prediction market with a clear question, YES/NO conditions, a deadline, and a resolution source.
+4. **Signal Conviction**: Cast free daily Upvote/Downvote signals on market posts to help them qualify.
+5. **Fund a Market**: Once a market qualifies (50+ signals), deposit USDC into the launch pool. The pool deploys automatically when it reaches 40 USDC.
+6. **Trade Outcomes**: Buy YES or NO shares on active markets. Watch prices move based on demand.
+7. **Watch Resolution**: After the deadline, the AI keeper automatically proposes and finalizes the outcome. Winning shares can be redeemed for USDC.
 
 ---
 
-## Development Workflow
-
-You can start both applications concurrently from the root directory:
-
-### Run Development Servers
-
-- **Concurrently (Frontend & Backend):**
-  Use two separate terminal tabs to run:
-  ```bash
-  pnpm dev:frontend
-  pnpm dev:backend
-  ```
-
-### Seed Mock Data
-
-To populate your local MongoDB with a clean, fully-functioning dataset (users, posts, active prediction markets, mock votes, and comments):
-
-```bash
-pnpm --filter verity-backend seed
-```
-
----
-
-## Core Product Rules & Features
-
-### 1. Social Feed
-
-- **Normal Posts:** Supports standard micro-blogging features including liking, replying, and resharing.
-- **Wallet Profiles:** Users are identified securely via their Web3 wallet addresses. Profiles can be edited to include custom names, bios, and avatars.
-
-### 2. Prediction & Signal Markets
-
-- **Creation:** Prediction posts ask a specific Yes/No question and specify a resolution source, YES/NO criteria, a category, and a deadline.
-- **AI Quality Review:** The **Verity AI Agent** automatically grades the quality of a prediction question (e.g., verifying it is highly measurable and objective) before allowing creation.
-- **Free Voting:** Users can cast daily free sentiment votes (YES/NO) to help qualify markets for review.
-- **USDC Trading:** Users can purchase positions on outcome tokens (YES or NO shares) using Arc Testnet USDC.
-- **My Wallet Dashboard:** Shows transaction histories, daily vote usage (capped per day), and active prediction positions.
-
----
-
-## Verification & Build Checks
-
-Before committing or submitting a pull request, run the following verification checks from the monorepo root:
-
-```bash
-# Build the Next.js Frontend
-pnpm build:frontend
-
-# Build the NestJS Backend
-pnpm build:backend
-```
+<p align="center">Built for the Arc Testnet</p>
