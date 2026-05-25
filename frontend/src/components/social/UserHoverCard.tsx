@@ -31,7 +31,7 @@ export default function UserHoverCard({
         <span className="pointer-events-auto block rounded-[14px] bg-surface-solid p-4 shadow-[var(--shadow-sm)]">
           <span className="mb-3 flex items-start justify-between gap-3">
             <Link
-              className="flex min-w-0 items-center gap-3"
+              className="clickable-surface flex min-w-0 items-center gap-3 rounded-[12px] p-1"
               href={profileHref}
             >
               <ProfileAvatar profile={profile} />

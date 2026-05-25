@@ -54,7 +54,7 @@ export default function Sidebar() {
     <div className="verity-card flex h-full flex-col p-2">
       {/* Logo */}
       <div className="mb-3 flex items-center justify-between">
-        <Link href="/" className="group flex w-fit items-center gap-3 py-4 xl:px-4">
+        <Link href="/" className="clickable-surface group flex w-fit items-center gap-3 rounded-[12px] py-4 xl:px-4">
           <div className="verity-blob flex h-10 w-10 items-center justify-center bg-sunburst-yellow text-lg font-semibold text-midnight transition-transform group-hover:-translate-y-0.5">
             V
             <span className="verity-blob-smile" />
@@ -76,7 +76,7 @@ export default function Sidebar() {
               <div className={`flex items-center gap-3 rounded-[10px] p-3 text-[15px] transition-all duration-200 xl:w-full xl:px-4 xl:py-3 ${
                 isActive 
                   ? "bg-inverse text-inverse-text font-semibold" 
-                  : "text-graphite hover:bg-stone-surface hover:text-charcoal-primary"
+                  : "clickable-surface text-graphite"
               }`}>
                 <item.icon className="h-6 w-6 xl:h-5 xl:w-5" />
                 <span className="hidden font-medium tracking-[-0.18px] xl:block">{item.label}</span>
@@ -110,7 +110,7 @@ export default function Sidebar() {
                 </span>
                 <button
                   aria-label="Close compose menu"
-                  className="flex h-7 w-7 items-center justify-center rounded-full text-ash transition-colors hover:bg-surface-hover hover:text-foreground"
+                  className="clickable-icon flex h-7 w-7 items-center justify-center text-ash hover:text-foreground"
                   onClick={() => setComposeOpen(false)}
                   type="button"
                 >
@@ -119,7 +119,7 @@ export default function Sidebar() {
               </div>
 
               <button
-                className="flex w-full items-center gap-3 rounded-[10px] p-3 text-left transition-colors hover:bg-surface-hover"
+                className="clickable-surface flex w-full items-center gap-3 rounded-[10px] p-3 text-left"
                 onClick={() => openComposer("market")}
                 type="button"
               >
@@ -137,7 +137,7 @@ export default function Sidebar() {
               </button>
 
               <button
-                className="mt-1 flex w-full items-center gap-3 rounded-[10px] p-3 text-left transition-colors hover:bg-surface-hover"
+                className="clickable-surface mt-1 flex w-full items-center gap-3 rounded-[10px] p-3 text-left"
                 onClick={() => openComposer("take")}
                 type="button"
               >
@@ -158,7 +158,7 @@ export default function Sidebar() {
 
           <button
             aria-expanded={composeOpen}
-            className="verity-pill flex h-12 w-12 items-center justify-center bg-inverse text-xl font-semibold text-inverse-text transition-opacity hover:opacity-90 xl:h-12 xl:w-full"
+            className="clickable verity-pill flex h-12 w-12 items-center justify-center bg-inverse text-xl font-semibold text-inverse-text hover:opacity-90 xl:h-12 xl:w-full"
             onClick={() => setComposeOpen((current) => !current)}
             type="button"
           >
@@ -169,7 +169,7 @@ export default function Sidebar() {
       </div>
 
       {/* Mini Profile */}
-      <div className="mb-2 flex cursor-pointer items-center justify-center gap-3 rounded-[10px] p-3 transition-colors hover:bg-stone-surface xl:justify-start xl:p-4">
+      <div className="clickable-surface mb-2 flex items-center justify-center gap-3 rounded-[10px] p-3 xl:justify-start xl:p-4">
         <div className="verity-blob h-10 w-10 bg-sky-blue">
           <span className="verity-blob-smile" />
         </div>

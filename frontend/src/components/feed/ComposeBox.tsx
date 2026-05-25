@@ -18,8 +18,6 @@ interface ComposeBoxProps {
 
 type ComposeIntent = 'take' | 'market'
 
-const MARKET_CREATION_FEE_USDC = 1
-
 function generateObjectId(): string {
   const timestamp = Math.floor(new Date().getTime() / 1000).toString(16).padStart(8, '0');
   const machine = Math.floor(Math.random() * 16777215).toString(16).padStart(6, '0');
@@ -35,7 +33,7 @@ const MARKET_CATEGORIES = [
   'Miscellaneous',
   'Politics',
   'Sports',
-]
+] as const
 
 interface DetectedPyth {
   isPyth: boolean
@@ -111,7 +109,7 @@ function detectPythMarket(category: string, question: string): DetectedPyth {
 
   return {
     isPyth: true,
-    asset: matchedAsset.symbol as any,
+    asset: matchedAsset.symbol,
     priceFeedId: matchedAsset.feedId,
     targetPrice: priceValue,
     resolveAbove,
@@ -224,7 +222,7 @@ export default function ComposeBox({ profile, onCreated }: ComposeBoxProps) {
   )
 
   const liveAgentReview = useMemo(() => {
-    let finalMarket = { ...market }
+    const finalMarket = { ...market }
     if (detectedPyth.isPyth) {
       finalMarket.resolutionSource = 'Pyth Network Price Oracle'
       finalMarket.yesCondition = `${detectedPyth.assetName}/USD price is ${detectedPyth.resolveAbove ? '>=' : '<'} $${detectedPyth.targetPrice} at the deadline according to Pyth.`
@@ -287,7 +285,7 @@ export default function ComposeBox({ profile, onCreated }: ComposeBoxProps) {
         let targetPrice: number | undefined
         let resolveAbove: boolean | undefined
 
-        let finalMarket = { ...market }
+        const finalMarket = { ...market }
 
         if (detectedPyth.isPyth) {
           priceFeedId = detectedPyth.priceFeedId
@@ -334,8 +332,8 @@ export default function ComposeBox({ profile, onCreated }: ComposeBoxProps) {
 
       setContent('')
       onCreated()
-    } catch (caught: any) {
-      const msg = caught?.message || 'Unable to create post.'
+    } catch (caught: unknown) {
+      const msg = caught instanceof Error ? caught.message : 'Unable to create post.'
       setError(msg)
       toast.error(msg, { id: tid })
     } finally {
@@ -535,7 +533,7 @@ export default function ComposeBox({ profile, onCreated }: ComposeBoxProps) {
             <button
               aria-label="Create market"
               aria-pressed={isMarket}
-              className={`rounded-full p-2 transition-colors hover:bg-stone-surface hover:text-charcoal-primary ${
+              className={`clickable-icon p-2 hover:text-charcoal-primary ${
                 isMarket
                   ? 'bg-meadow-green/10 text-meadow-green'
                   : ''
@@ -548,9 +546,9 @@ export default function ComposeBox({ profile, onCreated }: ComposeBoxProps) {
           </div>
 
           <button
-            className={`verity-pill px-5 py-2 text-sm font-semibold tracking-[-0.18px] transition-opacity ${
+            className={`verity-pill px-5 py-2 text-sm font-semibold tracking-[-0.18px] ${
               canUsePrimaryAction
-                ? 'bg-inverse text-inverse-text hover:opacity-90'
+                ? 'clickable bg-inverse text-inverse-text hover:opacity-90'
                 : 'cursor-not-allowed bg-stone-surface text-smoke'
             }`}
             disabled={!canUsePrimaryAction}

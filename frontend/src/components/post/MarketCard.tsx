@@ -65,7 +65,6 @@ export default function MarketCard({
   yesCondition,
   noCondition,
   status = 'open',
-  yesPercent,
   usdcYes,
   usdcNo,
   marketCreationFeeUsdc = 1,
@@ -95,12 +94,7 @@ export default function MarketCard({
   const [lpAmount, setLpAmount] = useState('10')
   const [tradeAmount, setTradeAmount] = useState('10')
   const totalUsdc = usdcYes + usdcNo
-  const hasBackedSentiment = totalUsdc > 0
   const totalVotes = totalFreeVotes ?? freeYesVotes + freeNoVotes
-  const freeYesPercent = totalVotes > 0 ? (freeYesVotes / totalVotes) * 100 : 50
-  const displayYesPercent = hasBackedSentiment ? yesPercent : freeYesPercent
-  const noPercent =
-    totalVotes > 0 || hasBackedSentiment ? 100 - displayYesPercent : 50
   const isOpenForVotes = status === 'open_for_votes'
   const isQualified = status === 'qualified'
   const isTradable = status === 'tradable'
@@ -125,8 +119,8 @@ export default function MarketCard({
 
   return (
     <article
-      className={`verity-card verity-card-hover p-4 sm:p-5 ${
-        isDetail ? '' : 'cursor-pointer'
+      className={`verity-card p-4 sm:p-5 ${
+        isDetail ? '' : 'clickable-card'
       }`}
       onClick={openDetails}
       onKeyDown={(event) => {
@@ -148,7 +142,7 @@ export default function MarketCard({
             {profileHref ? (
               <UserHoverCard href={profileHref} profile={profile}>
                 <Link
-                  className="font-medium text-charcoal-primary hover:underline"
+                  className="clickable-link font-medium text-charcoal-primary"
                   href={profileHref}
                   onClick={stopClick}
                 >
@@ -265,7 +259,7 @@ export default function MarketCard({
                 </span>
               </div>
               <button
-                className="verity-pill flex h-10 items-center justify-center bg-inverse px-4 text-sm font-semibold tracking-[-0.18px] text-inverse-text transition-all hover:opacity-90 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
+                className="clickable verity-pill flex h-10 items-center justify-center bg-inverse px-4 text-sm font-semibold tracking-[-0.18px] text-inverse-text hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
                 disabled={
                   actionLoading || !isConnected || Number(lpAmount) <= 0
                 }
@@ -337,7 +331,7 @@ export default function MarketCard({
           </div>
           <div className="grid grid-cols-2 gap-2">
             <button
-              className="verity-pill flex h-10 items-center justify-center gap-1 bg-meadow-green/12 text-sm font-semibold text-charcoal-primary shadow-[var(--shadow-subtle)] transition-all duration-200 hover:bg-meadow-green/20 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
+              className="clickable verity-pill flex h-10 items-center justify-center gap-1 bg-meadow-green/12 text-sm font-semibold text-charcoal-primary shadow-[var(--shadow-subtle)] hover:bg-meadow-green/20 disabled:cursor-not-allowed disabled:opacity-40"
               disabled={
                 actionLoading || !isConnected || Number(tradeAmount) <= 0
               }
@@ -347,7 +341,7 @@ export default function MarketCard({
               {actionLoadingStatus === 'buy_yes' ? 'Buying...' : 'BUY YES'}
             </button>
             <button
-              className="verity-pill flex h-10 items-center justify-center gap-1 bg-ember-orange/10 text-sm font-semibold text-charcoal-primary shadow-[var(--shadow-subtle)] transition-all duration-200 hover:bg-ember-orange/15 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
+              className="clickable verity-pill flex h-10 items-center justify-center gap-1 bg-ember-orange/10 text-sm font-semibold text-charcoal-primary shadow-[var(--shadow-subtle)] hover:bg-ember-orange/15 disabled:cursor-not-allowed disabled:opacity-40"
               disabled={
                 actionLoading || !isConnected || Number(tradeAmount) <= 0
               }
@@ -362,7 +356,7 @@ export default function MarketCard({
         <div className="mb-3" onClick={stopClick}>
           <div className="mb-2 grid grid-cols-2 gap-2">
             <button
-              className="verity-pill flex h-9 items-center justify-center gap-1 bg-meadow-green/20 text-sm font-semibold text-charcoal-primary shadow-[var(--shadow-subtle)] transition-colors hover:bg-meadow-green/30 disabled:cursor-not-allowed disabled:opacity-60"
+              className="clickable verity-pill flex h-9 items-center justify-center gap-1 bg-meadow-green/20 text-sm font-semibold text-charcoal-primary shadow-[var(--shadow-subtle)] hover:bg-meadow-green/30 disabled:cursor-not-allowed disabled:opacity-60"
               disabled={voteDisabled}
               onClick={() => onVote?.('YES')}
               title={yesCondition}
@@ -371,7 +365,7 @@ export default function MarketCard({
               Upvote
             </button>
             <button
-              className="verity-pill flex h-9 items-center justify-center gap-1 bg-ember-orange/18 text-sm font-semibold text-charcoal-primary shadow-[var(--shadow-subtle)] transition-colors hover:bg-ember-orange/25 disabled:cursor-not-allowed disabled:opacity-60"
+              className="clickable verity-pill flex h-9 items-center justify-center gap-1 bg-ember-orange/18 text-sm font-semibold text-charcoal-primary shadow-[var(--shadow-subtle)] hover:bg-ember-orange/25 disabled:cursor-not-allowed disabled:opacity-60"
               disabled={voteDisabled}
               onClick={() => onVote?.('NO')}
               title={noCondition}
@@ -427,11 +421,11 @@ export default function MarketCard({
       >
         <button
           aria-label={`Comment on ${question}`}
-          className="group flex items-center gap-2 transition-colors hover:text-foreground"
+          className="clickable-icon group flex items-center gap-2 px-1 text-ash hover:text-foreground"
           onClick={onComment}
           type="button"
         >
-          <span className="rounded-full p-2 transition-colors group-hover:bg-surface-hover">
+          <span className="rounded-full p-2">
             <MessageCircle className="h-4 w-4" />
           </span>
           <span className="text-xs">{comments}</span>
@@ -440,11 +434,11 @@ export default function MarketCard({
         <button
           aria-label={`Reshare ${question}`}
           aria-pressed={reshared}
-          className={`group flex items-center gap-2 transition-colors hover:text-foreground ${reshared ? 'text-meadow-green' : ''}`}
+          className={`clickable-icon group flex items-center gap-2 px-1 hover:text-foreground ${reshared ? 'text-meadow-green' : 'text-ash'}`}
           onClick={onReshare}
           type="button"
         >
-          <span className="rounded-full p-2 transition-colors group-hover:bg-surface-hover">
+          <span className="rounded-full p-2">
             <Repeat2 className="h-4 w-4" />
           </span>
           <span className="text-xs">{reshares}</span>
@@ -453,14 +447,14 @@ export default function MarketCard({
         <button
           aria-label={`Upvote ${question}`}
           aria-pressed={viewerVote === 'YES'}
-          className={`group flex items-center gap-2 transition-colors hover:text-meadow-green ${
-            viewerVote === 'YES' ? 'text-meadow-green' : ''
+          className={`clickable-icon group flex items-center gap-2 px-1 hover:text-meadow-green ${
+            viewerVote === 'YES' ? 'text-meadow-green' : 'text-ash'
           }`}
           disabled={voteDisabled}
           onClick={() => onVote?.('YES')}
           type="button"
         >
-          <span className="rounded-full p-2 transition-colors group-hover:bg-meadow-green/10">
+          <span className="rounded-full p-2">
             <ArrowUp className="h-4 w-4" />
           </span>
           <span className="text-xs">{freeYesVotes}</span>
@@ -469,14 +463,14 @@ export default function MarketCard({
         <button
           aria-label={`Downvote ${question}`}
           aria-pressed={viewerVote === 'NO'}
-          className={`group flex items-center gap-2 transition-colors hover:text-ember-orange ${
-            viewerVote === 'NO' ? 'text-ember-orange' : ''
+          className={`clickable-icon group flex items-center gap-2 px-1 hover:text-ember-orange ${
+            viewerVote === 'NO' ? 'text-ember-orange' : 'text-ash'
           }`}
           disabled={voteDisabled}
           onClick={() => onVote?.('NO')}
           type="button"
         >
-          <span className="rounded-full p-2 transition-colors group-hover:bg-ember-orange/10">
+          <span className="rounded-full p-2">
             <ArrowDown className="h-4 w-4" />
           </span>
           <span className="text-xs">{freeNoVotes}</span>
@@ -484,10 +478,10 @@ export default function MarketCard({
 
         <button
           aria-label={`Share ${question}`}
-          className="group flex items-center gap-2 transition-colors hover:text-foreground"
+          className="clickable-icon group flex items-center gap-2 px-1 text-ash hover:text-foreground"
           type="button"
         >
-          <span className="rounded-full p-2 transition-colors group-hover:bg-surface-hover">
+          <span className="rounded-full p-2">
             <Share className="h-4 w-4" />
           </span>
         </button>

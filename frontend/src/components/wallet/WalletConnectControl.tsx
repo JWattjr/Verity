@@ -32,7 +32,7 @@ export default function WalletConnectControl() {
         if (!connected) {
           return (
             <button
-              className="verity-pill flex h-11 w-full items-center justify-center gap-2 bg-inverse px-4 text-sm font-semibold tracking-[-0.18px] text-inverse-text transition-opacity hover:opacity-90"
+              className="clickable verity-pill flex h-11 w-full items-center justify-center gap-2 bg-inverse px-4 text-sm font-semibold tracking-[-0.18px] text-inverse-text hover:opacity-90"
               onClick={openConnectModal}
               type="button"
             >
@@ -45,7 +45,7 @@ export default function WalletConnectControl() {
         if (wrongNetwork) {
           return (
             <button
-              className="verity-pill flex h-11 w-full items-center justify-center gap-2 bg-ember-orange px-4 text-sm font-semibold tracking-[-0.18px] text-white transition-colors hover:bg-coral-red"
+              className="clickable verity-pill flex h-11 w-full items-center justify-center gap-2 bg-ember-orange px-4 text-sm font-semibold tracking-[-0.18px] text-white hover:bg-coral-red"
               onClick={openChainModal}
               type="button"
             >
@@ -57,7 +57,7 @@ export default function WalletConnectControl() {
 
         return (
           <button
-            className="verity-pill flex h-11 w-full items-center justify-center gap-2 bg-parchment-card px-4 text-sm font-semibold tracking-[-0.18px] text-charcoal-primary shadow-[var(--shadow-subtle)] transition-colors hover:bg-stone-surface"
+            className="clickable verity-pill flex h-11 w-full items-center justify-center gap-2 bg-parchment-card px-4 text-sm font-semibold tracking-[-0.18px] text-charcoal-primary shadow-[var(--shadow-subtle)] hover:bg-stone-surface"
             onClick={openAccountModal}
             type="button"
           >
