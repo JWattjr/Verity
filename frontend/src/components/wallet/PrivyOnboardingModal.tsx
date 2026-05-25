@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { usePrivy, useCreateWallet, useWallets } from "@privy-io/react-auth";
 import { useWalletProfile } from "@/hooks/useWalletProfile";
 import { usePrivyWallet } from "@/hooks/usePrivyWallet";
@@ -58,6 +58,7 @@ export default function PrivyOnboardingModal() {
   const [isSavingUsername, setIsSavingUsername] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [setupComplete, setSetupComplete] = useState(false);
+  const isInitialLoad = useRef(true);
 
   // Retrieve the active embedded wallet address
   const activeAddress = useMemo(() => {
@@ -76,11 +77,15 @@ export default function PrivyOnboardingModal() {
   useEffect(() => {
     if (isCompleted) {
       setSetupComplete(true);
-    } else if (profile && !profileLoading && !needsUsername) {
-      if (user?.id) {
-        setStoredOnboardingComplete(user.id);
+      isInitialLoad.current = false;
+    } else if (profile && !profileLoading) {
+      if (!needsUsername && isInitialLoad.current) {
+        if (user?.id) {
+          setStoredOnboardingComplete(user.id);
+        }
+        setSetupComplete(true);
       }
-      setSetupComplete(true);
+      isInitialLoad.current = false;
     }
   }, [isCompleted, profile, profileLoading, needsUsername, user?.id]);
 
@@ -91,12 +96,12 @@ export default function PrivyOnboardingModal() {
   }, [profile?.username]);
 
   // Determine current active step in the onboarding flow
-  const step: OnboardingStep | null = useMemo(() => {
+  const step: OnboardingStep | "loading" | null = useMemo(() => {
     if (!ready || !authenticated) return null;
     if (setupComplete && !showSuccess) return null;
-    if (hasEmbeddedWallet && !smartWalletAddress && !setupComplete) return null;
+    if (hasEmbeddedWallet && !smartWalletAddress && !setupComplete) return "loading";
+    if (profileLoading && !setupComplete) return "loading";
     if (!hasEmbeddedWallet) return "create-wallet";
-    if (profileLoading) return null;
     if (needsUsername) return "username";
     if (showSuccess) return "success";
     return "deposit";
@@ -204,6 +209,13 @@ export default function PrivyOnboardingModal() {
 
         {/* Content Body */}
         <div className="px-6 py-6 bg-surface-solid">
+          {step === "loading" && (
+            <div className="flex flex-col items-center justify-center py-8 text-ash space-y-3">
+              <Loader2 className="h-8 w-8 animate-spin text-sky-blue" />
+              <p className="text-sm font-semibold text-charcoal-primary">Loading secure profile...</p>
+            </div>
+          )}
+
           {step === "create-wallet" && (
             <div className="space-y-5 animate-slide-up">
               <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-sunburst-yellow/10 text-sunburst-yellow">

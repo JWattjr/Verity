@@ -14,7 +14,7 @@ import { useProfileActivityQuery } from '@/store/verity/verityQueries'
 
 export default function ProfileEditor() {
   const router = useRouter()
-  const { profile, isLoading } = useWalletProfile()
+  const { profile } = useWalletProfile()
   const { items } = useFeed(profile?.id)
   const [activeTab, setActiveTab] = useState<ProfileActivityTab>('posts')
   const [peopleModal, setPeopleModal] = useState<
@@ -22,7 +22,7 @@ export default function ProfileEditor() {
   >(null)
   const isConnected = Boolean(profile)
 
-  const { data: tabItems = [], isLoading: activityLoading } =
+  const { data: tabItems = [] } =
     useProfileActivityQuery(profile?.id || '', activeTab, profile?.id)
 
   const localProfileItems = useMemo(
@@ -180,10 +180,10 @@ function ProfileTabs({
     <div className="grid grid-cols-5 border-t border-dashed border-stone-surface px-2">
       {tabs.map((tab) => (
         <button
-          className={`relative h-12 text-[13px] sm:text-sm font-semibold tracking-[-0.18px] transition-colors ${
+          className={`relative h-12 rounded-[10px] text-[13px] sm:text-sm font-semibold tracking-[-0.18px] ${
             activeTab === tab.id
               ? 'text-charcoal-primary'
-              : 'text-ash hover:text-charcoal-primary'
+              : 'clickable-tab text-ash'
           }`}
           key={tab.id}
           onClick={() => onChange(tab.id)}

@@ -46,7 +46,7 @@ export default function PostCard({
 }: PostCardProps) {
   return (
     <article
-      className="verity-card verity-card-hover flex cursor-pointer gap-3 p-4 sm:gap-4 sm:p-5"
+      className="clickable-card verity-card flex gap-3 p-4 sm:gap-4 sm:p-5"
       onClick={onOpenDetails}
       onKeyDown={(event) => {
         if (onOpenDetails && (event.key === 'Enter' || event.key === ' ')) {
@@ -61,7 +61,7 @@ export default function PostCard({
         {profileHref ? (
           <UserHoverCard href={profileHref} profile={profile}>
             <Link
-              className={`verity-blob h-10 w-10 ${avatarColor}`}
+              className={`clickable verity-blob h-10 w-10 ${avatarColor}`}
               href={profileHref}
               onClick={(event) => event.stopPropagation()}
             >
@@ -80,7 +80,7 @@ export default function PostCard({
           {profileHref ? (
             <UserHoverCard href={profileHref} profile={profile}>
               <Link
-                className="truncate font-semibold tracking-[-0.18px] text-charcoal-primary hover:underline"
+                className="clickable-link truncate font-semibold tracking-[-0.18px] text-charcoal-primary"
                 href={profileHref}
                 onClick={(event) => event.stopPropagation()}
               >
@@ -94,7 +94,7 @@ export default function PostCard({
           )}
           {profileHref ? (
             <Link
-              className="truncate font-mono text-xs text-ash hover:underline"
+              className="clickable-link truncate font-mono text-xs text-ash"
               href={profileHref}
               onClick={(event) => event.stopPropagation()}
             >
@@ -121,11 +121,11 @@ export default function PostCard({
         >
           <button
             aria-label="Comment"
-            className="group flex items-center gap-2 transition-colors hover:text-foreground"
+            className="clickable-icon group flex items-center gap-2 px-1 text-ash hover:text-foreground"
             onClick={onComment}
             type="button"
           >
-            <span className="rounded-full p-2 transition-colors group-hover:bg-surface-hover">
+            <span className="rounded-full p-2">
               <MessageCircle className="h-4 w-4" />
             </span>
             <span className="text-xs">{comments}</span>
@@ -134,11 +134,11 @@ export default function PostCard({
           <button
             aria-label="Reshare"
             aria-pressed={reshared}
-            className={`group flex items-center gap-2 transition-colors hover:text-foreground ${reshared ? 'text-meadow-green' : ''}`}
+            className={`clickable-icon group flex items-center gap-2 px-1 hover:text-foreground ${reshared ? 'text-meadow-green' : 'text-ash'}`}
             onClick={onReshare}
             type="button"
           >
-            <span className="rounded-full p-2 transition-colors group-hover:bg-surface-hover">
+            <span className="rounded-full p-2">
               <Repeat2 className="h-4 w-4" />
             </span>
             <span className="text-xs">{reshares}</span>
@@ -147,11 +147,11 @@ export default function PostCard({
           <button
             aria-label="Like"
             aria-pressed={liked}
-            className={`group flex items-center gap-2 transition-colors hover:text-ember-orange ${liked ? 'text-ember-orange' : ''}`}
+            className={`clickable-icon group flex items-center gap-2 px-1 hover:text-ember-orange ${liked ? 'text-ember-orange' : 'text-ash'}`}
             onClick={onLike}
             type="button"
           >
-            <span className="rounded-full p-2 transition-colors group-hover:bg-ember-orange/10">
+            <span className="rounded-full p-2">
               <Heart className={`h-4 w-4 ${liked ? 'fill-current' : ''}`} />
             </span>
             <span className="text-xs">{likes}</span>
@@ -159,11 +159,11 @@ export default function PostCard({
 
           <button
             aria-label="Share"
-            className="group flex items-center gap-2 transition-colors hover:text-foreground"
+            className="clickable-icon group flex items-center gap-2 px-1 text-ash hover:text-foreground"
             onClick={onShare}
             type="button"
           >
-            <span className="rounded-full p-2 transition-colors group-hover:bg-surface-hover">
+            <span className="rounded-full p-2">
               <Share className="h-4 w-4" />
             </span>
           </button>

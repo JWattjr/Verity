@@ -32,7 +32,7 @@ export default function MobileComposeButton() {
             </span>
             <button
               aria-label="Close create menu"
-              className="flex h-7 w-7 items-center justify-center rounded-full text-ash transition-colors hover:bg-surface-hover hover:text-foreground"
+              className="clickable-icon flex h-7 w-7 items-center justify-center text-ash hover:text-foreground"
               onClick={() => setOpen(false)}
               type="button"
             >
@@ -41,7 +41,7 @@ export default function MobileComposeButton() {
           </div>
 
           <button
-            className="flex w-full items-center gap-3 rounded-[10px] p-3 text-left transition-colors hover:bg-surface-hover"
+            className="clickable-surface flex w-full items-center gap-3 rounded-[10px] p-3 text-left"
             onClick={() => openComposer('market')}
             type="button"
           >
@@ -59,7 +59,7 @@ export default function MobileComposeButton() {
           </button>
 
           <button
-            className="mt-1 flex w-full items-center gap-3 rounded-[10px] p-3 text-left transition-colors hover:bg-surface-hover"
+            className="clickable-surface mt-1 flex w-full items-center gap-3 rounded-[10px] p-3 text-left"
             onClick={() => openComposer('take')}
             type="button"
           >
@@ -81,7 +81,7 @@ export default function MobileComposeButton() {
       <button
         aria-expanded={open}
         aria-label={open ? 'Close create menu' : 'Create'}
-        className="flex h-14 w-14 items-center justify-center rounded-full bg-brand-primary text-white shadow-[var(--shadow-sm)] transition-transform active:scale-95"
+        className="clickable flex h-14 w-14 items-center justify-center rounded-full bg-brand-primary text-white shadow-[var(--shadow-sm)]"
         onClick={() => setOpen((current) => !current)}
         type="button"
       >

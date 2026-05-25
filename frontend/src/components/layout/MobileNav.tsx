@@ -25,10 +25,10 @@ export default function MobileNav() {
               : pathname === item.href.split('?')[0]
           return (
             <Link
-              className={`flex min-w-0 flex-col items-center justify-center gap-1 rounded-[10px] px-1 py-2 text-[10px] font-medium tracking-[-0.12px] transition-colors ${
+              className={`flex min-w-0 flex-col items-center justify-center gap-1 rounded-[10px] px-1 py-2 text-[10px] font-medium tracking-[-0.12px] ${
                 isActive
                   ? 'bg-surface-muted text-foreground shadow-[var(--shadow-subtle)]'
-                  : 'text-muted hover:bg-surface-hover hover:text-foreground'
+                  : 'clickable-surface text-muted'
               }`}
               href={item.href}
               key={item.label}
