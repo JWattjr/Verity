@@ -17,6 +17,7 @@ interface ComposeBoxProps {
 }
 
 type ComposeIntent = 'take' | 'market'
+type PythAssetSymbol = 'BTC' | 'ETH' | 'SOL' | 'PYTH'
 
 function generateObjectId(): string {
   const timestamp = Math.floor(new Date().getTime() / 1000).toString(16).padStart(8, '0');
@@ -37,14 +38,21 @@ const MARKET_CATEGORIES = [
 
 interface DetectedPyth {
   isPyth: boolean
-  asset?: 'BTC' | 'ETH' | 'SOL' | 'PYTH'
+  asset?: PythAssetSymbol
   priceFeedId?: string
   targetPrice?: number
   resolveAbove?: boolean
   assetName?: string
 }
 
-const PYTH_ASSETS = [
+interface PythAssetDefinition {
+  keys: string[]
+  symbol: PythAssetSymbol
+  name: string
+  feedId: string
+}
+
+const PYTH_ASSETS: PythAssetDefinition[] = [
   {
     keys: ['btc', 'bitcoin'],
     symbol: 'BTC',
@@ -120,6 +128,7 @@ function detectPythMarket(category: string, question: string): DetectedPyth {
 export default function ComposeBox({ profile, onCreated }: ComposeBoxProps) {
   const composerRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const marketQuestionRef = useRef<HTMLInputElement>(null)
   const { createMarketPreDeposit } = useUsdcTransfer()
   const { mutateAsync: createMarketPost } = useCreateMarketPostMutation()
   const { mutateAsync: createNormalPost } = useCreateNormalPostMutation()
@@ -148,7 +157,11 @@ export default function ComposeBox({ profile, onCreated }: ComposeBoxProps) {
           behavior: 'smooth',
           block: 'center',
         })
-        textareaRef.current?.focus()
+        if (intent === 'market') {
+          marketQuestionRef.current?.focus()
+        } else {
+          textareaRef.current?.focus()
+        }
       })
     }
 
@@ -200,7 +213,7 @@ export default function ComposeBox({ profile, onCreated }: ComposeBoxProps) {
   const marketSignature = useMemo(
     () =>
       JSON.stringify({
-        content: content.trim(),
+        content: market.question.trim(),
         question: market.question.trim(),
         category: market.category.trim(),
         deadline: market.deadline,
@@ -218,7 +231,7 @@ export default function ComposeBox({ profile, onCreated }: ComposeBoxProps) {
         targetPrice: detectedPyth.targetPrice,
         resolveAbove: detectedPyth.resolveAbove,
       }),
-    [content, market, detectedPyth],
+    [market, detectedPyth],
   )
 
   const liveAgentReview = useMemo(() => {
@@ -230,9 +243,9 @@ export default function ComposeBox({ profile, onCreated }: ComposeBoxProps) {
     }
     return reviewPredictionPost({
       ...finalMarket,
-      content,
+      content: market.question.trim(),
     })
-  }, [content, market, detectedPyth])
+  }, [market, detectedPyth])
 
   const reviewIsCurrent = Boolean(
     agentReview && reviewedSignature === marketSignature,
@@ -303,7 +316,7 @@ export default function ComposeBox({ profile, onCreated }: ComposeBoxProps) {
           authorId: profile.id,
           marketId,
           ...finalMarket,
-          content,
+          content: finalMarket.question.trim(),
           creationFeeTxHash: payment.hash,
           feeCollectorAddress: payment.factoryAddress,
           priceFeedId,
@@ -354,19 +367,21 @@ export default function ComposeBox({ profile, onCreated }: ComposeBoxProps) {
       </div>
 
       <div className="flex-1 flex flex-col pt-1">
-        <textarea
-          ref={textareaRef}
-          disabled={!profile || saving}
-          onChange={(event) => setContent(event.target.value)}
-          placeholder={
-            profile ? "What's your conviction?" : 'Connect wallet to post'
-          }
-          value={content}
-          className="min-h-[60px] w-full resize-none border-none bg-transparent text-[19px] font-semibold leading-[1.3] tracking-[-0.25px] text-midnight outline-none placeholder:text-ash"
-        />
+        {!isMarket && (
+          <textarea
+            ref={textareaRef}
+            disabled={!profile || saving}
+            onChange={(event) => setContent(event.target.value)}
+            placeholder={
+              profile ? "What's your conviction?" : 'Connect wallet to post'
+            }
+            value={content}
+            className="min-h-[60px] w-full resize-none border-none bg-transparent text-[19px] font-semibold leading-[1.3] tracking-[-0.25px] text-midnight outline-none placeholder:text-ash"
+          />
+        )}
 
         {isMarket && (
-          <div className="mt-3 grid gap-3 rounded-[12px] bg-parchment-card p-3 shadow-[var(--shadow-subtle)]">
+          <div className="grid gap-3 rounded-[12px] bg-parchment-card p-3 shadow-[var(--shadow-subtle)]">
             <div className="flex flex-wrap items-center justify-between gap-2 rounded-[10px] bg-white-surface px-3 py-2 font-mono text-[11px] text-ash shadow-[var(--shadow-subtle)]">
               <span>
                 Prediction posts cost 11 USDC (1 USDC fee + 10 USDC creator launch liquidity)
@@ -375,7 +390,9 @@ export default function ComposeBox({ profile, onCreated }: ComposeBoxProps) {
             </div>
 
             <input
+              ref={marketQuestionRef}
               className="h-10 rounded-[10px] bg-white-surface px-3 text-sm tracking-[-0.18px] text-charcoal-primary shadow-[var(--shadow-subtle)] outline-none placeholder:text-ash focus:ring-2 focus:ring-stone-surface"
+              disabled={!profile || saving}
               onChange={(event) =>
                 setMarket((current) => ({
                   ...current,
