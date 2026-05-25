@@ -1,44 +1,69 @@
-# Verity NestJS Backend
+# Verity Backend
 
-Verity's decentralized backend service, built using the NestJS framework and MongoDB (Mongoose). It is responsible for database persistence, user registration, post indexing, free voting rules, and validating/syncing state with smart contracts deployed on the Arc Testnet. It also includes the automated AI resolution keeper loop.
+The NestJS 11 API server powering Verity's social prediction market platform. Handles user authentication, social feed operations, on-chain market verification, liquidity pool management, and automated market resolution.
 
-## Core Features
+## Module Overview
 
-- **Auth & Users**: Wallet-based login (`POST /api/users/wallet/:address`) and JWT protection.
-- **Posts & Comments**: Native posts feed supporting standard content and prediction market declarations.
-- **On-Chain Pool Funding Verification**: Verifies USDC transaction receipts and triggers database state changes (e.g. `qualified` -> `funding_pool` -> `tradable`).
-- **AMM Pricing & LP Tracking**: Integrates with `VerityFPMM` contract to fetch YES/NO token pricing and user LP positions.
-- **AI Agent Resolution Engine**: Uses Tavily Search API and configurable LLMs (Gemini, Claude, OpenAI) to gather facts and automatically propose outcomes for subjective prediction markets.
-- **Resolution Keeper**: An automated resolution agent checking expired markets every 30 seconds to submit Pyth VAAs or LLM-driven proposals.
-- **Swagger API Docs**: Premium interactive documentation served at `/api/docs`.
-- **On-Chain E2E Tests**: Suite that executes actual, signed transactions on Arc Testnet to verify the system from end to end.
+The backend is organized into 12 domain modules under `src/modules/`:
 
----
+| Module            | Purpose                                                                                                  |
+| ----------------- | -------------------------------------------------------------------------------------------------------- |
+| **auth**          | Privy JWT token verification, session management                                                         |
+| **users**         | Wallet profiles, usernames, signal point tracking, follower counts                                       |
+| **posts**         | Social feed CRUD — normal posts and market-linked prediction posts                                       |
+| **markets**       | Market creation, free voting (10/day cap), USDC trading (buy/sell), position tracking                    |
+| **liquidity**     | LP pool initialization, deposits, withdrawals, 24h lock enforcement, on-chain state sync                 |
+| **blockchain**    | Viem-based on-chain reads/writes, Account Abstraction calldata decoder, transaction receipt verification |
+| **agent**         | AI resolution agent — web search via Tavily, outcome analysis via Claude/Gemini/OpenAI                   |
+| **notifications** | Activity feed: likes, comments, reshares, market events                                                  |
+| **socket**        | Socket.IO WebSocket gateway for real-time feed/market/user broadcasts                                    |
+| **comments**      | Threaded comment system on posts                                                                         |
+| **interactions**  | Likes and reshares                                                                                       |
+| **circle-wallet** | Circle wallet integration utilities                                                                      |
+
+### Cross-Cutting (`src/common/`)
+
+- **`JwtAuthGuard`**: Database-first authentication — looks up the user by Privy DID before hitting the Privy REST API. Users with an existing wallet address are authenticated instantly without external network calls.
+- **`HttpExceptionFilter`**: Standardized error response formatting.
+- **`ResponseInterceptor`**: Wraps all successful responses in a consistent envelope.
+
+## Market Resolution Keeper
+
+The `MarketsKeeperService` runs a background loop every **30 seconds** that:
+
+1. **Promotes qualified markets** — checks escrow balances on-chain and auto-transitions markets to `tradable` when they reach the 40 USDC threshold.
+2. **Resolves Pyth markets** — fetches historical price VAAs from the Pyth Benchmarks API and submits resolution transactions.
+3. **Resolves subjective markets** — invokes the AI agent to search the web, analyze evidence, and propose YES/NO outcomes. Monitors the dispute window and auto-finalizes undisputed proposals.
+
+## On-Chain Integration
+
+The `BlockchainService` uses **Viem** to interact with five smart contracts on Arc Testnet:
+
+- Reads: escrow balances, pool states, LP shares, market prices, proposal statuses, dispute windows
+- Writes: market registration, resolution proposals, finalization (via admin wallet)
+- **AA/Safe decoder**: `getCallSequence()` recursively unwraps nested calldata from EntryPoint `handleOps`, Smart Account `execute`/`executeBatch`, and Safe `execTransaction` to correctly verify transactions from smart wallets
 
 ## Getting Started
 
-### 1. Project Configuration
-
-Install dependencies from the monorepo root:
+### Install & Configure
 
 ```bash
+# From monorepo root
 pnpm install
-```
 
-Configure the environment variables by copying `.env.example` to `.env` inside the `backend/` folder:
-
-```bash
+# Configure environment
+cd backend
 cp .env.example .env
 ```
 
-Ensure the following variables are configured correctly:
+Required environment variables:
 
 ```env
 MONGODB_URI=mongodb://localhost:27017/verity
-JWT_SECRET=your-long-secure-secret-key
-JWT_EXPIRES_IN=7d
+PORT=5050
+JWT_SECRET=<secure-secret>
 
-# Arc Testnet Configuration
+# Arc Testnet contract addresses
 ARC_RPC_URL=https://rpc.testnet.arc.network
 USDC_ADDRESS=0x3600000000000000000000000000000000000000
 ROUTER_ADDRESS=0xfd5b97972669Dbd447560B4c7b0eEbe7BD58ff3d
@@ -47,69 +72,29 @@ FPMM_ADDRESS=0x51203EF25B201A9138603d50711092698C350e24
 FACTORY_ADDRESS=0x47248BfD909337F78De56Aaa82d070Eb8964F30F
 RESOLVER_ADDRESS=0x8D387a1704E7efb92b315e97db54DA92a6212A1b
 
-# Required for E2E testing (requires gas + mock USDC)
-ADMIN_PRIVATE_KEY=0x...
+# Privy authentication
+PRIVY_APP_ID=<your-privy-app-id>
+PRIVY_APP_SECRET=<your-privy-app-secret>
 
-# AI Agent Config
-LLM_PROVIDER=claude        # options: gemini, openai, claude, mock
+# AI Agent (optional — defaults to mock)
+LLM_PROVIDER=claude   # claude | gemini | openai | mock
 TAVILY_API_KEY=tvly-...
-CLAUDE_API_KEY=sk-ant-...  # required if LLM_PROVIDER is claude
-CLAUDE_MODEL=claude-3-haiku-20240307 # optional custom model Override
-GEMINI_API_KEY=AIzaSy...   # required if LLM_PROVIDER is gemini
-OPENAI_API_KEY=sk-proj-... # required if LLM_PROVIDER is openai
+CLAUDE_API_KEY=sk-ant-...
+
+# E2E testing (requires gas + USDC)
+ADMIN_PRIVATE_KEY=0x...
 ```
 
----
-
-## Available Scripts
-
-### Extract ABIs
-
-Extracts ABI definitions from compiled Foundry artifacts and copies them into the backend package for use in blockchain read/write calls:
+### Available Scripts
 
 ```bash
-pnpm run extract-abis
+pnpm run dev              # Start in watch mode (http://localhost:5050/api)
+pnpm run build            # Production build
+pnpm run seed             # Populate DB with mock data
+pnpm run extract-abis     # Copy contract ABIs from Foundry artifacts
+pnpm run test             # Unit tests
 ```
 
-### Run Local Development Server
+### API Documentation
 
-Starts the NestJS application in watch mode:
-
-```bash
-pnpm run dev
-```
-
-The server runs on http://localhost:5050/api, and you can view the Swagger UI documentation at http://localhost:5050/api/docs.
-
-### Seed Database
-
-Seeds the MongoDB database with initial sample mock data:
-
-```bash
-pnpm run seed
-```
-
-### Run Unit & Integration Tests
-
-Runs the Jest test suites (including agent resolution, keeper simulations, etc.):
-
-```bash
-pnpm run test
-```
-
-### Run On-Chain E2E Tests
-
-Executes the E2E test suites, signing transactions on Arc Testnet via your `ADMIN_PRIVATE_KEY`:
-
-- **Standard E2E**:
-  ```bash
-  pnpm run test:backend-e2e
-  ```
-- **Pyth Live Resolution E2E**:
-  ```bash
-  pnpm run test:pyth-live
-  ```
-- **AI Agent + Optimistic Resolver Live E2E**:
-  ```bash
-  pnpm run test:resolver-live
-  ```
+Swagger UI is served at `http://localhost:5050/api/docs` when the dev server is running.
