@@ -10,6 +10,7 @@ import {
   useCreateNormalPostMutation,
 } from '@/store/verity/verityQueries'
 import { toast } from 'react-hot-toast'
+import { formatWeb3Error } from '@/lib/arc'
 
 interface ComposeBoxProps {
   profile: Profile | null
@@ -20,11 +21,19 @@ type ComposeIntent = 'take' | 'market'
 type PythAssetSymbol = 'BTC' | 'ETH' | 'SOL' | 'PYTH'
 
 function generateObjectId(): string {
-  const timestamp = Math.floor(new Date().getTime() / 1000).toString(16).padStart(8, '0');
-  const machine = Math.floor(Math.random() * 16777215).toString(16).padStart(6, '0');
-  const pid = Math.floor(Math.random() * 65535).toString(16).padStart(4, '0');
-  const increment = Math.floor(Math.random() * 16777215).toString(16).padStart(6, '0');
-  return (timestamp + machine + pid + increment).substring(0, 24);
+  const timestamp = Math.floor(new Date().getTime() / 1000)
+    .toString(16)
+    .padStart(8, '0')
+  const machine = Math.floor(Math.random() * 16777215)
+    .toString(16)
+    .padStart(6, '0')
+  const pid = Math.floor(Math.random() * 65535)
+    .toString(16)
+    .padStart(4, '0')
+  const increment = Math.floor(Math.random() * 16777215)
+    .toString(16)
+    .padStart(6, '0')
+  return (timestamp + machine + pid + increment).substring(0, 24)
 }
 
 const MARKET_CATEGORIES = [
@@ -345,8 +354,8 @@ export default function ComposeBox({ profile, onCreated }: ComposeBoxProps) {
 
       setContent('')
       onCreated()
-    } catch (caught: unknown) {
-      const msg = caught instanceof Error ? caught.message : 'Unable to create post.'
+    } catch (caught: any) {
+      const msg = formatWeb3Error(caught)
       setError(msg)
       toast.error(msg, { id: tid })
     } finally {
@@ -384,7 +393,8 @@ export default function ComposeBox({ profile, onCreated }: ComposeBoxProps) {
           <div className="grid gap-3 rounded-[12px] bg-parchment-card p-3 shadow-[var(--shadow-subtle)]">
             <div className="flex flex-wrap items-center justify-between gap-2 rounded-[10px] bg-white-surface px-3 py-2 font-mono text-[11px] text-ash shadow-[var(--shadow-subtle)]">
               <span>
-                Prediction posts cost 11 USDC (1 USDC fee + 10 USDC creator launch liquidity)
+                Prediction posts cost 11 USDC (1 USDC fee + 10 USDC creator
+                launch liquidity)
               </span>
               <span>Verity AI review required</span>
             </div>
@@ -541,9 +551,7 @@ export default function ComposeBox({ profile, onCreated }: ComposeBoxProps) {
           </div>
         )}
 
-        {error && (
-          <p className="mt-2 text-sm text-ember-orange">{error}</p>
-        )}
+        {error && <p className="mt-2 text-sm text-ember-orange">{error}</p>}
 
         <div className="mt-2 flex items-center justify-between border-t border-dashed border-stone-surface pt-3">
           <div className="flex items-center gap-1 text-ash">
@@ -551,9 +559,7 @@ export default function ComposeBox({ profile, onCreated }: ComposeBoxProps) {
               aria-label="Create market"
               aria-pressed={isMarket}
               className={`clickable-icon p-2 hover:text-charcoal-primary ${
-                isMarket
-                  ? 'bg-meadow-green/10 text-meadow-green'
-                  : ''
+                isMarket ? 'bg-meadow-green/10 text-meadow-green' : ''
               }`}
               onClick={() => setIsMarket((current) => !current)}
               type="button"
