@@ -8,6 +8,7 @@ import { ThemeProvider } from "next-themes";
 import { RightPanelSlotProvider } from "@/hooks/useRightPanelSlot";
 import { Toaster } from "react-hot-toast";
 import PrivyOnboardingModal from "@/components/wallet/PrivyOnboardingModal";
+import PrivySignInPrompt from "@/components/wallet/PrivySignInPrompt";
 import { usePrivy } from "@privy-io/react-auth";
 import { useEffect } from "react";
 import { arcTestnet } from "@/lib/arc";
@@ -68,6 +69,7 @@ export default function AppProviders({ children }: { children: ReactNode }) {
             <RightPanelSlotProvider>
               <PrivyTokenSyncer />
               {children}
+              <PrivySignInPrompt />
               <PrivyOnboardingModal />
               <Toaster position="top-right" toastOptions={{ duration: 5000 }} />
             </RightPanelSlotProvider>

@@ -1,19 +1,11 @@
 'use client'
 
-import { usePrivy } from '@privy-io/react-auth'
 import Link from 'next/link'
 import { CircleHelp } from 'lucide-react'
 import FeedShell from '@/components/feed/FeedShell'
-import LandingPage from '@/components/landing/LandingPage'
 import ThemeToggle from '@/components/layout/ThemeToggle'
 
 export default function HomeExperience() {
-  const { authenticated, ready } = usePrivy()
-
-  if (!ready || !authenticated) {
-    return <LandingPage loading={!ready} />
-  }
-
   return (
     <div className="flex min-h-screen flex-col">
       <div className="verity-card sticky top-0 z-20 mx-1.5 mt-2 flex items-center justify-between p-3 sm:hidden">
