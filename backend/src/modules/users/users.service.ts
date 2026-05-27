@@ -1,11 +1,13 @@
-import { Injectable, NotFoundException, BadRequestException } from "@nestjs/common";
-import { InjectModel } from "@nestjs/mongoose";
-import { Model, Types } from "mongoose";
-import { User, UserDocument, Follow, FollowDocument } from "./users.model";
-import { serializeUser } from "../auth/auth.service";
-import { UpdateUserDto } from "./users.dto";
-
-export const DEV_USERNAME = "JudeSignal";
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model, Types } from 'mongoose';
+import { User, UserDocument, Follow, FollowDocument } from './users.model';
+import { serializeUser } from '../auth/auth.service';
+import { UpdateUserDto } from './users.dto';
 
 @Injectable()
 export class UsersService {
@@ -20,27 +22,6 @@ export class UsersService {
 
   private defaultUsername(address: string): string {
     return `user_${address.slice(-4).toLowerCase()}_${Math.floor(Math.random() * 9000 + 1000)}`;
-  }
-
-  async ensureDevUser() {
-    const user = await this.userModel.findOneAndUpdate(
-      { username: DEV_USERNAME },
-      {
-        $setOnInsert: {
-          username: DEV_USERNAME,
-          displayName: DEV_USERNAME,
-          walletAddress: "dev-judesignal",
-          bio: "Development user for local Verity testing.",
-        },
-      },
-      { upsert: true, new: true, runValidators: true },
-    );
-
-    return serializeUser(user);
-  }
-
-  async getDevUser() {
-    return this.ensureDevUser();
   }
 
   async getOrCreateByWallet(walletAddress: string) {
@@ -70,7 +51,7 @@ export class UsersService {
     );
 
     if (!updated) {
-      throw new NotFoundException("User not found.");
+      throw new NotFoundException('User not found.');
     }
     return serializeUser(updated);
   }
@@ -78,25 +59,25 @@ export class UsersService {
   async findUserById(id: string): Promise<UserDocument> {
     const user = await this.userModel.findById(id);
     if (!user) {
-      throw new NotFoundException("User not found.");
+      throw new NotFoundException('User not found.');
     }
     return user;
   }
 
   async follow(followerId: string, followingId: string) {
     if (followerId === followingId) {
-      throw new BadRequestException("You cannot follow yourself.");
+      throw new BadRequestException('You cannot follow yourself.');
     }
     const targetUser = await this.userModel.findById(followingId);
     if (!targetUser) {
-      throw new NotFoundException("Target user not found.");
+      throw new NotFoundException('Target user not found.');
     }
     const existing = await this.followModel.findOne({
       followerId: new Types.ObjectId(followerId),
       followingId: new Types.ObjectId(followingId),
     });
     if (existing) {
-      return { success: true, message: "Already following" };
+      return { success: true, message: 'Already following' };
     }
 
     await this.followModel.create({
@@ -104,8 +85,12 @@ export class UsersService {
       followingId: new Types.ObjectId(followingId),
     });
 
-    await this.userModel.findByIdAndUpdate(followerId, { $inc: { followingCount: 1 } });
-    await this.userModel.findByIdAndUpdate(followingId, { $inc: { followersCount: 1 } });
+    await this.userModel.findByIdAndUpdate(followerId, {
+      $inc: { followingCount: 1 },
+    });
+    await this.userModel.findByIdAndUpdate(followingId, {
+      $inc: { followersCount: 1 },
+    });
 
     return { success: true };
   }
@@ -116,13 +101,17 @@ export class UsersService {
       followingId: new Types.ObjectId(followingId),
     });
     if (!existing) {
-      return { success: true, message: "Not following" };
+      return { success: true, message: 'Not following' };
     }
 
     await this.followModel.deleteOne({ _id: existing._id });
 
-    await this.userModel.findByIdAndUpdate(followerId, { $inc: { followingCount: -1 } });
-    await this.userModel.findByIdAndUpdate(followingId, { $inc: { followersCount: -1 } });
+    await this.userModel.findByIdAndUpdate(followerId, {
+      $inc: { followingCount: -1 },
+    });
+    await this.userModel.findByIdAndUpdate(followingId, {
+      $inc: { followersCount: -1 },
+    });
 
     return { success: true };
   }
@@ -136,7 +125,9 @@ export class UsersService {
   }
 
   async findUserByUsername(username: string): Promise<UserDocument> {
-    const user = await this.userModel.findOne({ username: { $regex: new RegExp(`^${username}$`, "i") } });
+    const user = await this.userModel.findOne({
+      username: { $regex: new RegExp(`^${username}$`, 'i') },
+    });
     if (!user) {
       throw new NotFoundException(`User with username ${username} not found.`);
     }

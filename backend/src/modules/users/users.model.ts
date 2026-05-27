@@ -12,9 +12,6 @@ export class User {
   @Prop({ type: String, trim: true, lowercase: true, default: null })
   email: string | null;
 
-  @Prop({ type: String, default: null })
-  passwordHash: string | null;
-
   @Prop({ type: String, default: null, trim: true, index: true })
   privyDid: string | null;
 
