@@ -26,7 +26,7 @@ export default function PrivySignInPrompt() {
     <div
       aria-labelledby="privy-sign-in-title"
       aria-modal="true"
-      className="fixed inset-0 z-[90] flex items-end justify-center bg-obsidian/45 px-3 py-3 backdrop-blur-sm sm:items-center sm:p-6"
+      className="fixed inset-0 z-90 flex items-end justify-center bg-obsidian/45 px-3 py-3 backdrop-blur-sm sm:items-center sm:p-6"
       role="dialog"
     >
       <section className="w-full max-w-[430px] overflow-hidden rounded-[18px] bg-surface-solid shadow-[(--shadow-sm)]">
@@ -60,7 +60,7 @@ export default function PrivySignInPrompt() {
         </div>
 
         <div className="px-5 py-5">
-          <p className="text-[15px] leading-[1.5] tracking-[-0.2px] text-graphite">
+          <p className="text-[15px] leading-normal tracking-[-0.2px] text-graphite">
             Sign in with Privy to post Takes, create Markets, vote, fund pools,
             and manage your Arc wallet from one place.
           </p>
