@@ -14,6 +14,7 @@ import PagePanel from '@/components/layout/PagePanel'
 import {
   useNotificationsQuery,
   useMarkNotificationReadMutation,
+  useMarkAllNotificationsReadMutation,
 } from '@/store/verity/verityQueries'
 import { useWalletProfile } from '@/hooks/useWalletProfile'
 import { relativeTime } from '@/lib/verity'
@@ -38,10 +39,21 @@ export default function NotificationsPage() {
     refetch,
   } = useNotificationsQuery(profile?.id || '')
   const { mutateAsync: markRead } = useMarkNotificationReadMutation()
+  const { mutateAsync: markAllRead, isPending: markAllReadPending } = useMarkAllNotificationsReadMutation()
 
   async function handleMarkRead(id: string) {
     try {
-      await markRead(id)
+      await markRead({ notificationId: id, userId: profile?.id || '' })
+      await refetch()
+    } catch (e) {
+      // Ignore
+    }
+  }
+
+  async function handleMarkAllRead() {
+    if (!profile?.id) return
+    try {
+      await markAllRead(profile.id)
       await refetch()
     } catch (e) {
       // Ignore
@@ -93,10 +105,14 @@ export default function NotificationsPage() {
             <Bell className="h-4 w-4 text-meadow-green" />
             Recent
           </h2>
-          {notifications.length > 0 && (
-            <span className="font-mono text-xs text-ash font-bold">
-              {notifications.filter((n: any) => !n.read).length} unread
-            </span>
+          {notifications.filter((n: any) => !n.read).length > 0 && (
+            <button
+              onClick={handleMarkAllRead}
+              disabled={markAllReadPending}
+              className="font-mono text-xs text-sky-blue hover:text-sky-blue/80 font-bold transition-colors cursor-pointer disabled:opacity-50"
+            >
+              Mark all read
+            </button>
           )}
         </div>
 

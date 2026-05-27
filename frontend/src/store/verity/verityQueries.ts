@@ -97,6 +97,19 @@ export function usePostCommentsQuery(postId: string) {
   });
 }
 
+export function usePostQuery(postId: string, viewerProfileId?: string) {
+  return useQuery({
+    queryKey: ["post", postId, viewerProfileId || ""] as const,
+    queryFn: () => {
+      const params = new URLSearchParams();
+      if (viewerProfileId) params.set("viewerProfileId", viewerProfileId);
+      const query = params.toString();
+      return apiRequest<FeedPost>(`/posts/${encodeURIComponent(postId)}${query ? `?${query}` : ""}`);
+    },
+    enabled: Boolean(postId),
+  });
+}
+
 export function useMarketPositionsQuery(
   marketId: string,
   profileId: string
@@ -335,6 +348,19 @@ export function usePoolStateQuery(marketId: string) {
   });
 }
 
+export function useMarketDetailQuery(marketId: string, viewerProfileId?: string) {
+  return useQuery({
+    queryKey: ["market-detail", marketId, viewerProfileId || ""] as const,
+    queryFn: () => {
+      const params = new URLSearchParams();
+      if (viewerProfileId) params.set("userId", viewerProfileId);
+      const query = params.toString();
+      return apiRequest<FeedPost>(`/markets/${encodeURIComponent(marketId)}${query ? `?${query}` : ""}`);
+    },
+    enabled: Boolean(marketId),
+  });
+}
+
 export function useLPPositionsQuery(marketId: string, userId: string) {
   return useQuery({
     queryKey: ["lp-positions", marketId, userId] as const,
@@ -447,11 +473,26 @@ export function useNotificationsQuery(userId: string) {
 export function useMarkNotificationReadMutation() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (notificationId: string) =>
+    mutationFn: ({ notificationId, userId }: { notificationId: string; userId: string }) =>
       apiRequest<any>(`/notifications/${notificationId}/read`, {
         method: "PATCH",
+        body: JSON.stringify({ userId }),
       }),
-    onSuccess: (_, notificationId) => {
+    onSuccess: (_, { notificationId }) => {
+      void qc.invalidateQueries({ queryKey: ["notifications"] });
+    },
+  });
+}
+
+export function useMarkAllNotificationsReadMutation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (userId: string) =>
+      apiRequest<any>(`/notifications/read-all`, {
+        method: "POST",
+        body: JSON.stringify({ userId }),
+      }),
+    onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["notifications"] });
     },
   });

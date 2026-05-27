@@ -84,7 +84,7 @@ export class InteractionsService {
 
     // Emit Socket events
     this.socketGateway.broadcastToRoom("feed", "feed-updated", {});
-    this.socketGateway.broadcastToRoom(`post:${postId}`, "post-updated", {});
+    this.socketGateway.broadcastToRoom(`post:${postId}`, "post-updated", { postId });
   }
 
   async toggleReshare(postId: string, profileId: string, currentlyActive: boolean): Promise<void> {
@@ -129,6 +129,6 @@ export class InteractionsService {
 
     // Emit Socket events
     this.socketGateway.broadcastToRoom("feed", "feed-updated", {});
-    this.socketGateway.broadcastToRoom(`post:${postId}`, "post-updated", {});
+    this.socketGateway.broadcastToRoom(`post:${postId}`, "post-updated", { postId });
   }
 }

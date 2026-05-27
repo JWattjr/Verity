@@ -27,6 +27,7 @@ import { useFeed } from '@/hooks/useFeed'
 import { useSetRightPanelSlot } from '@/hooks/useRightPanelSlot'
 import { useUsdcBalance } from '@/hooks/useUsdcBalance'
 import { useWalletProfile } from '@/hooks/useWalletProfile'
+import { useSocket } from '@/hooks/useSocket'
 import {
   calculateGrossUsdc,
   calculateTradingFee,
@@ -56,6 +57,7 @@ import {
   usePoolStateQuery,
   useMarketTradesQuery,
   useResolveMarketMutation,
+  useMarketDetailQuery,
 } from '@/store/verity/verityQueries'
 import { useMarketLiquidity } from '@/hooks/useMarketLiquidity'
 import { useMarketResolution } from '@/hooks/useMarketResolution'
@@ -69,6 +71,7 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
   const { profile } = useWalletProfile()
   const queryClient = useQueryClient()
   const balance = useUsdcBalance()
+  const { joinRoom, leaveRoom } = useSocket()
 
   const profileId = profile?.id
   const isConnected = Boolean(profileId)
@@ -84,12 +87,27 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
     useState<MarketComment | null>(null)
 
   const { dailyVotes, refetch: reloadDailyVotes } = useDailyVotes(profileId)
-  const { items, loading, error, reload } = useFeed(profileId, true)
+  const { items, loading: feedLoading } = useFeed(undefined, true)
+  const { data: item, isLoading: itemLoading, error: itemError, refetch: refetchMarket } = useMarketDetailQuery(marketId, profileId || undefined)
 
-  const item = items.find((feedItem) => feedItem.market?.id === marketId)
   const market = item?.market || null
   const postId = item?.id
   const detailMarketId = market?.id
+
+  useEffect(() => {
+    if (detailMarketId) {
+      joinRoom(`market:${detailMarketId}`)
+      if (postId) {
+        joinRoom(`post:${postId}`)
+      }
+      return () => {
+        leaveRoom(`market:${detailMarketId}`)
+        if (postId) {
+          leaveRoom(`post:${postId}`)
+        }
+      }
+    }
+  }, [detailMarketId, postId, joinRoom, leaveRoom])
 
   const { data: poolStateData } = usePoolStateQuery(detailMarketId || '')
   const { data: lpPositionsData } = useLPPositionsQuery(
@@ -239,7 +257,7 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
       try {
         await action()
         await Promise.all([
-          reload(),
+          refetchMarket(),
           reloadDailyVotes(),
           queryClient.invalidateQueries({
             queryKey: ['pool-state', detailMarketId],
@@ -260,7 +278,7 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
         setActionPending(null)
       }
     },
-    [profileId, reload, reloadDailyVotes, queryClient, detailMarketId],
+    [profileId, refetchMarket, reloadDailyVotes, queryClient, detailMarketId],
   )
 
   const handleDispute = useCallback(async () => {
@@ -715,7 +733,7 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
 
   useSetRightPanelSlot(rightPanelSlot, rightPanelSlotKey)
 
-  if (loading) {
+  if (itemLoading) {
     return (
       <div className="flex flex-col gap-3 py-3 sm:py-4 animate-pulse">
         {/* Main Details Card Skeleton */}
@@ -767,10 +785,10 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
     )
   }
 
-  if (error) {
+  if (itemError) {
     return (
       <div className="rounded-[12px] bg-ember-orange/10 p-4 text-sm font-medium tracking-[-0.18px] text-charcoal-primary shadow-[(--shadow-subtle)]">
-        {error}
+        {(itemError as any)?.message || "Failed to load market."}
       </div>
     )
   }

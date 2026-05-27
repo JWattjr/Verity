@@ -23,7 +23,7 @@ export default function CommentsThread({
   loading = false,
   title = 'Comments',
 }: CommentsThreadProps) {
-  const [sort, setSort] = useState<CommentSort>('relevant')
+  const [sort, setSort] = useState<CommentSort>('newest')
   const [draft, setDraft] = useState('')
   const [replyingToComment, setReplyingToComment] = useState<MarketComment | null>(null)
   const { profile } = useWalletProfile()

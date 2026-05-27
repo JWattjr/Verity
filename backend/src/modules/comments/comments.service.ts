@@ -113,7 +113,7 @@ export class CommentsService {
 
     // Socket events
     this.socketGateway.broadcastToRoom("feed", "feed-updated", {});
-    this.socketGateway.broadcastToRoom(`post:${postId}`, "post-updated", {});
+    this.socketGateway.broadcastToRoom(`post:${postId}`, "post-updated", { postId });
 
     // Create Notification
     const writerName = writer.displayName || writer.username || "Someone";

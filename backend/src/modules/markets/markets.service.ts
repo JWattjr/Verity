@@ -252,8 +252,8 @@ export class MarketsService {
 
     // Emit Socket events
     this.socketGateway.broadcastToRoom("feed", "feed-updated", {});
-    this.socketGateway.broadcastToRoom(`market:${marketId}`, "market-updated", {});
-    this.socketGateway.broadcastToRoom(`post:${market.postId}`, "post-updated", {});
+    this.socketGateway.broadcastToRoom(`market:${marketId}`, "market-updated", { marketId });
+    this.socketGateway.broadcastToRoom(`post:${market.postId}`, "post-updated", { postId: market.postId.toString() });
 
     return {
       market: this.postsService.serializeMarket(updatedMarket!),
@@ -289,34 +289,7 @@ export class MarketsService {
       throw new NotFoundException("Market not found.");
     }
 
-    const feed = await this.postsService.fetchFeed(viewerProfileId, true);
-    const feedItem = feed.find((item) => item.market?.id === market.id);
-    if (feedItem) return feedItem;
-
-    const post = await this.postModel.findById(market.postId);
-    if (!post) {
-      throw new NotFoundException("Market post not found.");
-    }
-
-    return {
-      id: post.id,
-      authorId: market.authorId.toString(),
-      author_id: market.authorId.toString(),
-      type: "market",
-      content: post.content,
-      createdAt: post.createdAt ? post.createdAt.toISOString() : new Date().toISOString(),
-      created_at: post.createdAt ? post.createdAt.toISOString() : new Date().toISOString(),
-      updatedAt: post.updatedAt ? post.updatedAt.toISOString() : new Date().toISOString(),
-      likesCount: 0,
-      commentsCount: post.commentsCount,
-      resharesCount: post.resharesCount,
-      sharesCount: post.sharesCount,
-      author: null,
-      market: this.postsService.serializeMarket(market),
-      viewerLiked: false,
-      viewerReshared: false,
-      viewerVote: null,
-    };
+    return this.postsService.findPostById(market.postId.toString(), viewerProfileId);
   }
 
   async approveMarketForTrading(marketId: string): Promise<MarketResponse> {
@@ -562,8 +535,8 @@ export class MarketsService {
 
     // Emit Socket events
     this.socketGateway.broadcastToRoom("feed", "feed-updated", {});
-    this.socketGateway.broadcastToRoom(`market:${marketId}`, "market-updated", {});
-    this.socketGateway.broadcastToRoom(`post:${market.postId}`, "post-updated", {});
+    this.socketGateway.broadcastToRoom(`market:${marketId}`, "market-updated", { marketId });
+    this.socketGateway.broadcastToRoom(`post:${market.postId}`, "post-updated", { postId: market.postId.toString() });
     this.socketGateway.broadcastToRoom(`user:${dto.profileId}`, "user-updated", {});
   }
 
@@ -616,8 +589,8 @@ export class MarketsService {
 
     // Emit Socket events
     this.socketGateway.broadcastToRoom("feed", "feed-updated", {});
-    this.socketGateway.broadcastToRoom(`market:${marketId}`, "market-updated", {});
-    this.socketGateway.broadcastToRoom(`post:${market.postId}`, "post-updated", {});
+    this.socketGateway.broadcastToRoom(`market:${marketId}`, "market-updated", { marketId });
+    this.socketGateway.broadcastToRoom(`post:${market.postId}`, "post-updated", { postId: market.postId.toString() });
 
     return this.postsService.serializeMarket(market);
   }
