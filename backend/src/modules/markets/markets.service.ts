@@ -7,6 +7,7 @@ import {
   forwardRef,
   BadRequestException,
   ForbiddenException,
+  Logger,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types, SortOrder } from 'mongoose';
@@ -74,6 +75,8 @@ export interface MarketTradeResponse {
 
 @Injectable()
 export class MarketsService {
+  private readonly logger = new Logger(MarketsService.name);
+
   constructor(
     @InjectModel(Market.name) private marketModel: Model<MarketDocument>,
     @InjectModel(Vote.name) private voteModel: Model<VoteDocument>,
@@ -326,6 +329,15 @@ export class MarketsService {
       { new: true, runValidators: true },
     );
 
+    this.logger.log(
+      `Free vote casted on market ${marketId} by user ${userId}. Side: ${side}`,
+    );
+    if (nextStatus !== market.status) {
+      this.logger.log(
+        `Market ${marketId} status transitioned from ${market.status} to ${nextStatus}`,
+      );
+    }
+
     // Emit Socket events
     this.socketGateway.broadcastToRoom('feed', 'feed-updated', {});
     this.socketGateway.broadcastToRoom(`market:${marketId}`, 'market-updated', {
@@ -443,6 +455,10 @@ export class MarketsService {
       marketId,
       { status: 'funding_pool', fundingDeadline },
       { new: true, runValidators: true },
+    );
+
+    this.logger.log(
+      `Market ${marketId} status transitioned from ${market.status} to funding_pool`,
     );
 
     return this.postsService.serializeMarket(updatedMarket!);
@@ -670,7 +686,9 @@ export class MarketsService {
         liquidity: Number(balances.totalDeposited) / 1e6,
       });
     } catch (e) {
-      // ignore
+      this.logger.warn(
+        `Failed to sync market prices for ${marketId}: ${e.message}`,
+      );
     }
   }
 
@@ -688,25 +706,42 @@ export class MarketsService {
     // Verify transaction receipt
     await this.blockchainService.getTransactionReceipt(txHash as `0x${string}`);
 
+    const oldStatus = market.status;
     market.status = 'resolved';
     market.resolvedOutcome = winningOutcome;
     market.resolvedByAdmin = adminAddress;
     await market.save();
+    this.logger.log(
+      `Market ${marketId} status transitioned from ${oldStatus} to resolved (outcome: ${winningOutcome}, by admin: ${adminAddress})`,
+    );
 
     // Trigger Notification for Creator
-    //TODO
     try {
       const recipientId = market.authorId.toString();
-      await this.notificationsService.createNotification(
-        recipientId,
-        '0x28738040d191ff30673f546FB6BF997E6cdA6dbF',
-        'settlement',
-        'Market resolved',
-        `Your market "${market.question}" has been resolved to ${winningOutcome}.`,
-        market.id || (market as any)._id?.toString(),
-      );
+      const adminUser = await this.userModel.findOne({
+        walletAddress: adminAddress.trim().toLowerCase(),
+      });
+      if (adminUser) {
+        await this.notificationsService.createNotification(
+          recipientId,
+          adminUser.id,
+          'settlement',
+          'Market resolved',
+          `Your market "${market.question}" has been resolved to ${winningOutcome}.`,
+          market.id || (market as any)._id?.toString(),
+        );
+        this.logger.log(
+          `Notification sent to creator ${recipientId} for resolution of market ${marketId} by admin ${adminUser.id}`,
+        );
+      } else {
+        this.logger.warn(
+          `Could not send resolution notification: no user found for admin wallet ${adminAddress}`,
+        );
+      }
     } catch (err) {
-      // Ignore notification failures
+      this.logger.warn(
+        `Failed to send resolution notification for market ${marketId}: ${err.message}`,
+      );
     }
 
     // Emit Socket events
@@ -740,12 +775,16 @@ export class MarketsService {
       );
     }
 
+    const oldStatus = market.status;
     market.status = 'qualified';
     market.totalFreeVotes = 30;
     market.uniqueVotersCount = 30;
     market.freeYesVotes = 30;
     market.freeNoVotes = 0;
     await market.save();
+    this.logger.log(
+      `Market ${marketId} status transitioned from ${oldStatus} to qualified via devQualify`,
+    );
 
     return this.postsService.serializeMarket(market);
   }

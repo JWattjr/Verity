@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ConflictException } from "@nestjs/common";
+import { Injectable, NotFoundException, ConflictException, Logger } from "@nestjs/common";
 import { InjectModel } from "@nestjs/mongoose";
 import { Model, Types } from "mongoose";
 import { Like, Reshare, LikeDocument, ReshareDocument } from "./interactions.model";
@@ -9,6 +9,8 @@ import { NotificationsService } from "../notifications/notifications.service";
 
 @Injectable()
 export class InteractionsService {
+  private readonly logger = new Logger(InteractionsService.name);
+
   constructor(
     @InjectModel(Like.name) private likeModel: Model<LikeDocument>,
     @InjectModel(Reshare.name) private reshareModel: Model<ReshareDocument>,
@@ -54,6 +56,7 @@ export class InteractionsService {
       if (deleted.deletedCount > 0) {
         await this.postModel.updateOne({ _id: postId }, { $inc: { likesCount: -1 } });
       }
+      this.logger.log(`User ${profileId} unliked post ${postId}`);
     } else {
       const result = await this.likeModel.updateOne(
         { postId: new Types.ObjectId(postId), userId: new Types.ObjectId(profileId) },
@@ -62,22 +65,27 @@ export class InteractionsService {
       );
       if (result.upsertedCount > 0) {
         await this.postModel.updateOne({ _id: postId }, { $inc: { likesCount: 1 } });
+        this.logger.log(`User ${profileId} liked post ${postId}`);
 
         // Trigger notification
-        const liker = await this.userModel.findById(profileId);
-        const likerName = liker?.displayName || liker?.username || "Someone";
-        const recipientId = post.authorId.toString();
-        const actorId = profileId;
-        if (recipientId !== actorId) {
-          const snippet = post.content ? post.content.substring(0, 40) + (post.content.length > 40 ? "..." : "") : "your post";
-          await this.notificationsService.createNotification(
-            recipientId,
-            actorId,
-            "like",
-            "New like",
-            `${likerName} liked your post: "${snippet}"`,
-            postId,
-          );
+        try {
+          const liker = await this.userModel.findById(profileId);
+          const likerName = liker?.displayName || liker?.username || "Someone";
+          const recipientId = post.authorId.toString();
+          const actorId = profileId;
+          if (recipientId !== actorId) {
+            const snippet = post.content ? post.content.substring(0, 40) + (post.content.length > 40 ? "..." : "") : "your post";
+            await this.notificationsService.createNotification(
+              recipientId,
+              actorId,
+              "like",
+              "New like",
+              `${likerName} liked your post: "${snippet}"`,
+              postId,
+            );
+          }
+        } catch (err) {
+          this.logger.warn(`Failed to send like notification for post ${postId} by user ${profileId}: ${err.message}`);
         }
       }
     }
@@ -98,6 +106,7 @@ export class InteractionsService {
       if (deleted.deletedCount > 0) {
         await this.postModel.updateOne({ _id: postId }, { $inc: { resharesCount: -1 } });
       }
+      this.logger.log(`User ${profileId} unreshared post ${postId}`);
     } else {
       const result = await this.reshareModel.updateOne(
         { postId: new Types.ObjectId(postId), userId: new Types.ObjectId(profileId) },
@@ -106,23 +115,28 @@ export class InteractionsService {
       );
       if (result.upsertedCount > 0) {
         await this.postModel.updateOne({ _id: postId }, { $inc: { resharesCount: 1 } });
+        this.logger.log(`User ${profileId} reshared post ${postId}`);
 
         // Trigger notification
-        const post = await this.postModel.findById(postId);
-        const resharer = await this.userModel.findById(profileId);
-        const resharerName = resharer?.displayName || resharer?.username || "Someone";
-        const recipientId = post?.authorId?.toString();
-        const actorId = profileId;
-        if (post && recipientId && recipientId !== actorId) {
-          const snippet = post.content ? post.content.substring(0, 40) + (post.content.length > 40 ? "..." : "") : "your post";
-          await this.notificationsService.createNotification(
-            recipientId,
-            actorId,
-            "reshare",
-            "New reshare",
-            `${resharerName} reshared your post: "${snippet}"`,
-            postId,
-          );
+        try {
+          const post = await this.postModel.findById(postId);
+          const resharer = await this.userModel.findById(profileId);
+          const resharerName = resharer?.displayName || resharer?.username || "Someone";
+          const recipientId = post?.authorId?.toString();
+          const actorId = profileId;
+          if (post && recipientId && recipientId !== actorId) {
+            const snippet = post.content ? post.content.substring(0, 40) + (post.content.length > 40 ? "..." : "") : "your post";
+            await this.notificationsService.createNotification(
+              recipientId,
+              actorId,
+              "reshare",
+              "New reshare",
+              `${resharerName} reshared your post: "${snippet}"`,
+              postId,
+            );
+          }
+        } catch (err) {
+          this.logger.warn(`Failed to send reshare notification for post ${postId} by user ${profileId}: ${err.message}`);
         }
       }
     }

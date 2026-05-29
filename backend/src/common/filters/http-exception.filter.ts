@@ -4,11 +4,14 @@ import {
   ExceptionFilter,
   HttpException,
   HttpStatus,
+  Logger,
 } from '@nestjs/common';
 import { Response } from 'express';
 
 @Catch()
 export class HttpExceptionFilter implements ExceptionFilter {
+  private readonly logger = new Logger(HttpExceptionFilter.name);
+
   catch(exception: any, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
@@ -48,10 +51,6 @@ export class HttpExceptionFilter implements ExceptionFilter {
       if (typeof code === 'number') {
         status = code;
         message = exception.message;
-      } else if ((exception as any).code === 11000) {
-        status = HttpStatus.CONFLICT;
-        // TODO
-        message = 'Email or username is already in use.';
       } else {
         message = exception.message;
       }
@@ -64,6 +63,13 @@ export class HttpExceptionFilter implements ExceptionFilter {
 
     if (errors) {
       payload.errors = errors;
+    }
+
+    if (status >= 500) {
+      this.logger.error(
+        `${status} ${message}`,
+        exception instanceof Error ? exception.stack : undefined,
+      );
     }
 
     response.status(status).json(payload);

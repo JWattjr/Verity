@@ -120,35 +120,13 @@ export class MarketsController {
     return this.marketsService.fetchMarketTrades(marketId);
   }
 
-  //TODO
   @Post(':marketId/vote')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: 'Cast a free vote on a market (Alternative endpoint)',
+    summary: 'Cast a free vote on a market',
   })
-  @ApiParam({
-    name: 'marketId',
-    description: 'Market ID',
-    example: '60d0fe4f5311236168a109ca',
-  })
-  @ApiBody({ type: CastFreeVoteDto })
-  @ApiResponse({ status: 200, description: 'Free vote cast successfully.' })
-  async castFreeVoteDirect(
-    @Param('marketId') marketId: string,
-    @Body() dto: CastFreeVoteDto,
-    @Request() req: any,
-  ) {
-    const authorId = req.user.id;
-    return this.marketsService.castFreeVote(marketId, authorId, dto.side);
-  }
-
-  @Post(':marketId/free-vote')
-  @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Cast a free vote on a market' })
   @ApiParam({
     name: 'marketId',
     description: 'Market ID',

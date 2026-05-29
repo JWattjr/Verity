@@ -144,9 +144,9 @@ export function useCreateNormalPostMutation() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (body: { authorId: string; content: string }) =>
-      apiRequest<unknown>("/posts/normal", {
+      apiRequest<unknown>("/posts", {
         method: "POST",
-        body: JSON.stringify(body),
+        body: JSON.stringify({ ...body, type: "normal" }),
       }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["feed"] });
@@ -158,9 +158,9 @@ export function useCreateMarketPostMutation() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (body: { authorId: string } & MarketInput) =>
-      apiRequest<{ post: FeedPost; warning: string | null }>("/posts/market", {
+      apiRequest<{ post: FeedPost; warning: string | null }>("/posts", {
         method: "POST",
-        body: JSON.stringify(body),
+        body: JSON.stringify({ ...body, type: "market" }),
       }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["feed"] });

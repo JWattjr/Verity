@@ -5,6 +5,7 @@ import {
   BadRequestException,
   Inject,
   forwardRef,
+  Logger,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { BlockchainService } from '../blockchain/blockchain.service';
@@ -26,11 +27,10 @@ import {
   ReshareDocument,
 } from '../interactions/interactions.model';
 import { Comment, CommentDocument } from '../comments/comments.model';
-import { serializeUser, UserResponse } from '../auth/auth.service';
+import { serializeUser, placeholderUserProfile, UserResponse } from '../auth/auth.service';
 import { CreateMarketPostDto } from './posts.dto';
 import { SocketGateway } from '../socket/socket.gateway';
 
-//TODO
 export interface MarketResponse {
   id: string;
   postId: string;
@@ -125,6 +125,8 @@ export const MARKET_OUTCOME_WARNING =
 
 @Injectable()
 export class PostsService {
+  private readonly logger = new Logger(PostsService.name);
+
   constructor(
     @InjectModel(Post.name) private postModel: Model<PostDocument>,
     @InjectModel(User.name) private userModel: Model<UserDocument>,
@@ -266,29 +268,6 @@ export class PostsService {
     };
   }
 
-  private fallbackProfile(authorId: string): UserResponse {
-    const now = new Date().toISOString();
-    return {
-      id: authorId,
-      wallet_address: null,
-      walletAddress: null,
-      username: 'unknown',
-      display_name: 'Unknown',
-      displayName: 'Unknown',
-      avatar_url: null,
-      avatarUrl: null,
-      bio: null,
-      followersCount: 0,
-      followingCount: 0,
-      signalPoints: 0,
-      freeVotesCorrect: 0,
-      freeVotesWrong: 0,
-      freeVotesTotal: 0,
-      created_at: now,
-      createdAt: now,
-      updatedAt: now,
-    };
-  }
 
   async fetchFeed(
     viewerProfileId?: string,
@@ -317,41 +296,62 @@ export class PostsService {
         const postIds = reshares.map((r) => r.postId);
         filter = { _id: { $in: postIds } };
       } else if (tab === 'comments') {
-        const comments = await this.commentModel
-          .find({ authorId: pId })
-          .sort({ createdAt: -1 })
-          .limit(50);
+        const comments = await this.commentModel.aggregate([
+          { $match: { authorId: new Types.ObjectId(pId) } },
+          { $sort: { createdAt: -1 } },
+          { $limit: 50 },
+          {
+            $lookup: {
+              from: 'users',
+              localField: 'authorId',
+              foreignField: '_id',
+              as: 'commentAuthor',
+            },
+          },
+          { $unwind: { path: '$commentAuthor', preserveNullAndEmptyArrays: true } },
+          {
+            $lookup: {
+              from: 'posts',
+              localField: 'postId',
+              foreignField: '_id',
+              as: 'parentPost',
+            },
+          },
+          { $unwind: { path: '$parentPost', preserveNullAndEmptyArrays: true } },
+          {
+            $lookup: {
+              from: 'users',
+              localField: 'parentPost.authorId',
+              foreignField: '_id',
+              as: 'parentAuthor',
+            },
+          },
+          { $unwind: { path: '$parentAuthor', preserveNullAndEmptyArrays: true } },
+          {
+            $lookup: {
+              from: 'markets',
+              localField: 'postId',
+              foreignField: 'postId',
+              as: 'parentMarket',
+            },
+          },
+          { $unwind: { path: '$parentMarket', preserveNullAndEmptyArrays: true } },
+        ]);
+
         if (comments.length === 0) {
           return [];
         }
 
-        const commentAuthor = await this.userModel.findById(pId);
-        const serializedCommentAuthor = commentAuthor
-          ? serializeUser(commentAuthor)
-          : this.fallbackProfile(profileId);
-
-        const parentPostIds = comments.map((c) => c.postId);
-        const parentPosts = await this.postModel.find({
-          _id: { $in: parentPostIds },
-        });
-        const parentPostIdsFetched = parentPosts.map((p) => p._id);
-        const parentAuthorIds = parentPosts.map((p) => p.authorId);
-
-        const [parentAuthors, parentMarkets] = await Promise.all([
-          this.userModel.find({ _id: { $in: parentAuthorIds } }),
-          this.marketModel.find({ postId: { $in: parentPostIdsFetched } }),
-        ]);
-
-        const parentAuthorMap = new Map(
-          parentAuthors.map((author) => [author.id, serializeUser(author)]),
-        );
-        const parentMarketMap = new Map(
-          parentMarkets.map((market) => [market.postId.toString(), market]),
-        );
-        const parentMarketIds = parentMarkets.map((market) => market._id);
+        // Collect IDs for querying viewer status
+        const parentPostIdsFetched = comments
+          .filter((c) => c.parentPost)
+          .map((c) => c.parentPost._id);
+        const parentMarketIds = comments
+          .filter((c) => c.parentMarket)
+          .map((c) => c.parentMarket._id);
 
         const [likedIds, resharedIds, votes] = await Promise.all([
-          viewerProfileId
+          viewerProfileId && parentPostIdsFetched.length > 0
             ? this.likeModel
                 .find({
                   userId: new Types.ObjectId(viewerProfileId),
@@ -359,7 +359,7 @@ export class PostsService {
                 })
                 .select('postId')
             : Promise.resolve([]),
-          viewerProfileId
+          viewerProfileId && parentPostIdsFetched.length > 0
             ? this.reshareModel
                 .find({
                   userId: new Types.ObjectId(viewerProfileId),
@@ -367,7 +367,7 @@ export class PostsService {
                 })
                 .select('postId')
             : Promise.resolve([]),
-          viewerProfileId
+          viewerProfileId && parentMarketIds.length > 0
             ? this.voteModel
                 .find({
                   userId: new Types.ObjectId(viewerProfileId),
@@ -379,31 +379,10 @@ export class PostsService {
         ]);
 
         const liked = new Set(likedIds.map((item) => item.postId.toString()));
-        const reshared = new Set(
-          resharedIds.map((item) => item.postId.toString()),
-        );
+        const reshared = new Set(resharedIds.map((item) => item.postId.toString()));
         const voteMap = new Map<string, VoteSide>(
-          votes.map(
-            (vote) =>
-              [vote.marketId.toString(), vote.side] as [string, VoteSide],
-          ),
+          votes.map((vote) => [vote.marketId.toString(), vote.side] as [string, VoteSide]),
         );
-
-        const parentPostsSerializedMap = new Map<string, FeedPostResponse>();
-        for (const post of parentPosts) {
-          const base = this.serializePost(post);
-          const market = parentMarketMap.get(post.id) || null;
-          parentPostsSerializedMap.set(post.id, {
-            ...base,
-            author:
-              parentAuthorMap.get(base.authorId) ||
-              this.fallbackProfile(base.authorId),
-            market: market ? this.serializeMarket(market) : null,
-            viewerLiked: liked.has(post.id),
-            viewerReshared: reshared.has(post.id),
-            viewerVote: market ? voteMap.get(market.id) || null : null,
-          });
-        }
 
         return comments.map((comment) => {
           const createdAt = comment.createdAt
@@ -412,8 +391,32 @@ export class PostsService {
           const updatedAt = comment.updatedAt
             ? new Date(comment.updatedAt).toISOString()
             : new Date().toISOString();
+
+          const serializedCommentAuthor = comment.commentAuthor
+            ? serializeUser(comment.commentAuthor)
+            : placeholderUserProfile(profileId);
+
+          let parentPostSerialized: FeedPostResponse | null = null;
+          if (comment.parentPost) {
+            const parentPost = comment.parentPost;
+            const parentAuthor = comment.parentAuthor;
+            const parentMarket = comment.parentMarket;
+
+            const base = this.serializePost(parentPost);
+            parentPostSerialized = {
+              ...base,
+              author: parentAuthor
+                ? serializeUser(parentAuthor)
+                : placeholderUserProfile(base.authorId),
+              market: parentMarket ? this.serializeMarket(parentMarket) : null,
+              viewerLiked: liked.has(parentPost._id.toString()),
+              viewerReshared: reshared.has(parentPost._id.toString()),
+              viewerVote: parentMarket ? voteMap.get(parentMarket._id.toString()) || null : null,
+            };
+          }
+
           return {
-            id: comment.id || (comment as any)._id?.toString(),
+            id: comment._id.toString(),
             authorId: comment.authorId.toString(),
             author_id: comment.authorId.toString(),
             type: 'comment',
@@ -430,8 +433,7 @@ export class PostsService {
             viewerLiked: false,
             viewerReshared: false,
             viewerVote: null,
-            parentPost:
-              parentPostsSerializedMap.get(comment.postId.toString()) || null,
+            parentPost: parentPostSerialized,
           };
         });
       } else {
@@ -504,7 +506,7 @@ export class PostsService {
       return {
         ...base,
         author:
-          authorMap.get(base.authorId) || this.fallbackProfile(base.authorId),
+          authorMap.get(base.authorId) || placeholderUserProfile(base.authorId),
         market: market ? this.serializeMarket(market) : null,
         viewerLiked: liked.has(post.id),
         viewerReshared: reshared.has(post.id),
@@ -558,7 +560,7 @@ export class PostsService {
       ...base,
       author: author
         ? serializeUser(author)
-        : this.fallbackProfile(post.authorId.toString()),
+        : placeholderUserProfile(post.authorId.toString()),
       market: market ? this.serializeMarket(market) : null,
       viewerLiked: !!viewerLiked,
       viewerReshared: !!viewerReshared,
@@ -581,11 +583,8 @@ export class PostsService {
       content: content.trim(),
     });
 
-    const feed = await this.fetchFeed(profileId);
-    const createdPost = feed.find((item) => item.id === post.id);
-    if (!createdPost) {
-      throw new NotFoundException('Failed to retrieve created post.');
-    }
+    const createdPost = await this.findPostById(post.id, profileId);
+    this.logger.log(`Successfully created normal post ${post.id} by author ${profileId}`);
 
     this.socketGateway.broadcastToRoom('feed', 'feed-updated', {});
     return createdPost;
@@ -671,11 +670,8 @@ export class PostsService {
       creatorDepositUsdc,
     );
 
-    const feed = await this.fetchFeed(profileId);
-    const createdPost = feed.find((item) => item.id === post.id);
-    if (!createdPost) {
-      throw new NotFoundException('Failed to retrieve created market post.');
-    }
+    const createdPost = await this.findPostById(post.id, profileId);
+    this.logger.log(`Successfully created market post ${post.id} (market: ${mId}) by author ${profileId}`);
 
     this.socketGateway.broadcastToRoom('feed', 'feed-updated', {});
     return {

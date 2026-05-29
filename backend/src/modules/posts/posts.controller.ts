@@ -15,6 +15,7 @@ import {
   FeedQueryDto,
   CreatePostDto,
   CreateMarketPostDto,
+  CreatePostUnifiedDto,
   AddCommentDto,
   ToggleLikeDto,
   ToggleReshareDto,
@@ -71,59 +72,23 @@ export class PostsController {
     return this.postsService.findPostById(postId, viewerProfileId);
   }
 
-  //TODO
   @Post()
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @Throttle({ default: { limit: 10, ttl: 60000 } })
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Create a new normal post (Direct endpoint)' })
-  @ApiBody({ type: CreatePostDto })
+  @ApiOperation({ summary: 'Create a new post (normal or market)' })
+  @ApiBody({ type: CreatePostUnifiedDto })
   @ApiResponse({
     status: 201,
-    description: 'Normal post created successfully.',
+    description: 'Post created successfully.',
   })
-  async createNormalPostDirect(
-    @Body() dto: CreatePostDto,
-    @Request() req: any,
-  ) {
+  async createPost(@Body() dto: CreatePostUnifiedDto, @Request() req: any) {
     const authorId = req.user.id;
+    if (dto.type === 'market') {
+      return this.postsService.createMarketPost(authorId, dto as CreateMarketPostDto);
+    }
     return this.postsService.createNormalPost(authorId, dto.content);
-  }
-
-  @Post('normal')
-  @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
-  @Throttle({ default: { limit: 10, ttl: 60000 } })
-  @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Create a new normal post' })
-  @ApiBody({ type: CreatePostDto })
-  @ApiResponse({
-    status: 201,
-    description: 'Normal post created successfully.',
-  })
-  async createNormalPost(@Body() dto: CreatePostDto, @Request() req: any) {
-    const authorId = req.user.id;
-    return this.postsService.createNormalPost(authorId, dto.content);
-  }
-
-  @Post('market')
-  @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
-  @Throttle({ default: { limit: 10, ttl: 60000 } })
-  @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Create a new prediction market post' })
-  @ApiBody({ type: CreateMarketPostDto })
-  @ApiResponse({
-    status: 201,
-    description: 'Market post created successfully.',
-  })
-  async createMarketPost(
-    @Body() dto: CreateMarketPostDto,
-    @Request() req: any,
-  ) {
-    const authorId = req.user.id;
-    return this.postsService.createMarketPost(authorId, dto);
   }
 
   @Post(':postId/comment')

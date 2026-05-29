@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import { Injectable, NotFoundException, Logger } from "@nestjs/common";
 import { InjectModel } from "@nestjs/mongoose";
 import { Model, Types } from "mongoose";
 import { Notification, NotificationDocument } from "./notifications.model";
@@ -8,6 +8,8 @@ import { SocketGateway } from "../socket/socket.gateway";
 
 @Injectable()
 export class NotificationsService {
+  private readonly logger = new Logger(NotificationsService.name);
+
   constructor(
     @InjectModel(Notification.name)
     private notificationModel: Model<NotificationDocument>,
@@ -54,6 +56,8 @@ export class NotificationsService {
 
     // Broadcast user updates
     this.socketGateway.broadcastToRoom(`user:${recipientId}`, "notification-created", socketPayload);
+
+    this.logger.log(`Notification created for recipient ${recipientId} by actor ${actorId}. Type: ${type}, Title: "${title}"`);
 
     return notification;
   }
@@ -104,6 +108,8 @@ export class NotificationsService {
     // Trigger user updates to refresh badge count
     this.socketGateway.broadcastToRoom(`user:${userId}`, "user-updated", {});
 
+    this.logger.log(`Notification ${notificationId} marked as read by user ${userId}`);
+
     return notification;
   }
 
@@ -113,5 +119,7 @@ export class NotificationsService {
       { read: true },
     );
     this.socketGateway.broadcastToRoom(`user:${userId}`, "user-updated", {});
+
+    this.logger.log(`All notifications marked as read for user ${userId}`);
   }
 }

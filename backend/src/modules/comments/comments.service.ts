@@ -3,13 +3,14 @@ import {
   NotFoundException,
   Inject,
   forwardRef,
+  Logger,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Comment, CommentDocument } from './comments.model';
 import { User, UserDocument } from '../users/users.model';
 import { Post, PostDocument } from '../posts/posts.model';
-import { serializeUser } from '../auth/auth.service';
+import { serializeUser, placeholderUserProfile } from '../auth/auth.service';
 import { PostsService } from '../posts/posts.service';
 import { UserResponse } from '../auth/auth.service';
 import { SocketGateway } from '../socket/socket.gateway';
@@ -33,6 +34,8 @@ export interface CommentResponse {
 
 @Injectable()
 export class CommentsService {
+  private readonly logger = new Logger(CommentsService.name);
+
   constructor(
     @InjectModel(Comment.name) private commentModel: Model<CommentDocument>,
     @InjectModel(User.name) private userModel: Model<UserDocument>,
@@ -43,29 +46,6 @@ export class CommentsService {
     private readonly notificationsService: NotificationsService,
   ) {}
 
-  // TODO
-  private fallbackProfile(authorId: string): UserResponse {
-    return {
-      id: authorId,
-      wallet_address: null,
-      walletAddress: null,
-      username: 'unknown',
-      display_name: 'Unknown',
-      displayName: 'Unknown',
-      avatar_url: null,
-      avatarUrl: null,
-      bio: null,
-      followersCount: 0,
-      followingCount: 0,
-      signalPoints: 0,
-      freeVotesCorrect: 0,
-      freeVotesWrong: 0,
-      freeVotesTotal: 0,
-      created_at: new Date().toISOString(),
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-  }
 
   private serializeComment(
     comment: CommentDocument,
@@ -90,7 +70,7 @@ export class CommentsService {
       created_at: createdAt,
       createdAt,
       updatedAt,
-      author: author ? serializeUser(author) : this.fallbackProfile(authorId),
+      author: author ? serializeUser(author) : placeholderUserProfile(authorId),
       parentId: comment.parentId?.toString(),
       parent_id: comment.parentId?.toString(),
     };
@@ -145,54 +125,60 @@ export class CommentsService {
       postId,
     });
 
+    this.logger.log(`Successfully added comment to post ${postId} by author ${profileId}`);
+
     // Create Notification
-    const writerName = writer.displayName || writer.username || 'Someone';
+    try {
+      const writerName = writer.displayName || writer.username || 'Someone';
 
-    if (parentId) {
-      const parentComment = await this.commentModel.findById(parentId);
-      if (parentComment && parentComment.authorId.toString() !== profileId) {
-        const commentSnippet =
-          parentComment.content.substring(0, 40) +
-          (parentComment.content.length > 40 ? '...' : '');
-        await this.notificationsService.createNotification(
-          parentComment.authorId.toString(),
-          profileId,
-          'reply',
-          'New reply',
-          `${writerName} replied to your comment: "${commentSnippet}"`,
-          postId,
-        );
-      }
-    }
-
-    const recipientId = post.authorId.toString();
-    const actorId = profileId;
-    if (recipientId !== actorId) {
-      let alreadyNotified = false;
       if (parentId) {
         const parentComment = await this.commentModel.findById(parentId);
-        if (
-          parentComment &&
-          parentComment.authorId.toString() === recipientId
-        ) {
-          alreadyNotified = true;
+        if (parentComment && parentComment.authorId.toString() !== profileId) {
+          const commentSnippet =
+            parentComment.content.substring(0, 40) +
+            (parentComment.content.length > 40 ? '...' : '');
+          await this.notificationsService.createNotification(
+            parentComment.authorId.toString(),
+            profileId,
+            'reply',
+            'New reply',
+            `${writerName} replied to your comment: "${commentSnippet}"`,
+            postId,
+          );
         }
       }
 
-      if (!alreadyNotified) {
-        const snippet = post.content
-          ? post.content.substring(0, 40) +
-            (post.content.length > 40 ? '...' : '')
-          : 'your market';
-        await this.notificationsService.createNotification(
-          recipientId,
-          actorId,
-          'reply',
-          'New reply',
-          `${writerName} commented on your post: "${snippet}"`,
-          postId,
-        );
+      const recipientId = post.authorId.toString();
+      const actorId = profileId;
+      if (recipientId !== actorId) {
+        let alreadyNotified = false;
+        if (parentId) {
+          const parentComment = await this.commentModel.findById(parentId);
+          if (
+            parentComment &&
+            parentComment.authorId.toString() === recipientId
+          ) {
+            alreadyNotified = true;
+          }
+        }
+
+        if (!alreadyNotified) {
+          const snippet = post.content
+            ? post.content.substring(0, 40) +
+              (post.content.length > 40 ? '...' : '')
+            : 'your market';
+          await this.notificationsService.createNotification(
+            recipientId,
+            actorId,
+            'reply',
+            'New reply',
+            `${writerName} commented on your post: "${snippet}"`,
+            postId,
+          );
+        }
       }
+    } catch (err) {
+      this.logger.warn(`Failed to send notifications for new comment on post ${postId}: ${err.message}`);
     }
   }
 }

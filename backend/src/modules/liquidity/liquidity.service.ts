@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ConflictException, BadRequestException } from "@nestjs/common";
+import { Injectable, NotFoundException, ConflictException, BadRequestException, Logger } from "@nestjs/common";
 import { InjectModel } from "@nestjs/mongoose";
 import { Model, Types } from "mongoose";
 import { LiquidityPool, LiquidityPoolDocument, LPPosition, LPPositionDocument, LiquidityEvent, LiquidityEventDocument } from "./liquidity.model";
@@ -9,6 +9,8 @@ import { SocketGateway } from "../socket/socket.gateway";
 
 @Injectable()
 export class LiquidityService {
+  private readonly logger = new Logger(LiquidityService.name);
+
   constructor(
     @InjectModel(LiquidityPool.name) private liquidityPoolModel: Model<LiquidityPoolDocument>,
     @InjectModel(LPPosition.name) private lpPositionModel: Model<LPPositionDocument>,
@@ -213,6 +215,8 @@ export class LiquidityService {
 
     await this.syncPoolFromChain(marketId);
 
+    this.logger.log(`Successfully added ${amount} USDC liquidity to pool for market ${marketId} by user ${userId}`);
+
     this.socketGateway.broadcastToRoom("feed", "feed-updated", {});
     this.socketGateway.broadcastToRoom(`market:${marketId}`, "market-updated", {});
     this.socketGateway.broadcastToRoom(`user:${userId}`, "user-updated", {});
@@ -272,6 +276,8 @@ export class LiquidityService {
       await this.lpPositionModel.deleteOne({ _id: position._id });
       await this.syncPoolFromChain(marketId);
 
+      this.logger.log(`Successfully withdrew ${lpShares} LP shares of liquidity from pool for market ${marketId} by user ${userId}. Remaining shares: 0`);
+
       this.socketGateway.broadcastToRoom("feed", "feed-updated", {});
       this.socketGateway.broadcastToRoom(`market:${marketId}`, "market-updated", {});
       this.socketGateway.broadcastToRoom(`user:${userId}`, "user-updated", {});
@@ -283,6 +289,8 @@ export class LiquidityService {
       position.depositedUsdc = Math.max(0, position.depositedUsdc - (position.depositedUsdc * (sharesDelta / (position.lpShares || 1))));
       await position.save();
       await this.syncPoolFromChain(marketId);
+
+      this.logger.log(`Successfully withdrew ${lpShares} LP shares of liquidity from pool for market ${marketId} by user ${userId}. Remaining shares: ${remainingShares}`);
 
       this.socketGateway.broadcastToRoom("feed", "feed-updated", {});
       this.socketGateway.broadcastToRoom(`market:${marketId}`, "market-updated", {});
@@ -300,6 +308,9 @@ export class LiquidityService {
     const pool = await this.liquidityPoolModel.findOne({ marketId: new Types.ObjectId(marketId) });
     if (!pool) return;
 
+    this.logger.log(`Starting syncPoolFromChain for market: ${marketId}`);
+    const oldPoolStatus = pool.status;
+
     try {
       const onChainState = await this.blockchainService.readPoolBalances(marketId as `0x${string}`);
 
@@ -310,21 +321,30 @@ export class LiquidityService {
         pool.currentPoolBalance = Number(onChainState.totalDeposited) / 1e6;
         pool.status = onChainState.resolved ? "resolved" : "active";
 
-        // Sync LP positions from chain for all depositors
+        // Sync LP positions from chain for all depositors (optimized: parallelized & batched)
         const positions = await this.lpPositionModel.find({ poolId: pool._id });
-        for (const pos of positions) {
-          try {
-            const shares = await this.blockchainService.readLPShares(marketId, pos.walletAddress);
-            const sharesNum = Number(shares) / 1e6;
-            if (sharesNum === 0) {
-              await this.lpPositionModel.deleteOne({ _id: pos._id });
-            } else {
-              pos.lpShares = sharesNum;
-              await pos.save();
+        const shareResults = await Promise.all(
+          positions.map(async (pos) => {
+            try {
+              const shares = await this.blockchainService.readLPShares(marketId, pos.walletAddress);
+              return { pos, shares: Number(shares) / 1e6 };
+            } catch (err) {
+              this.logger.warn(`Failed to read LP shares for wallet ${pos.walletAddress} on market ${marketId}: ${err.message}`);
+              return { pos, shares: null };
             }
-          } catch (err) {
-            // Ignore individual sync failures
-          }
+          })
+        );
+
+        const ops = shareResults
+          .filter((r) => r.shares !== null)
+          .map(({ pos, shares }) =>
+            shares === 0
+              ? { deleteOne: { filter: { _id: pos._id } } }
+              : { updateOne: { filter: { _id: pos._id }, update: { $set: { lpShares: shares } } } }
+          );
+
+        if (ops.length > 0) {
+          await this.lpPositionModel.bulkWrite(ops);
         }
       } else {
         const escrowBalance = await this.blockchainService.readEscrowBalance(marketId as `0x${string}`);
@@ -339,12 +359,17 @@ export class LiquidityService {
         pool.status = "resolved";
       }
 
+      if (pool.status !== oldPoolStatus) {
+        this.logger.log(`Liquidity pool status transitioned from ${oldPoolStatus} to ${pool.status} for market ${marketId}`);
+      }
+
       await pool.save();
 
       // Sync Market Status & Liquidity
       const market = await this.marketModel.findById(marketId);
       if (market) {
         let changed = false;
+        const oldMarketStatus = market.status;
         if (market.liquidity !== pool.currentPoolBalance) {
           market.liquidity = pool.currentPoolBalance;
           changed = true;
@@ -363,23 +388,42 @@ export class LiquidityService {
         }
         if (changed) {
           await market.save();
+          if (market.status !== oldMarketStatus) {
+            this.logger.log(`Market status transitioned from ${oldMarketStatus} to ${market.status} for market ${marketId}`);
+          }
         }
       }
+      this.logger.log(`Completed syncPoolFromChain for market: ${marketId}. Status: ${pool.status}`);
     } catch (error) {
+      this.logger.warn(`syncPoolFromChain RPC fail for active pool on market ${marketId}, trying escrow fallback: ${error.message}`);
       // Contract call might revert if the pool is not created yet (i.e. still in escrow/funding stage)
       // Query factory for escrow balance instead
       try {
         const escrowBalance = await this.blockchainService.readEscrowBalance(marketId as `0x${string}`);
         pool.currentPoolBalance = Number(escrowBalance) / 1e6;
+        
+        if (pool.status !== oldPoolStatus) {
+          this.logger.log(`Liquidity pool status transitioned from ${oldPoolStatus} to ${pool.status} for market ${marketId} (escrow fallback)`);
+        }
         await pool.save();
 
         const market = await this.marketModel.findById(marketId);
-        if (market && market.liquidity !== pool.currentPoolBalance) {
-          market.liquidity = pool.currentPoolBalance;
-          await market.save();
+        if (market) {
+          const oldMarketStatus = market.status;
+          let changed = false;
+          if (market.liquidity !== pool.currentPoolBalance) {
+            market.liquidity = pool.currentPoolBalance;
+            changed = true;
+          }
+          if (changed) {
+            await market.save();
+            if (market.status !== oldMarketStatus) {
+              this.logger.log(`Market status transitioned from ${oldMarketStatus} to ${market.status} for market ${marketId} (escrow fallback)`);
+            }
+          }
         }
       } catch (err) {
-        // Ignore if both fail
+        this.logger.error(`Failed both active pool read and escrow balance read for market ${marketId}: ${err.message}`, err.stack);
       }
     }
   }

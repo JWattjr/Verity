@@ -1,4 +1,4 @@
-import { Injectable, OnModuleInit } from '@nestjs/common';
+import { Injectable, OnModuleInit, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   createPublicClient,
@@ -190,6 +190,7 @@ function getCallSequence(
 
 @Injectable()
 export class BlockchainService implements OnModuleInit {
+  private readonly logger = new Logger(BlockchainService.name);
   private publicClient: PublicClient;
   private walletClient: any;
   private account: any;
@@ -452,6 +453,9 @@ export class BlockchainService implements OnModuleInit {
 
       return null;
     } catch (error) {
+      this.logger.warn(
+        `verifyCreateMarketPreDeposit failed for tx ${txHash}, market ${marketId}: ${error.message}`,
+      );
       return null;
     }
   }
@@ -527,6 +531,9 @@ export class BlockchainService implements OnModuleInit {
 
       return null;
     } catch (error) {
+      this.logger.warn(
+        `verifyDepositPreMarketLiquidity failed for tx ${txHash}, market ${marketId}: ${error.message}`,
+      );
       return null;
     }
   }
@@ -537,6 +544,10 @@ export class BlockchainService implements OnModuleInit {
         hash: txHash,
       });
     } catch (error) {
+      this.logger.error(
+        `Transaction verification failed for hash ${txHash}: ${error.message}`,
+        error.stack,
+      );
       throw new Error(
         `Transaction verification failed for hash ${txHash}: ${error.message}`,
       );
@@ -574,6 +585,7 @@ export class BlockchainService implements OnModuleInit {
       });
       return result as boolean;
     } catch (error) {
+      this.logger.warn(`canRemoveLiquidity check failed for market ${marketId}, wallet ${walletAddress}: ${error.message}`);
       return false;
     }
   }

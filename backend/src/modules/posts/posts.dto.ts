@@ -124,6 +124,32 @@ export class CreateMarketPostDto {
   marketId?: string;
 }
 
+export class CreatePostUnifiedDto {
+  @ApiProperty({ description: 'Post type', enum: ['normal', 'market'], example: 'normal' })
+  @IsString()
+  @IsNotEmpty()
+  type: 'normal' | 'market';
+
+  @ApiProperty({ description: 'Post content', example: 'Hello Verity!' })
+  @IsString()
+  @Length(1, 1000)
+  content: string;
+
+  // Market-only fields — all optional at the DTO level, validated in service
+  @ApiPropertyOptional() @IsOptional() @IsString() @Length(1, 240) question?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() @Length(1, 60) category?: string;
+  @ApiPropertyOptional() @IsOptional() @IsISO8601() deadline?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() @Length(1, 240) resolutionSource?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() @Length(1, 500) yesCondition?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() @Length(1, 500) noCondition?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() creationFeeTxHash?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() feeCollectorAddress?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() priceFeedId?: string;
+  @ApiPropertyOptional() @IsOptional() @IsNumber() targetPrice?: number;
+  @ApiPropertyOptional() @IsOptional() @IsBoolean() resolveAbove?: boolean;
+  @ApiPropertyOptional() @IsOptional() @IsMongoId() marketId?: string;
+}
+
 export class AddCommentDto {
   @ApiPropertyOptional({ description: "Author User ID", example: "60d0fe4f5311236168a109ca" })
   @IsString()
