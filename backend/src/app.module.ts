@@ -15,6 +15,7 @@ import { BlockchainModule } from './modules/blockchain/blockchain.module';
 import { LiquidityModule } from './modules/liquidity/liquidity.module';
 import { SocketModule } from './modules/socket/socket.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
+import { CircleWalletModule } from './modules/circle-wallet/circle-wallet.module';
 
 @Module({
   imports: [
@@ -47,6 +48,7 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
     LiquidityModule,
     SocketModule,
     NotificationsModule,
+    CircleWalletModule,
   ],
   controllers: [AppController],
   providers: [

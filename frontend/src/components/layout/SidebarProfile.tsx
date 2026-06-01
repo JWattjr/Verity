@@ -1,9 +1,7 @@
 "use client";
 
-import { usePrivy, useCreateWallet, useWallets } from "@privy-io/react-auth";
-import { usePrivyWallet } from "@/hooks/usePrivyWallet";
+import { useAuth } from "@/components/providers/AuthModals";
 import { useUsdcBalance } from "@/hooks/useUsdcBalance";
-import { useWalletProfile } from "@/hooks/useWalletProfile";
 import { shortAddress } from "@/lib/arc";
 import { displayHandle, displayName as getDisplayName } from "@/lib/verity";
 import { LogOut, Copy, Check, Wallet } from "lucide-react";
@@ -12,15 +10,11 @@ import { toast } from "react-hot-toast";
 import Link from "next/link";
 
 export default function SidebarProfile() {
-  const { login, logout, authenticated, ready, user } = usePrivy();
-  const { address } = usePrivyWallet();
-  const { createWallet } = useCreateWallet();
-  const { wallets } = useWallets();
+  const { user, authenticated, loading, login, logout } = useAuth();
   const { formattedBalance, isLoading: isBalanceLoading } = useUsdcBalance();
-  const { profile } = useWalletProfile();
   const [copied, setCopied] = useState(false);
 
-  if (!ready) {
+  if (loading) {
     return (
       <div className="verity-card animate-pulse p-4">
         <div className="flex items-center gap-3">
@@ -34,7 +28,7 @@ export default function SidebarProfile() {
     );
   }
 
-  if (!authenticated) {
+  if (!authenticated || !user) {
     return (
       <button
         className="verity-pill flex h-11 w-full items-center justify-center gap-2 bg-inverse px-4 text-sm font-semibold tracking-[-0.18px] text-inverse-text transition-opacity hover:opacity-90 cursor-pointer"
@@ -48,36 +42,7 @@ export default function SidebarProfile() {
     );
   }
 
-  if (!address) {
-    const hasWallet = wallets.some(w => w.walletClientType === 'privy') || Boolean(user?.wallet);
-    if (hasWallet) {
-      return (
-        <div className="verity-card animate-pulse p-4">
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-full bg-stone-surface" />
-            <div className="flex-1 space-y-2 py-1">
-              <div className="h-4 rounded bg-stone-surface" />
-              <div className="h-3 w-5/6 rounded bg-stone-surface" />
-            </div>
-          </div>
-        </div>
-      );
-    }
-
-    return (
-      <button
-        className="verity-pill flex h-11 w-full items-center justify-center gap-2 bg-inverse px-4 text-sm font-semibold tracking-[-0.18px] text-inverse-text transition-opacity hover:opacity-90 cursor-pointer"
-        onClick={() => createWallet()}
-        type="button"
-      >
-        <Wallet className="h-4 w-4" />
-        <span className="hidden xl:inline">Activate Wallet</span>
-        <span className="inline xl:hidden">Activate</span>
-      </button>
-    );
-  }
-
-  const walletAddr = address || user?.wallet?.address || "";
+  const walletAddr = user.walletAddress || "";
   const displayAddress = shortAddress(walletAddr);
 
   const handleCopy = (e: React.MouseEvent) => {
@@ -99,10 +64,10 @@ export default function SidebarProfile() {
           </div>
           <div className="hidden xl:flex flex-col min-w-0">
             <span className="text-sm font-semibold tracking-[-0.18px] text-charcoal-primary truncate">
-              {profile ? getDisplayName(profile) : "User"}
+              {getDisplayName(user)}
             </span>
             <span className="font-mono text-xs text-ash truncate">
-              {profile ? displayHandle(profile) : "@wallet"}
+              {displayHandle(user)}
             </span>
           </div>
         </Link>

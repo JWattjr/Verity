@@ -314,6 +314,21 @@ export class MarketsService {
       const hasMetThresholds = freeYesVotes >= 30;
       if (hasMetThresholds) {
         nextStatus = 'qualified';
+        if (market.marketType === 'parent' || (market as any).market_type === 'parent') {
+          await this.marketModel.updateMany(
+            { parentMarketId: market._id },
+            {
+              $set: {
+                status: 'qualified',
+                totalFreeVotes: 30,
+                uniqueVotersCount: 30,
+                freeYesVotes: 30,
+                freeNoVotes: 0,
+              },
+            },
+          );
+          this.logger.log(`Qualifying child markets for parent market ${marketId}`);
+        }
       }
     }
 
@@ -369,12 +384,37 @@ export class MarketsService {
     if (filters.qualified) query.status = 'qualified';
     if (filters.open_for_votes) query.status = 'open_for_votes';
 
-    const sort: Record<string, SortOrder> = filters.trending
+    // We only want to show binary/parent markets, NOT child markets!
+    query.marketType = { $ne: 'child' };
+
+    const sort: Record<string, any> = filters.trending
       ? { totalFreeVotes: -1, uniqueVotersCount: -1, createdAt: -1 }
       : { createdAt: filters.newest === false ? 1 : -1 };
 
     const markets = await this.marketModel.find(query).sort(sort).limit(100);
-    return markets.map((m) => this.postsService.serializeMarket(m));
+
+    // Fetch child markets for any parent markets in the list
+    const parentMarketIds = markets
+      .filter((m) => m.marketType === 'parent')
+      .map((m) => m._id);
+    
+    const allChildMarkets = parentMarketIds.length > 0
+      ? await this.marketModel.find({ parentMarketId: { $in: parentMarketIds } })
+      : [];
+
+    const childMarketsMap = new Map<string, MarketDocument[]>();
+    for (const child of allChildMarkets) {
+      const parentIdStr = child.parentMarketId!.toString();
+      if (!childMarketsMap.has(parentIdStr)) {
+        childMarketsMap.set(parentIdStr, []);
+      }
+      childMarketsMap.get(parentIdStr)!.push(child);
+    }
+
+    return markets.map((m) => {
+      const children = childMarketsMap.get(m.id) || [];
+      return this.postsService.serializeMarket(m, children);
+    });
   }
 
   async fetchMarketDetail(marketId: string, viewerProfileId?: string) {
@@ -785,6 +825,22 @@ export class MarketsService {
     this.logger.log(
       `Market ${marketId} status transitioned from ${oldStatus} to qualified via devQualify`,
     );
+
+    if (market.marketType === 'parent' || (market as any).market_type === 'parent') {
+      await this.marketModel.updateMany(
+        { parentMarketId: market._id },
+        {
+          $set: {
+            status: 'qualified',
+            totalFreeVotes: 30,
+            uniqueVotersCount: 30,
+            freeYesVotes: 30,
+            freeNoVotes: 0,
+          },
+        },
+      );
+      this.logger.log(`Qualifying child markets for parent market ${marketId} via devQualify`);
+    }
 
     return this.postsService.serializeMarket(market);
   }

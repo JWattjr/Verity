@@ -1,7 +1,7 @@
-'use client'
+"use client";
 
-import Link from 'next/link'
-import { usePrivy } from '@privy-io/react-auth'
+import Link from "next/link";
+import { useAuth } from "@/components/providers/AuthModals";
 import {
   ArrowRight,
   BadgeCheck,
@@ -12,40 +12,46 @@ import {
   Sparkles,
   TrendingUp,
   UsersRound,
-} from 'lucide-react'
-import ThemeToggle from '@/components/layout/ThemeToggle'
+} from "lucide-react";
+import ThemeToggle from "@/components/layout/ThemeToggle";
 
 const steps = [
   {
     icon: Sparkles,
-    label: 'Post a Take',
-    text: 'Share a claim, forecast, or conviction with the community.',
+    label: "Post a Take",
+    text: "Share a claim, forecast, or conviction with the community.",
   },
   {
     icon: TrendingUp,
-    label: 'Turn it into a Market',
-    text: 'Strong ideas become Upvote/Downvote signal markets.',
+    label: "Turn it into a Market",
+    text: "Strong ideas become Upvote/Downvote signal markets.",
   },
   {
     icon: HandCoins,
-    label: 'Fund the pool',
-    text: 'Creators and liquidity providers help markets bond with Arc USDC.',
+    label: "Fund the pool",
+    text: "Creators and liquidity providers help markets bond with Arc USDC.",
   },
   {
     icon: BadgeCheck,
-    label: 'Trade outcomes',
-    text: 'Qualified markets open for USDC-backed trading and rewards.',
+    label: "Trade outcomes",
+    text: "Qualified markets open for USDC-backed trading and rewards.",
   },
-]
+];
 
 const stats = [
-  ['Signal first', 'Markets start with social conviction'],
-  ['One approval', 'Router-powered wallet activation'],
-  ['Pool rewards', 'Creators and LPs can earn after bonding'],
-]
+  ["Signal first", "Markets start with social conviction"],
+  ["Zero Signing", "Developer-controlled smart contract wallets"],
+  ["Pool rewards", "Creators and LPs can earn after bonding"],
+];
+
+const statIcons = {
+  "Signal first": MessageSquareText,
+  "Zero Signing": ShieldCheck,
+  "Pool rewards": CircleDollarSign,
+};
 
 export default function LandingPage({ loading = false }: { loading?: boolean }) {
-  const { login } = usePrivy()
+  const { login } = useAuth();
 
   return (
     <main className="min-h-screen overflow-hidden bg-warm-canvas text-charcoal-primary">
@@ -98,25 +104,35 @@ export default function LandingPage({ loading = false }: { loading?: boolean }) 
               onClick={login}
               type="button"
             >
-              {loading ? 'Loading' : 'Sign in with Privy'}
+              {loading ? "Loading" : "Get Started (Email OTP)"}
               <ArrowRight className="h-4 w-4" />
             </button>
           </div>
 
-          <div className="mt-6 grid gap-2 sm:mt-8 sm:grid-cols-3 sm:gap-3">
-            {stats.map(([label, text]) => (
-              <div
-                className="landing-pop rounded-[10px] bg-white-surface p-4 shadow-[(--shadow-subtle)]"
-                key={label}
-              >
-                <p className="font-mono text-[11px] font-semibold uppercase tracking-[0.14em] text-ash">
-                  {label}
-                </p>
-                <p className="mt-2 text-sm leading-[1.45] tracking-[-0.18px] text-graphite">
-                  {text}
-                </p>
-              </div>
-            ))}
+          <div className="mt-6 grid gap-3 sm:mt-8 sm:grid-cols-3 sm:gap-4">
+            {stats.map(([label, text]) => {
+              const Icon = statIcons[label as keyof typeof statIcons];
+              return (
+                <div
+                  className="landing-pop rounded-[12px] bg-white-surface p-5 border border-border/60 shadow-[var(--shadow-subtle)] hover:shadow-[var(--shadow-sm)] hover:-translate-y-0.5 transition-all duration-200 flex flex-col gap-3.5"
+                  key={label}
+                >
+                  <div className="flex items-center justify-between w-full">
+                    <p className="font-mono text-[11px] font-semibold uppercase tracking-[0.14em] text-ash">
+                      {label}
+                    </p>
+                    {Icon && (
+                      <span className="flex h-7 w-7 items-center justify-center rounded-[8px] bg-stone-surface/60 text-ember-orange shadow-[var(--shadow-subtle)] border border-border">
+                        <Icon className="h-4 w-4" />
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-sm leading-[1.45] tracking-[-0.18px] text-graphite">
+                    {text}
+                  </p>
+                </div>
+              );
+            })}
           </div>
         </div>
 
@@ -166,7 +182,7 @@ export default function LandingPage({ loading = false }: { loading?: boolean }) 
         </div>
       </section>
     </main>
-  )
+  );
 }
 
 function LandingVisual() {
@@ -252,12 +268,12 @@ function LandingVisual() {
           </span>
           <div>
             <p className="text-sm font-semibold tracking-[-0.18px]">
-              One wallet activation
+              Zero signing latency
             </p>
-            <p className="font-mono text-[11px] text-ash">router approval flow</p>
+            <p className="font-mono text-[11px] text-ash">developer-controlled wallet flow</p>
           </div>
         </div>
       </div>
     </div>
-  )
+  );
 }

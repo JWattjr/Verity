@@ -50,6 +50,33 @@ const entryPointAbi = [
   },
 ] as const;
 
+const entryPointV7Abi = [
+  {
+    name: 'handleOps',
+    type: 'function',
+    inputs: [
+      {
+        name: 'ops',
+        type: 'tuple[]',
+        components: [
+          { name: 'sender', type: 'address' },
+          { name: 'nonce', type: 'uint256' },
+          { name: 'initCode', type: 'bytes' },
+          { name: 'callData', type: 'bytes' },
+          { name: 'accountGasLimits', type: 'uint256' },
+          { name: 'preVerificationGas', type: 'uint256' },
+          { name: 'gasFees', type: 'uint256' },
+          { name: 'paymasterAndData', type: 'uint256' },
+          { name: 'signature', type: 'uint256' },
+          { name: 'paymasterAndDataBytes', type: 'bytes' },
+          { name: 'signatureBytes', type: 'bytes' },
+        ],
+      },
+      { name: 'beneficiary', type: 'address' },
+    ],
+  },
+] as const;
+
 const smartAccountExecuteAbi = [
   {
     name: 'execute',
@@ -75,6 +102,21 @@ const smartAccountExecuteAbi = [
       { name: 'dest', type: 'address[]' },
       { name: 'value', type: 'uint256[]' },
       { name: 'func', type: 'bytes[]' },
+    ],
+  },
+  {
+    name: 'executeBatch',
+    type: 'function',
+    inputs: [
+      {
+        name: 'calls',
+        type: 'tuple[]',
+        components: [
+          { name: 'target', type: 'address' },
+          { name: 'value', type: 'uint256' },
+          { name: 'data', type: 'bytes' },
+        ],
+      },
     ],
   },
 ] as const;
@@ -125,6 +167,22 @@ function getCallSequence(
     } catch (e) {
       // Ignore decode failure
     }
+  } else if (data.startsWith('0x1fad948c')) {
+    try {
+      const { args } = decodeFunctionData({
+        abi: entryPointV7Abi,
+        data: data as `0x${string}`,
+      });
+      if (args && args[0]) {
+        const ops = args[0] as any[];
+        for (const op of ops) {
+          const nestedCalls = getCallSequence(op.sender, op.callData);
+          calls.push(...nestedCalls);
+        }
+      }
+    } catch (e) {
+      // Ignore decode failure
+    }
   }
 
   // 2. Try to decode as smart account execute/executeBatch
@@ -148,19 +206,42 @@ function getCallSequence(
       decodedSmartAccount.functionName === 'executeBatch' &&
       decodedSmartAccount.args
     ) {
-      const args = decodedSmartAccount.args as any[];
-      const dests = args[0] as string[];
-      const funcs = args.find(
-        (arg) =>
-          Array.isArray(arg) &&
-          arg.length > 0 &&
-          typeof arg[0] === 'string' &&
-          arg[0].startsWith('0x'),
-      ) as string[];
-      if (funcs) {
-        for (let i = 0; i < dests.length; i++) {
-          const nestedCalls = getCallSequence(dests[i], funcs[i]);
-          calls.push(...nestedCalls);
+      const firstArg = decodedSmartAccount.args[0] as any;
+      if (Array.isArray(firstArg) && firstArg.length > 0 && typeof firstArg[0] === 'object') {
+        // Handle ERC-4337 tuple[] format: executeBatch((address,uint256,bytes)[])
+        for (const callObj of firstArg) {
+          let dest: string | undefined;
+          let func: string | undefined;
+
+          if (Array.isArray(callObj)) {
+            dest = callObj[0];
+            func = callObj[2];
+          } else if (callObj) {
+            dest = callObj.target || callObj.dest || callObj.to;
+            func = callObj.data || callObj.func || callObj.callData;
+          }
+
+          if (dest && func) {
+            const nestedCalls = getCallSequence(dest, func);
+            calls.push(...nestedCalls);
+          }
+        }
+      } else {
+        // Fallback to legacy address[] + bytes[] executeBatch formats
+        const args = decodedSmartAccount.args as any[];
+        const dests = args[0] as string[];
+        const funcs = args.find(
+          (arg) =>
+            Array.isArray(arg) &&
+            arg.length > 0 &&
+            typeof arg[0] === 'string' &&
+            arg[0].startsWith('0x'),
+        ) as string[];
+        if (funcs && dests) {
+          for (let i = 0; i < dests.length; i++) {
+            const nestedCalls = getCallSequence(dests[i], funcs[i]);
+            calls.push(...nestedCalls);
+          }
         }
       }
     }
@@ -368,15 +449,27 @@ export class BlockchainService implements OnModuleInit {
     marketId: string,
   ): Promise<bigint | null> {
     try {
-      const hash = txHash.startsWith('0x') ? txHash : `0x${txHash}`;
-      const receipt = await this.publicClient.getTransactionReceipt({
-        hash: hash as `0x${string}`,
-      });
-      if (receipt.status !== 'success') return null;
+      const hash = (txHash.startsWith('0x') ? txHash : `0x${txHash}`) as `0x${string}`;
+      let receipt: any = null;
+      let tx: any = null;
 
-      const tx = await this.publicClient.getTransaction({
-        hash: hash as `0x${string}`,
-      });
+      for (let attempt = 1; attempt <= 25; attempt++) {
+        try {
+          receipt = await this.publicClient.getTransactionReceipt({ hash });
+          tx = await this.publicClient.getTransaction({ hash });
+          break;
+        } catch (e) {
+          if (attempt === 25) {
+            throw e;
+          }
+          this.logger.warn(
+            `RPC node replication lag for verifyCreateMarketPreDeposit tx ${txHash}. Retrying in 1s... (Attempt ${attempt}/25)`,
+          );
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+        }
+      }
+
+      if (receipt.status !== 'success') return null;
 
       const calls = getCallSequence(receipt.to || tx.to || '', tx.input);
       for (const call of calls) {
@@ -471,15 +564,27 @@ export class BlockchainService implements OnModuleInit {
     marketId: string,
   ): Promise<bigint | null> {
     try {
-      const hash = txHash.startsWith('0x') ? txHash : `0x${txHash}`;
-      const receipt = await this.publicClient.getTransactionReceipt({
-        hash: hash as `0x${string}`,
-      });
-      if (receipt.status !== 'success') return null;
+      const hash = (txHash.startsWith('0x') ? txHash : `0x${txHash}`) as `0x${string}`;
+      let receipt: any = null;
+      let tx: any = null;
 
-      const tx = await this.publicClient.getTransaction({
-        hash: hash as `0x${string}`,
-      });
+      for (let attempt = 1; attempt <= 25; attempt++) {
+        try {
+          receipt = await this.publicClient.getTransactionReceipt({ hash });
+          tx = await this.publicClient.getTransaction({ hash });
+          break;
+        } catch (e) {
+          if (attempt === 25) {
+            throw e;
+          }
+          this.logger.warn(
+            `RPC node replication lag for verifyDepositPreMarketLiquidity tx ${txHash}. Retrying in 1s... (Attempt ${attempt}/25)`,
+          );
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+        }
+      }
+
+      if (receipt.status !== 'success') return null;
 
       const calls = getCallSequence(receipt.to || tx.to || '', tx.input);
       for (const call of calls) {

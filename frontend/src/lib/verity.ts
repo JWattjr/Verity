@@ -80,6 +80,17 @@ export interface MarketPost {
   created_at: string;
   createdAt?: string;
   updatedAt?: string;
+  marketType?: "binary" | "parent" | "child";
+  market_type?: "binary" | "parent" | "child";
+  parentMarketId?: string | null;
+  parent_market_id?: string | null;
+  optionName?: string | null;
+  option_name?: string | null;
+  options?: string[];
+  optionMarketIds?: string[];
+  option_market_ids?: string[];
+  childMarkets?: MarketPost[];
+  child_markets?: MarketPost[];
 }
 
 export interface FeedPost {
@@ -157,6 +168,11 @@ export interface MarketInput {
   targetPrice?: number;
   resolveAbove?: boolean;
   marketId?: string;
+  marketType?: "binary" | "parent" | "child";
+  parentMarketId?: string | null;
+  optionName?: string | null;
+  options?: string[];
+  optionMarketIds?: string[];
 }
 
 export function displayName(profile?: Profile | null) {

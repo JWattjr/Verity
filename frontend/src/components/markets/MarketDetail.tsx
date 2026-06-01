@@ -17,6 +17,7 @@ import {
   Repeat2,
   Share,
   ShieldCheck,
+  Trophy,
 } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'react-hot-toast'
@@ -26,7 +27,7 @@ import { useDailyVotes } from '@/hooks/useDailyVotes'
 import { useFeed } from '@/hooks/useFeed'
 import { useSetRightPanelSlot } from '@/hooks/useRightPanelSlot'
 import { useUsdcBalance } from '@/hooks/useUsdcBalance'
-import { useWalletProfile } from '@/hooks/useWalletProfile'
+import { useAuth } from '@/components/providers/AuthModals'
 import { useSocket } from '@/hooks/useSocket'
 import {
   calculateGrossUsdc,
@@ -68,7 +69,8 @@ interface MarketDetailProps {
 }
 
 export default function MarketDetail({ marketId }: MarketDetailProps) {
-  const { profile } = useWalletProfile()
+  const { user } = useAuth()
+  const profile = user
   const queryClient = useQueryClient()
   const balance = useUsdcBalance()
   const { joinRoom, leaveRoom } = useSocket()
@@ -86,38 +88,75 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
   const [replyingToComment, setReplyingToComment] =
     useState<MarketComment | null>(null)
 
+  // Track selected child market for multi-option markets
+  const [selectedChildId, setSelectedChildId] = useState<string | null>(null)
+
   const { dailyVotes, refetch: reloadDailyVotes } = useDailyVotes(profileId)
   const { items, loading: feedLoading } = useFeed(undefined, true)
-  const { data: item, isLoading: itemLoading, error: itemError, refetch: refetchMarket } = useMarketDetailQuery(marketId, profileId || undefined)
+  const {
+    data: item,
+    isLoading: itemLoading,
+    error: itemError,
+    refetch: refetchMarket,
+  } = useMarketDetailQuery(marketId, profileId || undefined)
 
   const market = item?.market || null
   const postId = item?.id
   const detailMarketId = market?.id
 
+  // Auto-select first child market if parent
   useEffect(() => {
-    if (detailMarketId) {
-      joinRoom(`market:${detailMarketId}`)
+    if (
+      market?.marketType === 'parent' &&
+      market.childMarkets &&
+      market.childMarkets.length > 0 &&
+      !selectedChildId
+    ) {
+      setSelectedChildId(market.childMarkets[0].id)
+    }
+  }, [market, selectedChildId])
+
+  const activeMarketId = selectedChildId || detailMarketId
+
+  const activeOption = useMemo(() => {
+    if (market?.marketType === 'parent' && market.childMarkets) {
+      return market.childMarkets.find((child) => child.id === selectedChildId)
+    }
+    return null
+  }, [market, selectedChildId])
+
+  const activeOptionName = activeOption
+    ? activeOption.optionName || activeOption.question
+    : null
+
+  const activeMarket = useMemo(() => {
+    return activeOption || market
+  }, [activeOption, market]) as MarketPost
+
+  useEffect(() => {
+    if (activeMarketId) {
+      joinRoom(`market:${activeMarketId}`)
       if (postId) {
         joinRoom(`post:${postId}`)
       }
       return () => {
-        leaveRoom(`market:${detailMarketId}`)
+        leaveRoom(`market:${activeMarketId}`)
         if (postId) {
           leaveRoom(`post:${postId}`)
         }
       }
     }
-  }, [detailMarketId, postId, joinRoom, leaveRoom])
+  }, [activeMarketId, postId, joinRoom, leaveRoom])
 
-  const { data: poolStateData } = usePoolStateQuery(detailMarketId || '')
+  const { data: poolStateData } = usePoolStateQuery(activeMarketId || '')
   const { data: lpPositionsData } = useLPPositionsQuery(
-    detailMarketId || '',
+    activeMarketId || '',
     profileId || '',
   )
-  const { data: fetchedTrades } = useMarketTradesQuery(detailMarketId || '')
+  const { data: fetchedTrades } = useMarketTradesQuery(activeMarketId || '')
   const { data: fetchedComments } = usePostCommentsQuery(postId || '')
   const { data: fetchedPositions } = useMarketPositionsQuery(
-    detailMarketId || '',
+    activeMarketId || '',
     profileId || '',
   )
 
@@ -145,8 +184,8 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
 
   const yesPercent = useMemo(() => {
     if (poolYesPrice != null) return poolYesPrice * 100
-    return market ? calculateYesPercent(market) : 50
-  }, [poolYesPrice, market])
+    return activeMarket ? calculateYesPercent(activeMarket) : 50
+  }, [poolYesPrice, activeMarket])
 
   const noPercent = useMemo(() => {
     if (poolNoPrice != null) return poolNoPrice * 100
@@ -157,29 +196,32 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
     if ((poolStateData?.pool?.currentPoolBalance ?? 0) > 0) {
       return poolStateData.pool.currentPoolBalance
     }
-    return market
-      ? Number(market.usdc_yes_amount) + Number(market.usdc_no_amount)
+    return activeMarket
+      ? Number(activeMarket.usdc_yes_amount) +
+          Number(activeMarket.usdc_no_amount)
       : 0
-  }, [poolStateData, market])
+  }, [poolStateData, activeMarket])
 
   const hasUsdcOpinion = totalUsdc > 0
 
   const tradeAmountNumber = Number(tradeAmount)
   const validTradeAmount =
     Number.isFinite(tradeAmountNumber) && tradeAmountNumber > 0
-  const selectedPrice = market ? getMarketPrice(market, selectedSide) : 0.5
+  const selectedPrice = activeMarket
+    ? getMarketPrice(activeMarket, selectedSide)
+    : 0.5
   const buyShares = validTradeAmount ? tradeAmountNumber / selectedPrice : 0
   const sellProceeds = validTradeAmount ? tradeAmountNumber * selectedPrice : 0
   const tradeBaseAmount =
     tradeAction === 'BUY' ? tradeAmountNumber : sellProceeds
   const tradeFee =
-    market && validTradeAmount
-      ? calculateTradingFee(tradeBaseAmount, market.trading_fee_bps)
+    activeMarket && validTradeAmount
+      ? calculateTradingFee(tradeBaseAmount, activeMarket.trading_fee_bps)
       : 0
   const tradeTotal =
-    market && validTradeAmount
+    activeMarket && validTradeAmount
       ? tradeAction === 'BUY'
-        ? calculateGrossUsdc(tradeAmountNumber, market.trading_fee_bps)
+        ? calculateGrossUsdc(tradeAmountNumber, activeMarket.trading_fee_bps)
         : Math.max(0, sellProceeds - tradeFee)
       : 0
 
@@ -187,12 +229,12 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
   const leadingPercent = Math.max(yesPercent, noPercent)
 
   const createdAt = useMemo(
-    () => (market ? new Date(market.created_at) : null),
-    [market],
+    () => (activeMarket ? new Date(activeMarket.created_at) : null),
+    [activeMarket],
   )
   const closesAt = useMemo(
-    () => (market ? new Date(market.deadline) : null),
-    [market],
+    () => (activeMarket ? new Date(activeMarket.deadline) : null),
+    [activeMarket],
   )
   const settlesAt = useMemo(
     () =>
@@ -271,6 +313,22 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
           queryClient.invalidateQueries({
             queryKey: ['trades', detailMarketId],
           }),
+          ...(activeMarketId && activeMarketId !== detailMarketId
+            ? [
+                queryClient.invalidateQueries({
+                  queryKey: ['pool-state', activeMarketId],
+                }),
+                queryClient.invalidateQueries({
+                  queryKey: ['lp-positions', activeMarketId],
+                }),
+                queryClient.invalidateQueries({
+                  queryKey: ['positions', activeMarketId],
+                }),
+                queryClient.invalidateQueries({
+                  queryKey: ['trades', activeMarketId],
+                }),
+              ]
+            : []),
         ])
       } catch (caught) {
         toast.error(formatWeb3Error(caught))
@@ -278,23 +336,30 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
         setActionPending(null)
       }
     },
-    [profileId, refetchMarket, reloadDailyVotes, queryClient, detailMarketId],
+    [
+      profileId,
+      refetchMarket,
+      reloadDailyVotes,
+      queryClient,
+      detailMarketId,
+      activeMarketId,
+    ],
   )
 
   const handleDispute = useCallback(async () => {
-    if (!market || !profileId) return
+    if (!activeMarket || !profileId) return
     await runAction('dispute', async () => {
-      await disputeResolution(market.id)
+      await disputeResolution(activeMarket.id)
     })
-  }, [market, profileId, disputeResolution, runAction])
+  }, [activeMarket, profileId, disputeResolution, runAction])
 
   const handleRedeem = useCallback(async () => {
-    if (!market || !profileId) return
+    if (!activeMarket || !profileId) return
     await runAction('redeem', async () => {
-      const { txHash } = await redeemWinnings(market.id)
-      const winningOutcome = market.resolvedOutcome || 'YES'
+      const { txHash } = await redeemWinnings(activeMarket.id)
+      const winningOutcome = activeMarket.resolvedOutcome || 'YES'
       await resolveMarketBackend({
-        marketId: market.id,
+        marketId: activeMarket.id,
         winningOutcome: winningOutcome as 'YES' | 'NO',
         txHash,
         adminAddress: profile?.walletAddress || '0xWinner',
@@ -302,7 +367,7 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
       await balance.refetch()
     })
   }, [
-    market,
+    activeMarket,
     profile,
     profileId,
     redeemWinnings,
@@ -312,23 +377,25 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
   ])
 
   const handleClaimCreatorLP = useCallback(async () => {
-    if (!market || !profileId) return
+    if (!activeMarket || !profileId) return
     await runAction('claim_creator_lp', async () => {
-      await claimCreatorLP(market.id)
+      await claimCreatorLP(activeMarket.id)
     })
-  }, [market, profileId, claimCreatorLP, runAction])
+  }, [activeMarket, profileId, claimCreatorLP, runAction])
 
   const handleClaimRefund = useCallback(async () => {
-    if (!market || !profileId) return
+    if (!activeMarket || !profileId) return
     await runAction('claim_refund', async () => {
-      await claimRefund(market.id)
+      await claimRefund(activeMarket.id)
     })
-  }, [market, profileId, claimRefund, runAction])
+  }, [activeMarket, profileId, claimRefund, runAction])
 
   const approveTrading = useCallback(async () => {
-    if (!market) return
-    await runAction('approve_trading', () => approveMarketForTrading(market.id))
-  }, [market, runAction, approveMarketForTrading])
+    if (!activeMarket) return
+    await runAction('approve_trading', () =>
+      approveMarketForTrading(activeMarket.id),
+    )
+  }, [activeMarket, runAction, approveMarketForTrading])
 
   const handleDevQualify = useCallback(async () => {
     if (!market) return
@@ -339,28 +406,28 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
 
   const handleFundPreMarket = useCallback(
     async (amount: number) => {
-      if (!market || !profileId) return
+      if (!activeMarketId || !profileId) return
       await runAction('fund_pre_market', async () => {
-        await fundPreMarket(market.id, profileId, amount, true)
+        await fundPreMarket(activeMarketId, profileId, amount, true)
       })
     },
-    [market, profileId, fundPreMarket, runAction],
+    [activeMarketId, profileId, fundPreMarket, runAction],
   )
 
   const handleAddLP = useCallback(
     async (amount: number) => {
-      if (!market || !profileId) return
+      if (!activeMarketId || !profileId) return
       await runAction('add_lp', async () => {
         const isPoolActive = poolStateData?.pool?.status === 'active'
         if (!isPoolActive) {
-          await fundPreMarket(market.id, profileId, amount, false)
+          await fundPreMarket(activeMarketId, profileId, amount, false)
         } else {
-          await addPoolLiquidity(market.id, profileId, amount)
+          await addPoolLiquidity(activeMarketId, profileId, amount)
         }
       })
     },
     [
-      market,
+      activeMarketId,
       profileId,
       poolStateData,
       fundPreMarket,
@@ -371,12 +438,12 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
 
   const handleRemoveLP = useCallback(
     async (shares: number) => {
-      if (!market || !profileId) return
+      if (!activeMarketId || !profileId) return
       await runAction('remove_lp', async () => {
-        await removePoolLiquidity(market.id, profileId, shares)
+        await removePoolLiquidity(activeMarketId, profileId, shares)
       })
     },
-    [market, profileId, removePoolLiquidity, runAction],
+    [activeMarketId, profileId, removePoolLiquidity, runAction],
   )
 
   async function sharePost(post: FeedPost) {
@@ -394,7 +461,7 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
 
   const executeTrade = useCallback(
     async (side: VoteSide) => {
-      if (!market || !profileId) return
+      if (!activeMarket || !profileId) return
 
       await runAction('trade', async () => {
         const amount = Number(tradeAmount)
@@ -404,7 +471,7 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
         const isYes = side === 'YES'
         if (tradeAction === 'BUY') {
           await buyTokens(
-            market.id,
+            activeMarket.id,
             profileId,
             isYes,
             tradeAmountNumber,
@@ -413,7 +480,7 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
           )
         } else {
           await sellTokens(
-            market.id,
+            activeMarket.id,
             profileId,
             isYes,
             amount,
@@ -424,7 +491,7 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
       })
     },
     [
-      market,
+      activeMarket,
       profileId,
       tradeAmount,
       tradeAction,
@@ -497,14 +564,14 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
             ) : (
               <div className="flex flex-col gap-3">
                 {positions.map((pos) => {
-                  const isResolved = market.status === 'resolved'
+                  const isResolved = activeMarket.status === 'resolved'
                   const isWinner =
-                    isResolved && market.resolvedOutcome === pos.side
+                    isResolved && activeMarket.resolvedOutcome === pos.side
                   const currentPrice = isResolved
                     ? isWinner
                       ? 1.0
                       : 0.0
-                    : getMarketPrice(market, pos.side)
+                    : getMarketPrice(activeMarket, pos.side)
                   const currentValue = pos.shares * currentPrice
                   const isProfit = currentValue >= pos.invested_usdc
                   const pnl = currentValue - pos.invested_usdc
@@ -609,16 +676,17 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
         )}
 
         {['open_for_votes', 'qualified', 'funding_pool'].includes(
-          market.status,
+          activeMarket.status,
         ) ? (
           <PreMarketFundingPanel
             actionLoading={actionPending}
             authorId={item.author_id || item.authorId}
-            market={market}
+            market={activeMarket}
             onAddLP={handleAddLP}
             onFundPreMarket={handleFundPreMarket}
             poolState={poolStateData}
             profileId={profileId}
+            activeOptionName={activeOptionName}
           />
         ) : (
           <TradeTicket
@@ -627,7 +695,7 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
             balanceLabel={balance.isLoading ? '...' : balance.formattedBalance}
             disabled={
               Boolean(actionPending) ||
-              market.status !== 'tradable' ||
+              activeMarket.status !== 'tradable' ||
               !validTradeAmount
             }
             estimatedShares={buyShares}
@@ -651,7 +719,7 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
 
         <MarketStatsPanel
           createdAt={createdAt}
-          feeBps={market.trading_fee_bps}
+          feeBps={activeMarket.trading_fee_bps}
           liquidity={liveLiquidity}
           closesAt={closesAt}
           settlesAt={settlesAt}
@@ -668,6 +736,7 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
     )
   }, [
     market,
+    activeMarket,
     postId,
     item,
     tradeAction,
@@ -710,7 +779,7 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
 
   const rightPanelSlotKey = [
     postId || 'no-post',
-    detailMarketId || 'no-market',
+    activeMarketId || 'no-market',
     profileId || 'disconnected',
     tradeAction,
     tradeAmount,
@@ -718,8 +787,8 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
     selectedPrice,
     sellProceeds,
     balance.isLoading ? 'loading' : balance.formattedBalance,
-    market?.status || 'unknown',
-    market?.trading_fee_bps || 0,
+    activeMarket?.status || 'unknown',
+    activeMarket?.trading_fee_bps || 0,
     liveLiquidity,
     volume,
     yesPercent,
@@ -788,7 +857,7 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
   if (itemError) {
     return (
       <div className="rounded-[12px] bg-ember-orange/10 p-4 text-sm font-medium tracking-[-0.18px] text-charcoal-primary shadow-[(--shadow-subtle)]">
-        {(itemError as any)?.message || "Failed to load market."}
+        {(itemError as any)?.message || 'Failed to load market.'}
       </div>
     )
   }
@@ -821,6 +890,20 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
         devQualifyLoading={actionPending === 'dev_qualify'}
       />
 
+      {market.marketType === 'parent' && market.childMarkets && (
+        <OutcomesPanel
+          childMarkets={market.childMarkets}
+          selectedChildId={selectedChildId}
+          selectedSide={selectedSide}
+          marketStatus={market.status}
+          onSelectOptionAndSide={(childId, side) => {
+            setSelectedChildId(childId)
+            setSelectedSide(side)
+            setTradeAction('BUY')
+          }}
+        />
+      )}
+
       <div className="flex flex-col gap-3 lg:hidden">{sidebarPanels}</div>
 
       <SocialActions
@@ -828,7 +911,7 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
         freeNoVotes={market.free_no_votes}
         freeYesVotes={market.free_yes_votes}
         dailyVotesRemaining={dailyVotes.votesRemaining}
-        marketStatus={market.status}
+        marketStatus={activeMarket.status}
         onComment={() =>
           document.getElementById('market-comment-input')?.focus()
         }
@@ -861,11 +944,11 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
         onReplyClick={setReplyingToComment}
       />
 
-      {market.status === 'tradable' && (
+      {activeMarket.status === 'tradable' && (
         <ActiveMarketLPPanel
           actionLoading={actionPending}
           lpPositions={lpPositionsData || []}
-          market={market}
+          market={activeMarket}
           onAddLP={handleAddLP}
           onRemoveLP={handleRemoveLP}
           poolState={poolStateData}
@@ -873,20 +956,20 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
         />
       )}
 
-      {(market.status === 'resolving' ||
-        market.status === 'resolved' ||
+      {(activeMarket.status === 'resolving' ||
+        activeMarket.status === 'resolved' ||
         isPastDeadline) && (
         <ResolutionPanel
-          market={market}
+          market={activeMarket}
           onDispute={handleDispute}
           actionLoading={actionPending}
           profileId={profileId}
         />
       )}
 
-      {market.status === 'resolved' && (
+      {activeMarket.status === 'resolved' && (
         <RedeemPanel
-          market={market}
+          market={activeMarket}
           positions={positions}
           lpPositions={lpPositionsData || []}
           onRedeem={handleRedeem}
@@ -896,9 +979,9 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
         />
       )}
 
-      {market.status === 'voided' && (
+      {activeMarket.status === 'voided' && (
         <RefundPanel
-          market={market}
+          market={activeMarket}
           lpPositions={lpPositionsData || []}
           onClaimRefund={handleClaimRefund}
           actionLoading={actionPending}
@@ -1907,6 +1990,7 @@ function PreMarketFundingPanel({
   onFundPreMarket,
   onAddLP,
   actionLoading,
+  activeOptionName,
 }: {
   market: MarketPost
   poolState: any
@@ -1915,6 +1999,7 @@ function PreMarketFundingPanel({
   onFundPreMarket: (amount: number) => Promise<void>
   onAddLP: (amount: number) => Promise<void>
   actionLoading: string | null
+  activeOptionName?: string | null
 }) {
   const currentPoolBalance = poolState?.pool?.currentPoolBalance ?? 0
   const minPoolBalance = 40
@@ -1933,11 +2018,14 @@ function PreMarketFundingPanel({
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-[19px] font-semibold leading-[1.28] tracking-[-0.25px] text-charcoal-primary">
-            Pool Funding
+            {activeOptionName
+              ? `Funding Pool: ${activeOptionName}`
+              : 'Pool Funding'}
           </h2>
           <p className="mt-1 text-sm tracking-[-0.18px] text-ash">
-            Fund this market's launch pool. Contributions help open trading and
-            may earn liquidity rewards.
+            {activeOptionName
+              ? `Fund the launch pool for the option: ${activeOptionName}. Each outcome option has a separate liquidity pool and must be funded individually.`
+              : "Fund this market's launch pool. Contributions help open trading and may earn liquidity rewards."}
           </p>
         </div>
         <span className="rounded-full bg-meadow-green/10 px-3 py-1 font-mono text-xs font-semibold text-charcoal-primary shadow-[(--shadow-subtle)]">
@@ -1945,9 +2033,24 @@ function PreMarketFundingPanel({
         </span>
       </div>
 
+      {activeOptionName && (
+        <div className="mb-4 rounded-[12px] bg-sky-blue/5 border border-sky-blue/10 p-3 text-[11px] leading-[1.4] text-sky-blue flex gap-2 items-start shadow-[var(--shadow-subtle)]">
+          <Info className="h-4 w-4 shrink-0 text-sky-blue mt-0.5" />
+          <div>
+            <span>
+              You are currently funding the <strong>{activeOptionName}</strong>{' '}
+              pool. Each option pool is <strong>separate</strong> and must reach
+              40 USDC to activate trading for that option.
+            </span>
+          </div>
+        </div>
+      )}
+
       <div className="mb-5 rounded-[12px] bg-parchment-card p-4 shadow-[(--shadow-subtle)]">
         <div className="mb-1 flex justify-between font-mono text-xs text-ash">
-          <span>Pool Funding</span>
+          <span>
+            {activeOptionName ? `${activeOptionName} Pool` : 'Pool Funding'}
+          </span>
           <span className="font-semibold text-charcoal-primary">
             {currentPoolBalance} USDC
           </span>
@@ -2015,7 +2118,9 @@ function PreMarketFundingPanel({
         ) : (
           <div className="rounded-[12px] bg-parchment-card p-4 shadow-[(--shadow-subtle)]">
             <h3 className="mb-3 text-sm font-semibold text-charcoal-primary">
-              Fund the Launch Pool
+              {activeOptionName
+                ? `Fund the ${activeOptionName} Pool`
+                : 'Fund the Launch Pool'}
             </h3>
             <div className="flex gap-2">
               <input
@@ -2036,7 +2141,7 @@ function PreMarketFundingPanel({
                 onClick={() => onAddLP(Number(depositAmount))}
                 type="button"
               >
-                {actionLoading === 'add_lp' ? 'Funding...' : 'Fund'}
+                {actionLoading === 'add_lp' ? 'Funding...' : 'Fund Pool'}
               </button>
             </div>
             <p className="mt-2 font-mono text-[10px] leading-relaxed text-ash">
@@ -2602,6 +2707,169 @@ function RefundPanel({
             ? 'Claiming Refund...'
             : 'Claim USDC Refund'}
         </button>
+      </div>
+    </section>
+  )
+}
+
+function OutcomesPanel({
+  childMarkets,
+  selectedChildId,
+  selectedSide,
+  onSelectOptionAndSide,
+  marketStatus,
+}: {
+  childMarkets: MarketPost[]
+  selectedChildId: string | null
+  selectedSide: VoteSide
+  onSelectOptionAndSide: (id: string, side: VoteSide) => void
+  marketStatus?: string
+}) {
+  const isPreMarket = childMarkets.some((child) =>
+    ['open_for_votes', 'qualified', 'funding_pool'].includes(
+      child.status || '',
+    ),
+  )
+
+  return (
+    <section className="verity-card p-5 border border-border bg-surface-solid shadow-[(--shadow-subtle)]">
+      <h2 className="mb-4 font-semibold tracking-[-0.18px] text-charcoal-primary flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span>Outcomes & Options</span>
+        </div>
+        {/* {isPreMarket && (
+          <span className="text-[10px] bg-sky-blue/10 text-sky-blue px-2.5 py-0.5 rounded-full font-mono uppercase tracking-wider font-semibold">
+            Funding Phase
+          </span>
+        )} */}
+      </h2>
+      <div className="grid gap-3 sm:grid-cols-2">
+        {childMarkets.map((child) => {
+          const isSelected = child.id === selectedChildId
+          const isChildPreMarket = [
+            'open_for_votes',
+            'qualified',
+            'funding_pool',
+          ].includes(child.status || '')
+
+          if (isChildPreMarket) {
+            const currentFunding = child.liquidity ?? 0
+            const minFunding = 40
+            const progress = Math.min(100, (currentFunding / minFunding) * 100)
+
+            let borderClass =
+              'border-border bg-surface-muted/50 text-charcoal-primary'
+            if (isSelected) {
+              borderClass =
+                'border-sky-blue bg-sky-blue/[0.02] dark:bg-sky-blue/[0.04] shadow-[var(--shadow-sm)]'
+            }
+
+            return (
+              <div
+                key={child.id}
+                className={`flex flex-col p-4 rounded-xl border transition-all duration-200 ${borderClass}`}
+              >
+                <div className="flex items-start justify-between w-full gap-2">
+                  <span className="font-semibold text-charcoal-primary text-sm line-clamp-2">
+                    {child.optionName || child.question}
+                  </span>
+                  <span className="text-[9px] font-mono text-sky-blue border border-sky-blue/20 bg-sky-blue/5 px-1.5 py-0.5 rounded shrink-0 font-medium">
+                    Separate Pool
+                  </span>
+                </div>
+
+                <div className="mt-3.5 flex flex-col w-full">
+                  <div className="flex items-center justify-between font-mono text-[10px] text-ash mb-1">
+                    <span>Pool Funding Progress</span>
+                    <span className="font-semibold text-charcoal-primary">
+                      {currentFunding} / {minFunding} USDC
+                    </span>
+                  </div>
+                  <div className="h-2 w-full overflow-hidden rounded-full bg-white-surface shadow-[(--shadow-subtle)] border border-stone-surface">
+                    <div
+                      className="h-full bg-sky-blue transition-all duration-500 rounded-full"
+                      style={{ width: `${progress}%` }}
+                    />
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => onSelectOptionAndSide(child.id, 'YES')}
+                  className={`mt-4 w-full text-center py-2 px-3 rounded-lg font-mono text-xs font-bold transition-all duration-150 cursor-pointer ${
+                    isSelected
+                      ? 'bg-sky-blue text-white border border-sky-blue shadow-[var(--shadow-sm)]'
+                      : 'bg-sky-blue/10 text-sky-blue border border-sky-blue/20 hover:bg-sky-blue/20'
+                  }`}
+                >
+                  {isSelected ? '✓ Selected for Funding' : 'Select to Fund'}
+                </button>
+              </div>
+            )
+          }
+
+          const yesPrice = getMarketPrice(child, 'YES')
+          const noPrice = getMarketPrice(child, 'NO')
+
+          const isYesSelected = isSelected && selectedSide === 'YES'
+          const isNoSelected = isSelected && selectedSide === 'NO'
+
+          let borderClass =
+            'border-border bg-surface-muted/50 text-charcoal-primary'
+          if (isYesSelected) {
+            borderClass =
+              'border-meadow-green bg-meadow-green/[0.03] dark:bg-meadow-green/[0.06] shadow-[var(--shadow-sm)]'
+          } else if (isNoSelected) {
+            borderClass =
+              'border-ember-orange bg-ember-orange/[0.03] dark:bg-ember-orange/[0.06] shadow-[var(--shadow-sm)]'
+          }
+
+          return (
+            <div
+              key={child.id}
+              className={`flex flex-col p-4 rounded-xl border transition-all duration-200 ${borderClass}`}
+            >
+              <div className="flex items-center justify-between w-full">
+                <span className="font-semibold text-charcoal-primary text-sm">
+                  {child.optionName || child.question}
+                </span>
+                <span className="text-[10px] font-mono text-ash">
+                  Pool:{' '}
+                  {(
+                    Number(child.usdc_yes_amount || 0) +
+                    Number(child.usdc_no_amount || 0)
+                  ).toFixed(0)}{' '}
+                  USDC
+                </span>
+              </div>
+
+              <div className="mt-3.5 flex items-center gap-2 w-full">
+                <button
+                  type="button"
+                  onClick={() => onSelectOptionAndSide(child.id, 'YES')}
+                  className={`flex-1 text-center py-2 px-3 rounded-lg font-mono text-xs font-bold transition-all duration-150 cursor-pointer ${
+                    isYesSelected
+                      ? 'bg-meadow-green text-white border border-meadow-green shadow-[var(--shadow-sm)]'
+                      : 'bg-meadow-green/10 text-meadow-green border border-meadow-green/20 hover:bg-meadow-green/20'
+                  }`}
+                >
+                  YES: {(yesPrice * 100).toFixed(0)}¢
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onSelectOptionAndSide(child.id, 'NO')}
+                  className={`flex-1 text-center py-2 px-3 rounded-lg font-mono text-xs font-bold transition-all duration-150 cursor-pointer ${
+                    isNoSelected
+                      ? 'bg-ember-orange text-white border border-ember-orange shadow-[var(--shadow-sm)]'
+                      : 'bg-ember-orange/10 text-ember-orange border border-ember-orange/20 hover:bg-ember-orange/15'
+                  }`}
+                >
+                  NO: {(noPrice * 100).toFixed(0)}¢
+                </button>
+              </div>
+            </div>
+          )
+        })}
       </div>
     </section>
   )

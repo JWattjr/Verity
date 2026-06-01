@@ -84,6 +84,10 @@ export interface MarketResponse {
   proposalDisputer?: string | null;
   disputed?: boolean;
   proposedOutcome?: boolean | null;
+  marketType: 'binary' | 'parent' | 'child';
+  parentMarketId: string | null;
+  optionName: string | null;
+  childMarkets?: MarketResponse[] | null;
   createdAt: string;
   created_at: string;
   updatedAt: string;
@@ -171,7 +175,7 @@ export class PostsService {
       : null;
   }
 
-  serializeMarket(market: MarketDocument): MarketResponse {
+  serializeMarket(market: MarketDocument, childMarkets: MarketDocument[] = []): MarketResponse {
     const postId = market.postId.toString();
     const authorId = market.authorId.toString();
     const createdAt = market.createdAt
@@ -237,6 +241,12 @@ export class PostsService {
       proposalDisputer: market.proposalDisputer,
       disputed: market.disputed,
       proposedOutcome: market.proposedOutcome,
+      marketType: market.marketType || "binary",
+      parentMarketId: market.parentMarketId ? market.parentMarketId.toString() : null,
+      optionName: market.optionName || null,
+      childMarkets: childMarkets && childMarkets.length > 0
+        ? childMarkets.map(c => this.serializeMarket(c))
+        : null,
       createdAt,
       created_at: createdAt,
       updatedAt,
@@ -330,8 +340,15 @@ export class PostsService {
           {
             $lookup: {
               from: 'markets',
-              localField: 'postId',
-              foreignField: 'postId',
+              let: { postId: '$postId' },
+              pipeline: [
+                {
+                  $match: {
+                    $expr: { $eq: ['$postId', '$$postId'] },
+                    marketType: { $ne: 'child' },
+                  },
+                },
+              ],
               as: 'parentMarket',
             },
           },
@@ -452,8 +469,26 @@ export class PostsService {
     const authorIds = posts.map((post) => post.authorId);
     const [authors, markets] = await Promise.all([
       this.userModel.find({ _id: { $in: authorIds } }),
-      this.marketModel.find({ postId: { $in: postIds } }),
+      this.marketModel.find({ postId: { $in: postIds }, marketType: { $ne: 'child' } }),
     ]);
+
+    // Fetch child markets for any parent markets in the feed
+    const parentMarketIds = markets
+      .filter((m) => m.marketType === 'parent')
+      .map((m) => m._id);
+    
+    const allChildMarkets = parentMarketIds.length > 0
+      ? await this.marketModel.find({ parentMarketId: { $in: parentMarketIds } })
+      : [];
+
+    const childMarketsMap = new Map<string, MarketDocument[]>();
+    for (const child of allChildMarkets) {
+      const parentIdStr = child.parentMarketId!.toString();
+      if (!childMarketsMap.has(parentIdStr)) {
+        childMarketsMap.set(parentIdStr, []);
+      }
+      childMarketsMap.get(parentIdStr)!.push(child);
+    }
 
     const authorMap = new Map(
       authors.map((author) => [author.id, serializeUser(author)]),
@@ -502,12 +537,13 @@ export class PostsService {
     return posts.map((post) => {
       const base = this.serializePost(post);
       const market = marketMap.get(post.id) || null;
+      const children = market ? childMarketsMap.get(market.id) || [] : [];
 
       return {
         ...base,
         author:
           authorMap.get(base.authorId) || placeholderUserProfile(base.authorId),
-        market: market ? this.serializeMarket(market) : null,
+        market: market ? this.serializeMarket(market, children) : null,
         viewerLiked: liked.has(post.id),
         viewerReshared: reshared.has(post.id),
         viewerVote: market ? voteMap.get(market.id) || null : null,
@@ -526,8 +562,13 @@ export class PostsService {
 
     const [author, market] = await Promise.all([
       this.userModel.findById(post.authorId),
-      this.marketModel.findOne({ postId: post._id }),
+      this.marketModel.findOne({ postId: post._id, marketType: { $ne: 'child' } }),
     ]);
+
+    let childMarkets: MarketDocument[] = [];
+    if (market && market.marketType === 'parent') {
+      childMarkets = await this.marketModel.find({ parentMarketId: market._id });
+    }
 
     const marketId = market?._id;
     const [viewerLiked, viewerReshared, viewerVote] = await Promise.all([
@@ -561,7 +602,7 @@ export class PostsService {
       author: author
         ? serializeUser(author)
         : placeholderUserProfile(post.authorId.toString()),
-      market: market ? this.serializeMarket(market) : null,
+      market: market ? this.serializeMarket(market, childMarkets) : null,
       viewerLiked: !!viewerLiked,
       viewerReshared: !!viewerReshared,
       viewerVote: viewerVote ? (viewerVote.side as VoteSide) : null,
@@ -614,24 +655,23 @@ export class PostsService {
       );
     }
 
+    // Check if the transaction hash has already been used by any existing market
+    const existingMarket = await this.marketModel.findOne({
+      creationFeeTxHash: input.creationFeeTxHash.trim(),
+    });
+    if (existingMarket) {
+      throw new BadRequestException(
+        'This transaction hash has already been used to create a market.',
+      );
+    }
+
     this.validateMarketHeuristics(input);
 
     const mId = input.marketId
       ? new Types.ObjectId(input.marketId)
       : new Types.ObjectId();
 
-    // Verify createMarketPreDeposit transaction on-chain
-    const amountBigint =
-      await this.blockchainService.verifyCreateMarketPreDeposit(
-        input.creationFeeTxHash,
-        mId.toString(),
-      );
-    if (amountBigint === null) {
-      throw new BadRequestException(
-        'Invalid or failed createMarketPreDeposit transaction on-chain.',
-      );
-    }
-    const creatorDepositUsdc = Number(amountBigint) / 1e6;
+    const isMultiOption = input.options && input.options.length > 0 && input.optionMarketIds && input.optionMarketIds.length > 0;
 
     const post = await this.postModel.create({
       authorId: new Types.ObjectId(profileId),
@@ -641,34 +681,121 @@ export class PostsService {
 
     const isPythMarket = !!input.priceFeedId;
 
-    await this.marketModel.create({
-      _id: mId,
-      postId: post._id,
-      authorId: new Types.ObjectId(profileId),
-      question: input.question.trim(),
-      category: input.category.trim(),
-      deadline: new Date(input.deadline),
-      resolutionSource: input.resolutionSource.trim(),
-      yesCondition: input.yesCondition.trim(),
-      noCondition: input.noCondition.trim(),
-      marketCreationFeeUsdc: 1,
-      creationFeeTxHash: input.creationFeeTxHash.trim(),
-      feeCollectorAddress: input.feeCollectorAddress.trim(),
-      status: 'open_for_votes',
-      priceFeedId: isPythMarket ? input.priceFeedId!.trim() : null,
-      targetPrice: isPythMarket ? input.targetPrice : null,
-      resolveAbove: isPythMarket ? input.resolveAbove : null,
-      isPythMarket,
-    });
+    if (isMultiOption) {
+      // 1. Create parent market in DB
+      const parentMarketId = mId;
+      const parentMarket = await this.marketModel.create({
+        _id: parentMarketId,
+        postId: post._id,
+        authorId: new Types.ObjectId(profileId),
+        question: input.question.trim(),
+        category: input.category.trim(),
+        deadline: new Date(input.deadline),
+        resolutionSource: input.resolutionSource.trim(),
+        yesCondition: "Any of the options wins",
+        noCondition: "None of the options wins",
+        marketCreationFeeUsdc: 1,
+        creationFeeTxHash: input.creationFeeTxHash.trim(),
+        feeCollectorAddress: input.feeCollectorAddress.trim(),
+        status: 'open_for_votes',
+        isPythMarket: false,
+        marketType: 'parent',
+        parentMarketId: null,
+        optionName: null,
+      });
 
-    // Automatically initialize liquidity pool in DB from the pre-deposit
-    await this.liquidityService.initializePoolFromPreDeposit(
-      mId.toString(),
-      profileId,
-      author.walletAddress,
-      input.creationFeeTxHash.trim(),
-      creatorDepositUsdc,
-    );
+      // 2. Loop and create child markets
+      for (let i = 0; i < input.options!.length; i++) {
+        const option = input.options![i];
+        const childMarketIdStr = input.optionMarketIds![i];
+        const childMarketId = new Types.ObjectId(childMarketIdStr);
+
+        // Verify pre-deposit for each child market
+        const childAmountBigint = await this.blockchainService.verifyCreateMarketPreDeposit(
+          input.creationFeeTxHash.trim(),
+          childMarketIdStr,
+        );
+
+        if (childAmountBigint === null) {
+          throw new BadRequestException(
+            `Failed to verify createMarketPreDeposit transaction on-chain for option ${option} (${childMarketIdStr}).`,
+          );
+        }
+        const childCreatorDepositUsdc = Number(childAmountBigint) / 1e6;
+
+        await this.marketModel.create({
+          _id: childMarketId,
+          postId: post._id,
+          authorId: new Types.ObjectId(profileId),
+          question: `${input.question.trim()} (${option.trim()})`,
+          category: input.category.trim(),
+          deadline: new Date(input.deadline),
+          resolutionSource: input.resolutionSource.trim(),
+          yesCondition: `${option.trim()} resolves to YES`,
+          noCondition: `${option.trim()} resolves to NO`,
+          marketCreationFeeUsdc: 1,
+          creationFeeTxHash: input.creationFeeTxHash.trim(),
+          feeCollectorAddress: input.feeCollectorAddress.trim(),
+          status: 'open_for_votes',
+          isPythMarket: false,
+          marketType: 'child',
+          parentMarketId: parentMarketId,
+          optionName: option.trim(),
+        });
+
+        // Initialize liquidity pool in DB for the child market
+        await this.liquidityService.initializePoolFromPreDeposit(
+          childMarketIdStr,
+          profileId,
+          author.walletAddress,
+          input.creationFeeTxHash.trim(),
+          childCreatorDepositUsdc,
+        );
+      }
+    } else {
+      // Binary (original single option flow)
+      const amountBigint =
+        await this.blockchainService.verifyCreateMarketPreDeposit(
+          input.creationFeeTxHash,
+          mId.toString(),
+        );
+      if (amountBigint === null) {
+        throw new BadRequestException(
+          'Invalid or failed createMarketPreDeposit transaction on-chain.',
+        );
+      }
+      const creatorDepositUsdc = Number(amountBigint) / 1e6;
+
+      await this.marketModel.create({
+        _id: mId,
+        postId: post._id,
+        authorId: new Types.ObjectId(profileId),
+        question: input.question.trim(),
+        category: input.category.trim(),
+        deadline: new Date(input.deadline),
+        resolutionSource: input.resolutionSource.trim(),
+        yesCondition: input.yesCondition.trim(),
+        noCondition: input.noCondition.trim(),
+        marketCreationFeeUsdc: 1,
+        creationFeeTxHash: input.creationFeeTxHash.trim(),
+        feeCollectorAddress: input.feeCollectorAddress.trim(),
+        status: 'open_for_votes',
+        priceFeedId: isPythMarket ? input.priceFeedId!.trim() : null,
+        targetPrice: isPythMarket ? input.targetPrice : null,
+        resolveAbove: isPythMarket ? input.resolveAbove : null,
+        isPythMarket,
+        marketType: 'binary',
+      });
+
+      // Automatically initialize liquidity pool in DB from the pre-deposit
+      await this.liquidityService.initializePoolFromPreDeposit(
+        mId.toString(),
+        profileId,
+        author.walletAddress,
+        input.creationFeeTxHash.trim(),
+        creatorDepositUsdc,
+      );
+    }
 
     const createdPost = await this.findPostById(post.id, profileId);
     this.logger.log(`Successfully created market post ${post.id} (market: ${mId}) by author ${profileId}`);

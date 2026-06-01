@@ -23,7 +23,7 @@ export type MarketTradeDocument = HydratedDocument<MarketTrade>;
 
 @Schema({ timestamps: true, versionKey: false })
 export class Market {
-  @Prop({ type: MongooseSchema.Types.ObjectId, ref: "Post", required: true, unique: true })
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: "Post", required: true, index: true })
   postId: Types.ObjectId;
 
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: "User", required: true, index: true })
@@ -118,6 +118,20 @@ export class Market {
   @Prop({ type: Boolean, default: false })
   isPythMarket: boolean;
 
+  @Prop({
+    type: String,
+    enum: ["binary", "parent", "child"],
+    default: "binary",
+    index: true,
+  })
+  marketType: "binary" | "parent" | "child";
+
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: "Market", default: null, index: true })
+  parentMarketId: Types.ObjectId | null;
+
+  @Prop({ type: String, default: null, trim: true })
+  optionName: string | null;
+
   @Prop({ type: String, default: null })
   proposalReasoning: string | null;
 
@@ -144,7 +158,7 @@ export const MarketSchema = SchemaFactory.createForClass(Market);
 
 MarketSchema.index(
   { creationFeeTxHash: 1 },
-  { unique: true, partialFilterExpression: { creationFeeTxHash: { $type: "string" } } },
+  { partialFilterExpression: { creationFeeTxHash: { $type: "string" } } },
 );
 
 @Schema({ timestamps: true, versionKey: false })

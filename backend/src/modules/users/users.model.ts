@@ -15,6 +15,9 @@ export class User {
   @Prop({ type: String, default: null, trim: true, index: true })
   privyDid: string | null;
 
+  @Prop({ type: String, default: null, trim: true, index: true })
+  circleWalletId: string | null;
+
   @Prop({ type: String, required: true, unique: true, trim: true })
   username: string;
 
@@ -74,3 +77,20 @@ export class Follow {
 
 export const FollowSchema = SchemaFactory.createForClass(Follow);
 FollowSchema.index({ followerId: 1, followingId: 1 }, { unique: true });
+
+@Schema({ timestamps: true, versionKey: false })
+export class OtpCode {
+  @Prop({ type: String, required: true, trim: true, lowercase: true, index: true })
+  email: string;
+
+  @Prop({ type: String, required: true, trim: true })
+  code: string;
+
+  @Prop({ type: Date, required: true })
+  expiresAt: Date;
+}
+
+export type OtpCodeDocument = HydratedDocument<OtpCode>;
+export const OtpCodeSchema = SchemaFactory.createForClass(OtpCode);
+// Ensure OtpCode document expires automatically when expiresAt passes
+OtpCodeSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
