@@ -912,7 +912,11 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
         onShare={() => sharePost(item)}
         onVote={(side) =>
           runAction("free_vote", () =>
-            castFreeVote({ marketId: market.id, userId: profile!.id, side }),
+            castFreeVote({
+              marketId: market.id,
+              userId: profile!.id,
+              side,
+            }),
           )
         }
         reshares={item.resharesCount}

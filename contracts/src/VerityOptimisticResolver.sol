@@ -199,7 +199,10 @@ contract VerityOptimisticResolver {
     }
 
     /// @notice Dispute an existing resolution proposal on behalf of a beneficiary.
-    function disputeResolutionFor(bytes32 marketId, address beneficiary) external {
+    function disputeResolutionFor(
+        bytes32 marketId,
+        address beneficiary
+    ) external {
         Proposal storage prop = proposals[marketId];
         if (prop.proposer == address(0)) revert ProposalDoesNotExist();
         if (prop.disputed) revert ProposalAlreadyDisputed();
@@ -215,7 +218,6 @@ contract VerityOptimisticResolver {
 
         emit ResolutionDisputed(marketId, beneficiary, block.timestamp);
     }
-
 
     /// @notice Finalize an undisputed proposal after the dispute window has elapsed.
     function finalizeResolution(bytes32 marketId) external {

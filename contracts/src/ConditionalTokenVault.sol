@@ -14,8 +14,8 @@ contract ConditionalTokenVault is ERC1155 {
     // ─── State ───────────────────────────────────────────────────────────
     IERC20 public immutable usdc;
     address public admin;
-    address public fpmm;     // Authorized VerityFPMM contract
-    address public factory;  // Authorized VerityMarketFactory contract
+    address public fpmm; // Authorized VerityFPMM contract
+    address public factory; // Authorized VerityMarketFactory contract
 
     struct MarketOutcome {
         bool resolved;
@@ -29,10 +29,23 @@ contract ConditionalTokenVault is ERC1155 {
     mapping(uint256 => uint256) public totalSupply;
 
     // ─── Events ──────────────────────────────────────────────────────────
-    event PairMinted(bytes32 indexed marketId, address indexed to, uint256 amount);
-    event PairBurned(bytes32 indexed marketId, address indexed from, uint256 amount);
+    event PairMinted(
+        bytes32 indexed marketId,
+        address indexed to,
+        uint256 amount
+    );
+    event PairBurned(
+        bytes32 indexed marketId,
+        address indexed from,
+        uint256 amount
+    );
     event MarketResolved(bytes32 indexed marketId, bool winningIsYes);
-    event WinningsRedeemed(bytes32 indexed marketId, address indexed user, uint256 tokens, uint256 usdcPayout);
+    event WinningsRedeemed(
+        bytes32 indexed marketId,
+        address indexed user,
+        uint256 tokens,
+        uint256 usdcPayout
+    );
 
     // ─── Errors ──────────────────────────────────────────────────────────
     error Unauthorized();
@@ -93,7 +106,11 @@ contract ConditionalTokenVault is ERC1155 {
     /// @param marketId The market identifier
     /// @param to Address to receive the minted tokens
     /// @param amount Number of token pairs to mint (in USDC base units, 6 decimals)
-    function mintPair(bytes32 marketId, address to, uint256 amount) external onlyFPMM {
+    function mintPair(
+        bytes32 marketId,
+        address to,
+        uint256 amount
+    ) external onlyFPMM {
         if (amount == 0) revert ZeroAmount();
         if (markets[marketId].resolved) revert MarketAlreadyResolved();
 
@@ -120,7 +137,11 @@ contract ConditionalTokenVault is ERC1155 {
     /// @param marketId The market identifier
     /// @param from Address to burn tokens from (must have approved this contract)
     /// @param amount Number of token pairs to burn
-    function burnPair(bytes32 marketId, address from, uint256 amount) external onlyFPMM {
+    function burnPair(
+        bytes32 marketId,
+        address from,
+        uint256 amount
+    ) external onlyFPMM {
         if (amount == 0) revert ZeroAmount();
         if (markets[marketId].resolved) revert MarketAlreadyResolved();
 

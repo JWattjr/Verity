@@ -13,3 +13,8 @@ quote_type = double
 
 [*.md]
 trim_trailing_whitespace = false
+
+[*.sol]
+indent_style = space
+indent_size = 4
+
