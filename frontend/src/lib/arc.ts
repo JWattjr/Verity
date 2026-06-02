@@ -1,9 +1,9 @@
-import { defineChain, http, createPublicClient } from "viem";
-import type { Address } from "viem";
+import { defineChain, http, createPublicClient } from "viem"
+import type { Address } from "viem"
 
-const chainId = Number(process.env.NEXT_PUBLIC_ARC_TESTNET_CHAIN_ID || "5042002");
-const rpcUrl = process.env.NEXT_PUBLIC_ARC_TESTNET_RPC_URL || "https://rpc.testnet.arc.network";
-const usdcAddress = process.env.NEXT_PUBLIC_ARC_TESTNET_USDC_ADDRESS || "0x3600000000000000000000000000000000000000";
+const chainId = Number(process.env.NEXT_PUBLIC_ARC_TESTNET_CHAIN_ID || "")
+const rpcUrl = process.env.NEXT_PUBLIC_ARC_TESTNET_RPC_URL || ""
+const usdcAddress = process.env.NEXT_PUBLIC_ARC_TESTNET_USDC_ADDRESS || ""
 
 export const arcTestnet = defineChain({
   id: chainId,
@@ -19,32 +19,33 @@ export const arcTestnet = defineChain({
     },
   },
   testnet: true,
-});
+})
 
-export const arcTransport = http(rpcUrl);
+export const arcTransport = http(rpcUrl)
 
 export const publicClient = createPublicClient({
   chain: arcTestnet,
   transport: arcTransport,
-});
+})
 
-export const arcUsdcAddress = usdcAddress as Address;
+export const arcUsdcAddress = usdcAddress as Address
 
-export const FACTORY_ADDRESS = (process.env.NEXT_PUBLIC_FACTORY_ADDRESS || "0x47248BfD909337F78De56Aaa82d070Eb8964F30F") as Address;
-export const FPMM_ADDRESS = (process.env.NEXT_PUBLIC_FPMM_ADDRESS || "0x51203EF25B201A9138603d50711092698C350e24") as Address;
-export const RESOLVER_ADDRESS = (process.env.NEXT_PUBLIC_RESOLVER_ADDRESS || "0x8D387a1704E7efb92b315e97db54DA92a6212A1b") as Address;
-export const VAULT_ADDRESS = (process.env.NEXT_PUBLIC_VAULT_ADDRESS || "0x53B2404b703B78e0dfca79ffA0BDf7eBCb17E563") as Address;
-export const ROUTER_ADDRESS = (process.env.NEXT_PUBLIC_ROUTER_ADDRESS || "0xfd5b97972669Dbd447560B4c7b0eEbe7BD58ff3d") as Address;
-
-
+export const FACTORY_ADDRESS = (process.env.NEXT_PUBLIC_FACTORY_ADDRESS ||
+  "") as Address
+export const FPMM_ADDRESS = (process.env.NEXT_PUBLIC_FPMM_ADDRESS ||
+  "") as Address
+export const RESOLVER_ADDRESS = (process.env.NEXT_PUBLIC_RESOLVER_ADDRESS ||
+  "") as Address
+export const VAULT_ADDRESS = (process.env.NEXT_PUBLIC_VAULT_ADDRESS ||
+  "") as Address
 
 export function hasArcWalletConfig() {
-  return Boolean(chainId && rpcUrl && usdcAddress);
+  return Boolean(chainId && rpcUrl && usdcAddress)
 }
 
 export function shortAddress(address?: string) {
-  if (!address) return "";
-  return `${address.slice(0, 6)}...${address.slice(-4)}`;
+  if (!address) return ""
+  return `${address.slice(0, 6)}...${address.slice(-4)}`
 }
 
 // Consolidated Contract ABIs
@@ -86,7 +87,7 @@ export const erc20Abi = [
     ],
     outputs: [{ name: "", type: "bool" }],
   },
-] as const;
+] as const
 
 export const erc1155Abi = [
   {
@@ -119,7 +120,7 @@ export const erc1155Abi = [
     ],
     outputs: [],
   },
-] as const;
+] as const
 
 export const factoryAbi = [
   {
@@ -146,12 +147,10 @@ export const factoryAbi = [
     name: "claimRefund",
     type: "function",
     stateMutability: "nonpayable",
-    inputs: [
-      { name: "marketId", type: "bytes32" },
-    ],
+    inputs: [{ name: "marketId", type: "bytes32" }],
     outputs: [],
   },
-] as const;
+] as const
 
 export const fpmmAbi = [
   {
@@ -203,7 +202,7 @@ export const fpmmAbi = [
     inputs: [{ name: "marketId", type: "bytes32" }],
     outputs: [],
   },
-] as const;
+] as const
 
 export const resolverAbi = [
   {
@@ -234,7 +233,7 @@ export const resolverAbi = [
       { name: "finalized", type: "bool" },
     ],
   },
-] as const;
+] as const
 
 export const vaultAbi = [
   {
@@ -244,82 +243,13 @@ export const vaultAbi = [
     inputs: [{ name: "marketId", type: "bytes32" }],
     outputs: [],
   },
-] as const;
-
-export const routerAbi = [
-  {
-    name: "createMarketPreDeposit",
-    type: "function",
-    stateMutability: "nonpayable",
-    inputs: [
-      { name: "factory", type: "address" },
-      { name: "marketId", type: "bytes32" },
-      { name: "creatorLpAmount", type: "uint256" },
-    ],
-    outputs: [],
-  },
-  {
-    name: "depositPreMarketLiquidity",
-    type: "function",
-    stateMutability: "nonpayable",
-    inputs: [
-      { name: "factory", type: "address" },
-      { name: "marketId", type: "bytes32" },
-      { name: "amount", type: "uint256" },
-    ],
-    outputs: [],
-  },
-  {
-    name: "buy",
-    type: "function",
-    stateMutability: "nonpayable",
-    inputs: [
-      { name: "fpmm", type: "address" },
-      { name: "marketId", type: "bytes32" },
-      { name: "isYes", type: "bool" },
-      { name: "usdcAmount", type: "uint256" },
-    ],
-    outputs: [{ name: "tokensOut", type: "uint256" }],
-  },
-  {
-    name: "addLiquidity",
-    type: "function",
-    stateMutability: "nonpayable",
-    inputs: [
-      { name: "fpmm", type: "address" },
-      { name: "marketId", type: "bytes32" },
-      { name: "usdcAmount", type: "uint256" },
-    ],
-    outputs: [],
-  },
-  {
-    name: "proposeResolution",
-    type: "function",
-    stateMutability: "nonpayable",
-    inputs: [
-      { name: "resolver", type: "address" },
-      { name: "marketId", type: "bytes32" },
-      { name: "proposedOutcome", type: "bool" },
-    ],
-    outputs: [],
-  },
-  {
-    name: "disputeResolution",
-    type: "function",
-    stateMutability: "nonpayable",
-    inputs: [
-      { name: "resolver", type: "address" },
-      { name: "marketId", type: "bytes32" },
-    ],
-    outputs: [],
-  },
-] as const;
+] as const
 
 export function formatWeb3Error(error: any): string {
-  if (!error) return "Unknown error occurred.";
+  if (!error) return "Unknown error occurred."
 
-  const message = String(error.message || error);
-  const shortMessage = String(error.shortMessage || "");
+  const message = String(error.message || error)
+  const shortMessage = String(error.shortMessage || "")
 
   // 1. Check for user rejection / cancellation
   if (
@@ -328,7 +258,7 @@ export function formatWeb3Error(error: any): string {
     shortMessage.includes("User rejected") ||
     shortMessage.includes("User denied")
   ) {
-    return "Transaction was cancelled by user.";
+    return "Transaction was cancelled by user."
   }
 
   // 2. Check for revert reasons / specific ERC20 errors
@@ -336,32 +266,31 @@ export function formatWeb3Error(error: any): string {
     message.includes("transfer amount exceeds allowance") ||
     shortMessage.includes("transfer amount exceeds allowance")
   ) {
-    return "USDC transfer exceeds allowance. Please approve the USDC transaction first.";
+    return "USDC transfer exceeds allowance. Please approve the USDC transaction first."
   }
   if (
     message.includes("transfer amount exceeds balance") ||
     shortMessage.includes("transfer amount exceeds balance")
   ) {
-    return "Insufficient USDC balance to complete this transaction.";
+    return "Insufficient USDC balance to complete this transaction."
   }
   if (
     message.includes("insufficient funds for gas") ||
     shortMessage.includes("insufficient funds for gas")
   ) {
-    return "Insufficient testnet funds for transaction gas.";
+    return "Insufficient funds for transaction gas."
   }
 
   // Fallback to shortMessage if available, otherwise a clean summary of message
   if (shortMessage) {
-    return shortMessage;
+    return shortMessage
   }
 
   // If it's a long viem error message, try to extract the reason
-  const match = message.match(/reverted with reason:\s*([^.\n]+)/);
+  const match = message.match(/reverted with reason:\s*([^.\n]+)/)
   if (match && match[1]) {
-    return `Execution reverted: ${match[1].trim()}`;
+    return `Execution reverted: ${match[1].trim()}`
   }
 
-  return message.slice(0, 120);
+  return message.slice(0, 120)
 }
-

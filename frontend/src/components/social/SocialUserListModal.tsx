@@ -1,10 +1,10 @@
-'use client'
+"use client"
 
-import Link from 'next/link'
-import { Search, X } from 'lucide-react'
-import { useMemo, useState } from 'react'
-import FollowButton from '@/components/profile/FollowButton'
-import { displayHandle, displayName, type Profile } from '@/lib/verity'
+import Link from "next/link"
+import { Search, X } from "lucide-react"
+import { useMemo, useState } from "react"
+import FollowButton from "@/components/profile/FollowButton"
+import { displayHandle, displayName, type Profile } from "@/lib/verity"
 
 interface SocialUserListModalProps {
   open: boolean
@@ -21,7 +21,7 @@ export default function SocialUserListModal({
   users,
   onClose,
 }: SocialUserListModalProps) {
-  const [query, setQuery] = useState('')
+  const [query, setQuery] = useState("")
   const filteredUsers = useMemo(() => {
     const normalized = query.trim().toLowerCase()
     if (!normalized) return users
@@ -30,7 +30,7 @@ export default function SocialUserListModal({
       return (
         displayName(user).toLowerCase().includes(normalized) ||
         displayHandle(user).toLowerCase().includes(normalized) ||
-        (user.bio || '').toLowerCase().includes(normalized)
+        (user.bio || "").toLowerCase().includes(normalized)
       )
     })
   }, [query, users])
@@ -53,7 +53,7 @@ export default function SocialUserListModal({
           </div>
           <button
             aria-label="Close"
-            className="flex h-9 w-9 items-center justify-center rounded-full bg-parchment-card text-charcoal-primary shadow-[(--shadow-subtle)] transition-colors hover:bg-stone-surface"
+            className="flex h-9 w-9 items-center justify-center rounded-full bg-parchment-card text-charcoal-primary shadow-subtle transition-colors hover:bg-stone-surface"
             onClick={onClose}
             type="button"
           >
@@ -65,7 +65,7 @@ export default function SocialUserListModal({
           <div className="relative">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ash" />
             <input
-              className="h-11 w-full rounded-[32px] bg-parchment-card pl-10 pr-4 text-sm tracking-[-0.18px] text-charcoal-primary shadow-[(--shadow-subtle)] outline-none placeholder:text-ash focus:ring-2 focus:ring-stone-surface"
+              className="h-11 w-full rounded-[32px] bg-parchment-card pl-10 pr-4 text-sm tracking-[-0.18px] text-charcoal-primary shadow-subtle outline-none placeholder:text-ash focus:ring-2 focus:ring-stone-surface"
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Search people"
               value={query}
@@ -129,7 +129,7 @@ function ProfileAvatar({ profile }: { profile: Profile }) {
   if (avatarUrl) {
     return (
       <span
-        className="h-11 w-11 shrink-0 rounded-[16px] bg-cover bg-center shadow-[(--shadow-subtle)]"
+        className="h-11 w-11 shrink-0 rounded-[16px] bg-cover bg-center shadow-subtle"
         style={{ backgroundImage: `url(${avatarUrl})` }}
       />
     )

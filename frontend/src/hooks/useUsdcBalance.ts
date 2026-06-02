@@ -1,54 +1,44 @@
-"use client";
+"use client"
 
-import { useEffect, useState } from "react";
-import { usePrivyWallet } from "@/hooks/usePrivyWallet";
-import { arcUsdcAddress, erc20Abi, publicClient } from "@/lib/arc";
+import { useQuery } from "@tanstack/react-query"
+import { useAuth } from "@/components/providers/AuthModals"
+import { arcUsdcAddress, erc20Abi, publicClient } from "@/lib/arc"
 
 export function useUsdcBalance() {
-  const { address, isConnected } = usePrivyWallet();
-  const [balance, setBalance] = useState<bigint>(BigInt(0));
-  const [isLoading, setIsLoading] = useState(false);
+  const { user } = useAuth()
+  const address = user?.walletAddress
 
-  const refetch = async () => {
-    if (!address) {
-      setBalance(BigInt(0));
-      return;
-    }
-    setIsLoading(true);
-    try {
+  const query = useQuery({
+    queryKey: ["usdcBalance", address],
+    queryFn: async () => {
+      if (!address) return BigInt(0)
       const data = await publicClient.readContract({
         address: arcUsdcAddress,
         abi: erc20Abi,
         functionName: "balanceOf",
         args: [address as `0x${string}`],
-      });
-      setBalance(BigInt(data.toString()));
-    } catch (err) {
-      console.error("Error reading USDC balance:", err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+      })
+      return BigInt(data.toString())
+    },
+    enabled: !!address,
+    refetchInterval: 5000, // Refetch balance every 5 seconds for real-time updates
+  })
 
-  useEffect(() => {
-    if (isConnected && address) {
-      refetch();
-    } else {
-      setBalance(BigInt(0));
-    }
-  }, [address, isConnected]);
+  const rawBalance = query.data ?? BigInt(0)
 
-  const rawBalance = balance;
   // USDC has 6 decimals on Arc Testnet
-  const formattedBalance = (Number(rawBalance) / 1e6).toLocaleString(undefined, {
-    minimumFractionDigits: 4,
-    maximumFractionDigits: 4,
-  });
+  const formattedBalance = (Number(rawBalance) / 1e6).toLocaleString(
+    undefined,
+    {
+      minimumFractionDigits: 4,
+      maximumFractionDigits: 4,
+    },
+  )
 
   return {
     rawBalance,
     formattedBalance,
-    isLoading,
-    refetch,
-  };
+    isLoading: query.isLoading,
+    refetch: query.refetch,
+  }
 }

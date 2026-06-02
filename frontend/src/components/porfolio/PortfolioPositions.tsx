@@ -1,8 +1,8 @@
-'use client'
+"use client"
 
-import { useUserPortfolio } from '@/hooks/useUserPortfolio'
-import Link from 'next/link'
-import { ArrowUpRight, TrendingUp } from 'lucide-react'
+import { useUserPortfolio } from "@/hooks/useUserPortfolio"
+import Link from "next/link"
+import { ArrowUpRight, TrendingUp } from "lucide-react"
 
 export default function PortfolioPositions() {
   const { positions, isLoading, stats } = useUserPortfolio()
@@ -10,8 +10,8 @@ export default function PortfolioPositions() {
   if (isLoading) {
     return (
       <div className="flex flex-col gap-4 animate-pulse">
-        <div className="h-24 rounded-[12px] bg-parchment-card shadow-[(--shadow-subtle)]" />
-        <div className="h-48 rounded-[12px] bg-parchment-card shadow-[(--shadow-subtle)]" />
+        <div className="h-24 rounded-[12px] bg-parchment-card shadow-subtle" />
+        <div className="h-48 rounded-[12px] bg-parchment-card shadow-subtle" />
       </div>
     )
   }
@@ -60,20 +60,21 @@ export default function PortfolioPositions() {
         ) : (
           <div className="flex flex-col gap-3">
             {positions.map((pos) => {
-              const yes = pos.side === 'YES'
+              const yes = pos.side === "YES"
               return (
                 <div
                   key={pos.id}
-                  className="group flex flex-col gap-4 rounded-[12px] bg-parchment-card p-4 shadow-[(--shadow-subtle)] transition-colors hover:bg-stone-surface sm:flex-row sm:items-center sm:justify-between"
+                  className="group flex flex-col gap-4 rounded-[12px] bg-parchment-card p-4 shadow-subtle transition-colors hover:bg-stone-surface sm:flex-row sm:items-center sm:justify-between"
                 >
                   <div className="flex-1 min-w-0">
                     <span
-                      className={`verity-pill inline-flex items-center px-2.5 py-0.5 font-mono text-[10px] font-semibold ${yes ? 'bg-meadow-green/10 text-meadow-green' : 'bg-ember-orange/10 text-ember-orange'}`}
+                      className={`verity-pill inline-flex items-center px-2.5 py-0.5 font-mono text-[10px] font-semibold ${yes ? "bg-meadow-green/10 text-meadow-green" : "bg-ember-orange/10 text-ember-orange"}`}
                     >
                       {pos.side}
                     </span>
                     <h3 className="mt-2 line-clamp-2 text-sm font-semibold leading-snug tracking-[-0.18px] text-charcoal-primary transition-colors group-hover:text-ember-orange">
-                      {pos.market_question || `Market ID: ${pos.market_id.slice(0, 12)}...`}
+                      {pos.market_question ||
+                        `Market ID: ${pos.market_id.slice(0, 12)}...`}
                     </h3>
                   </div>
 
@@ -104,7 +105,7 @@ export default function PortfolioPositions() {
                     </div>
                     <Link
                       href={`/markets/${pos.market_id}`}
-                      className="flex h-8 w-8 items-center justify-center rounded-[10px] bg-white-surface text-ash shadow-[(--shadow-subtle)] transition-colors hover:text-charcoal-primary"
+                      className="flex h-8 w-8 items-center justify-center rounded-[10px] bg-white-surface text-ash shadow-subtle transition-colors hover:text-charcoal-primary"
                     >
                       <ArrowUpRight className="h-4 w-4" />
                     </Link>

@@ -1,8 +1,15 @@
-import { Search, Sparkles, TrendingUp } from "lucide-react";
-import PagePanel from "@/components/layout/PagePanel";
-import PeopleDiscovery from "@/components/profile/PeopleDiscovery";
+import { Search, Sparkles, TrendingUp } from "lucide-react"
+import PagePanel from "@/components/layout/PagePanel"
+import PeopleDiscovery from "@/components/profile/PeopleDiscovery"
 
-const TOPICS = ["AI/Tech", "Crypto", "Culture", "Economics", "Politics", "Sports"];
+const TOPICS = [
+  "AI/Tech",
+  "Crypto",
+  "Culture",
+  "Economics",
+  "Politics",
+  "Sports",
+]
 
 const DISCOVERIES = [
   {
@@ -20,7 +27,7 @@ const DISCOVERIES = [
     meta: "5.0k USDC · 41% YES",
     trend: "+4%",
   },
-];
+]
 
 export default function ExplorePage() {
   return (
@@ -33,7 +40,7 @@ export default function ExplorePage() {
         <div className="relative">
           <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-ash" />
           <input
-            className="h-12 w-full rounded-[32px] bg-parchment-card pl-12 pr-4 text-[15px] tracking-[-0.2px] text-charcoal-primary shadow-[(--shadow-subtle)] outline-none placeholder:text-ash focus:ring-2 focus:ring-stone-surface"
+            className="h-12 w-full rounded-[32px] bg-parchment-card pl-12 pr-4 text-[15px] tracking-[-0.2px] text-charcoal-primary shadow-subtle outline-none placeholder:text-ash focus:ring-2 focus:ring-stone-surface"
             placeholder="Search markets, users, topics..."
             type="text"
           />
@@ -48,7 +55,7 @@ export default function ExplorePage() {
         <div className="mt-4 flex flex-wrap gap-2">
           {TOPICS.map((topic) => (
             <button
-              className="verity-pill bg-parchment-card px-4 py-2 text-sm font-medium tracking-[-0.18px] text-graphite shadow-[(--shadow-subtle)] transition-colors hover:bg-stone-surface"
+              className="verity-pill bg-parchment-card px-4 py-2 text-sm font-medium tracking-[-0.18px] text-graphite shadow-subtle transition-colors hover:bg-stone-surface"
               key={topic}
               type="button"
             >
@@ -74,14 +81,18 @@ export default function ExplorePage() {
           >
             <div className="flex items-start justify-between gap-4">
               <div>
-                <h3 className="font-semibold leading-snug tracking-[-0.18px] text-charcoal-primary">{item.title}</h3>
+                <h3 className="font-semibold leading-snug tracking-[-0.18px] text-charcoal-primary">
+                  {item.title}
+                </h3>
                 <p className="mt-2 font-mono text-xs text-ash">{item.meta}</p>
               </div>
-              <span className="font-mono text-sm font-semibold text-meadow-green">{item.trend}</span>
+              <span className="font-mono text-sm font-semibold text-meadow-green">
+                {item.trend}
+              </span>
             </div>
           </article>
         ))}
       </section>
     </PagePanel>
-  );
+  )
 }

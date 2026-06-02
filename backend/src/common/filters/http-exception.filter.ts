@@ -4,70 +4,74 @@ import {
   ExceptionFilter,
   HttpException,
   HttpStatus,
-} from '@nestjs/common';
-import { Response } from 'express';
+  Logger,
+} from "@nestjs/common"
+import { Response } from "express"
 
 @Catch()
 export class HttpExceptionFilter implements ExceptionFilter {
-  catch(exception: any, host: ArgumentsHost) {
-    const ctx = host.switchToHttp();
-    const response = ctx.getResponse<Response>();
+  private readonly logger = new Logger(HttpExceptionFilter.name)
 
-    let status = HttpStatus.INTERNAL_SERVER_ERROR;
-    let message = 'Internal server error.';
-    let errors: any = undefined;
+  catch(exception: any, host: ArgumentsHost) {
+    const ctx = host.switchToHttp()
+    const response = ctx.getResponse<Response>()
+
+    let status = HttpStatus.INTERNAL_SERVER_ERROR
+    let message = "Internal server error."
+    let errors: any = undefined
 
     if (exception instanceof HttpException) {
-      status = exception.getStatus();
-      const resContent: any = exception.getResponse();
+      status = exception.getStatus()
+      const resContent: any = exception.getResponse()
 
-      if (typeof resContent === 'object') {
+      if (typeof resContent === "object") {
         // Handle validation errors from ValidationPipe
         if (
           status === HttpStatus.BAD_REQUEST &&
           Array.isArray(resContent.message)
         ) {
-          status = HttpStatus.UNPROCESSABLE_ENTITY; // 422 mapping
-          message = 'Validation failed.';
+          status = HttpStatus.UNPROCESSABLE_ENTITY // 422 mapping
+          message = "Validation failed."
           errors = resContent.message.map((msg: string) => {
-            // Replicate express-validator error item structure
             return {
-              type: 'field',
+              type: "field",
               msg,
-              path: msg.split(' ')[0]?.toLowerCase() || 'field',
-              location: 'body',
-            };
-          });
+              path: msg.split(" ")[0]?.toLowerCase() || "field",
+              location: "body",
+            }
+          })
         } else {
-          message = resContent.message || exception.message;
+          message = resContent.message || exception.message
         }
       } else {
-        message = resContent || exception.message;
+        message = resContent || exception.message
       }
     } else if (exception instanceof Error) {
-      // Map native status/http codes if present, or name patterns
-      const code = (exception as any).statusCode || (exception as any).status;
-      if (typeof code === 'number') {
-        status = code;
-        message = exception.message;
-      } else if ((exception as any).code === 11000) {
-        status = HttpStatus.CONFLICT;
-        // TODO
-        message = 'Email or username is already in use.';
+      const code = (exception as any).statusCode || (exception as any).status
+      if (typeof code === "number") {
+        status = code
+        message = exception.message
       } else {
-        message = exception.message;
+        message = exception.message
       }
     }
 
     const payload: any = {
       success: false,
       message,
-    };
-
-    if (errors) {
-      payload.errors = errors;
     }
 
-    response.status(status).json(payload);
+    if (errors) {
+      payload.errors = errors
+    }
+
+    if (status >= 500) {
+      this.logger.error(
+        `${status} ${message}`,
+        exception instanceof Error ? exception.stack : undefined,
+      )
+    }
+
+    response.status(status).json(payload)
   }
 }

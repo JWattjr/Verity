@@ -1,7 +1,7 @@
-'use client'
+"use client"
 
-import Link from 'next/link'
-import { usePrivy } from '@privy-io/react-auth'
+import Link from "next/link"
+import { useAuth } from "@/components/providers/AuthModals"
 import {
   ArrowRight,
   BadgeCheck,
@@ -12,45 +12,58 @@ import {
   Sparkles,
   TrendingUp,
   UsersRound,
-} from 'lucide-react'
-import ThemeToggle from '@/components/layout/ThemeToggle'
+} from "lucide-react"
+import ThemeToggle from "@/components/layout/ThemeToggle"
 
 const steps = [
   {
     icon: Sparkles,
-    label: 'Post a Take',
-    text: 'Share a claim, forecast, or conviction with the community.',
+    label: "Post a Take",
+    text: "Share a claim, forecast, or conviction with the community.",
   },
   {
     icon: TrendingUp,
-    label: 'Turn it into a Market',
-    text: 'Strong ideas become Upvote/Downvote signal markets.',
+    label: "Turn it into a Market",
+    text: "Strong ideas become Upvote/Downvote signal markets.",
   },
   {
     icon: HandCoins,
-    label: 'Fund the pool',
-    text: 'Creators and liquidity providers help markets bond with Arc USDC.',
+    label: "Fund the pool",
+    text: "Creators and liquidity providers help markets bond with Arc USDC.",
   },
   {
     icon: BadgeCheck,
-    label: 'Trade outcomes',
-    text: 'Qualified markets open for USDC-backed trading and rewards.',
+    label: "Trade outcomes",
+    text: "Qualified markets open for USDC-backed trading and rewards.",
   },
 ]
 
 const stats = [
-  ['Signal first', 'Markets start with social conviction'],
-  ['One approval', 'Router-powered wallet activation'],
-  ['Pool rewards', 'Creators and LPs can earn after bonding'],
+  ["Signal first", "Markets start with social conviction"],
+  ["Zero Signing", "Developer-controlled smart contract wallets"],
+  ["Pool rewards", "Creators and LPs can earn after bonding"],
 ]
 
-export default function LandingPage({ loading = false }: { loading?: boolean }) {
-  const { login } = usePrivy()
+const statIcons = {
+  "Signal first": MessageSquareText,
+  "Zero Signing": ShieldCheck,
+  "Pool rewards": CircleDollarSign,
+}
+
+export default function LandingPage({
+  loading = false,
+}: {
+  loading?: boolean
+}) {
+  const { login } = useAuth()
 
   return (
     <main className="min-h-screen overflow-hidden bg-warm-canvas text-charcoal-primary">
       <header className="mx-auto flex w-full max-w-[1180px] items-center justify-between px-4 py-3 sm:px-6 sm:py-4">
-        <Link className="clickable-surface flex items-center gap-3 rounded-[14px] p-2" href="/">
+        <Link
+          className="clickable-surface flex items-center gap-3 rounded-[14px] p-2"
+          href="/"
+        >
           <span className="verity-blob landing-wiggle flex h-10 w-10 items-center justify-center bg-sunburst-yellow font-semibold text-midnight [--landing-rotate:-6deg]">
             V
             <span className="verity-blob-smile" />
@@ -76,7 +89,7 @@ export default function LandingPage({ loading = false }: { loading?: boolean }) 
         <div className="pointer-events-none absolute right-[48%] top-[10%] hidden h-8 w-8 rounded-[999px] bg-ember-orange sm:block landing-float-slow" />
 
         <div className="relative z-10 max-w-3xl landing-pop">
-          <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-white-surface px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-graphite shadow-[(--shadow-subtle)] sm:mb-5 sm:text-xs">
+          <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-white-surface px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-graphite shadow-subtle sm:mb-5 sm:text-xs">
             <span className="h-2 w-2 rounded-full bg-meadow-green" />
             Social prediction markets on Arc
           </div>
@@ -98,25 +111,35 @@ export default function LandingPage({ loading = false }: { loading?: boolean }) 
               onClick={login}
               type="button"
             >
-              {loading ? 'Loading' : 'Sign in with Privy'}
+              {loading ? "Loading" : "Get Started (Email OTP)"}
               <ArrowRight className="h-4 w-4" />
             </button>
           </div>
 
-          <div className="mt-6 grid gap-2 sm:mt-8 sm:grid-cols-3 sm:gap-3">
-            {stats.map(([label, text]) => (
-              <div
-                className="landing-pop rounded-[10px] bg-white-surface p-4 shadow-[(--shadow-subtle)]"
-                key={label}
-              >
-                <p className="font-mono text-[11px] font-semibold uppercase tracking-[0.14em] text-ash">
-                  {label}
-                </p>
-                <p className="mt-2 text-sm leading-[1.45] tracking-[-0.18px] text-graphite">
-                  {text}
-                </p>
-              </div>
-            ))}
+          <div className="mt-6 grid gap-3 sm:mt-8 sm:grid-cols-3 sm:gap-4">
+            {stats.map(([label, text]) => {
+              const Icon = statIcons[label as keyof typeof statIcons]
+              return (
+                <div
+                  className="landing-pop rounded-[12px] bg-white-surface p-5 border border-border/60 shadow-subtle hover:shadow-sm hover:-translate-y-0.5 transition-all duration-200 flex flex-col gap-3.5"
+                  key={label}
+                >
+                  <div className="flex items-center justify-between w-full">
+                    <p className="font-mono text-[11px] font-semibold uppercase tracking-[0.14em] text-ash">
+                      {label}
+                    </p>
+                    {Icon && (
+                      <span className="flex h-7 w-7 items-center justify-center rounded-[8px] bg-stone-surface/60 text-ember-orange shadow-subtle border border-border">
+                        <Icon className="h-4 w-4" />
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-sm leading-[1.45] tracking-[-0.18px] text-graphite">
+                    {text}
+                  </p>
+                </div>
+              )
+            })}
           </div>
         </div>
 
@@ -144,11 +167,11 @@ export default function LandingPage({ loading = false }: { loading?: boolean }) 
         <div className="mx-auto grid w-full max-w-[1180px] gap-3 px-4 py-6 sm:px-6 sm:py-8 lg:grid-cols-4">
           {steps.map((step, index) => (
             <article
-              className="clickable-card landing-pop rounded-[10px] bg-white-surface p-5 shadow-[(--shadow-subtle)]"
+              className="clickable-card landing-pop rounded-[10px] bg-white-surface p-5 shadow-subtle"
               key={step.label}
             >
               <div className="flex items-center justify-between gap-3">
-                <span className="flex h-11 w-11 items-center justify-center rounded-[16px] bg-parchment-card text-ember-orange shadow-[(--shadow-subtle)]">
+                <span className="flex h-11 w-11 items-center justify-center rounded-[16px] bg-parchment-card text-ember-orange shadow-subtle">
                   <step.icon className="h-5 w-5" />
                 </span>
                 <span className="font-mono text-[12px] font-semibold text-ash">
@@ -158,7 +181,7 @@ export default function LandingPage({ loading = false }: { loading?: boolean }) 
               <h2 className="mt-5 text-[19px] font-semibold tracking-[-0.25px] text-charcoal-primary">
                 {step.label}
               </h2>
-              <p className="mt-2 text-sm leading-[1.5] tracking-[-0.18px] text-graphite">
+              <p className="mt-2 text-sm leading-normal tracking-[-0.18px] text-graphite">
                 {step.text}
               </p>
             </article>
@@ -181,11 +204,11 @@ function LandingVisual() {
       <div className="absolute bottom-8 right-2 verity-blob landing-wiggle h-16 w-16 bg-ember-orange [--landing-rotate:7deg] sm:h-24 sm:w-24">
         <span className="verity-blob-smile" />
       </div>
-      <div className="absolute left-[42%] top-14 flex h-12 w-12 items-center justify-center rounded-[18px] bg-white-surface text-ember-orange shadow-[(--shadow-sm)] landing-float sm:h-14 sm:w-14">
+      <div className="absolute left-[42%] top-14 flex h-12 w-12 items-center justify-center rounded-[18px] bg-white-surface text-ember-orange shadow-sm landing-float sm:h-14 sm:w-14">
         <MessageSquareText className="h-6 w-6" />
       </div>
 
-      <div className="absolute left-3 right-3 top-20 rounded-[24px] bg-obsidian p-3 text-white shadow-[var(--shadow-lg)] landing-pop sm:left-8 sm:right-8 sm:top-24 sm:p-4">
+      <div className="absolute left-3 right-3 top-20 rounded-[24px] bg-obsidian p-3 text-white shadow-[(--shadow-lg)] landing-pop sm:left-8 sm:right-8 sm:top-24 sm:p-4">
         <div className="rounded-[18px] bg-[#171717] p-4">
           <div className="flex items-start justify-between gap-4">
             <div>
@@ -231,7 +254,7 @@ function LandingVisual() {
         </div>
       </div>
 
-      <div className="absolute bottom-16 left-0 max-w-[230px] rounded-[18px] bg-white-surface p-3 shadow-[(--shadow-sm)] landing-float-slow sm:bottom-20 sm:p-4">
+      <div className="absolute bottom-16 left-0 max-w-[230px] rounded-[18px] bg-white-surface p-3 shadow-sm landing-float-slow sm:bottom-20 sm:p-4">
         <div className="flex items-center gap-3">
           <span className="flex h-10 w-10 items-center justify-center rounded-[14px] bg-sunburst-yellow text-midnight">
             <UsersRound className="h-5 w-5" />
@@ -240,21 +263,25 @@ function LandingVisual() {
             <p className="text-sm font-semibold tracking-[-0.18px]">
               120 people rallied
             </p>
-            <p className="font-mono text-[11px] text-ash">signals before trading</p>
+            <p className="font-mono text-[11px] text-ash">
+              signals before trading
+            </p>
           </div>
         </div>
       </div>
 
-      <div className="absolute right-0 top-[310px] max-w-[230px] rounded-[18px] bg-white-surface p-3 shadow-[(--shadow-sm)] landing-float sm:top-[330px] sm:p-4">
+      <div className="absolute right-0 top-[310px] max-w-[230px] rounded-[18px] bg-white-surface p-3 shadow-sm landing-float sm:top-[330px] sm:p-4">
         <div className="flex items-center gap-3">
           <span className="flex h-10 w-10 items-center justify-center rounded-[14px] bg-meadow-green/10 text-meadow-green">
             <ShieldCheck className="h-5 w-5" />
           </span>
           <div>
             <p className="text-sm font-semibold tracking-[-0.18px]">
-              One wallet activation
+              Zero signing latency
             </p>
-            <p className="font-mono text-[11px] text-ash">router approval flow</p>
+            <p className="font-mono text-[11px] text-ash">
+              developer-controlled wallet flow
+            </p>
           </div>
         </div>
       </div>

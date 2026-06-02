@@ -1,9 +1,9 @@
-'use client'
+"use client"
 
-import Link from 'next/link'
-import { type ReactNode } from 'react'
-import FollowButton from '@/components/profile/FollowButton'
-import { displayHandle, displayName, type Profile } from '@/lib/verity'
+import Link from "next/link"
+import { type ReactNode } from "react"
+import FollowButton from "@/components/profile/FollowButton"
+import { displayHandle, displayName, type Profile } from "@/lib/verity"
 
 interface UserHoverCardProps {
   profile?: Profile | null
@@ -21,14 +21,16 @@ export default function UserHoverCard({
   const profileHref = href || `/profile/${encodeURIComponent(profile.id)}`
   const accuracy =
     profile.freeVotesTotal && profile.freeVotesTotal > 0
-      ? Math.round(((profile.freeVotesCorrect || 0) / profile.freeVotesTotal) * 100)
+      ? Math.round(
+          ((profile.freeVotesCorrect || 0) / profile.freeVotesTotal) * 100,
+        )
       : 0
 
   return (
     <span className="group/user-card relative inline-flex min-w-0">
       {children}
       <span className="pointer-events-none absolute left-0 top-full z-40 hidden w-[min(320px,calc(100vw-2rem))] pt-2 group-hover/user-card:block group-focus-within/user-card:block">
-        <span className="pointer-events-auto block rounded-[14px] bg-surface-solid p-4 shadow-[(--shadow-sm)]">
+        <span className="pointer-events-auto block rounded-[14px] bg-surface-solid p-4 shadow-sm">
           <span className="mb-3 flex items-start justify-between gap-3">
             <Link
               className="clickable-surface flex min-w-0 items-center gap-3 rounded-[12px] p-1"
@@ -54,8 +56,14 @@ export default function UserHoverCard({
           )}
 
           <span className="grid grid-cols-3 gap-2">
-            <HoverStat label="Followers" value={(profile.followersCount || 0).toLocaleString()} />
-            <HoverStat label="Markets" value={(profile.freeVotesTotal || 0).toLocaleString()} />
+            <HoverStat
+              label="Followers"
+              value={(profile.followersCount || 0).toLocaleString()}
+            />
+            <HoverStat
+              label="Markets"
+              value={(profile.freeVotesTotal || 0).toLocaleString()}
+            />
             <HoverStat label="Accuracy" value={`${accuracy}%`} />
           </span>
         </span>
@@ -66,7 +74,7 @@ export default function UserHoverCard({
 
 function HoverStat({ label, value }: { label: string; value: string }) {
   return (
-    <span className="rounded-[10px] bg-surface-muted p-2 shadow-[(--shadow-subtle)]">
+    <span className="rounded-[10px] bg-surface-muted p-2 shadow-subtle">
       <span className="block font-mono text-sm font-semibold text-charcoal-primary">
         {value}
       </span>
@@ -83,7 +91,7 @@ function ProfileAvatar({ profile }: { profile: Profile }) {
   if (avatarUrl) {
     return (
       <span
-        className="h-12 w-12 shrink-0 rounded-[16px] bg-cover bg-center shadow-[(--shadow-subtle)]"
+        className="h-12 w-12 shrink-0 rounded-[16px] bg-cover bg-center shadow-subtle"
         style={{ backgroundImage: `url(${avatarUrl})` }}
       />
     )

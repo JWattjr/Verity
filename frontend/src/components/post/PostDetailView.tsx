@@ -1,24 +1,27 @@
-'use client'
+"use client"
 
-import { useMemo, useEffect } from 'react'
-import Link from 'next/link'
-import { useRouter } from 'next/navigation'
-import { ArrowLeft, TrendingUp } from 'lucide-react'
-import MarketCard from '@/components/post/MarketCard'
-import PostCard from '@/components/post/PostCard'
-import CommentsThread from '@/components/social/CommentsThread'
-import { useFeed } from '@/hooks/useFeed'
-import { useSetRightPanelSlot } from '@/hooks/useRightPanelSlot'
-import { useWalletProfile } from '@/hooks/useWalletProfile'
-import { useSocket } from '@/hooks/useSocket'
+import { useMemo, useEffect } from "react"
+import Link from "next/link"
+import { useRouter } from "next/navigation"
+import { ArrowLeft, TrendingUp } from "lucide-react"
+import MarketCard from "@/components/post/MarketCard"
+import PostCard from "@/components/post/PostCard"
+import CommentsThread from "@/components/social/CommentsThread"
+import { useFeed } from "@/hooks/useFeed"
+import { useSetRightPanelSlot } from "@/hooks/useRightPanelSlot"
+import { useWalletProfile } from "@/hooks/useWalletProfile"
+import { useSocket } from "@/hooks/useSocket"
 import {
   displayHandle,
   displayName,
   relativeTime,
   type FeedPost,
   type MarketPost,
-} from '@/lib/verity'
-import { usePostCommentsQuery, usePostQuery } from '@/store/verity/verityQueries'
+} from "@/lib/verity"
+import {
+  usePostCommentsQuery,
+  usePostQuery,
+} from "@/store/verity/verityQueries"
 
 interface PostDetailViewProps {
   postId: string
@@ -29,7 +32,11 @@ export default function PostDetailView({ postId }: PostDetailViewProps) {
   const { profile } = useWalletProfile()
   const { joinRoom, leaveRoom } = useSocket()
   const { items, loading: feedLoading } = useFeed()
-  const { data: item, isLoading: itemLoading, error: itemError } = usePostQuery(postId, profile?.id)
+  const {
+    data: item,
+    isLoading: itemLoading,
+    error: itemError,
+  } = usePostQuery(postId, profile?.id)
   const { data: comments = [], isLoading: commentsLoading } =
     usePostCommentsQuery(postId)
 
@@ -61,7 +68,7 @@ export default function PostDetailView({ postId }: PostDetailViewProps) {
       items={relatedMarkets}
       onOpenMarket={(market) => router.push(`/markets/${market.id}`)}
     />,
-    `${postId}-${relatedMarkets.map((related) => related.id).join(',')}`,
+    `${postId}-${relatedMarkets.map((related) => related.id).join(",")}`,
   )
 
   if (itemLoading) {
@@ -95,7 +102,7 @@ export default function PostDetailView({ postId }: PostDetailViewProps) {
   if (itemError) {
     return (
       <div className="py-4">
-        <section className="rounded-[12px] bg-ember-orange/10 p-8 text-center text-sm text-charcoal-primary shadow-[(--shadow-subtle)]">
+        <section className="rounded-[12px] bg-ember-orange/10 p-8 text-center text-sm text-charcoal-primary shadow-subtle">
           {(itemError as any)?.message || "Failed to load post."}
         </section>
       </div>
@@ -115,7 +122,7 @@ export default function PostDetailView({ postId }: PostDetailViewProps) {
   return (
     <div className="flex flex-col gap-3 py-4">
       <Link
-        className="verity-pill flex h-10 w-fit items-center gap-2 bg-parchment-card px-4 text-sm font-semibold tracking-[-0.18px] text-charcoal-primary shadow-[(--shadow-subtle)] transition-colors hover:bg-stone-surface"
+        className="verity-pill flex h-10 w-fit items-center gap-2 bg-parchment-card px-4 text-sm font-semibold tracking-[-0.18px] text-charcoal-primary shadow-subtle transition-colors hover:bg-stone-surface"
         href="/"
       >
         <ArrowLeft className="h-4 w-4" />
@@ -127,7 +134,11 @@ export default function PostDetailView({ postId }: PostDetailViewProps) {
         onOpenMarket={(market) => router.push(`/markets/${market.id}`)}
       />
 
-      <CommentsThread postId={postId} comments={comments} loading={commentsLoading} />
+      <CommentsThread
+        postId={postId}
+        comments={comments}
+        loading={commentsLoading}
+      />
 
       <div className="lg:hidden">
         <RelatedMarketsPanel
@@ -148,7 +159,8 @@ function PostDetailCard({
 }) {
   if (item.market) {
     const market = item.market
-    const totalUsdc = Number(market.usdc_yes_amount) + Number(market.usdc_no_amount)
+    const totalUsdc =
+      Number(market.usdc_yes_amount) + Number(market.usdc_no_amount)
     const yesPercent =
       totalUsdc > 0 ? (Number(market.usdc_yes_amount) / totalUsdc) * 100 : 50
 
@@ -229,7 +241,7 @@ function RelatedMarketsPanel({
               {item.market?.question}
             </p>
             <p className="mt-2 font-mono text-xs text-ash">
-              {item.market?.category || 'Market'}
+              {item.market?.category || "Market"}
             </p>
           </button>
         ))

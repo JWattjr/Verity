@@ -1,13 +1,13 @@
-'use client'
+"use client"
 
-import Link from 'next/link'
+import Link from "next/link"
 import {
   useCallback,
   useEffect,
   useMemo,
   useState,
   type ReactNode,
-} from 'react'
+} from "react"
 import {
   ArrowDown,
   ArrowUp,
@@ -17,22 +17,23 @@ import {
   Repeat2,
   Share,
   ShieldCheck,
-} from 'lucide-react'
-import { useQueryClient } from '@tanstack/react-query'
-import { toast } from 'react-hot-toast'
-import VerityAgentPanel from '@/components/markets/VerityAgentPanel'
-import CommentModal from '@/components/social/CommentModal'
-import { useDailyVotes } from '@/hooks/useDailyVotes'
-import { useFeed } from '@/hooks/useFeed'
-import { useSetRightPanelSlot } from '@/hooks/useRightPanelSlot'
-import { useUsdcBalance } from '@/hooks/useUsdcBalance'
-import { useWalletProfile } from '@/hooks/useWalletProfile'
-import { useSocket } from '@/hooks/useSocket'
+  Trophy,
+} from "lucide-react"
+import { useQueryClient } from "@tanstack/react-query"
+import { toast } from "react-hot-toast"
+import VerityAgentPanel from "@/components/markets/VerityAgentPanel"
+import CommentModal from "@/components/social/CommentModal"
+import { useDailyVotes } from "@/hooks/useDailyVotes"
+import { useFeed } from "@/hooks/useFeed"
+import { useSetRightPanelSlot } from "@/hooks/useRightPanelSlot"
+import { useUsdcBalance } from "@/hooks/useUsdcBalance"
+import { useAuth } from "@/components/providers/AuthModals"
+import { useSocket } from "@/hooks/useSocket"
 import {
   calculateGrossUsdc,
   calculateTradingFee,
   formatTradingFee,
-} from '@/lib/verity'
+} from "@/lib/verity"
 import {
   displayHandle,
   displayName,
@@ -44,7 +45,7 @@ import {
   type MarketTradeAction,
   type MarketPost,
   type VoteSide,
-} from '@/lib/verity'
+} from "@/lib/verity"
 import {
   useAddCommentMutation,
   useApproveMarketForTradingMutation,
@@ -58,17 +59,18 @@ import {
   useMarketTradesQuery,
   useResolveMarketMutation,
   useMarketDetailQuery,
-} from '@/store/verity/verityQueries'
-import { useMarketLiquidity } from '@/hooks/useMarketLiquidity'
-import { useMarketResolution } from '@/hooks/useMarketResolution'
-import { formatWeb3Error } from '@/lib/arc'
+} from "@/store/verity/verityQueries"
+import { useMarketLiquidity } from "@/hooks/useMarketLiquidity"
+import { useMarketResolution } from "@/hooks/useMarketResolution"
+import { formatWeb3Error } from "@/lib/arc"
 
 interface MarketDetailProps {
   marketId: string
 }
 
 export default function MarketDetail({ marketId }: MarketDetailProps) {
-  const { profile } = useWalletProfile()
+  const { user } = useAuth()
+  const profile = user
   const queryClient = useQueryClient()
   const balance = useUsdcBalance()
   const { joinRoom, leaveRoom } = useSocket()
@@ -78,47 +80,84 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
 
   // 1. All hooks and state declarations at the very top of the component
   const [actionPending, setActionPending] = useState<string | null>(null)
-  const [commentDraft, setCommentDraft] = useState('')
+  const [commentDraft, setCommentDraft] = useState("")
   const [commentLoading, setCommentLoading] = useState(false)
-  const [tradeAmount, setTradeAmount] = useState('1')
-  const [tradeAction, setTradeAction] = useState<MarketTradeAction>('BUY')
-  const [selectedSide, setSelectedSide] = useState<VoteSide>('YES')
+  const [tradeAmount, setTradeAmount] = useState("1")
+  const [tradeAction, setTradeAction] = useState<MarketTradeAction>("BUY")
+  const [selectedSide, setSelectedSide] = useState<VoteSide>("YES")
   const [replyingToComment, setReplyingToComment] =
     useState<MarketComment | null>(null)
 
+  // Track selected child market for multi-option markets
+  const [selectedChildId, setSelectedChildId] = useState<string | null>(null)
+
   const { dailyVotes, refetch: reloadDailyVotes } = useDailyVotes(profileId)
   const { items, loading: feedLoading } = useFeed(undefined, true)
-  const { data: item, isLoading: itemLoading, error: itemError, refetch: refetchMarket } = useMarketDetailQuery(marketId, profileId || undefined)
+  const {
+    data: item,
+    isLoading: itemLoading,
+    error: itemError,
+    refetch: refetchMarket,
+  } = useMarketDetailQuery(marketId, profileId || undefined)
 
   const market = item?.market || null
   const postId = item?.id
   const detailMarketId = market?.id
 
+  // Auto-select first child market if parent
   useEffect(() => {
-    if (detailMarketId) {
-      joinRoom(`market:${detailMarketId}`)
+    if (
+      market?.marketType === "parent" &&
+      market.childMarkets &&
+      market.childMarkets.length > 0 &&
+      !selectedChildId
+    ) {
+      setSelectedChildId(market.childMarkets[0].id)
+    }
+  }, [market, selectedChildId])
+
+  const activeMarketId = selectedChildId || detailMarketId
+
+  const activeOption = useMemo(() => {
+    if (market?.marketType === "parent" && market.childMarkets) {
+      return market.childMarkets.find((child) => child.id === selectedChildId)
+    }
+    return null
+  }, [market, selectedChildId])
+
+  const activeOptionName = activeOption
+    ? activeOption.optionName || activeOption.question
+    : null
+
+  const activeMarket = useMemo(() => {
+    return activeOption || market
+  }, [activeOption, market]) as MarketPost
+
+  useEffect(() => {
+    if (activeMarketId) {
+      joinRoom(`market:${activeMarketId}`)
       if (postId) {
         joinRoom(`post:${postId}`)
       }
       return () => {
-        leaveRoom(`market:${detailMarketId}`)
+        leaveRoom(`market:${activeMarketId}`)
         if (postId) {
           leaveRoom(`post:${postId}`)
         }
       }
     }
-  }, [detailMarketId, postId, joinRoom, leaveRoom])
+  }, [activeMarketId, postId, joinRoom, leaveRoom])
 
-  const { data: poolStateData } = usePoolStateQuery(detailMarketId || '')
+  const { data: poolStateData } = usePoolStateQuery(activeMarketId || "")
   const { data: lpPositionsData } = useLPPositionsQuery(
-    detailMarketId || '',
-    profileId || '',
+    activeMarketId || "",
+    profileId || "",
   )
-  const { data: fetchedTrades } = useMarketTradesQuery(detailMarketId || '')
-  const { data: fetchedComments } = usePostCommentsQuery(postId || '')
+  const { data: fetchedTrades } = useMarketTradesQuery(activeMarketId || "")
+  const { data: fetchedComments } = usePostCommentsQuery(postId || "")
   const { data: fetchedPositions } = useMarketPositionsQuery(
-    detailMarketId || '',
-    profileId || '',
+    activeMarketId || "",
+    profileId || "",
   )
 
   const { mutateAsync: addComment } = useAddCommentMutation()
@@ -145,8 +184,8 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
 
   const yesPercent = useMemo(() => {
     if (poolYesPrice != null) return poolYesPrice * 100
-    return market ? calculateYesPercent(market) : 50
-  }, [poolYesPrice, market])
+    return activeMarket ? calculateYesPercent(activeMarket) : 50
+  }, [poolYesPrice, activeMarket])
 
   const noPercent = useMemo(() => {
     if (poolNoPrice != null) return poolNoPrice * 100
@@ -157,42 +196,45 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
     if ((poolStateData?.pool?.currentPoolBalance ?? 0) > 0) {
       return poolStateData.pool.currentPoolBalance
     }
-    return market
-      ? Number(market.usdc_yes_amount) + Number(market.usdc_no_amount)
+    return activeMarket
+      ? Number(activeMarket.usdc_yes_amount) +
+          Number(activeMarket.usdc_no_amount)
       : 0
-  }, [poolStateData, market])
+  }, [poolStateData, activeMarket])
 
   const hasUsdcOpinion = totalUsdc > 0
 
   const tradeAmountNumber = Number(tradeAmount)
   const validTradeAmount =
     Number.isFinite(tradeAmountNumber) && tradeAmountNumber > 0
-  const selectedPrice = market ? getMarketPrice(market, selectedSide) : 0.5
+  const selectedPrice = activeMarket
+    ? getMarketPrice(activeMarket, selectedSide)
+    : 0.5
   const buyShares = validTradeAmount ? tradeAmountNumber / selectedPrice : 0
   const sellProceeds = validTradeAmount ? tradeAmountNumber * selectedPrice : 0
   const tradeBaseAmount =
-    tradeAction === 'BUY' ? tradeAmountNumber : sellProceeds
+    tradeAction === "BUY" ? tradeAmountNumber : sellProceeds
   const tradeFee =
-    market && validTradeAmount
-      ? calculateTradingFee(tradeBaseAmount, market.trading_fee_bps)
+    activeMarket && validTradeAmount
+      ? calculateTradingFee(tradeBaseAmount, activeMarket.trading_fee_bps)
       : 0
   const tradeTotal =
-    market && validTradeAmount
-      ? tradeAction === 'BUY'
-        ? calculateGrossUsdc(tradeAmountNumber, market.trading_fee_bps)
+    activeMarket && validTradeAmount
+      ? tradeAction === "BUY"
+        ? calculateGrossUsdc(tradeAmountNumber, activeMarket.trading_fee_bps)
         : Math.max(0, sellProceeds - tradeFee)
       : 0
 
-  const leadingSide: VoteSide = yesPercent >= noPercent ? 'YES' : 'NO'
+  const leadingSide: VoteSide = yesPercent >= noPercent ? "YES" : "NO"
   const leadingPercent = Math.max(yesPercent, noPercent)
 
   const createdAt = useMemo(
-    () => (market ? new Date(market.created_at) : null),
-    [market],
+    () => (activeMarket ? new Date(activeMarket.created_at) : null),
+    [activeMarket],
   )
   const closesAt = useMemo(
-    () => (market ? new Date(market.deadline) : null),
-    [market],
+    () => (activeMarket ? new Date(activeMarket.deadline) : null),
+    [activeMarket],
   )
   const settlesAt = useMemo(
     () =>
@@ -248,7 +290,7 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
   const runAction = useCallback(
     async (actionType: string, action: () => Promise<unknown>) => {
       if (!profileId) {
-        toast.error('Connect your wallet first.')
+        toast.error("Connect your wallet first.")
         return
       }
 
@@ -260,17 +302,33 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
           refetchMarket(),
           reloadDailyVotes(),
           queryClient.invalidateQueries({
-            queryKey: ['pool-state', detailMarketId],
+            queryKey: ["pool-state", detailMarketId],
           }),
           queryClient.invalidateQueries({
-            queryKey: ['lp-positions', detailMarketId],
+            queryKey: ["lp-positions", detailMarketId],
           }),
           queryClient.invalidateQueries({
-            queryKey: ['positions', detailMarketId],
+            queryKey: ["positions", detailMarketId],
           }),
           queryClient.invalidateQueries({
-            queryKey: ['trades', detailMarketId],
+            queryKey: ["trades", detailMarketId],
           }),
+          ...(activeMarketId && activeMarketId !== detailMarketId
+            ? [
+                queryClient.invalidateQueries({
+                  queryKey: ["pool-state", activeMarketId],
+                }),
+                queryClient.invalidateQueries({
+                  queryKey: ["lp-positions", activeMarketId],
+                }),
+                queryClient.invalidateQueries({
+                  queryKey: ["positions", activeMarketId],
+                }),
+                queryClient.invalidateQueries({
+                  queryKey: ["trades", activeMarketId],
+                }),
+              ]
+            : []),
         ])
       } catch (caught) {
         toast.error(formatWeb3Error(caught))
@@ -278,89 +336,83 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
         setActionPending(null)
       }
     },
-    [profileId, refetchMarket, reloadDailyVotes, queryClient, detailMarketId],
+    [
+      profileId,
+      refetchMarket,
+      reloadDailyVotes,
+      queryClient,
+      detailMarketId,
+      activeMarketId,
+    ],
   )
 
   const handleDispute = useCallback(async () => {
-    if (!market || !profileId) return
-    await runAction('dispute', async () => {
-      await disputeResolution(market.id)
+    if (!activeMarket || !profileId) return
+    await runAction("dispute", async () => {
+      await disputeResolution(activeMarket.id)
     })
-  }, [market, profileId, disputeResolution, runAction])
+  }, [activeMarket, profileId, disputeResolution, runAction])
 
   const handleRedeem = useCallback(async () => {
-    if (!market || !profileId) return
-    await runAction('redeem', async () => {
-      const { txHash } = await redeemWinnings(market.id)
-      const winningOutcome = market.resolvedOutcome || 'YES'
-      await resolveMarketBackend({
-        marketId: market.id,
-        winningOutcome: winningOutcome as 'YES' | 'NO',
-        txHash,
-        adminAddress: profile?.walletAddress || '0xWinner',
-      })
+    if (!activeMarket || !profileId) return
+    await runAction("redeem", async () => {
+      await redeemWinnings(activeMarket.id)
       await balance.refetch()
     })
-  }, [
-    market,
-    profile,
-    profileId,
-    redeemWinnings,
-    resolveMarketBackend,
-    runAction,
-    balance,
-  ])
+  }, [activeMarket, profileId, redeemWinnings, runAction, balance])
 
   const handleClaimCreatorLP = useCallback(async () => {
-    if (!market || !profileId) return
-    await runAction('claim_creator_lp', async () => {
-      await claimCreatorLP(market.id)
+    if (!activeMarket || !profileId) return
+    await runAction("claim_creator_lp", async () => {
+      await claimCreatorLP(activeMarket.id)
     })
-  }, [market, profileId, claimCreatorLP, runAction])
+  }, [activeMarket, profileId, claimCreatorLP, runAction])
 
   const handleClaimRefund = useCallback(async () => {
-    if (!market || !profileId) return
-    await runAction('claim_refund', async () => {
-      await claimRefund(market.id)
+    if (!activeMarket || !profileId) return
+    await runAction("claim_refund", async () => {
+      await claimRefund(activeMarket.id)
     })
-  }, [market, profileId, claimRefund, runAction])
+  }, [activeMarket, profileId, claimRefund, runAction])
 
   const approveTrading = useCallback(async () => {
-    if (!market) return
-    await runAction('approve_trading', () => approveMarketForTrading(market.id))
-  }, [market, runAction, approveMarketForTrading])
+    if (!activeMarket) return
+    await runAction("approve_trading", () =>
+      approveMarketForTrading(activeMarket.id),
+    )
+  }, [activeMarket, runAction, approveMarketForTrading])
 
   const handleDevQualify = useCallback(async () => {
     if (!market) return
-    await runAction('dev_qualify', async () => {
+    await runAction("dev_qualify", async () => {
       await devQualifyMarket(market.id)
     })
   }, [market, devQualifyMarket, runAction])
 
   const handleFundPreMarket = useCallback(
     async (amount: number) => {
-      if (!market || !profileId) return
-      await runAction('fund_pre_market', async () => {
-        await fundPreMarket(market.id, profileId, amount, true)
+      if (!activeMarketId || !profileId) return
+      await runAction("fund_pre_market", async () => {
+        await fundPreMarket(activeMarketId, profileId, amount, true)
       })
     },
-    [market, profileId, fundPreMarket, runAction],
+    [activeMarketId, profileId, fundPreMarket, runAction],
   )
 
   const handleAddLP = useCallback(
     async (amount: number) => {
-      if (!market || !profileId) return
-      await runAction('add_lp', async () => {
-        const isPoolActive = poolStateData?.pool?.status === 'active'
+      if (!activeMarketId || !profileId) return
+      await runAction("add_lp", async () => {
+        const isPoolActive = poolStateData?.pool?.status === "active"
         if (!isPoolActive) {
-          await fundPreMarket(market.id, profileId, amount, false)
+          await fundPreMarket(activeMarketId, profileId, amount, false)
         } else {
-          await addPoolLiquidity(market.id, profileId, amount)
+          await addPoolLiquidity(activeMarketId, profileId, amount)
         }
       })
     },
     [
-      market,
+      activeMarketId,
       profileId,
       poolStateData,
       fundPreMarket,
@@ -371,12 +423,12 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
 
   const handleRemoveLP = useCallback(
     async (shares: number) => {
-      if (!market || !profileId) return
-      await runAction('remove_lp', async () => {
-        await removePoolLiquidity(market.id, profileId, shares)
+      if (!activeMarketId || !profileId) return
+      await runAction("remove_lp", async () => {
+        await removePoolLiquidity(activeMarketId, profileId, shares)
       })
     },
-    [market, profileId, removePoolLiquidity, runAction],
+    [activeMarketId, profileId, removePoolLiquidity, runAction],
   )
 
   async function sharePost(post: FeedPost) {
@@ -384,27 +436,27 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
     const url = `${window.location.origin}/markets/${marketId}`
 
     if (navigator.share) {
-      await navigator.share({ title: 'Verity', text, url })
+      await navigator.share({ title: "Verity", text, url })
       return
     }
 
     await navigator.clipboard.writeText(`${text}\n${url}`)
-    toast.success('Link copied to clipboard!')
+    toast.success("Link copied to clipboard!")
   }
 
   const executeTrade = useCallback(
     async (side: VoteSide) => {
-      if (!market || !profileId) return
+      if (!activeMarket || !profileId) return
 
-      await runAction('trade', async () => {
+      await runAction("trade", async () => {
         const amount = Number(tradeAmount)
         if (!Number.isFinite(amount) || amount <= 0) {
-          throw new Error('Enter a valid USDC amount.')
+          throw new Error("Enter a valid USDC amount.")
         }
-        const isYes = side === 'YES'
-        if (tradeAction === 'BUY') {
+        const isYes = side === "YES"
+        if (tradeAction === "BUY") {
           await buyTokens(
-            market.id,
+            activeMarket.id,
             profileId,
             isYes,
             tradeAmountNumber,
@@ -413,7 +465,7 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
           )
         } else {
           await sellTokens(
-            market.id,
+            activeMarket.id,
             profileId,
             isYes,
             amount,
@@ -424,7 +476,7 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
       })
     },
     [
-      market,
+      activeMarket,
       profileId,
       tradeAmount,
       tradeAction,
@@ -441,7 +493,7 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
   async function submitComment() {
     if (!item || !market || !commentDraft.trim()) return
     if (!profile) {
-      toast.error('Connect your wallet before commenting.')
+      toast.error("Connect your wallet before commenting.")
       return
     }
 
@@ -452,9 +504,9 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
         authorId: profile.id,
         content: commentDraft,
       })
-      setCommentDraft('')
+      setCommentDraft("")
     } catch (caught) {
-      toast.error(caught instanceof Error ? caught.message : 'Comment failed.')
+      toast.error(caught instanceof Error ? caught.message : "Comment failed.")
     } finally {
       setCommentLoading(false)
     }
@@ -463,8 +515,8 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
   const sidebarPanels = useMemo(() => {
     if (!market || !postId) return null
 
-    const creatorHandle = item ? displayHandle(item.author) : ''
-    const creatorName = item ? displayName(item.author) : ''
+    const creatorHandle = item ? displayHandle(item.author) : ""
+    const creatorName = item ? displayName(item.author) : ""
 
     return (
       <>
@@ -476,15 +528,15 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
               </span>
               {item.viewerVote && (
                 <span className="font-mono text-[10px] text-ash">
-                  Signal:{' '}
+                  Signal:{" "}
                   <span
                     className={
-                      item.viewerVote === 'YES'
-                        ? 'font-semibold text-meadow-green'
-                        : 'font-semibold text-ember-orange'
+                      item.viewerVote === "YES"
+                        ? "font-semibold text-meadow-green"
+                        : "font-semibold text-ember-orange"
                     }
                   >
-                    {item.viewerVote === 'YES' ? 'Upvote' : 'Downvote'}
+                    {item.viewerVote === "YES" ? "Upvote" : "Downvote"}
                   </span>
                 </span>
               )}
@@ -497,14 +549,14 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
             ) : (
               <div className="flex flex-col gap-3">
                 {positions.map((pos) => {
-                  const isResolved = market.status === 'resolved'
+                  const isResolved = activeMarket.status === "resolved"
                   const isWinner =
-                    isResolved && market.resolvedOutcome === pos.side
+                    isResolved && activeMarket.resolvedOutcome === pos.side
                   const currentPrice = isResolved
                     ? isWinner
                       ? 1.0
                       : 0.0
-                    : getMarketPrice(market, pos.side)
+                    : getMarketPrice(activeMarket, pos.side)
                   const currentValue = pos.shares * currentPrice
                   const isProfit = currentValue >= pos.invested_usdc
                   const pnl = currentValue - pos.invested_usdc
@@ -514,25 +566,25 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
                   return (
                     <div
                       key={pos.id}
-                      className="rounded-[12px] bg-parchment-card p-3 shadow-[(--shadow-subtle)]"
+                      className="rounded-[12px] bg-parchment-card p-3 shadow-subtle"
                     >
                       <div className="mb-2 flex items-center justify-between gap-3">
                         {isResolved ? (
                           <span
                             className={`inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-mono font-semibold ${
                               isWinner
-                                ? 'bg-meadow-green/10 text-meadow-green shadow-[(--shadow-subtle)]'
-                                : 'bg-stone-surface text-ash'
+                                ? "bg-meadow-green/10 text-meadow-green shadow-subtle"
+                                : "bg-stone-surface text-ash"
                             }`}
                           >
-                            {isWinner ? 'WINNING' : 'LOST'} {pos.side} POSITION
+                            {isWinner ? "WINNING" : "LOST"} {pos.side} POSITION
                           </span>
                         ) : (
                           <span
-                            className={`inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-mono font-semibold shadow-[(--shadow-subtle)] ${
-                              pos.side === 'YES'
-                                ? 'bg-meadow-green/10 text-meadow-green'
-                                : 'bg-ember-orange/10 text-ember-orange'
+                            className={`inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-mono font-semibold shadow-subtle ${
+                              pos.side === "YES"
+                                ? "bg-meadow-green/10 text-meadow-green"
+                                : "bg-ember-orange/10 text-ember-orange"
                             }`}
                           >
                             {pos.side} POSITION
@@ -543,7 +595,7 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
                           <button
                             className="font-mono text-[10px] font-semibold text-ember-orange underline underline-offset-2 hover:text-charcoal-primary"
                             onClick={() => {
-                              setTradeAction('SELL')
+                              setTradeAction("SELL")
                               setSelectedSide(pos.side)
                             }}
                             type="button"
@@ -577,8 +629,8 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
                           <span
                             className={
                               isProfit
-                                ? 'font-semibold text-meadow-green'
-                                : 'font-semibold text-ember-orange'
+                                ? "font-semibold text-meadow-green"
+                                : "font-semibold text-ember-orange"
                             }
                           >
                             ${currentValue.toFixed(2)}
@@ -591,12 +643,12 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
                         <span
                           className={
                             isProfit
-                              ? 'font-semibold text-meadow-green'
-                              : 'font-semibold text-ember-orange'
+                              ? "font-semibold text-meadow-green"
+                              : "font-semibold text-ember-orange"
                           }
                         >
-                          {isProfit ? '+' : ''}
-                          {pnl.toFixed(2)} USDC ({isProfit ? '+' : ''}
+                          {isProfit ? "+" : ""}
+                          {pnl.toFixed(2)} USDC ({isProfit ? "+" : ""}
                           {pnlPercent.toFixed(1)}%)
                         </span>
                       </div>
@@ -608,26 +660,27 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
           </div>
         )}
 
-        {['open_for_votes', 'qualified', 'funding_pool'].includes(
-          market.status,
+        {["open_for_votes", "qualified", "funding_pool"].includes(
+          activeMarket.status,
         ) ? (
           <PreMarketFundingPanel
             actionLoading={actionPending}
             authorId={item.author_id || item.authorId}
-            market={market}
+            market={activeMarket}
             onAddLP={handleAddLP}
             onFundPreMarket={handleFundPreMarket}
             poolState={poolStateData}
             profileId={profileId}
+            activeOptionName={activeOptionName}
           />
         ) : (
           <TradeTicket
             action={tradeAction}
             amount={tradeAmount}
-            balanceLabel={balance.isLoading ? '...' : balance.formattedBalance}
+            balanceLabel={balance.isLoading ? "..." : balance.formattedBalance}
             disabled={
               Boolean(actionPending) ||
-              market.status !== 'tradable' ||
+              activeMarket.status !== "tradable" ||
               !validTradeAmount
             }
             estimatedShares={buyShares}
@@ -644,14 +697,14 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
             total={tradeTotal}
             yesPrice={yesPercent}
             noPrice={noPercent}
-            actionPending={actionPending === 'trade'}
+            actionPending={actionPending === "trade"}
             maxSellShares={selectedSideShares}
           />
         )}
 
         <MarketStatsPanel
           createdAt={createdAt}
-          feeBps={market.trading_fee_bps}
+          feeBps={activeMarket.trading_fee_bps}
           liquidity={liveLiquidity}
           closesAt={closesAt}
           settlesAt={settlesAt}
@@ -668,6 +721,7 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
     )
   }, [
     market,
+    activeMarket,
     postId,
     item,
     tradeAction,
@@ -709,17 +763,17 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
   )
 
   const rightPanelSlotKey = [
-    postId || 'no-post',
-    detailMarketId || 'no-market',
-    profileId || 'disconnected',
+    postId || "no-post",
+    activeMarketId || "no-market",
+    profileId || "disconnected",
     tradeAction,
     tradeAmount,
     selectedSide,
     selectedPrice,
     sellProceeds,
-    balance.isLoading ? 'loading' : balance.formattedBalance,
-    market?.status || 'unknown',
-    market?.trading_fee_bps || 0,
+    balance.isLoading ? "loading" : balance.formattedBalance,
+    activeMarket?.status || "unknown",
+    activeMarket?.trading_fee_bps || 0,
     liveLiquidity,
     volume,
     yesPercent,
@@ -727,9 +781,9 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
     creatorMarkets,
     creatorTotalVolume,
     JSON.stringify(positions),
-    actionPending || 'no-pending',
+    actionPending || "no-pending",
     JSON.stringify(poolStateData || {}),
-  ].join('|')
+  ].join("|")
 
   useSetRightPanelSlot(rightPanelSlot, rightPanelSlotKey)
 
@@ -787,7 +841,7 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
 
   if (itemError) {
     return (
-      <div className="rounded-[12px] bg-ember-orange/10 p-4 text-sm font-medium tracking-[-0.18px] text-charcoal-primary shadow-[(--shadow-subtle)]">
+      <div className="rounded-[12px] bg-ember-orange/10 p-4 text-sm font-medium tracking-[-0.18px] text-charcoal-primary shadow-subtle">
         {(itemError as any)?.message || "Failed to load market."}
       </div>
     )
@@ -796,7 +850,7 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
   if (!item || !market) {
     return (
       <div className="verity-card p-8 text-center text-sm font-medium tracking-[-0.18px] text-ash">
-        Market not found.{' '}
+        Market not found.{" "}
         <Link className="font-semibold text-ember-orange underline" href="/">
           View feed
         </Link>
@@ -818,8 +872,22 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
         time={relativeTime(item.created_at)}
         totalVotes={market.free_yes_votes + market.free_no_votes}
         onDevQualify={handleDevQualify}
-        devQualifyLoading={actionPending === 'dev_qualify'}
+        devQualifyLoading={actionPending === "dev_qualify"}
       />
+
+      {market.marketType === "parent" && market.childMarkets && (
+        <OutcomesPanel
+          childMarkets={market.childMarkets}
+          selectedChildId={selectedChildId}
+          selectedSide={selectedSide}
+          marketStatus={market.status}
+          onSelectOptionAndSide={(childId, side) => {
+            setSelectedChildId(childId)
+            setSelectedSide(side)
+            setTradeAction("BUY")
+          }}
+        />
+      )}
 
       <div className="flex flex-col gap-3 lg:hidden">{sidebarPanels}</div>
 
@@ -828,12 +896,12 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
         freeNoVotes={market.free_no_votes}
         freeYesVotes={market.free_yes_votes}
         dailyVotesRemaining={dailyVotes.votesRemaining}
-        marketStatus={market.status}
+        marketStatus={activeMarket.status}
         onComment={() =>
-          document.getElementById('market-comment-input')?.focus()
+          document.getElementById("market-comment-input")?.focus()
         }
         onReshare={() =>
-          runAction('reshare', () =>
+          runAction("reshare", () =>
             toggleReshare({
               postId: item.id,
               profileId: profile!.id,
@@ -843,8 +911,12 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
         }
         onShare={() => sharePost(item)}
         onVote={(side) =>
-          runAction('free_vote', () =>
-            castFreeVote({ marketId: market.id, userId: profile!.id, side }),
+          runAction("free_vote", () =>
+            castFreeVote({
+              marketId: market.id,
+              userId: profile!.id,
+              side,
+            }),
           )
         }
         reshares={item.resharesCount}
@@ -861,11 +933,11 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
         onReplyClick={setReplyingToComment}
       />
 
-      {market.status === 'tradable' && (
+      {activeMarket.status === "tradable" && (
         <ActiveMarketLPPanel
           actionLoading={actionPending}
           lpPositions={lpPositionsData || []}
-          market={market}
+          market={activeMarket}
           onAddLP={handleAddLP}
           onRemoveLP={handleRemoveLP}
           poolState={poolStateData}
@@ -873,20 +945,20 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
         />
       )}
 
-      {(market.status === 'resolving' ||
-        market.status === 'resolved' ||
+      {(activeMarket.status === "resolving" ||
+        activeMarket.status === "resolved" ||
         isPastDeadline) && (
         <ResolutionPanel
-          market={market}
+          market={activeMarket}
           onDispute={handleDispute}
           actionLoading={actionPending}
           profileId={profileId}
         />
       )}
 
-      {market.status === 'resolved' && (
+      {activeMarket.status === "resolved" && (
         <RedeemPanel
-          market={market}
+          market={activeMarket}
           positions={positions}
           lpPositions={lpPositionsData || []}
           onRedeem={handleRedeem}
@@ -896,9 +968,9 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
         />
       )}
 
-      {market.status === 'voided' && (
+      {activeMarket.status === "voided" && (
         <RefundPanel
-          market={market}
+          market={activeMarket}
           lpPositions={lpPositionsData || []}
           onClaimRefund={handleClaimRefund}
           actionLoading={actionPending}
@@ -920,7 +992,7 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
         market={market}
         onSell={(side) => {
           setSelectedSide(side)
-          setTradeAction('SELL')
+          setTradeAction("SELL")
         }}
         positions={positions}
       />
@@ -965,7 +1037,7 @@ function MarketHero({
 
   const targetVotes = market.qualificationThreshold ?? 50
   const votesProgress = Math.min(100, (totalVotes / targetVotes) * 100)
-  const isDev = process.env.NEXT_PUBLIC_NODE_ENV !== 'production'
+  const isDev = process.env.NEXT_PUBLIC_NODE_ENV !== "production"
 
   return (
     <section className="verity-card relative overflow-hidden p-5 mt-4">
@@ -976,27 +1048,27 @@ function MarketHero({
             {question}
           </h1>
           <div className="mt-3 flex flex-wrap items-center gap-2 font-mono text-xs text-ash">
-            <span className="rounded-[6px] bg-parchment-card px-2.5 py-1 text-graphite shadow-[(--shadow-subtle)]">
+            <span className="rounded-[6px] bg-parchment-card px-2.5 py-1 text-graphite shadow-subtle">
               {category}
             </span>
             <span>by {creator}</span>
-            <span>{'\u00B7'}</span>
+            <span>{"\u00B7"}</span>
             <span>{time}</span>
           </div>
         </div>
         <span
-          className={`verity-pill relative px-3 py-1 font-mono text-[11px] font-semibold uppercase tracking-[0.12em] ${market.status === 'voided' ? 'bg-stone-surface text-ash' : 'bg-meadow-green/12 text-meadow-green'}`}
+          className={`verity-pill relative px-3 py-1 font-mono text-[11px] font-semibold uppercase tracking-[0.12em] ${market.status === "voided" ? "bg-stone-surface text-ash" : "bg-meadow-green/12 text-meadow-green"}`}
         >
-          {market.status.replaceAll('_', ' ')}
+          {market.status.replaceAll("_", " ")}
         </span>
       </div>
 
       <div className="relative mt-4 flex flex-wrap gap-x-5 gap-y-2 border-t border-dashed border-stone-surface pt-3 font-mono text-xs text-ash items-center">
         <span>
-          Leading outcome:{' '}
+          Leading outcome:{" "}
           <strong
             className={
-              leadingSide === 'YES' ? 'text-meadow-green' : 'text-ember-orange'
+              leadingSide === "YES" ? "text-meadow-green" : "text-ember-orange"
             }
           >
             {leadingSide} {leadingPercent.toFixed(1)}%
@@ -1004,22 +1076,22 @@ function MarketHero({
         </span>
         <span>{totalVotes} Upvote/Downvote signals</span>
         <span>
-          Sentiment:{' '}
+          Sentiment:{" "}
           <strong className="text-meadow-green">
             Yes {yesPercent.toFixed(1)}%
           </strong>
-          {' / '}
+          {" / "}
           <strong className="text-ember-orange">
             No {noPercent.toFixed(1)}%
           </strong>
         </span>
       </div>
 
-      {market.status === 'open_for_votes' && (
+      {market.status === "open_for_votes" && (
         <div className="relative mt-4 border-t border-dashed border-stone-surface pt-3">
           <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2 font-mono text-xs text-ash">
             <span>
-              Signals cast progress:{' '}
+              Signals cast progress:{" "}
               <strong className="text-charcoal-primary">
                 {totalVotes} / {targetVotes}
               </strong>
@@ -1032,12 +1104,12 @@ function MarketHero({
                 type="button"
               >
                 {devQualifyLoading
-                  ? 'Fast-tracking...'
-                  : '[Skip signal review]'}
+                  ? "Fast-tracking..."
+                  : "[Skip signal review]"}
               </button>
             )}
           </div>
-          <div className="h-1.5 overflow-hidden rounded-full bg-parchment-card shadow-[(--shadow-subtle)]">
+          <div className="h-1.5 overflow-hidden rounded-full bg-parchment-card shadow-subtle">
             <div
               className="h-full bg-meadow-green transition-all duration-500"
               style={{ width: `${votesProgress}%` }}
@@ -1107,26 +1179,26 @@ function TradeTicket({
 
   function setSellPercentage(percent: number) {
     const shares = (maxSellShares * percent) / 100
-    onAmountChange(shares > 0 ? shares.toFixed(4) : '0')
+    onAmountChange(shares > 0 ? shares.toFixed(4) : "0")
   }
 
   return (
     <section className="verity-card overflow-hidden">
       <div className="flex items-center justify-between border-b border-dashed border-stone-surface px-4 py-3">
         <div className="flex gap-4">
-          {(['BUY', 'SELL'] as const).map((nextAction) => (
+          {(["BUY", "SELL"] as const).map((nextAction) => (
             <button
               aria-pressed={action === nextAction}
               className={`relative h-8 text-sm font-semibold tracking-[-0.18px] transition-colors ${
                 action === nextAction
-                  ? 'text-charcoal-primary'
-                  : 'text-ash hover:text-charcoal-primary'
+                  ? "text-charcoal-primary"
+                  : "text-ash hover:text-charcoal-primary"
               }`}
               key={nextAction}
               onClick={() => onActionChange(nextAction)}
               type="button"
             >
-              {nextAction === 'BUY' ? 'Buy' : 'Sell'}
+              {nextAction === "BUY" ? "Buy" : "Sell"}
               {action === nextAction && (
                 <span className="absolute bottom-0 left-0 h-0.5 w-full rounded-full bg-charcoal-primary" />
               )}
@@ -1141,14 +1213,14 @@ function TradeTicket({
       <div className="p-4">
         <div className="mb-6 grid grid-cols-2 gap-3">
           <OutcomeButton
-            active={selectedSide === 'YES'}
+            active={selectedSide === "YES"}
             label="Yes"
             price={yesPrice}
             side="YES"
             onClick={onSideChange}
           />
           <OutcomeButton
-            active={selectedSide === 'NO'}
+            active={selectedSide === "NO"}
             label="No"
             price={noPrice}
             side="NO"
@@ -1162,16 +1234,16 @@ function TradeTicket({
               className="block text-[15px] font-semibold tracking-[-0.2px] text-charcoal-primary"
               htmlFor="market-trade-amount"
             >
-              {action === 'BUY' ? 'Amount' : 'Shares'}
+              {action === "BUY" ? "Amount" : "Shares"}
             </label>
             <p className="mt-0.5 font-mono text-[11px] text-ash">
-              {action === 'BUY'
+              {action === "BUY"
                 ? `${balanceLabel} USDC balance`
                 : `${maxSellShares.toFixed(4)} ${selectedSide} available`}
             </p>
           </div>
           <input
-            aria-label={action === 'BUY' ? 'USDC amount' : 'Shares to sell'}
+            aria-label={action === "BUY" ? "USDC amount" : "Shares to sell"}
             className="h-14 w-32 bg-transparent text-right font-mono text-[34px] font-semibold leading-none tracking-[-1px] text-midnight outline-none placeholder:text-ash"
             id="market-trade-amount"
             min="0"
@@ -1183,11 +1255,11 @@ function TradeTicket({
           />
         </div>
 
-        {action === 'BUY' ? (
+        {action === "BUY" ? (
           <div className="mb-4 flex flex-wrap justify-end gap-2">
             {quickBuyAmounts.map((value) => (
               <button
-                className="verity-pill h-8 bg-parchment-card px-3 font-mono text-xs font-semibold text-graphite shadow-[(--shadow-subtle)] transition-colors hover:bg-stone-surface"
+                className="verity-pill h-8 bg-parchment-card px-3 font-mono text-xs font-semibold text-graphite shadow-subtle transition-colors hover:bg-stone-surface"
                 key={value}
                 onClick={() => addBuyAmount(value)}
                 type="button"
@@ -1200,29 +1272,29 @@ function TradeTicket({
           <div className="mb-4 flex flex-wrap justify-end gap-2">
             {sellPercentages.map((percent) => (
               <button
-                className="verity-pill h-8 bg-parchment-card px-3 font-mono text-xs font-semibold text-graphite shadow-[(--shadow-subtle)] transition-colors hover:bg-stone-surface disabled:cursor-not-allowed disabled:opacity-45"
+                className="verity-pill h-8 bg-parchment-card px-3 font-mono text-xs font-semibold text-graphite shadow-subtle transition-colors hover:bg-stone-surface disabled:cursor-not-allowed disabled:opacity-45"
                 disabled={maxSellShares <= 0}
                 key={percent}
                 onClick={() => setSellPercentage(percent)}
                 type="button"
               >
-                {percent === 100 ? 'Max' : `${percent}%`}
+                {percent === 100 ? "Max" : `${percent}%`}
               </button>
             ))}
           </div>
         )}
 
-        <div className="grid gap-1 rounded-[12px] bg-parchment-card p-3 font-mono text-[11px] text-ash shadow-[(--shadow-subtle)]">
+        <div className="grid gap-1 rounded-[12px] bg-parchment-card p-3 font-mono text-[11px] text-ash shadow-subtle">
           <div className="flex justify-between">
             <span>Price</span>
             <span>{(price * 100).toFixed(1)}¢</span>
           </div>
           <div className="flex justify-between">
             <span>
-              {action === 'BUY' ? 'Estimated shares' : 'Gross proceeds'}
+              {action === "BUY" ? "Estimated shares" : "Gross proceeds"}
             </span>
             <span>
-              {action === 'BUY'
+              {action === "BUY"
                 ? estimatedShares.toFixed(4)
                 : `${sellProceeds.toFixed(4)} USDC`}
             </span>
@@ -1232,13 +1304,13 @@ function TradeTicket({
             <span>{fee.toFixed(4)} USDC</span>
           </div>
           <div className="flex justify-between text-charcoal-primary">
-            <span>{action === 'BUY' ? 'Total' : 'Net proceeds'}</span>
+            <span>{action === "BUY" ? "Total" : "Net proceeds"}</span>
             <span>
               {previewValue > 0
-                ? action === 'BUY'
+                ? action === "BUY"
                   ? total.toFixed(4)
                   : netProceeds.toFixed(4)
-                : '0.0000'}{' '}
+                : "0.0000"}{" "}
               USDC
             </span>
           </div>
@@ -1251,10 +1323,10 @@ function TradeTicket({
           type="button"
         >
           {actionPending
-            ? 'Processing...'
+            ? "Processing..."
             : isConnected
-              ? `${action === 'BUY' ? 'Buy' : 'Sell'} ${selectedSide}`
-              : 'Connect Wallet'}
+              ? `${action === "BUY" ? "Buy" : "Sell"} ${selectedSide}`
+              : "Connect Wallet"}
         </button>
       </div>
     </section>
@@ -1277,12 +1349,12 @@ function OutcomeButton({
   return (
     <button
       aria-pressed={active}
-      className={`rounded-[12px] px-3 py-3 text-center shadow-[(--shadow-subtle)] transition-colors ${
+      className={`rounded-[12px] px-3 py-3 text-center shadow-subtle transition-colors ${
         active
-          ? side === 'YES'
-            ? 'bg-meadow-green/12'
-            : 'bg-ember-orange/10'
-          : 'bg-parchment-card hover:bg-stone-surface'
+          ? side === "YES"
+            ? "bg-meadow-green/12"
+            : "bg-ember-orange/10"
+          : "bg-parchment-card hover:bg-stone-surface"
       }`}
       onClick={() => onClick(side)}
       type="button"
@@ -1290,10 +1362,10 @@ function OutcomeButton({
       <span
         className={`block text-sm font-semibold ${
           active
-            ? side === 'YES'
-              ? 'text-meadow-green'
-              : 'text-ember-orange'
-            : 'text-charcoal-primary'
+            ? side === "YES"
+              ? "text-meadow-green"
+              : "text-ember-orange"
+            : "text-charcoal-primary"
         }`}
       >
         {label}
@@ -1328,14 +1400,14 @@ function SentimentPanel({
         <BarChart3 className="h-4 w-4 text-ash" />
       </div>
 
-      <div className="rounded-[12px] bg-parchment-card p-4 shadow-[(--shadow-subtle)]">
+      <div className="rounded-[12px] bg-parchment-card p-4 shadow-subtle">
         {!hasOpinions && (
-          <p className="mb-4 rounded-[10px] bg-white-surface p-3 text-sm text-ash shadow-[(--shadow-subtle)]">
+          <p className="mb-4 rounded-[10px] bg-white-surface p-3 text-sm text-ash shadow-subtle">
             No USDC-backed opinions yet.
           </p>
         )}
         <div className="mb-4 grid grid-cols-2 gap-2">
-          <div className="rounded-[10px] bg-meadow-green/10 p-3 shadow-[(--shadow-subtle)]">
+          <div className="rounded-[10px] bg-meadow-green/10 p-3 shadow-subtle">
             <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-meadow-green">
               Yes
             </span>
@@ -1343,7 +1415,7 @@ function SentimentPanel({
               {yesPercent.toFixed(1)}%
             </p>
           </div>
-          <div className="rounded-[10px] bg-ember-orange/10 p-3 shadow-[(--shadow-subtle)]">
+          <div className="rounded-[10px] bg-ember-orange/10 p-3 shadow-subtle">
             <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-ember-orange">
               No
             </span>
@@ -1369,14 +1441,14 @@ function SentimentRow({
 }: {
   label: string
   percent: number
-  tone: 'yes' | 'no'
+  tone: "yes" | "no"
 }) {
   return (
     <div className="grid grid-cols-[34px_minmax(0,1fr)_52px] items-center gap-3">
       <span className="text-charcoal-primary">{label}</span>
-      <span className="h-2 overflow-hidden rounded-full bg-white-surface shadow-[(--shadow-subtle)]">
+      <span className="h-2 overflow-hidden rounded-full bg-white-surface shadow-subtle">
         <span
-          className={`block h-full ${tone === 'yes' ? 'bg-meadow-green' : 'bg-ember-orange'}`}
+          className={`block h-full ${tone === "yes" ? "bg-meadow-green" : "bg-ember-orange"}`}
           style={{ width: `${percent}%` }}
         />
       </span>
@@ -1403,13 +1475,13 @@ function RulesPanel({
       </h2>
       <div className="grid gap-3 text-sm leading-relaxed tracking-[-0.18px] text-graphite">
         <p>{postContent}</p>
-        <div className="rounded-[10px] bg-meadow-green/10 p-3 shadow-[(--shadow-subtle)]">
+        <div className="rounded-[10px] bg-meadow-green/10 p-3 shadow-subtle">
           <span className="font-mono text-xs font-semibold text-meadow-green">
             YES
           </span>
           <p className="mt-1">{yesCondition}</p>
         </div>
-        <div className="rounded-[10px] bg-ember-orange/10 p-3 shadow-[(--shadow-subtle)]">
+        <div className="rounded-[10px] bg-ember-orange/10 p-3 shadow-subtle">
           <span className="font-mono text-xs font-semibold text-ember-orange">
             NO
           </span>
@@ -1424,7 +1496,7 @@ function RulesPanel({
 }
 
 function shortHash(hash?: string | null) {
-  if (!hash) return ''
+  if (!hash) return ""
   return `${hash.slice(0, 10)}...${hash.slice(-8)}`
 }
 
@@ -1468,13 +1540,13 @@ function PositionPanel({
                 key={position.id}
               >
                 <span className="text-ash">
-                  {position.side === 'YES' ? 'Yes' : 'No'}
+                  {position.side === "YES" ? "Yes" : "No"}
                 </span>
                 <span
                   className={
-                    position.side === 'YES'
-                      ? 'text-meadow-green'
-                      : 'text-ember-orange'
+                    position.side === "YES"
+                      ? "text-meadow-green"
+                      : "text-ember-orange"
                   }
                 >
                   ${position.payoutPreview.toFixed(2)}
@@ -1539,7 +1611,7 @@ function CommentsPanel({
 
       <div className="mb-4 flex gap-2">
         <input
-          className="h-11 min-w-0 flex-1 rounded-[10px] bg-white-surface px-3 text-sm tracking-[-0.18px] text-charcoal-primary shadow-[(--shadow-subtle)] outline-none placeholder:text-ash focus:ring-2 focus:ring-stone-surface"
+          className="h-11 min-w-0 flex-1 rounded-[10px] bg-white-surface px-3 text-sm tracking-[-0.18px] text-charcoal-primary shadow-subtle outline-none placeholder:text-ash focus:ring-2 focus:ring-stone-surface"
           id="market-comment-input"
           onChange={(event) => onChange(event.target.value)}
           placeholder="Add a comment..."
@@ -1569,14 +1641,14 @@ function CommentsPanel({
 
             return (
               <div key={comment.id} className="flex flex-col gap-2">
-                <article className="rounded-[10px] bg-parchment-card p-3 shadow-[(--shadow-subtle)]">
+                <article className="rounded-[10px] bg-parchment-card p-3 shadow-subtle">
                   <div className="mb-1 flex flex-wrap items-center justify-between gap-2 font-mono text-[11px] text-ash">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="font-semibold text-charcoal-primary">
                         {displayName(comment.author)}
                       </span>
                       <span>{displayHandle(comment.author)}</span>
-                      <span>{'\u00B7'}</span>
+                      <span>{"\u00B7"}</span>
                       <span>{relativeTime(comment.created_at)}</span>
                     </div>
                     <button
@@ -1594,7 +1666,7 @@ function CommentsPanel({
 
                 {sortedReplies.map((reply) => (
                   <article
-                    className="ml-6 rounded-[10px] bg-parchment-card/60 p-2.5 shadow-[(--shadow-subtle)] border-l-2 border-sky-blue/35"
+                    className="ml-6 rounded-[10px] bg-parchment-card/60 p-2.5 shadow-subtle border-l-2 border-sky-blue/35"
                     key={reply.id}
                   >
                     <div className="mb-1 flex flex-wrap items-center justify-between gap-2 font-mono text-[10px] text-ash">
@@ -1603,7 +1675,7 @@ function CommentsPanel({
                           {displayName(reply.author)}
                         </span>
                         <span>{displayHandle(reply.author)}</span>
-                        <span>{'\u00B7'}</span>
+                        <span>{"\u00B7"}</span>
                         <span>{relativeTime(reply.created_at)}</span>
                       </div>
                       <button
@@ -1659,15 +1731,15 @@ function MarketStatsPanel({
       />
       <StatRow
         label="Created"
-        value={createdAt ? createdAt.toLocaleString() : 'Unknown'}
+        value={createdAt ? createdAt.toLocaleString() : "Unknown"}
       />
       <StatRow
         label="Closes"
-        value={closesAt ? closesAt.toLocaleString() : 'Unknown'}
+        value={closesAt ? closesAt.toLocaleString() : "Unknown"}
       />
       <StatRow
         label="Settles by"
-        value={settlesAt ? settlesAt.toLocaleString() : 'TBD'}
+        value={settlesAt ? settlesAt.toLocaleString() : "TBD"}
       />
     </section>
   )
@@ -1737,7 +1809,7 @@ function SocialActions({
   viewerVote: VoteSide | null
 }) {
   const votingDisabled =
-    !['open_for_votes', 'qualified', 'funding_pool', 'tradable'].includes(
+    !["open_for_votes", "qualified", "funding_pool", "tradable"].includes(
       marketStatus,
     ) ||
     Boolean(viewerVote) ||
@@ -1758,18 +1830,18 @@ function SocialActions({
           onClick={onReshare}
         />
         <IconAction
-          active={viewerVote === 'YES'}
+          active={viewerVote === "YES"}
           disabled={votingDisabled}
           icon={<ArrowUp className="h-4 w-4" />}
           label={freeYesVotes}
-          onClick={() => onVote('YES')}
+          onClick={() => onVote("YES")}
         />
         <IconAction
-          active={viewerVote === 'NO'}
+          active={viewerVote === "NO"}
           disabled={votingDisabled}
           icon={<ArrowDown className="h-4 w-4" />}
           label={freeNoVotes}
-          onClick={() => onVote('NO')}
+          onClick={() => onVote("NO")}
           tone="no"
         />
         <IconAction icon={<Share className="h-4 w-4" />} onClick={onShare} />
@@ -1784,23 +1856,23 @@ function IconAction({
   icon,
   label,
   onClick,
-  tone = 'yes',
+  tone = "yes",
 }: {
   active?: boolean
   disabled?: boolean
   icon: ReactNode
   label?: number
   onClick: () => void
-  tone?: 'yes' | 'no'
+  tone?: "yes" | "no"
 }) {
   return (
     <button
       className={`flex items-center gap-2 transition-colors hover:text-charcoal-primary ${
         active
-          ? tone === 'yes'
-            ? 'text-meadow-green'
-            : 'text-ember-orange'
-          : ''
+          ? tone === "yes"
+            ? "text-meadow-green"
+            : "text-ember-orange"
+          : ""
       }`}
       disabled={disabled}
       onClick={onClick}
@@ -1809,7 +1881,7 @@ function IconAction({
       <span className="rounded-full p-2 transition-colors hover:bg-stone-surface">
         {icon}
       </span>
-      {typeof label === 'number' && <span className="text-xs">{label}</span>}
+      {typeof label === "number" && <span className="text-xs">{label}</span>}
     </button>
   )
 }
@@ -1848,7 +1920,7 @@ function VoteQualificationProgressPanel({
 
   const votesProgress = Math.min(100, (currentUpvotes / targetUpvotes) * 100)
 
-  const isDev = process.env.NEXT_PUBLIC_NODE_ENV !== 'production'
+  const isDev = process.env.NEXT_PUBLIC_NODE_ENV !== "production"
 
   return (
     <section className="verity-card p-4 sm:p-5">
@@ -1863,7 +1935,7 @@ function VoteQualificationProgressPanel({
         </div>
       </div>
 
-      <div className="grid gap-4 rounded-[12px] bg-parchment-card p-4 shadow-[(--shadow-subtle)]">
+      <div className="grid gap-4 rounded-[12px] bg-parchment-card p-4 shadow-subtle">
         <div>
           <div className="mb-1 flex justify-between font-mono text-xs text-ash">
             <span>Upvotes cast</span>
@@ -1871,7 +1943,7 @@ function VoteQualificationProgressPanel({
               {currentUpvotes} / {targetUpvotes}
             </span>
           </div>
-          <div className="h-2.5 overflow-hidden rounded-full bg-white-surface shadow-[(--shadow-subtle)]">
+          <div className="h-2.5 overflow-hidden rounded-full bg-white-surface shadow-subtle">
             <div
               className="h-full bg-meadow-green transition-all duration-500"
               style={{ width: `${votesProgress}%` }}
@@ -1886,12 +1958,12 @@ function VoteQualificationProgressPanel({
             Dev Mode Fast-Track
           </p>
           <button
-            className="verity-pill flex h-11 w-full items-center justify-center bg-meadow-green/10 font-mono text-xs font-semibold uppercase tracking-[0.12em] text-charcoal-primary shadow-[(--shadow-subtle)] transition-colors hover:bg-meadow-green/20"
+            className="verity-pill flex h-11 w-full items-center justify-center bg-meadow-green/10 font-mono text-xs font-semibold uppercase tracking-[0.12em] text-charcoal-primary shadow-subtle transition-colors hover:bg-meadow-green/20"
             disabled={loading}
             onClick={onDevQualify}
             type="button"
           >
-            {loading ? 'Fast-tracking...' : 'Skip signal review'}
+            {loading ? "Fast-tracking..." : "Skip signal review"}
           </button>
         </div>
       )}
@@ -1907,6 +1979,7 @@ function PreMarketFundingPanel({
   onFundPreMarket,
   onAddLP,
   actionLoading,
+  activeOptionName,
 }: {
   market: MarketPost
   poolState: any
@@ -1915,6 +1988,7 @@ function PreMarketFundingPanel({
   onFundPreMarket: (amount: number) => Promise<void>
   onAddLP: (amount: number) => Promise<void>
   actionLoading: string | null
+  activeOptionName?: string | null
 }) {
   const currentPoolBalance = poolState?.pool?.currentPoolBalance ?? 0
   const minPoolBalance = 40
@@ -1925,7 +1999,7 @@ function PreMarketFundingPanel({
   )
   const progress = Math.min(100, (currentPoolBalance / minPoolBalance) * 100)
 
-  const [depositAmount, setDepositAmount] = useState('10')
+  const [depositAmount, setDepositAmount] = useState("10")
   const showCreatorEscrow = false
 
   return (
@@ -1933,26 +2007,44 @@ function PreMarketFundingPanel({
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-[19px] font-semibold leading-[1.28] tracking-[-0.25px] text-charcoal-primary">
-            Pool Funding
+            {activeOptionName
+              ? `Funding Pool: ${activeOptionName}`
+              : "Pool Funding"}
           </h2>
           <p className="mt-1 text-sm tracking-[-0.18px] text-ash">
-            Fund this market's launch pool. Contributions help open trading and
-            may earn liquidity rewards.
+            {activeOptionName
+              ? `Fund the launch pool for the option: ${activeOptionName}. Each outcome option has a separate liquidity pool and must be funded individually.`
+              : "Fund this market's launch pool. Contributions help open trading and may earn liquidity rewards."}
           </p>
         </div>
-        <span className="rounded-full bg-meadow-green/10 px-3 py-1 font-mono text-xs font-semibold text-charcoal-primary shadow-[(--shadow-subtle)]">
+        <span className="rounded-full bg-meadow-green/10 px-3 py-1 font-mono text-xs font-semibold text-charcoal-primary shadow-subtle">
           {currentPoolBalance} / {minPoolBalance} USDC
         </span>
       </div>
 
-      <div className="mb-5 rounded-[12px] bg-parchment-card p-4 shadow-[(--shadow-subtle)]">
+      {activeOptionName && (
+        <div className="mb-4 rounded-[12px] bg-sky-blue/5 border border-sky-blue/10 p-3 text-[11px] leading-[1.4] text-sky-blue flex gap-2 items-start shadow-subtle">
+          <Info className="h-4 w-4 shrink-0 text-sky-blue mt-0.5" />
+          <div>
+            <span>
+              You are currently funding the <strong>{activeOptionName}</strong>{" "}
+              pool. Each option pool is <strong>separate</strong> and must reach
+              40 USDC to activate trading for that option.
+            </span>
+          </div>
+        </div>
+      )}
+
+      <div className="mb-5 rounded-[12px] bg-parchment-card p-4 shadow-subtle">
         <div className="mb-1 flex justify-between font-mono text-xs text-ash">
-          <span>Pool Funding</span>
+          <span>
+            {activeOptionName ? `${activeOptionName} Pool` : "Pool Funding"}
+          </span>
           <span className="font-semibold text-charcoal-primary">
             {currentPoolBalance} USDC
           </span>
         </div>
-        <div className="h-2.5 overflow-hidden rounded-full bg-white-surface shadow-[(--shadow-subtle)]">
+        <div className="h-2.5 overflow-hidden rounded-full bg-white-surface shadow-subtle">
           <div
             className="h-full bg-meadow-green transition-all duration-500"
             style={{ width: `${progress}%` }}
@@ -1962,7 +2054,7 @@ function PreMarketFundingPanel({
 
       <div className="grid gap-3">
         {showCreatorEscrow ? (
-          <div className="rounded-[12px] bg-meadow-green/10 p-4 text-center shadow-[(--shadow-subtle)]">
+          <div className="rounded-[12px] bg-meadow-green/10 p-4 text-center shadow-subtle">
             <h3 className="text-sm font-semibold text-charcoal-primary">
               Creator Action Required
             </h3>
@@ -1977,14 +2069,14 @@ function PreMarketFundingPanel({
                 onClick={() => onFundPreMarket(10)}
                 type="button"
               >
-                {actionLoading === 'fund_pre_market'
-                  ? 'Funding...'
-                  : 'Fund 10 USDC'}
+                {actionLoading === "fund_pre_market"
+                  ? "Funding..."
+                  : "Fund 10 USDC"}
               </button>
             ) : null}
           </div>
         ) : currentPoolBalance >= minPoolBalance ? (
-          <div className="flex flex-col items-center justify-center rounded-[12px] bg-parchment-card py-6 text-center shadow-[(--shadow-subtle)]">
+          <div className="flex flex-col items-center justify-center rounded-[12px] bg-parchment-card py-6 text-center shadow-subtle">
             <svg
               className="mb-3 h-8 w-8 animate-spin text-meadow-green"
               fill="none"
@@ -2013,13 +2105,15 @@ function PreMarketFundingPanel({
             </span>
           </div>
         ) : (
-          <div className="rounded-[12px] bg-parchment-card p-4 shadow-[(--shadow-subtle)]">
+          <div className="rounded-[12px] bg-parchment-card p-4 shadow-subtle">
             <h3 className="mb-3 text-sm font-semibold text-charcoal-primary">
-              Fund the Launch Pool
+              {activeOptionName
+                ? `Fund the ${activeOptionName} Pool`
+                : "Fund the Launch Pool"}
             </h3>
             <div className="flex gap-2">
               <input
-                className="h-11 w-24 rounded-[10px] bg-white-surface px-3 font-mono text-sm text-charcoal-primary shadow-[(--shadow-subtle)] outline-none focus:ring-2 focus:ring-stone-surface"
+                className="h-11 w-24 rounded-[10px] bg-white-surface px-3 font-mono text-sm text-charcoal-primary shadow-subtle outline-none focus:ring-2 focus:ring-stone-surface"
                 min="1"
                 onChange={(e) => setDepositAmount(e.target.value)}
                 step="1"
@@ -2036,11 +2130,11 @@ function PreMarketFundingPanel({
                 onClick={() => onAddLP(Number(depositAmount))}
                 type="button"
               >
-                {actionLoading === 'add_lp' ? 'Funding...' : 'Fund'}
+                {actionLoading === "add_lp" ? "Funding..." : "Fund Pool"}
               </button>
             </div>
             <p className="mt-2 font-mono text-[10px] leading-relaxed text-ash">
-              Contributions convert to LP shares once the pool hits the{' '}
+              Contributions convert to LP shares once the pool hits the{" "}
               {minPoolBalance} USDC launch target.
             </p>
           </div>
@@ -2066,8 +2160,8 @@ function ActiveMarketLPPanel({
   onRemoveLP: (shares: number) => Promise<void>
   actionLoading: string | null
 }) {
-  const [addAmount, setAddAmount] = useState('10')
-  const [removeShares, setRemoveShares] = useState('10')
+  const [addAmount, setAddAmount] = useState("10")
+  const [removeShares, setRemoveShares] = useState("10")
 
   const myPosition = lpPositions?.[0]
   const myShares = myPosition?.lpShares ?? 0
@@ -2087,7 +2181,7 @@ function ActiveMarketLPPanel({
       </p>
 
       <div className="mb-4 grid grid-cols-2 gap-2">
-        <div className="rounded-[12px] bg-parchment-card p-3 shadow-[(--shadow-subtle)]">
+        <div className="rounded-[12px] bg-parchment-card p-3 shadow-subtle">
           <span className="font-mono text-[10px] font-semibold uppercase text-ash">
             My LP Shares
           </span>
@@ -2095,7 +2189,7 @@ function ActiveMarketLPPanel({
             {Number(myShares).toFixed(4)}
           </p>
         </div>
-        <div className="rounded-[12px] bg-parchment-card p-3 shadow-[(--shadow-subtle)]">
+        <div className="rounded-[12px] bg-parchment-card p-3 shadow-subtle">
           <span className="font-mono text-[10px] font-semibold uppercase text-ash">
             My Value
           </span>
@@ -2121,13 +2215,13 @@ function ActiveMarketLPPanel({
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
-        <div className="rounded-[12px] bg-parchment-card p-4 shadow-[(--shadow-subtle)]">
+        <div className="rounded-[12px] bg-parchment-card p-4 shadow-subtle">
           <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-charcoal-primary">
             Add Liquidity
           </h3>
           <div className="flex gap-2">
             <input
-              className="h-10 w-20 rounded-[10px] bg-white-surface px-3 font-mono text-sm text-charcoal-primary shadow-[(--shadow-subtle)] outline-none focus:ring-2 focus:ring-stone-surface"
+              className="h-10 w-20 rounded-[10px] bg-white-surface px-3 font-mono text-sm text-charcoal-primary shadow-subtle outline-none focus:ring-2 focus:ring-stone-surface"
               min="1"
               onChange={(e) => setAddAmount(e.target.value)}
               step="1"
@@ -2142,18 +2236,18 @@ function ActiveMarketLPPanel({
               onClick={() => onAddLP(Number(addAmount))}
               type="button"
             >
-              {actionLoading === 'add_lp' ? 'Adding...' : 'Add LP'}
+              {actionLoading === "add_lp" ? "Adding..." : "Add LP"}
             </button>
           </div>
         </div>
 
-        <div className="rounded-[12px] bg-parchment-card p-4 shadow-[(--shadow-subtle)]">
+        <div className="rounded-[12px] bg-parchment-card p-4 shadow-subtle">
           <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-charcoal-primary">
             Remove Liquidity
           </h3>
           <div className="flex gap-2">
             <input
-              className="h-10 w-20 rounded-[10px] bg-white-surface px-3 font-mono text-sm text-charcoal-primary shadow-[(--shadow-subtle)] outline-none focus:ring-2 focus:ring-stone-surface"
+              className="h-10 w-20 rounded-[10px] bg-white-surface px-3 font-mono text-sm text-charcoal-primary shadow-subtle outline-none focus:ring-2 focus:ring-stone-surface"
               max={myShares}
               min="0.0001"
               onChange={(e) => setRemoveShares(e.target.value)}
@@ -2173,7 +2267,7 @@ function ActiveMarketLPPanel({
               onClick={() => onRemoveLP(Number(removeShares))}
               type="button"
             >
-              {actionLoading === 'remove_lp' ? 'Removing...' : 'Remove'}
+              {actionLoading === "remove_lp" ? "Removing..." : "Remove"}
             </button>
           </div>
           {!canRemove && (
@@ -2226,7 +2320,7 @@ function ResolutionPanel({
       !proposal ||
       proposal.finalized ||
       proposal.disputed ||
-      proposal.proposer === '0x0000000000000000000000000000000000000000'
+      proposal.proposer === "0x0000000000000000000000000000000000000000"
     ) {
       setTimeLeft(null)
       return
@@ -2251,8 +2345,8 @@ function ResolutionPanel({
 
   const now = new Date()
   const isPastDeadline = now >= new Date(market.deadline)
-  const isResolving = market.status === 'resolving'
-  const isResolved = market.status === 'resolved'
+  const isResolving = market.status === "resolving"
+  const isResolved = market.status === "resolved"
 
   if (!isPastDeadline && !isResolving && !isResolved) return null
 
@@ -2271,7 +2365,7 @@ function ResolutionPanel({
       </div>
 
       {isPyth ? (
-        <div className="rounded-[12px] bg-parchment-card p-4 shadow-[(--shadow-subtle)]">
+        <div className="rounded-[12px] bg-parchment-card p-4 shadow-subtle">
           <p className="text-sm leading-relaxed tracking-[-0.18px] text-ash">
             <strong>Pyth Quantitative Market:</strong> This prediction resolves
             automatically on-chain using real-time price oracle updates. No
@@ -2281,7 +2375,7 @@ function ResolutionPanel({
       ) : (
         <>
           {isPastDeadline && !proposal && !isResolved && (
-            <div className="rounded-[12px] bg-parchment-card p-4 shadow-[(--shadow-subtle)]">
+            <div className="rounded-[12px] bg-parchment-card p-4 shadow-subtle">
               <p className="text-sm leading-relaxed tracking-[-0.18px] text-ash">
                 The market trading period has expired. Awaiting AI Agent
                 resolution proposal on-chain...
@@ -2293,22 +2387,22 @@ function ResolutionPanel({
             !proposal.finalized &&
             !proposal.disputed &&
             proposal.proposer !==
-              '0x0000000000000000000000000000000000000000' && (
-              <div className="flex flex-col gap-3 rounded-[12px] bg-parchment-card p-4 shadow-[(--shadow-subtle)]">
+              "0x0000000000000000000000000000000000000000" && (
+              <div className="flex flex-col gap-3 rounded-[12px] bg-parchment-card p-4 shadow-subtle">
                 <div>
                   <span className="font-mono text-[10px] font-semibold uppercase text-ash">
                     Active Proposal
                   </span>
                   <p className="mt-1 text-sm font-semibold text-charcoal-primary">
-                    Proposed Outcome:{' '}
+                    Proposed Outcome:{" "}
                     <span
                       className={
                         proposal.proposedWinningOutcome
-                          ? 'text-meadow-green'
-                          : 'text-ember-orange'
+                          ? "text-meadow-green"
+                          : "text-ember-orange"
                       }
                     >
-                      {proposal.proposedWinningOutcome ? 'YES' : 'NO'}
+                      {proposal.proposedWinningOutcome ? "YES" : "NO"}
                     </span>
                   </p>
                   <p className="mt-1 font-mono text-xs text-ash">
@@ -2318,7 +2412,7 @@ function ResolutionPanel({
                 </div>
 
                 {timeLeft !== null && timeLeft > 0 ? (
-                  <div className="rounded-[10px] bg-white-surface p-3 shadow-[(--shadow-subtle)]">
+                  <div className="rounded-[10px] bg-white-surface p-3 shadow-subtle">
                     <span className="font-mono text-[10px] font-semibold uppercase text-ash">
                       Dispute Window Closes In
                     </span>
@@ -2335,13 +2429,13 @@ function ResolutionPanel({
                       onClick={onDispute}
                       type="button"
                     >
-                      {actionLoading === 'dispute'
-                        ? 'Disputing...'
+                      {actionLoading === "dispute"
+                        ? "Disputing..."
                         : `Dispute Proposal (${bond} USDC)`}
                     </button>
                   </div>
                 ) : (
-                  <div className="rounded-[10px] bg-white-surface p-3 shadow-[(--shadow-subtle)]">
+                  <div className="rounded-[10px] bg-white-surface p-3 shadow-subtle">
                     <span className="font-mono text-[10px] font-semibold uppercase text-ash">
                       Dispute Window Has Closed
                     </span>
@@ -2355,7 +2449,7 @@ function ResolutionPanel({
             )}
 
           {proposal && proposal.disputed && !isResolved && (
-            <div className="rounded-[12px] bg-ember-orange/10 p-4 shadow-[(--shadow-subtle)]">
+            <div className="rounded-[12px] bg-ember-orange/10 p-4 shadow-subtle">
               <span className="font-mono text-[10px] font-semibold uppercase text-ember-orange">
                 Disputed
               </span>
@@ -2376,18 +2470,18 @@ function ResolutionPanel({
       )}
 
       {isResolved && (
-        <div className="flex flex-col gap-3 rounded-[12px] bg-meadow-green/10 p-4 shadow-[(--shadow-subtle)]">
+        <div className="flex flex-col gap-3 rounded-[12px] bg-meadow-green/10 p-4 shadow-subtle">
           <div>
             <span className="font-mono text-[10px] font-semibold uppercase text-meadow-green">
               Resolved Outcome
             </span>
             <p className="mt-1 text-lg font-semibold tracking-[-0.25px] text-charcoal-primary">
-              Resolved to:{' '}
+              Resolved to:{" "}
               <span
                 className={
-                  market.resolvedOutcome === 'YES'
-                    ? 'text-meadow-green'
-                    : 'text-ember-orange'
+                  market.resolvedOutcome === "YES"
+                    ? "text-meadow-green"
+                    : "text-ember-orange"
                 }
               >
                 {market.resolvedOutcome}
@@ -2401,7 +2495,7 @@ function ResolutionPanel({
           </div>
 
           {market.proposalReasoning && (
-            <div className="rounded-[10px] bg-white-surface p-3 text-xs leading-relaxed text-charcoal-primary shadow-[(--shadow-subtle)]">
+            <div className="rounded-[10px] bg-white-surface p-3 text-xs leading-relaxed text-charcoal-primary shadow-subtle">
               <p className="mb-1 font-semibold">AI Agent Reasoning:</p>
               <p className="italic text-ash">{market.proposalReasoning}</p>
               {market.proposalCitations &&
@@ -2470,7 +2564,7 @@ function RedeemPanel({
       </p>
 
       {myPosition && (
-        <div className="mb-4 rounded-[12px] bg-parchment-card p-4 shadow-[(--shadow-subtle)]">
+        <div className="mb-4 rounded-[12px] bg-parchment-card p-4 shadow-subtle">
           <div className="flex items-center justify-between gap-3">
             <div>
               <span className="font-mono text-[10px] font-semibold uppercase text-ash">
@@ -2482,7 +2576,7 @@ function RedeemPanel({
             </div>
             <div>
               {isWinner ? (
-                <span className="inline-flex items-center rounded-full bg-meadow-green/10 px-2 py-1 text-xs font-medium text-meadow-green shadow-[(--shadow-subtle)]">
+                <span className="inline-flex items-center rounded-full bg-meadow-green/10 px-2 py-1 text-xs font-medium text-meadow-green shadow-subtle">
                   Winner
                 </span>
               ) : (
@@ -2507,9 +2601,9 @@ function RedeemPanel({
                 onClick={onRedeem}
                 type="button"
               >
-                {actionLoading === 'redeem'
-                  ? 'Redeeming...'
-                  : 'Redeem Winnings'}
+                {actionLoading === "redeem"
+                  ? "Redeeming..."
+                  : "Redeem Winnings"}
               </button>
             </div>
           )}
@@ -2517,7 +2611,7 @@ function RedeemPanel({
       )}
 
       {hasCreatorLP && (
-        <div className="rounded-[12px] bg-parchment-card p-4 shadow-[(--shadow-subtle)]">
+        <div className="rounded-[12px] bg-parchment-card p-4 shadow-subtle">
           <div className="mb-3 flex items-center justify-between gap-3">
             <div>
               <span className="font-mono text-[10px] font-semibold uppercase text-ash">
@@ -2527,7 +2621,7 @@ function RedeemPanel({
                 {myLPPosition.lpShares.toFixed(4)} LP Shares
               </p>
             </div>
-            <span className="inline-flex items-center rounded-full bg-sky-blue/10 px-2 py-1 text-xs font-medium text-sky-blue shadow-[(--shadow-subtle)]">
+            <span className="inline-flex items-center rounded-full bg-sky-blue/10 px-2 py-1 text-xs font-medium text-sky-blue shadow-subtle">
               Creator LP
             </span>
           </div>
@@ -2541,9 +2635,9 @@ function RedeemPanel({
             onClick={onClaimCreatorLP}
             type="button"
           >
-            {actionLoading === 'claim_creator_lp'
-              ? 'Claiming...'
-              : 'Claim Creator LP'}
+            {actionLoading === "claim_creator_lp"
+              ? "Claiming..."
+              : "Claim Creator LP"}
           </button>
         </div>
       )}
@@ -2578,7 +2672,7 @@ function RefundPanel({
         This market was voided. You can retrieve your committed pool funding.
       </p>
 
-      <div className="rounded-[12px] bg-parchment-card p-4 shadow-[(--shadow-subtle)]">
+      <div className="rounded-[12px] bg-parchment-card p-4 shadow-subtle">
         <div className="mb-3 flex items-center justify-between gap-3">
           <div>
             <span className="font-mono text-[10px] font-semibold uppercase text-ash">
@@ -2588,7 +2682,7 @@ function RefundPanel({
               {myLPPosition.lpShares.toFixed(2)} USDC
             </p>
           </div>
-          <span className="inline-flex items-center rounded-full bg-meadow-green/10 px-2 py-1 text-xs font-medium text-meadow-green shadow-[(--shadow-subtle)]">
+          <span className="inline-flex items-center rounded-full bg-meadow-green/10 px-2 py-1 text-xs font-medium text-meadow-green shadow-subtle">
             Voided Market Refund
           </span>
         </div>
@@ -2598,10 +2692,173 @@ function RefundPanel({
           onClick={onClaimRefund}
           type="button"
         >
-          {actionLoading === 'claim_refund'
-            ? 'Claiming Refund...'
-            : 'Claim USDC Refund'}
+          {actionLoading === "claim_refund"
+            ? "Claiming Refund..."
+            : "Claim USDC Refund"}
         </button>
+      </div>
+    </section>
+  )
+}
+
+function OutcomesPanel({
+  childMarkets,
+  selectedChildId,
+  selectedSide,
+  onSelectOptionAndSide,
+  marketStatus,
+}: {
+  childMarkets: MarketPost[]
+  selectedChildId: string | null
+  selectedSide: VoteSide
+  onSelectOptionAndSide: (id: string, side: VoteSide) => void
+  marketStatus?: string
+}) {
+  const isPreMarket = childMarkets.some((child) =>
+    ["open_for_votes", "qualified", "funding_pool"].includes(
+      child.status || "",
+    ),
+  )
+
+  return (
+    <section className="verity-card p-5 border border-border bg-surface-solid shadow-subtle">
+      <h2 className="mb-4 font-semibold tracking-[-0.18px] text-charcoal-primary flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span>Outcomes & Options</span>
+        </div>
+        {/* {isPreMarket && (
+          <span className="text-[10px] bg-sky-blue/10 text-sky-blue px-2.5 py-0.5 rounded-full font-mono uppercase tracking-wider font-semibold">
+            Funding Phase
+          </span>
+        )} */}
+      </h2>
+      <div className="grid gap-3 sm:grid-cols-2">
+        {childMarkets.map((child) => {
+          const isSelected = child.id === selectedChildId
+          const isChildPreMarket = [
+            "open_for_votes",
+            "qualified",
+            "funding_pool",
+          ].includes(child.status || "")
+
+          if (isChildPreMarket) {
+            const currentFunding = child.liquidity ?? 0
+            const minFunding = 40
+            const progress = Math.min(100, (currentFunding / minFunding) * 100)
+
+            let borderClass =
+              "border-border bg-surface-muted/50 text-charcoal-primary"
+            if (isSelected) {
+              borderClass =
+                "border-sky-blue bg-sky-blue/[0.02] dark:bg-sky-blue/[0.04] shadow-sm"
+            }
+
+            return (
+              <div
+                key={child.id}
+                className={`flex flex-col p-4 rounded-xl border transition-all duration-200 ${borderClass}`}
+              >
+                <div className="flex items-start justify-between w-full gap-2">
+                  <span className="font-semibold text-charcoal-primary text-sm line-clamp-2">
+                    {child.optionName || child.question}
+                  </span>
+                  <span className="text-[9px] font-mono text-sky-blue border border-sky-blue/20 bg-sky-blue/5 px-1.5 py-0.5 rounded shrink-0 font-medium">
+                    Separate Pool
+                  </span>
+                </div>
+
+                <div className="mt-3.5 flex flex-col w-full">
+                  <div className="flex items-center justify-between font-mono text-[10px] text-ash mb-1">
+                    <span>Pool Funding Progress</span>
+                    <span className="font-semibold text-charcoal-primary">
+                      {currentFunding} / {minFunding} USDC
+                    </span>
+                  </div>
+                  <div className="h-2 w-full overflow-hidden rounded-full bg-white-surface shadow-subtle border border-stone-surface">
+                    <div
+                      className="h-full bg-sky-blue transition-all duration-500 rounded-full"
+                      style={{ width: `${progress}%` }}
+                    />
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => onSelectOptionAndSide(child.id, "YES")}
+                  className={`mt-4 w-full text-center py-2 px-3 rounded-lg font-mono text-xs font-bold transition-all duration-150 cursor-pointer ${
+                    isSelected
+                      ? "bg-sky-blue text-white border border-sky-blue shadow-sm"
+                      : "bg-sky-blue/10 text-sky-blue border border-sky-blue/20 hover:bg-sky-blue/20"
+                  }`}
+                >
+                  {isSelected ? "✓ Selected for Funding" : "Select to Fund"}
+                </button>
+              </div>
+            )
+          }
+
+          const yesPrice = getMarketPrice(child, "YES")
+          const noPrice = getMarketPrice(child, "NO")
+
+          const isYesSelected = isSelected && selectedSide === "YES"
+          const isNoSelected = isSelected && selectedSide === "NO"
+
+          let borderClass =
+            "border-border bg-surface-muted/50 text-charcoal-primary"
+          if (isYesSelected) {
+            borderClass =
+              "border-meadow-green bg-meadow-green/[0.03] dark:bg-meadow-green/[0.06] shadow-sm"
+          } else if (isNoSelected) {
+            borderClass =
+              "border-ember-orange bg-ember-orange/[0.03] dark:bg-ember-orange/[0.06] shadow-sm"
+          }
+
+          return (
+            <div
+              key={child.id}
+              className={`flex flex-col p-4 rounded-xl border transition-all duration-200 ${borderClass}`}
+            >
+              <div className="flex items-center justify-between w-full">
+                <span className="font-semibold text-charcoal-primary text-sm">
+                  {child.optionName || child.question}
+                </span>
+                <span className="text-[10px] font-mono text-ash">
+                  Pool:{" "}
+                  {(
+                    Number(child.usdc_yes_amount || 0) +
+                    Number(child.usdc_no_amount || 0)
+                  ).toFixed(0)}{" "}
+                  USDC
+                </span>
+              </div>
+
+              <div className="mt-3.5 flex items-center gap-2 w-full">
+                <button
+                  type="button"
+                  onClick={() => onSelectOptionAndSide(child.id, "YES")}
+                  className={`flex-1 text-center py-2 px-3 rounded-lg font-mono text-xs font-bold transition-all duration-150 cursor-pointer ${
+                    isYesSelected
+                      ? "bg-meadow-green text-white border border-meadow-green shadow-sm"
+                      : "bg-meadow-green/10 text-meadow-green border border-meadow-green/20 hover:bg-meadow-green/20"
+                  }`}
+                >
+                  YES: {(yesPrice * 100).toFixed(0)}¢
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onSelectOptionAndSide(child.id, "NO")}
+                  className={`flex-1 text-center py-2 px-3 rounded-lg font-mono text-xs font-bold transition-all duration-150 cursor-pointer ${
+                    isNoSelected
+                      ? "bg-ember-orange text-white border border-ember-orange shadow-sm"
+                      : "bg-ember-orange/10 text-ember-orange border border-ember-orange/20 hover:bg-ember-orange/15"
+                  }`}
+                >
+                  NO: {(noPrice * 100).toFixed(0)}¢
+                </button>
+              </div>
+            </div>
+          )
+        })}
       </div>
     </section>
   )

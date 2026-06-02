@@ -1,10 +1,10 @@
-'use client'
+"use client"
 
-import { MessageSquareText, Plus, TrendingUp, X } from 'lucide-react'
-import { usePathname, useRouter } from 'next/navigation'
-import { useState } from 'react'
+import { MessageSquareText, Plus, TrendingUp, X } from "lucide-react"
+import { usePathname, useRouter } from "next/navigation"
+import { useState } from "react"
 
-type ComposeIntent = 'take' | 'market'
+type ComposeIntent = "take" | "market"
 
 export default function MobileComposeButton() {
   const pathname = usePathname()
@@ -12,20 +12,20 @@ export default function MobileComposeButton() {
   const [open, setOpen] = useState(false)
 
   function openComposer(intent: ComposeIntent) {
-    window.sessionStorage.setItem('verity-compose-intent', intent)
+    window.sessionStorage.setItem("verity-compose-intent", intent)
     window.dispatchEvent(
-      new CustomEvent<ComposeIntent>('verity-compose-intent', {
+      new CustomEvent<ComposeIntent>("verity-compose-intent", {
         detail: intent,
       }),
     )
     setOpen(false)
-    if (pathname !== '/') router.push('/')
+    if (pathname !== "/") router.push("/")
   }
 
   return (
     <div className="fixed bottom-[calc(env(safe-area-inset-bottom)+82px)] right-4 z-50 sm:hidden">
       {open && (
-        <div className="mb-3 w-[240px] rounded-[14px] bg-surface-solid p-2 shadow-[(--shadow-sm)]">
+        <div className="mb-3 w-[240px] rounded-[14px] bg-surface-solid p-2 shadow-sm">
           <div className="mb-2 flex items-center justify-between px-2 pt-1">
             <span className="font-mono text-[11px] font-semibold uppercase tracking-[0.16em] text-ash">
               Create
@@ -42,7 +42,7 @@ export default function MobileComposeButton() {
 
           <button
             className="clickable-surface flex w-full items-center gap-3 rounded-[10px] p-3 text-left"
-            onClick={() => openComposer('market')}
+            onClick={() => openComposer("market")}
             type="button"
           >
             <span className="flex h-10 w-10 items-center justify-center rounded-[16px] bg-ember-orange/10 text-ember-orange">
@@ -60,7 +60,7 @@ export default function MobileComposeButton() {
 
           <button
             className="clickable-surface mt-1 flex w-full items-center gap-3 rounded-[10px] p-3 text-left"
-            onClick={() => openComposer('take')}
+            onClick={() => openComposer("take")}
             type="button"
           >
             <span className="flex h-10 w-10 items-center justify-center rounded-[16px] bg-sky-blue/10 text-sky-blue">
@@ -80,8 +80,8 @@ export default function MobileComposeButton() {
 
       <button
         aria-expanded={open}
-        aria-label={open ? 'Close create menu' : 'Create'}
-        className="clickable flex h-14 w-14 items-center justify-center rounded-full bg-brand-primary text-white shadow-[(--shadow-sm)]"
+        aria-label={open ? "Close create menu" : "Create"}
+        className="clickable flex h-14 w-14 items-center justify-center rounded-full bg-brand-primary text-white shadow-sm"
         onClick={() => setOpen((current) => !current)}
         type="button"
       >

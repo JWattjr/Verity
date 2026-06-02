@@ -29,10 +29,10 @@ contract VerityMarketFactory {
 
     struct MarketInfo {
         address creator;
-        uint256 deadline;         // Market trading deadline
-        uint256 fundingDeadline;  // Deadline to reach MIN_POOL_BALANCE, else auto-void
+        uint256 deadline; // Market trading deadline
+        uint256 fundingDeadline; // Deadline to reach MIN_POOL_BALANCE, else auto-void
         bool registered;
-        bool funded;              // Creator has deposited initial USDC
+        bool funded; // Creator has deposited initial USDC
         bool resolved;
         bool voided;
     }
@@ -46,15 +46,33 @@ contract VerityMarketFactory {
 
     mapping(bytes32 => MarketInfo) public marketRegistry;
     mapping(bytes32 => PythMarketParams) public pythMarkets;
-    mapping(bytes32 => PreMarketDeposit[]) public preMarketDeposits;
+    mapping(bytes32 => mapping(address => uint256)) public preMarketDeposits;
     mapping(bytes32 => uint256) public escrowBalances;
     bytes32[] public allMarketIds;
 
     // ─── Events ──────────────────────────────────────────────────────────
-    event MarketRegistered(bytes32 indexed marketId, address indexed creator, uint256 deadline, uint256 fundingDeadline);
-    event PythMarketRegistered(bytes32 indexed marketId, bytes32 priceFeedId, int64 targetPrice, bool resolveAbove);
-    event MarketPreDepositCreated(bytes32 indexed marketId, address indexed creator, uint256 amount);
-    event MarketFunded(bytes32 indexed marketId, address indexed creator, uint256 amount);
+    event MarketRegistered(
+        bytes32 indexed marketId,
+        address indexed creator,
+        uint256 deadline,
+        uint256 fundingDeadline
+    );
+    event PythMarketRegistered(
+        bytes32 indexed marketId,
+        bytes32 priceFeedId,
+        int64 targetPrice,
+        bool resolveAbove
+    );
+    event MarketPreDepositCreated(
+        bytes32 indexed marketId,
+        address indexed creator,
+        uint256 amount
+    );
+    event MarketFunded(
+        bytes32 indexed marketId,
+        address indexed creator,
+        uint256 amount
+    );
     event MarketResolved(bytes32 indexed marketId, bool winningIsYes);
     event MarketVoided(bytes32 indexed marketId);
     event OptimisticResolverUpdated(address resolver);
@@ -103,10 +121,14 @@ contract VerityMarketFactory {
     /// @notice Creator deposits initial LP and pays the creation fee to treasury.
     /// @param marketId Unique market identifier
     /// @param creatorLpAmount Amount of USDC to deposit as initial LP
-    function createMarketPreDeposit(bytes32 marketId, uint256 creatorLpAmount) external {
+    function createMarketPreDeposit(
+        bytes32 marketId,
+        uint256 creatorLpAmount
+    ) external {
         MarketInfo storage info = marketRegistry[marketId];
         if (info.creator != address(0)) revert MarketAlreadyRegistered();
-        if (creatorLpAmount < fpmm.CREATOR_MIN_LOCK()) revert InsufficientCreatorDeposit();
+        if (creatorLpAmount < fpmm.CREATOR_MIN_LOCK())
+            revert InsufficientCreatorDeposit();
 
         // 1 USDC creation fee
         uint256 fee = 1e6;
@@ -117,10 +139,7 @@ contract VerityMarketFactory {
         // Send fee to fpmm's treasury
         usdc.safeTransfer(fpmm.treasury(), fee);
 
-        preMarketDeposits[marketId].push(PreMarketDeposit({
-            lp: msg.sender,
-            amount: creatorLpAmount
-        }));
+        preMarketDeposits[marketId][msg.sender] += creatorLpAmount;
 
         escrowBalances[marketId] = creatorLpAmount;
         info.creator = msg.sender;
@@ -132,10 +151,15 @@ contract VerityMarketFactory {
     /// @param marketId Unique market identifier
     /// @param beneficiary The address that will own the creator LP and creator privileges
     /// @param creatorLpAmount Amount of USDC to deposit as initial LP
-    function createMarketPreDepositFor(bytes32 marketId, address beneficiary, uint256 creatorLpAmount) external {
+    function createMarketPreDepositFor(
+        bytes32 marketId,
+        address beneficiary,
+        uint256 creatorLpAmount
+    ) external {
         MarketInfo storage info = marketRegistry[marketId];
         if (info.creator != address(0)) revert MarketAlreadyRegistered();
-        if (creatorLpAmount < fpmm.CREATOR_MIN_LOCK()) revert InsufficientCreatorDeposit();
+        if (creatorLpAmount < fpmm.CREATOR_MIN_LOCK())
+            revert InsufficientCreatorDeposit();
 
         // 1 USDC creation fee
         uint256 fee = 1e6;
@@ -146,17 +170,13 @@ contract VerityMarketFactory {
         // Send fee to fpmm's treasury
         usdc.safeTransfer(fpmm.treasury(), fee);
 
-        preMarketDeposits[marketId].push(PreMarketDeposit({
-            lp: beneficiary,
-            amount: creatorLpAmount
-        }));
+        preMarketDeposits[marketId][beneficiary] += creatorLpAmount;
 
         escrowBalances[marketId] = creatorLpAmount;
         info.creator = beneficiary;
 
         emit MarketPreDepositCreated(marketId, beneficiary, creatorLpAmount);
     }
-
 
     /// @notice Register a new market after social qualification. Called by admin (backend).
     /// @param marketId Unique market identifier (e.g., keccak256 of MongoDB market ID)
@@ -173,7 +193,7 @@ contract VerityMarketFactory {
         if (info.registered) revert MarketAlreadyRegistered();
         if (deadline <= block.timestamp) revert DeadlineInPast();
         if (fundingDeadline <= block.timestamp) revert DeadlineInPast();
-        
+
         if (info.creator == address(0)) {
             info.creator = creator;
         } else if (info.creator != creator) {
@@ -219,7 +239,7 @@ contract VerityMarketFactory {
         if (info.registered) revert MarketAlreadyRegistered();
         if (deadline <= block.timestamp) revert DeadlineInPast();
         if (fundingDeadline <= block.timestamp) revert DeadlineInPast();
-        
+
         if (info.creator == address(0)) {
             info.creator = creator;
         } else if (info.creator != creator) {
@@ -240,7 +260,12 @@ contract VerityMarketFactory {
         allMarketIds.push(marketId);
 
         emit MarketRegistered(marketId, creator, deadline, fundingDeadline);
-        emit PythMarketRegistered(marketId, priceFeedId, targetPrice, resolveAbove);
+        emit PythMarketRegistered(
+            marketId,
+            priceFeedId,
+            targetPrice,
+            resolveAbove
+        );
 
         // Deploy pool if escrow balance >= MIN_POOL_BALANCE
         if (escrowBalances[marketId] >= fpmm.MIN_POOL_BALANCE()) {
@@ -258,7 +283,10 @@ contract VerityMarketFactory {
     /// @dev Pulls USDC and holds it in escrow. Triggers deployment if threshold is reached.
     /// @param marketId Market identifier
     /// @param amount Amount of USDC to deposit
-    function depositPreMarketLiquidity(bytes32 marketId, uint256 amount) external {
+    function depositPreMarketLiquidity(
+        bytes32 marketId,
+        uint256 amount
+    ) external {
         MarketInfo storage info = marketRegistry[marketId];
         if (info.funded) revert MarketAlreadyFunded();
         if (info.voided) revert MarketAlreadyVoided();
@@ -268,24 +296,25 @@ contract VerityMarketFactory {
         if (info.creator == address(0)) revert NotCreator();
 
         // If registered, check funding deadline
-        if (info.registered && block.timestamp > info.fundingDeadline) revert DeadlineInPast();
+        if (info.registered && block.timestamp > info.fundingDeadline)
+            revert DeadlineInPast();
 
         // Pull USDC to this factory contract
         usdc.safeTransferFrom(msg.sender, address(this), amount);
 
-        preMarketDeposits[marketId].push(PreMarketDeposit({
-            lp: msg.sender,
-            amount: amount
-        }));
-        
+        preMarketDeposits[marketId][msg.sender] += amount;
+
         escrowBalances[marketId] += amount;
 
         // Trigger pool creation if minimum threshold is met AND the market is registered
-        if (info.registered && escrowBalances[marketId] >= fpmm.MIN_POOL_BALANCE()) {
+        if (
+            info.registered &&
+            escrowBalances[marketId] >= fpmm.MIN_POOL_BALANCE()
+        ) {
             info.funded = true;
 
             uint256 totalUsdc = escrowBalances[marketId];
-            
+
             // Approve FPMM to pull the bundled USDC
             usdc.approve(address(fpmm), totalUsdc);
 
@@ -300,7 +329,11 @@ contract VerityMarketFactory {
     /// @param marketId Market identifier
     /// @param beneficiary The address that will own the deposited LP position
     /// @param amount Amount of USDC to deposit
-    function depositPreMarketLiquidityFor(bytes32 marketId, address beneficiary, uint256 amount) external {
+    function depositPreMarketLiquidityFor(
+        bytes32 marketId,
+        address beneficiary,
+        uint256 amount
+    ) external {
         MarketInfo storage info = marketRegistry[marketId];
         if (info.funded) revert MarketAlreadyFunded();
         if (info.voided) revert MarketAlreadyVoided();
@@ -310,24 +343,25 @@ contract VerityMarketFactory {
         if (info.creator == address(0)) revert NotCreator();
 
         // If registered, check funding deadline
-        if (info.registered && block.timestamp > info.fundingDeadline) revert DeadlineInPast();
+        if (info.registered && block.timestamp > info.fundingDeadline)
+            revert DeadlineInPast();
 
         // Pull USDC to this factory contract
         usdc.safeTransferFrom(msg.sender, address(this), amount);
 
-        preMarketDeposits[marketId].push(PreMarketDeposit({
-            lp: beneficiary,
-            amount: amount
-        }));
-        
+        preMarketDeposits[marketId][beneficiary] += amount;
+
         escrowBalances[marketId] += amount;
 
         // Trigger pool creation if minimum threshold is met AND the market is registered
-        if (info.registered && escrowBalances[marketId] >= fpmm.MIN_POOL_BALANCE()) {
+        if (
+            info.registered &&
+            escrowBalances[marketId] >= fpmm.MIN_POOL_BALANCE()
+        ) {
             info.funded = true;
 
             uint256 totalUsdc = escrowBalances[marketId];
-            
+
             // Approve FPMM to pull the bundled USDC
             usdc.approve(address(fpmm), totalUsdc);
 
@@ -338,24 +372,16 @@ contract VerityMarketFactory {
         }
     }
 
-
     /// @notice Refund pre-market deposits if the market was voided (funding failed)
     /// @param marketId Market identifier
     function claimRefund(bytes32 marketId) external {
         MarketInfo storage info = marketRegistry[marketId];
         if (!info.voided) revert MarketNotRegistered();
 
-        uint256 refundAmount = 0;
-        PreMarketDeposit[] storage deposits = preMarketDeposits[marketId];
-        
-        for (uint256 i = 0; i < deposits.length; i++) {
-            if (deposits[i].lp == msg.sender) {
-                refundAmount += deposits[i].amount;
-                deposits[i].amount = 0; // Prevent double refund
-            }
-        }
-
+        uint256 refundAmount = preMarketDeposits[marketId][msg.sender];
         if (refundAmount == 0) revert ZeroAmount();
+
+        preMarketDeposits[marketId][msg.sender] = 0;
         usdc.safeTransfer(msg.sender, refundAmount);
     }
 
@@ -364,7 +390,10 @@ contract VerityMarketFactory {
     /// @notice Admin resolves a market by setting the winning outcome.
     /// @param marketId Market identifier
     /// @param winningIsYes true if YES wins, false if NO wins
-    function resolveMarket(bytes32 marketId, bool winningIsYes) external onlyAdmin {
+    function resolveMarket(
+        bytes32 marketId,
+        bool winningIsYes
+    ) external onlyAdmin {
         MarketInfo storage info = marketRegistry[marketId];
         if (!info.registered) revert MarketNotRegistered();
         if (info.resolved) revert MarketAlreadyResolved();
@@ -384,7 +413,10 @@ contract VerityMarketFactory {
     /// @notice Admin resolves a Pyth-registered market using historical cryptographic price updates.
     /// @param marketId Market identifier
     /// @param priceUpdate Signed price update VAAs from Pyth Hermes API
-    function resolveMarketWithPyth(bytes32 marketId, bytes[] calldata priceUpdate) external payable onlyAdmin {
+    function resolveMarketWithPyth(
+        bytes32 marketId,
+        bytes[] calldata priceUpdate
+    ) external payable onlyAdmin {
         MarketInfo storage info = marketRegistry[marketId];
         PythMarketParams storage pythParams = pythMarkets[marketId];
 
@@ -403,7 +435,9 @@ contract VerityMarketFactory {
         priceIds[0] = pythParams.priceFeedId;
 
         // Parse price update for the exact deadline timestamp (+/- 60 seconds margin)
-        PythStructs.PriceFeed[] memory priceFeeds = pyth.parsePriceFeedUpdates{value: fee}(
+        PythStructs.PriceFeed[] memory priceFeeds = pyth.parsePriceFeedUpdates{
+            value: fee
+        }(
             priceUpdate,
             priceIds,
             uint64(info.deadline - 60),
@@ -432,7 +466,10 @@ contract VerityMarketFactory {
     }
 
     /// @notice Resolution callback triggered by the authorized optimistic resolver contract.
-    function resolveMarketFromResolver(bytes32 marketId, bool winningIsYes) external {
+    function resolveMarketFromResolver(
+        bytes32 marketId,
+        bool winningIsYes
+    ) external {
         if (msg.sender != optimisticResolver) revert Unauthorized();
         MarketInfo storage info = marketRegistry[marketId];
         if (!info.registered) revert MarketNotRegistered();
@@ -469,13 +506,16 @@ contract VerityMarketFactory {
 
     // ─── View Functions ──────────────────────────────────────────────────
 
-    function getPreMarketDepositCount(bytes32 marketId) external view returns (uint256) {
-        return preMarketDeposits[marketId].length;
-    }
-
-    function getPreMarketDeposit(bytes32 marketId, uint256 index) external view returns (address lp, uint256 amount) {
-        PreMarketDeposit memory dep = preMarketDeposits[marketId][index];
-        return (dep.lp, dep.amount);
+    function claimPreMarketDeposit(
+        bytes32 marketId,
+        address user
+    ) external returns (uint256) {
+        if (msg.sender != address(fpmm)) revert Unauthorized();
+        uint256 amount = preMarketDeposits[marketId][user];
+        if (amount > 0) {
+            preMarketDeposits[marketId][user] = 0;
+        }
+        return amount;
     }
 
     function getMarketCount() external view returns (uint256) {
@@ -489,6 +529,9 @@ contract VerityMarketFactory {
 
     function isFundingExpired(bytes32 marketId) external view returns (bool) {
         MarketInfo storage info = marketRegistry[marketId];
-        return info.registered && !info.funded && block.timestamp > info.fundingDeadline;
+        return
+            info.registered &&
+            !info.funded &&
+            block.timestamp > info.fundingDeadline;
     }
 }
