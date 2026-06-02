@@ -41,7 +41,7 @@ export default function WalletSummary() {
       <WalletConnectControl />
 
       <section className="grid gap-3 sm:grid-cols-2">
-        <div className="verity-card p-5 border border-border bg-surface-solid shadow-[(--shadow-subtle)]">
+        <div className="verity-card p-5 border border-border bg-surface-solid shadow-subtle">
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-2 text-meadow-green">
               <CircleDollarSign className="h-5 w-5" />
@@ -50,7 +50,7 @@ export default function WalletSummary() {
               </span>
             </div>
             <Link
-              className="verity-pill flex h-8 items-center gap-1.5 bg-parchment-card px-3 text-xs font-semibold tracking-[-0.14px] text-charcoal-primary shadow-[(--shadow-subtle)] transition-colors hover:bg-stone-surface"
+              className="verity-pill flex h-8 items-center gap-1.5 bg-parchment-card px-3 text-xs font-semibold tracking-[-0.14px] text-charcoal-primary shadow-subtle transition-colors hover:bg-stone-surface"
               href="https://faucet.circle.com/"
               rel="noreferrer"
               target="_blank"
@@ -65,7 +65,7 @@ export default function WalletSummary() {
           <p className="font-mono text-xs text-ash">testnet USDC balance</p>
         </div>
 
-        <div className="verity-card p-5 border border-border bg-surface-solid shadow-[(--shadow-subtle)] overflow-hidden">
+        <div className="verity-card p-5 border border-border bg-surface-solid shadow-subtle overflow-hidden">
           <div className="flex items-center gap-2 text-ash">
             <Wallet className="h-5 w-5" />
             <span className="font-mono text-xs font-semibold uppercase tracking-[0.16em]">
@@ -101,7 +101,7 @@ export default function WalletSummary() {
         </div>
       </section>
 
-      <section className="verity-card p-5 border border-border bg-surface-solid shadow-[(--shadow-subtle)]">
+      <section className="verity-card p-5 border border-border bg-surface-solid shadow-subtle">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <CheckCircle2 className="h-5 w-5 text-meadow-green" />

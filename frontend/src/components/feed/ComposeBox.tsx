@@ -528,7 +528,7 @@ export default function ComposeBox({ onCreated }: ComposeBoxProps) {
 
   return (
     <div
-      className="verity-card flex flex-col gap-3 p-4 sm:gap-4 sm:p-5 border border-border bg-surface-solid shadow-[(--shadow-subtle)] transition-all duration-300"
+      className="verity-card flex flex-col gap-3 p-4 sm:gap-4 sm:p-5 border border-border bg-surface-solid shadow-subtle transition-all duration-300"
       ref={composerRef}
     >
       {/* Main Composer Row */}
@@ -739,7 +739,7 @@ export default function ComposeBox({ onCreated }: ComposeBoxProps) {
                 </div>
               ) : detectedPyth.isPyth ? (
                 /* Pyth Quantitative Detector */
-                <div className="flex flex-col gap-1.5 rounded-xl bg-meadow-green/5 dark:bg-meadow-green/10 border border-meadow-green/20 p-3.5 shadow-[var(--shadow-subtle)]">
+                <div className="flex flex-col gap-1.5 rounded-xl bg-meadow-green/5 dark:bg-meadow-green/10 border border-meadow-green/20 p-3.5 shadow-subtle">
                   <p className="text-xs font-semibold leading-relaxed text-meadow-green flex items-center gap-1.5">
                     <Sparkles className="h-4 w-4" /> Pyth Oracle Auto-Detection
                     Active

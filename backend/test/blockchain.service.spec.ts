@@ -101,7 +101,6 @@ describe("BlockchainService", () => {
         getTransactionReceipt: jest.fn().mockResolvedValue(mockReceipt),
         getTransaction: jest.fn().mockResolvedValue(mockTx),
       }
-
       ;(decodeFunctionData as jest.Mock).mockReturnValue({
         functionName: "createMarketPreDeposit",
         args: [
@@ -145,7 +144,6 @@ describe("BlockchainService", () => {
         getTransactionReceipt: jest.fn().mockResolvedValue(mockReceipt),
         getTransaction: jest.fn().mockResolvedValue(mockTx),
       }
-
       ;(decodeFunctionData as jest.Mock).mockReturnValue({
         functionName: "depositPreMarketLiquidity",
         args: [

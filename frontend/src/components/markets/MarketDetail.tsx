@@ -566,14 +566,14 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
                   return (
                     <div
                       key={pos.id}
-                      className="rounded-[12px] bg-parchment-card p-3 shadow-[(--shadow-subtle)]"
+                      className="rounded-[12px] bg-parchment-card p-3 shadow-subtle"
                     >
                       <div className="mb-2 flex items-center justify-between gap-3">
                         {isResolved ? (
                           <span
                             className={`inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-mono font-semibold ${
                               isWinner
-                                ? "bg-meadow-green/10 text-meadow-green shadow-[(--shadow-subtle)]"
+                                ? "bg-meadow-green/10 text-meadow-green shadow-subtle"
                                 : "bg-stone-surface text-ash"
                             }`}
                           >
@@ -581,7 +581,7 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
                           </span>
                         ) : (
                           <span
-                            className={`inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-mono font-semibold shadow-[(--shadow-subtle)] ${
+                            className={`inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-mono font-semibold shadow-subtle ${
                               pos.side === "YES"
                                 ? "bg-meadow-green/10 text-meadow-green"
                                 : "bg-ember-orange/10 text-ember-orange"
@@ -841,7 +841,7 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
 
   if (itemError) {
     return (
-      <div className="rounded-[12px] bg-ember-orange/10 p-4 text-sm font-medium tracking-[-0.18px] text-charcoal-primary shadow-[(--shadow-subtle)]">
+      <div className="rounded-[12px] bg-ember-orange/10 p-4 text-sm font-medium tracking-[-0.18px] text-charcoal-primary shadow-subtle">
         {(itemError as any)?.message || "Failed to load market."}
       </div>
     )
@@ -1044,7 +1044,7 @@ function MarketHero({
             {question}
           </h1>
           <div className="mt-3 flex flex-wrap items-center gap-2 font-mono text-xs text-ash">
-            <span className="rounded-[6px] bg-parchment-card px-2.5 py-1 text-graphite shadow-[(--shadow-subtle)]">
+            <span className="rounded-[6px] bg-parchment-card px-2.5 py-1 text-graphite shadow-subtle">
               {category}
             </span>
             <span>by {creator}</span>
@@ -1105,7 +1105,7 @@ function MarketHero({
               </button>
             )}
           </div>
-          <div className="h-1.5 overflow-hidden rounded-full bg-parchment-card shadow-[(--shadow-subtle)]">
+          <div className="h-1.5 overflow-hidden rounded-full bg-parchment-card shadow-subtle">
             <div
               className="h-full bg-meadow-green transition-all duration-500"
               style={{ width: `${votesProgress}%` }}
@@ -1255,7 +1255,7 @@ function TradeTicket({
           <div className="mb-4 flex flex-wrap justify-end gap-2">
             {quickBuyAmounts.map((value) => (
               <button
-                className="verity-pill h-8 bg-parchment-card px-3 font-mono text-xs font-semibold text-graphite shadow-[(--shadow-subtle)] transition-colors hover:bg-stone-surface"
+                className="verity-pill h-8 bg-parchment-card px-3 font-mono text-xs font-semibold text-graphite shadow-subtle transition-colors hover:bg-stone-surface"
                 key={value}
                 onClick={() => addBuyAmount(value)}
                 type="button"
@@ -1268,7 +1268,7 @@ function TradeTicket({
           <div className="mb-4 flex flex-wrap justify-end gap-2">
             {sellPercentages.map((percent) => (
               <button
-                className="verity-pill h-8 bg-parchment-card px-3 font-mono text-xs font-semibold text-graphite shadow-[(--shadow-subtle)] transition-colors hover:bg-stone-surface disabled:cursor-not-allowed disabled:opacity-45"
+                className="verity-pill h-8 bg-parchment-card px-3 font-mono text-xs font-semibold text-graphite shadow-subtle transition-colors hover:bg-stone-surface disabled:cursor-not-allowed disabled:opacity-45"
                 disabled={maxSellShares <= 0}
                 key={percent}
                 onClick={() => setSellPercentage(percent)}
@@ -1280,7 +1280,7 @@ function TradeTicket({
           </div>
         )}
 
-        <div className="grid gap-1 rounded-[12px] bg-parchment-card p-3 font-mono text-[11px] text-ash shadow-[(--shadow-subtle)]">
+        <div className="grid gap-1 rounded-[12px] bg-parchment-card p-3 font-mono text-[11px] text-ash shadow-subtle">
           <div className="flex justify-between">
             <span>Price</span>
             <span>{(price * 100).toFixed(1)}¢</span>
@@ -1345,7 +1345,7 @@ function OutcomeButton({
   return (
     <button
       aria-pressed={active}
-      className={`rounded-[12px] px-3 py-3 text-center shadow-[(--shadow-subtle)] transition-colors ${
+      className={`rounded-[12px] px-3 py-3 text-center shadow-subtle transition-colors ${
         active
           ? side === "YES"
             ? "bg-meadow-green/12"
@@ -1396,14 +1396,14 @@ function SentimentPanel({
         <BarChart3 className="h-4 w-4 text-ash" />
       </div>
 
-      <div className="rounded-[12px] bg-parchment-card p-4 shadow-[(--shadow-subtle)]">
+      <div className="rounded-[12px] bg-parchment-card p-4 shadow-subtle">
         {!hasOpinions && (
-          <p className="mb-4 rounded-[10px] bg-white-surface p-3 text-sm text-ash shadow-[(--shadow-subtle)]">
+          <p className="mb-4 rounded-[10px] bg-white-surface p-3 text-sm text-ash shadow-subtle">
             No USDC-backed opinions yet.
           </p>
         )}
         <div className="mb-4 grid grid-cols-2 gap-2">
-          <div className="rounded-[10px] bg-meadow-green/10 p-3 shadow-[(--shadow-subtle)]">
+          <div className="rounded-[10px] bg-meadow-green/10 p-3 shadow-subtle">
             <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-meadow-green">
               Yes
             </span>
@@ -1411,7 +1411,7 @@ function SentimentPanel({
               {yesPercent.toFixed(1)}%
             </p>
           </div>
-          <div className="rounded-[10px] bg-ember-orange/10 p-3 shadow-[(--shadow-subtle)]">
+          <div className="rounded-[10px] bg-ember-orange/10 p-3 shadow-subtle">
             <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-ember-orange">
               No
             </span>
@@ -1442,7 +1442,7 @@ function SentimentRow({
   return (
     <div className="grid grid-cols-[34px_minmax(0,1fr)_52px] items-center gap-3">
       <span className="text-charcoal-primary">{label}</span>
-      <span className="h-2 overflow-hidden rounded-full bg-white-surface shadow-[(--shadow-subtle)]">
+      <span className="h-2 overflow-hidden rounded-full bg-white-surface shadow-subtle">
         <span
           className={`block h-full ${tone === "yes" ? "bg-meadow-green" : "bg-ember-orange"}`}
           style={{ width: `${percent}%` }}
@@ -1471,13 +1471,13 @@ function RulesPanel({
       </h2>
       <div className="grid gap-3 text-sm leading-relaxed tracking-[-0.18px] text-graphite">
         <p>{postContent}</p>
-        <div className="rounded-[10px] bg-meadow-green/10 p-3 shadow-[(--shadow-subtle)]">
+        <div className="rounded-[10px] bg-meadow-green/10 p-3 shadow-subtle">
           <span className="font-mono text-xs font-semibold text-meadow-green">
             YES
           </span>
           <p className="mt-1">{yesCondition}</p>
         </div>
-        <div className="rounded-[10px] bg-ember-orange/10 p-3 shadow-[(--shadow-subtle)]">
+        <div className="rounded-[10px] bg-ember-orange/10 p-3 shadow-subtle">
           <span className="font-mono text-xs font-semibold text-ember-orange">
             NO
           </span>
@@ -1607,7 +1607,7 @@ function CommentsPanel({
 
       <div className="mb-4 flex gap-2">
         <input
-          className="h-11 min-w-0 flex-1 rounded-[10px] bg-white-surface px-3 text-sm tracking-[-0.18px] text-charcoal-primary shadow-[(--shadow-subtle)] outline-none placeholder:text-ash focus:ring-2 focus:ring-stone-surface"
+          className="h-11 min-w-0 flex-1 rounded-[10px] bg-white-surface px-3 text-sm tracking-[-0.18px] text-charcoal-primary shadow-subtle outline-none placeholder:text-ash focus:ring-2 focus:ring-stone-surface"
           id="market-comment-input"
           onChange={(event) => onChange(event.target.value)}
           placeholder="Add a comment..."
@@ -1637,7 +1637,7 @@ function CommentsPanel({
 
             return (
               <div key={comment.id} className="flex flex-col gap-2">
-                <article className="rounded-[10px] bg-parchment-card p-3 shadow-[(--shadow-subtle)]">
+                <article className="rounded-[10px] bg-parchment-card p-3 shadow-subtle">
                   <div className="mb-1 flex flex-wrap items-center justify-between gap-2 font-mono text-[11px] text-ash">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="font-semibold text-charcoal-primary">
@@ -1662,7 +1662,7 @@ function CommentsPanel({
 
                 {sortedReplies.map((reply) => (
                   <article
-                    className="ml-6 rounded-[10px] bg-parchment-card/60 p-2.5 shadow-[(--shadow-subtle)] border-l-2 border-sky-blue/35"
+                    className="ml-6 rounded-[10px] bg-parchment-card/60 p-2.5 shadow-subtle border-l-2 border-sky-blue/35"
                     key={reply.id}
                   >
                     <div className="mb-1 flex flex-wrap items-center justify-between gap-2 font-mono text-[10px] text-ash">
@@ -1931,7 +1931,7 @@ function VoteQualificationProgressPanel({
         </div>
       </div>
 
-      <div className="grid gap-4 rounded-[12px] bg-parchment-card p-4 shadow-[(--shadow-subtle)]">
+      <div className="grid gap-4 rounded-[12px] bg-parchment-card p-4 shadow-subtle">
         <div>
           <div className="mb-1 flex justify-between font-mono text-xs text-ash">
             <span>Upvotes cast</span>
@@ -1939,7 +1939,7 @@ function VoteQualificationProgressPanel({
               {currentUpvotes} / {targetUpvotes}
             </span>
           </div>
-          <div className="h-2.5 overflow-hidden rounded-full bg-white-surface shadow-[(--shadow-subtle)]">
+          <div className="h-2.5 overflow-hidden rounded-full bg-white-surface shadow-subtle">
             <div
               className="h-full bg-meadow-green transition-all duration-500"
               style={{ width: `${votesProgress}%` }}
@@ -1954,7 +1954,7 @@ function VoteQualificationProgressPanel({
             Dev Mode Fast-Track
           </p>
           <button
-            className="verity-pill flex h-11 w-full items-center justify-center bg-meadow-green/10 font-mono text-xs font-semibold uppercase tracking-[0.12em] text-charcoal-primary shadow-[(--shadow-subtle)] transition-colors hover:bg-meadow-green/20"
+            className="verity-pill flex h-11 w-full items-center justify-center bg-meadow-green/10 font-mono text-xs font-semibold uppercase tracking-[0.12em] text-charcoal-primary shadow-subtle transition-colors hover:bg-meadow-green/20"
             disabled={loading}
             onClick={onDevQualify}
             type="button"
@@ -2013,13 +2013,13 @@ function PreMarketFundingPanel({
               : "Fund this market's launch pool. Contributions help open trading and may earn liquidity rewards."}
           </p>
         </div>
-        <span className="rounded-full bg-meadow-green/10 px-3 py-1 font-mono text-xs font-semibold text-charcoal-primary shadow-[(--shadow-subtle)]">
+        <span className="rounded-full bg-meadow-green/10 px-3 py-1 font-mono text-xs font-semibold text-charcoal-primary shadow-subtle">
           {currentPoolBalance} / {minPoolBalance} USDC
         </span>
       </div>
 
       {activeOptionName && (
-        <div className="mb-4 rounded-[12px] bg-sky-blue/5 border border-sky-blue/10 p-3 text-[11px] leading-[1.4] text-sky-blue flex gap-2 items-start shadow-[var(--shadow-subtle)]">
+        <div className="mb-4 rounded-[12px] bg-sky-blue/5 border border-sky-blue/10 p-3 text-[11px] leading-[1.4] text-sky-blue flex gap-2 items-start shadow-subtle">
           <Info className="h-4 w-4 shrink-0 text-sky-blue mt-0.5" />
           <div>
             <span>
@@ -2031,7 +2031,7 @@ function PreMarketFundingPanel({
         </div>
       )}
 
-      <div className="mb-5 rounded-[12px] bg-parchment-card p-4 shadow-[(--shadow-subtle)]">
+      <div className="mb-5 rounded-[12px] bg-parchment-card p-4 shadow-subtle">
         <div className="mb-1 flex justify-between font-mono text-xs text-ash">
           <span>
             {activeOptionName ? `${activeOptionName} Pool` : "Pool Funding"}
@@ -2040,7 +2040,7 @@ function PreMarketFundingPanel({
             {currentPoolBalance} USDC
           </span>
         </div>
-        <div className="h-2.5 overflow-hidden rounded-full bg-white-surface shadow-[(--shadow-subtle)]">
+        <div className="h-2.5 overflow-hidden rounded-full bg-white-surface shadow-subtle">
           <div
             className="h-full bg-meadow-green transition-all duration-500"
             style={{ width: `${progress}%` }}
@@ -2050,7 +2050,7 @@ function PreMarketFundingPanel({
 
       <div className="grid gap-3">
         {showCreatorEscrow ? (
-          <div className="rounded-[12px] bg-meadow-green/10 p-4 text-center shadow-[(--shadow-subtle)]">
+          <div className="rounded-[12px] bg-meadow-green/10 p-4 text-center shadow-subtle">
             <h3 className="text-sm font-semibold text-charcoal-primary">
               Creator Action Required
             </h3>
@@ -2072,7 +2072,7 @@ function PreMarketFundingPanel({
             ) : null}
           </div>
         ) : currentPoolBalance >= minPoolBalance ? (
-          <div className="flex flex-col items-center justify-center rounded-[12px] bg-parchment-card py-6 text-center shadow-[(--shadow-subtle)]">
+          <div className="flex flex-col items-center justify-center rounded-[12px] bg-parchment-card py-6 text-center shadow-subtle">
             <svg
               className="mb-3 h-8 w-8 animate-spin text-meadow-green"
               fill="none"
@@ -2101,7 +2101,7 @@ function PreMarketFundingPanel({
             </span>
           </div>
         ) : (
-          <div className="rounded-[12px] bg-parchment-card p-4 shadow-[(--shadow-subtle)]">
+          <div className="rounded-[12px] bg-parchment-card p-4 shadow-subtle">
             <h3 className="mb-3 text-sm font-semibold text-charcoal-primary">
               {activeOptionName
                 ? `Fund the ${activeOptionName} Pool`
@@ -2109,7 +2109,7 @@ function PreMarketFundingPanel({
             </h3>
             <div className="flex gap-2">
               <input
-                className="h-11 w-24 rounded-[10px] bg-white-surface px-3 font-mono text-sm text-charcoal-primary shadow-[(--shadow-subtle)] outline-none focus:ring-2 focus:ring-stone-surface"
+                className="h-11 w-24 rounded-[10px] bg-white-surface px-3 font-mono text-sm text-charcoal-primary shadow-subtle outline-none focus:ring-2 focus:ring-stone-surface"
                 min="1"
                 onChange={(e) => setDepositAmount(e.target.value)}
                 step="1"
@@ -2177,7 +2177,7 @@ function ActiveMarketLPPanel({
       </p>
 
       <div className="mb-4 grid grid-cols-2 gap-2">
-        <div className="rounded-[12px] bg-parchment-card p-3 shadow-[(--shadow-subtle)]">
+        <div className="rounded-[12px] bg-parchment-card p-3 shadow-subtle">
           <span className="font-mono text-[10px] font-semibold uppercase text-ash">
             My LP Shares
           </span>
@@ -2185,7 +2185,7 @@ function ActiveMarketLPPanel({
             {Number(myShares).toFixed(4)}
           </p>
         </div>
-        <div className="rounded-[12px] bg-parchment-card p-3 shadow-[(--shadow-subtle)]">
+        <div className="rounded-[12px] bg-parchment-card p-3 shadow-subtle">
           <span className="font-mono text-[10px] font-semibold uppercase text-ash">
             My Value
           </span>
@@ -2211,13 +2211,13 @@ function ActiveMarketLPPanel({
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
-        <div className="rounded-[12px] bg-parchment-card p-4 shadow-[(--shadow-subtle)]">
+        <div className="rounded-[12px] bg-parchment-card p-4 shadow-subtle">
           <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-charcoal-primary">
             Add Liquidity
           </h3>
           <div className="flex gap-2">
             <input
-              className="h-10 w-20 rounded-[10px] bg-white-surface px-3 font-mono text-sm text-charcoal-primary shadow-[(--shadow-subtle)] outline-none focus:ring-2 focus:ring-stone-surface"
+              className="h-10 w-20 rounded-[10px] bg-white-surface px-3 font-mono text-sm text-charcoal-primary shadow-subtle outline-none focus:ring-2 focus:ring-stone-surface"
               min="1"
               onChange={(e) => setAddAmount(e.target.value)}
               step="1"
@@ -2237,13 +2237,13 @@ function ActiveMarketLPPanel({
           </div>
         </div>
 
-        <div className="rounded-[12px] bg-parchment-card p-4 shadow-[(--shadow-subtle)]">
+        <div className="rounded-[12px] bg-parchment-card p-4 shadow-subtle">
           <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-charcoal-primary">
             Remove Liquidity
           </h3>
           <div className="flex gap-2">
             <input
-              className="h-10 w-20 rounded-[10px] bg-white-surface px-3 font-mono text-sm text-charcoal-primary shadow-[(--shadow-subtle)] outline-none focus:ring-2 focus:ring-stone-surface"
+              className="h-10 w-20 rounded-[10px] bg-white-surface px-3 font-mono text-sm text-charcoal-primary shadow-subtle outline-none focus:ring-2 focus:ring-stone-surface"
               max={myShares}
               min="0.0001"
               onChange={(e) => setRemoveShares(e.target.value)}
@@ -2361,7 +2361,7 @@ function ResolutionPanel({
       </div>
 
       {isPyth ? (
-        <div className="rounded-[12px] bg-parchment-card p-4 shadow-[(--shadow-subtle)]">
+        <div className="rounded-[12px] bg-parchment-card p-4 shadow-subtle">
           <p className="text-sm leading-relaxed tracking-[-0.18px] text-ash">
             <strong>Pyth Quantitative Market:</strong> This prediction resolves
             automatically on-chain using real-time price oracle updates. No
@@ -2371,7 +2371,7 @@ function ResolutionPanel({
       ) : (
         <>
           {isPastDeadline && !proposal && !isResolved && (
-            <div className="rounded-[12px] bg-parchment-card p-4 shadow-[(--shadow-subtle)]">
+            <div className="rounded-[12px] bg-parchment-card p-4 shadow-subtle">
               <p className="text-sm leading-relaxed tracking-[-0.18px] text-ash">
                 The market trading period has expired. Awaiting AI Agent
                 resolution proposal on-chain...
@@ -2384,7 +2384,7 @@ function ResolutionPanel({
             !proposal.disputed &&
             proposal.proposer !==
               "0x0000000000000000000000000000000000000000" && (
-              <div className="flex flex-col gap-3 rounded-[12px] bg-parchment-card p-4 shadow-[(--shadow-subtle)]">
+              <div className="flex flex-col gap-3 rounded-[12px] bg-parchment-card p-4 shadow-subtle">
                 <div>
                   <span className="font-mono text-[10px] font-semibold uppercase text-ash">
                     Active Proposal
@@ -2408,7 +2408,7 @@ function ResolutionPanel({
                 </div>
 
                 {timeLeft !== null && timeLeft > 0 ? (
-                  <div className="rounded-[10px] bg-white-surface p-3 shadow-[(--shadow-subtle)]">
+                  <div className="rounded-[10px] bg-white-surface p-3 shadow-subtle">
                     <span className="font-mono text-[10px] font-semibold uppercase text-ash">
                       Dispute Window Closes In
                     </span>
@@ -2431,7 +2431,7 @@ function ResolutionPanel({
                     </button>
                   </div>
                 ) : (
-                  <div className="rounded-[10px] bg-white-surface p-3 shadow-[(--shadow-subtle)]">
+                  <div className="rounded-[10px] bg-white-surface p-3 shadow-subtle">
                     <span className="font-mono text-[10px] font-semibold uppercase text-ash">
                       Dispute Window Has Closed
                     </span>
@@ -2445,7 +2445,7 @@ function ResolutionPanel({
             )}
 
           {proposal && proposal.disputed && !isResolved && (
-            <div className="rounded-[12px] bg-ember-orange/10 p-4 shadow-[(--shadow-subtle)]">
+            <div className="rounded-[12px] bg-ember-orange/10 p-4 shadow-subtle">
               <span className="font-mono text-[10px] font-semibold uppercase text-ember-orange">
                 Disputed
               </span>
@@ -2466,7 +2466,7 @@ function ResolutionPanel({
       )}
 
       {isResolved && (
-        <div className="flex flex-col gap-3 rounded-[12px] bg-meadow-green/10 p-4 shadow-[(--shadow-subtle)]">
+        <div className="flex flex-col gap-3 rounded-[12px] bg-meadow-green/10 p-4 shadow-subtle">
           <div>
             <span className="font-mono text-[10px] font-semibold uppercase text-meadow-green">
               Resolved Outcome
@@ -2491,7 +2491,7 @@ function ResolutionPanel({
           </div>
 
           {market.proposalReasoning && (
-            <div className="rounded-[10px] bg-white-surface p-3 text-xs leading-relaxed text-charcoal-primary shadow-[(--shadow-subtle)]">
+            <div className="rounded-[10px] bg-white-surface p-3 text-xs leading-relaxed text-charcoal-primary shadow-subtle">
               <p className="mb-1 font-semibold">AI Agent Reasoning:</p>
               <p className="italic text-ash">{market.proposalReasoning}</p>
               {market.proposalCitations &&
@@ -2560,7 +2560,7 @@ function RedeemPanel({
       </p>
 
       {myPosition && (
-        <div className="mb-4 rounded-[12px] bg-parchment-card p-4 shadow-[(--shadow-subtle)]">
+        <div className="mb-4 rounded-[12px] bg-parchment-card p-4 shadow-subtle">
           <div className="flex items-center justify-between gap-3">
             <div>
               <span className="font-mono text-[10px] font-semibold uppercase text-ash">
@@ -2572,7 +2572,7 @@ function RedeemPanel({
             </div>
             <div>
               {isWinner ? (
-                <span className="inline-flex items-center rounded-full bg-meadow-green/10 px-2 py-1 text-xs font-medium text-meadow-green shadow-[(--shadow-subtle)]">
+                <span className="inline-flex items-center rounded-full bg-meadow-green/10 px-2 py-1 text-xs font-medium text-meadow-green shadow-subtle">
                   Winner
                 </span>
               ) : (
@@ -2607,7 +2607,7 @@ function RedeemPanel({
       )}
 
       {hasCreatorLP && (
-        <div className="rounded-[12px] bg-parchment-card p-4 shadow-[(--shadow-subtle)]">
+        <div className="rounded-[12px] bg-parchment-card p-4 shadow-subtle">
           <div className="mb-3 flex items-center justify-between gap-3">
             <div>
               <span className="font-mono text-[10px] font-semibold uppercase text-ash">
@@ -2617,7 +2617,7 @@ function RedeemPanel({
                 {myLPPosition.lpShares.toFixed(4)} LP Shares
               </p>
             </div>
-            <span className="inline-flex items-center rounded-full bg-sky-blue/10 px-2 py-1 text-xs font-medium text-sky-blue shadow-[(--shadow-subtle)]">
+            <span className="inline-flex items-center rounded-full bg-sky-blue/10 px-2 py-1 text-xs font-medium text-sky-blue shadow-subtle">
               Creator LP
             </span>
           </div>
@@ -2668,7 +2668,7 @@ function RefundPanel({
         This market was voided. You can retrieve your committed pool funding.
       </p>
 
-      <div className="rounded-[12px] bg-parchment-card p-4 shadow-[(--shadow-subtle)]">
+      <div className="rounded-[12px] bg-parchment-card p-4 shadow-subtle">
         <div className="mb-3 flex items-center justify-between gap-3">
           <div>
             <span className="font-mono text-[10px] font-semibold uppercase text-ash">
@@ -2678,7 +2678,7 @@ function RefundPanel({
               {myLPPosition.lpShares.toFixed(2)} USDC
             </p>
           </div>
-          <span className="inline-flex items-center rounded-full bg-meadow-green/10 px-2 py-1 text-xs font-medium text-meadow-green shadow-[(--shadow-subtle)]">
+          <span className="inline-flex items-center rounded-full bg-meadow-green/10 px-2 py-1 text-xs font-medium text-meadow-green shadow-subtle">
             Voided Market Refund
           </span>
         </div>
@@ -2717,7 +2717,7 @@ function OutcomesPanel({
   )
 
   return (
-    <section className="verity-card p-5 border border-border bg-surface-solid shadow-[(--shadow-subtle)]">
+    <section className="verity-card p-5 border border-border bg-surface-solid shadow-subtle">
       <h2 className="mb-4 font-semibold tracking-[-0.18px] text-charcoal-primary flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span>Outcomes & Options</span>
@@ -2746,7 +2746,7 @@ function OutcomesPanel({
               "border-border bg-surface-muted/50 text-charcoal-primary"
             if (isSelected) {
               borderClass =
-                "border-sky-blue bg-sky-blue/[0.02] dark:bg-sky-blue/[0.04] shadow-[var(--shadow-sm)]"
+                "border-sky-blue bg-sky-blue/[0.02] dark:bg-sky-blue/[0.04] shadow-sm"
             }
 
             return (
@@ -2770,7 +2770,7 @@ function OutcomesPanel({
                       {currentFunding} / {minFunding} USDC
                     </span>
                   </div>
-                  <div className="h-2 w-full overflow-hidden rounded-full bg-white-surface shadow-[(--shadow-subtle)] border border-stone-surface">
+                  <div className="h-2 w-full overflow-hidden rounded-full bg-white-surface shadow-subtle border border-stone-surface">
                     <div
                       className="h-full bg-sky-blue transition-all duration-500 rounded-full"
                       style={{ width: `${progress}%` }}
@@ -2783,7 +2783,7 @@ function OutcomesPanel({
                   onClick={() => onSelectOptionAndSide(child.id, "YES")}
                   className={`mt-4 w-full text-center py-2 px-3 rounded-lg font-mono text-xs font-bold transition-all duration-150 cursor-pointer ${
                     isSelected
-                      ? "bg-sky-blue text-white border border-sky-blue shadow-[var(--shadow-sm)]"
+                      ? "bg-sky-blue text-white border border-sky-blue shadow-sm"
                       : "bg-sky-blue/10 text-sky-blue border border-sky-blue/20 hover:bg-sky-blue/20"
                   }`}
                 >
@@ -2803,10 +2803,10 @@ function OutcomesPanel({
             "border-border bg-surface-muted/50 text-charcoal-primary"
           if (isYesSelected) {
             borderClass =
-              "border-meadow-green bg-meadow-green/[0.03] dark:bg-meadow-green/[0.06] shadow-[var(--shadow-sm)]"
+              "border-meadow-green bg-meadow-green/[0.03] dark:bg-meadow-green/[0.06] shadow-sm"
           } else if (isNoSelected) {
             borderClass =
-              "border-ember-orange bg-ember-orange/[0.03] dark:bg-ember-orange/[0.06] shadow-[var(--shadow-sm)]"
+              "border-ember-orange bg-ember-orange/[0.03] dark:bg-ember-orange/[0.06] shadow-sm"
           }
 
           return (
@@ -2834,7 +2834,7 @@ function OutcomesPanel({
                   onClick={() => onSelectOptionAndSide(child.id, "YES")}
                   className={`flex-1 text-center py-2 px-3 rounded-lg font-mono text-xs font-bold transition-all duration-150 cursor-pointer ${
                     isYesSelected
-                      ? "bg-meadow-green text-white border border-meadow-green shadow-[var(--shadow-sm)]"
+                      ? "bg-meadow-green text-white border border-meadow-green shadow-sm"
                       : "bg-meadow-green/10 text-meadow-green border border-meadow-green/20 hover:bg-meadow-green/20"
                   }`}
                 >
@@ -2845,7 +2845,7 @@ function OutcomesPanel({
                   onClick={() => onSelectOptionAndSide(child.id, "NO")}
                   className={`flex-1 text-center py-2 px-3 rounded-lg font-mono text-xs font-bold transition-all duration-150 cursor-pointer ${
                     isNoSelected
-                      ? "bg-ember-orange text-white border border-ember-orange shadow-[var(--shadow-sm)]"
+                      ? "bg-ember-orange text-white border border-ember-orange shadow-sm"
                       : "bg-ember-orange/10 text-ember-orange border border-ember-orange/20 hover:bg-ember-orange/15"
                   }`}
                 >

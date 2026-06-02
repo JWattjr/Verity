@@ -55,7 +55,7 @@ export default function SidebarProfile() {
   }
 
   return (
-    <div className="verity-card flex flex-col gap-3 p-3 xl:p-4 border border-border bg-surface-solid shadow-[(--shadow-subtle)]">
+    <div className="verity-card flex flex-col gap-3 p-3 xl:p-4 border border-border bg-surface-solid shadow-subtle">
       {/* Top Section: Avatar, User Details, Logout */}
       <div className="flex items-center justify-between gap-2">
         <Link

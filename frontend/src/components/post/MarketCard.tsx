@@ -171,13 +171,13 @@ export default function MarketCard({
       )}
 
       <div className="mb-2 flex flex-wrap gap-2">
-        <span className="rounded-[6px] bg-parchment-card px-2.5 py-1 text-[12px] font-medium tracking-[-0.14px] text-graphite shadow-[(--shadow-subtle)]">
+        <span className="rounded-[6px] bg-parchment-card px-2.5 py-1 text-[12px] font-medium tracking-[-0.14px] text-graphite shadow-subtle">
           {category}
         </span>
       </div>
 
       <div
-        className="mb-4 rounded-[12px] bg-parchment-card p-4 shadow-[(--shadow-subtle)]"
+        className="mb-4 rounded-[12px] bg-parchment-card p-4 shadow-subtle"
         onClick={stopClick}
       >
         <div className="mb-2 flex items-center justify-between text-[12px] font-semibold uppercase tracking-[0.12em] text-charcoal-primary">
@@ -200,7 +200,7 @@ export default function MarketCard({
 
         {!isTradable && (
           <div className="mb-3">
-            <div className="h-2 overflow-hidden rounded-full bg-white-surface shadow-[(--shadow-subtle)]">
+            <div className="h-2 overflow-hidden rounded-full bg-white-surface shadow-subtle">
               <div
                 className="h-full bg-meadow-green transition-all duration-500"
                 style={{ width: `${Math.min(100, (liquidity / 40) * 100)}%` }}
@@ -244,7 +244,7 @@ export default function MarketCard({
             <div className="flex gap-2">
               <div className="relative flex-1">
                 <input
-                  className="h-10 w-full rounded-[10px] bg-white-surface pl-3 pr-12 font-mono text-xs text-charcoal-primary shadow-[(--shadow-subtle)] outline-none focus:ring-2 focus:ring-meadow-green/25"
+                  className="h-10 w-full rounded-[10px] bg-white-surface pl-3 pr-12 font-mono text-xs text-charcoal-primary shadow-subtle outline-none focus:ring-2 focus:ring-meadow-green/25"
                   min="1"
                   onChange={(e) => setLpAmount(e.target.value)}
                   placeholder="Amount"
@@ -267,7 +267,7 @@ export default function MarketCard({
           ))}
       </div>
 
-      <div className="mb-4 rounded-[12px] bg-white-surface p-3 shadow-[(--shadow-subtle)]">
+      <div className="mb-4 rounded-[12px] bg-white-surface p-3 shadow-subtle">
         <div className="mb-2 flex items-center justify-between text-[12px] font-semibold tracking-[-0.14px] text-charcoal-primary">
           <span>Upvotes signal</span>
           <span className="font-mono text-[11px] text-ash">
@@ -303,7 +303,7 @@ export default function MarketCard({
           <div className="flex gap-2 mb-2">
             <div className="relative flex-1">
               <input
-                className="h-10 w-full rounded-[10px] bg-white-surface pl-3 pr-12 font-mono text-xs text-charcoal-primary shadow-[(--shadow-subtle)] outline-none focus:ring-2 focus:ring-sky-blue/25"
+                className="h-10 w-full rounded-[10px] bg-white-surface pl-3 pr-12 font-mono text-xs text-charcoal-primary shadow-subtle outline-none focus:ring-2 focus:ring-sky-blue/25"
                 min="1"
                 onChange={(e) => setTradeAmount(e.target.value)}
                 placeholder="Trade amount"
@@ -368,7 +368,7 @@ export default function MarketCard({
           )}
         </div>
       ) : (
-        <p className="mb-3 rounded-[10px] bg-parchment-card p-3 text-sm font-medium text-ash shadow-[(--shadow-subtle)]">
+        <p className="mb-3 rounded-[10px] bg-parchment-card p-3 text-sm font-medium text-ash shadow-subtle">
           This market is not open for Upvote/Downvote signals.
         </p>
       )}
@@ -392,7 +392,7 @@ export default function MarketCard({
       </div>
 
       {isDetail && (
-        <div className="mb-3 grid gap-2 rounded-[10px] bg-parchment-card p-3 font-mono text-[11px] text-ash shadow-[(--shadow-subtle)]">
+        <div className="mb-3 grid gap-2 rounded-[10px] bg-parchment-card p-3 font-mono text-[11px] text-ash shadow-subtle">
           {yesCondition && (
             <span className="text-meadow-green">YES: {yesCondition}</span>
           )}
@@ -488,7 +488,7 @@ function getStatusTone(status: string) {
     case "tradable":
       return "bg-meadow-green/12 text-meadow-green"
     case "resolved":
-      return "bg-brand-primary text-white shadow-[(--shadow-sm)]"
+      return "bg-brand-primary text-white shadow-sm"
     case "voided":
       return "bg-stone-surface text-ash"
     case "resolving":

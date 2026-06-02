@@ -111,7 +111,7 @@ export default function PublicProfileView({ userId }: PublicProfileViewProps) {
             <ProfileAvatar profile={profile} />
             <div className="mb-2 flex gap-2">
               <button
-                className="clickable verity-pill hidden h-10 items-center justify-center gap-2 bg-parchment-card px-4 text-sm font-semibold tracking-[-0.18px] text-charcoal-primary shadow-[(--shadow-subtle)] hover:bg-stone-surface sm:inline-flex"
+                className="clickable verity-pill hidden h-10 items-center justify-center gap-2 bg-parchment-card px-4 text-sm font-semibold tracking-[-0.18px] text-charcoal-primary shadow-subtle hover:bg-stone-surface sm:inline-flex"
                 onClick={() => {
                   if (typeof window !== "undefined") {
                     void navigator.clipboard?.writeText(window.location.href)
@@ -202,7 +202,7 @@ function ProfileAvatar({ profile }: { profile: Profile }) {
   if (avatarUrl) {
     return (
       <div
-        className="h-20 w-20 shrink-0 rounded-[24px] bg-cover bg-center ring-4 ring-white shadow-[(--shadow-subtle)] sm:h-24 sm:w-24 sm:rounded-[28px]"
+        className="h-20 w-20 shrink-0 rounded-[24px] bg-cover bg-center ring-4 ring-white shadow-subtle sm:h-24 sm:w-24 sm:rounded-[28px]"
         style={{ backgroundImage: `url(${avatarUrl})` }}
       />
     )
@@ -263,7 +263,7 @@ function ProfileState({
   return (
     <div className="py-4">
       <section
-        className={`rounded-[12px] p-8 text-center text-sm font-medium tracking-[-0.18px] shadow-[(--shadow-subtle)] ${
+        className={`rounded-[12px] p-8 text-center text-sm font-medium tracking-[-0.18px] shadow-subtle ${
           tone === "error"
             ? "bg-ember-orange/10 text-charcoal-primary"
             : "bg-white text-ash"

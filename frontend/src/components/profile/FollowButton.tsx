@@ -52,7 +52,7 @@ export default function FollowButton({
   if (isOwnProfile) {
     return (
       <Link
-        className="clickable verity-pill inline-flex h-10 items-center justify-center bg-parchment-card px-4 text-sm font-semibold tracking-[-0.18px] text-charcoal-primary shadow-[(--shadow-subtle)] hover:bg-stone-surface"
+        className="clickable verity-pill inline-flex h-10 items-center justify-center bg-parchment-card px-4 text-sm font-semibold tracking-[-0.18px] text-charcoal-primary shadow-subtle hover:bg-stone-surface"
         href="/profile"
       >
         Edit Profile
@@ -66,7 +66,7 @@ export default function FollowButton({
         aria-pressed={following}
         className={`clickable verity-pill inline-flex h-10 items-center justify-center gap-2 px-4 text-sm font-semibold tracking-[-0.18px] ${
           following
-            ? "bg-parchment-card text-charcoal-primary shadow-[(--shadow-subtle)] hover:bg-stone-surface"
+            ? "bg-parchment-card text-charcoal-primary shadow-subtle hover:bg-stone-surface"
             : "bg-inverse text-inverse-text hover:opacity-90"
         }`}
         onClick={async () => {

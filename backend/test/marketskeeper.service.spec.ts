@@ -233,7 +233,7 @@ describe("MarketsKeeperService", () => {
         disputed: false,
         disputer: "0x0000000000000000000000000000000000000000",
         finalized: false,
-      } as any)
+      })
       marketModel.find
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([])
@@ -256,7 +256,7 @@ describe("MarketsKeeperService", () => {
         disputed: true,
         disputer: "0xdisputeraddress",
         finalized: false,
-      } as any)
+      })
       // Reset the disputed flag for this test
       mockSubjectiveMarket.disputed = false
       marketModel.find

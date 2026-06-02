@@ -1,6 +1,5 @@
 "use client"
 
-import React from "react"
 import { useQuery } from "@tanstack/react-query"
 import { apiRequest } from "@/store/apiClient"
 import type { Profile } from "@/lib/verity"
@@ -11,7 +10,6 @@ import {
   ShieldCheck,
   Loader2,
   Sparkles,
-  AlertTriangle,
   ExternalLink,
   ChevronRight,
   Copy,
@@ -64,7 +62,6 @@ export default function AuthModals() {
   const usernameInput = useAuthStore((s) => s.usernameInput)
   const isSubmittingOtp = useAuthStore((s) => s.isSubmittingOtp)
   const isRequestingOtp = useAuthStore((s) => s.isRequestingOtp)
-  const authError = useAuthStore((s) => s.authError)
   const copied = useAuthStore((s) => s.copied)
 
   const txConfirmState = useAuthStore((s) => s.txConfirmState)
@@ -154,12 +151,6 @@ export default function AuthModals() {
                   </div>
                 </div>
 
-                {authError && (
-                  <p className="text-xs text-ember-orange font-medium">
-                    {authError}
-                  </p>
-                )}
-
                 <button
                   type="submit"
                   disabled={isRequestingOtp}
@@ -206,12 +197,6 @@ export default function AuthModals() {
                     />
                   </div>
                 </div>
-
-                {authError && (
-                  <p className="text-xs text-ember-orange font-medium">
-                    {authError}
-                  </p>
-                )}
 
                 <div className="flex gap-3">
                   <button

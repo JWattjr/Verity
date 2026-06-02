@@ -62,7 +62,7 @@ export default function SendUsdcModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-midnight/40 backdrop-blur-md px-4 py-6 animate-fade-in">
-      <div className="verity-card w-full max-w-[440px] bg-white-surface p-6 shadow-[(--shadow-sm)] border border-border relative">
+      <div className="verity-card w-full max-w-[440px] bg-white-surface p-6 shadow-sm border border-border relative">
         <button
           onClick={onClose}
           className="absolute right-4 top-4 text-ash hover:text-charcoal-primary transition-colors cursor-pointer"

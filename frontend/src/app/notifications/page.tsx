@@ -83,7 +83,7 @@ export default function NotificationsPage() {
         eyebrow="Inbox"
         title="Notifications"
       >
-        <div className="verity-card flex flex-col items-center gap-3 p-8 text-center text-sm font-medium text-ash bg-surface-solid border border-border rounded-xl shadow-[(--shadow-subtle)]">
+        <div className="verity-card flex flex-col items-center gap-3 p-8 text-center text-sm font-medium text-ash bg-surface-solid border border-border rounded-xl shadow-subtle">
           <Bell className="h-10 w-10 text-ash animate-bounce" />
           <p className="max-w-xs text-graphite font-semibold">
             Connect your wallet to see your replies, market movements, and
@@ -100,7 +100,7 @@ export default function NotificationsPage() {
       eyebrow="Inbox"
       title="Notifications"
     >
-      <section className="verity-card overflow-hidden bg-surface-solid border border-border rounded-xl shadow-[(--shadow-subtle)]">
+      <section className="verity-card overflow-hidden bg-surface-solid border border-border rounded-xl shadow-subtle">
         <div className="border-b border-dashed border-stone-surface p-4 sm:p-5 flex items-center justify-between">
           <h2 className="flex items-center gap-2 font-mono text-xs font-semibold uppercase tracking-[0.16em] text-charcoal-primary">
             <Bell className="h-4 w-4 text-meadow-green" />

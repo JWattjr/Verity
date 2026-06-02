@@ -19,7 +19,7 @@ async function run() {
   }
 
   let extractedCount = 0
-  let totalToExtract = 2
+  const totalToExtract = 2
 
   if (fs.existsSync(fpmmPath)) {
     const data = JSON.parse(fs.readFileSync(fpmmPath, "utf8"))

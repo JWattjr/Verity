@@ -96,7 +96,7 @@ export default function CommentModal({
           </span>
           <button
             aria-label="Close"
-            className="flex h-8 w-8 items-center justify-center rounded-full bg-parchment-card text-charcoal-primary shadow-[(--shadow-subtle)] transition-colors hover:bg-stone-surface"
+            className="flex h-8 w-8 items-center justify-center rounded-full bg-parchment-card text-charcoal-primary shadow-subtle transition-colors hover:bg-stone-surface"
             onClick={onClose}
             type="button"
           >
@@ -110,7 +110,7 @@ export default function CommentModal({
             <div className="flex flex-col items-center shrink-0">
               {parentAvatarUrl ? (
                 <span
-                  className="h-10 w-10 rounded-[14px] bg-cover bg-center shadow-[(--shadow-subtle)]"
+                  className="h-10 w-10 rounded-[14px] bg-cover bg-center shadow-subtle"
                   style={{ backgroundImage: `url(${parentAvatarUrl})` }}
                 />
               ) : (
@@ -152,7 +152,7 @@ export default function CommentModal({
             <div className="shrink-0">
               {myAvatarUrl ? (
                 <span
-                  className="h-10 w-10 rounded-[14px] bg-cover bg-center shadow-[(--shadow-subtle)]"
+                  className="h-10 w-10 rounded-[14px] bg-cover bg-center shadow-subtle"
                   style={{ backgroundImage: `url(${myAvatarUrl})` }}
                 />
               ) : (

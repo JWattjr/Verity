@@ -30,7 +30,7 @@ export default function ReceiveUsdcModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-midnight/40 backdrop-blur-md px-4 py-6 animate-fade-in">
-      <div className="verity-card w-full max-w-[400px] bg-white-surface p-6 shadow-[(--shadow-sm)] border border-border relative text-center flex flex-col items-center">
+      <div className="verity-card w-full max-w-[400px] bg-white-surface p-6 shadow-sm border border-border relative text-center flex flex-col items-center">
         <button
           onClick={onClose}
           className="absolute right-4 top-4 text-ash hover:text-charcoal-primary transition-colors cursor-pointer"
@@ -47,7 +47,7 @@ export default function ReceiveUsdcModal({
         </p>
 
         {/* QR Code Container */}
-        <div className="mt-6 p-4 rounded-[12px] bg-stone-surface border border-border shadow-[(--shadow-subtle)] flex items-center justify-center">
+        <div className="mt-6 p-4 rounded-[12px] bg-stone-surface border border-border shadow-subtle flex items-center justify-center">
           <img
             src={qrCodeUrl}
             alt="Wallet QR Code"
