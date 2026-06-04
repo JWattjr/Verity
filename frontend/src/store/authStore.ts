@@ -15,6 +15,7 @@ export interface TxConfirmationState {
   calls: TxCall[]
   description: string
   estimatedCostUsdc: number
+  claimAmountUsdc?: number
   resolve: ((txHash: string) => void) | null
   reject: ((err: Error) => void) | null
 }
@@ -53,6 +54,7 @@ export interface AuthStore {
     calls: TxCall[],
     description: string,
     estimatedCostUsdc: number,
+    claimAmountUsdc?: number,
   ) => Promise<string>
 
   handleRequestOtp: (e: React.FormEvent) => Promise<void>
@@ -112,7 +114,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
     queryClient.invalidateQueries()
   },
 
-  executeTxBatch: (calls, description, estimatedCostUsdc) => {
+  executeTxBatch: (calls, description, estimatedCostUsdc, claimAmountUsdc) => {
     const user = queryClient.getQueryData<Profile>(["profile"])
     if (!user) {
       get().login()
@@ -128,6 +130,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
           calls,
           description,
           estimatedCostUsdc,
+          claimAmountUsdc,
           resolve,
           reject,
         },

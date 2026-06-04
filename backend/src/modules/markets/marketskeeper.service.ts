@@ -52,6 +52,7 @@ export class MarketsKeeperService implements OnModuleInit, OnModuleDestroy {
       await this.promoteQualifiedMarkets()
       await this.processPythMarkets()
       await this.processSubjectiveMarkets()
+      await this.pvpService.syncUnresolvedPvpPicks()
     } catch (error) {
       this.logger.error(`Error in keeper loop: ${error.message}`)
     } finally {
@@ -201,8 +202,10 @@ export class MarketsKeeperService implements OnModuleInit, OnModuleDestroy {
   async processSubjectiveMarkets() {
     const now = new Date()
     // Find unresolved non-Pyth markets that have passed their deadline
+    // Exclude parent markets (PvP parents are DB-only containers, not registered on-chain)
     const expiredMarkets = await this.marketModel.find({
       isPythMarket: { $ne: true },
+      marketType: { $ne: "parent" },
       status: { $in: ["funding_pool", "tradable", "resolving"] },
       deadline: { $lte: now },
     })

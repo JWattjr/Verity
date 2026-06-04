@@ -387,27 +387,48 @@ export default function AuthModals() {
 
               {/* Cost Summary Table */}
               <div className="rounded-[10px] border border-stone-surface bg-parchment-card p-4 space-y-3.5">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-ash">Total USDC Value</span>
-                  <span className="font-mono font-semibold text-charcoal-primary">
-                    {txConfirmState.estimatedCostUsdc.toFixed(2)} USDC
-                  </span>
-                </div>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-ash">Network Gas Fee</span>
-                  <span className="font-mono text-graphite font-semibold flex items-center gap-1">
-                    Paid by Wallet (ARC)
-                  </span>
-                </div>
-                <div className="h-px bg-white/5" />
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-midnight font-medium">
-                    Estimated Total Cost
-                  </span>
-                  <span className="font-mono font-bold text-charcoal-primary text-base">
-                    {txConfirmState.estimatedCostUsdc.toFixed(2)} USDC + Gas
-                  </span>
-                </div>
+                {(() => {
+                  const isRedeemOrClaim =
+                    txConfirmState.description.toLowerCase().includes("redeem") ||
+                    txConfirmState.description.toLowerCase().includes("claim") ||
+                    txConfirmState.description.toLowerCase().includes("refund")
+
+                  return (
+                    <>
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-ash">
+                          {isRedeemOrClaim ? "Total USDC Claimed" : "Total USDC Value"}
+                        </span>
+                        <span className="font-mono font-semibold text-charcoal-primary">
+                          {(isRedeemOrClaim
+                            ? (txConfirmState.claimAmountUsdc ?? 0)
+                            : txConfirmState.estimatedCostUsdc
+                          ).toFixed(2)}{" "}
+                          USDC
+                        </span>
+                      </div>
+                      {!isRedeemOrClaim && (
+                        <>
+                          <div className="flex items-center justify-between text-sm">
+                            <span className="text-ash">Network Gas Fee</span>
+                            <span className="font-mono text-graphite font-semibold flex items-center gap-1">
+                              Paid by Wallet (ARC)
+                            </span>
+                          </div>
+                          <div className="h-px bg-white/5" />
+                          <div className="flex items-center justify-between text-sm">
+                            <span className="text-midnight font-medium">
+                              Estimated Total Cost
+                            </span>
+                            <span className="font-mono font-bold text-charcoal-primary text-base">
+                              {txConfirmState.estimatedCostUsdc.toFixed(2)} USDC + Gas
+                            </span>
+                          </div>
+                        </>
+                      )}
+                    </>
+                  )
+                })()}
               </div>
 
               {/* Action Buttons */}

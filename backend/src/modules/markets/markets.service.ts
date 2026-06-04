@@ -810,8 +810,44 @@ export class MarketsService {
     market.resolvedByAdmin = adminAddress
     await market.save()
 
-    // Trigger PvP match resolution check
-    await this.pvpService.resolvePvpMatchesForMarket(marketId, winningOutcome)
+    // If this is a PvP parent market, cascade resolution to all child markets
+    if (market.marketType === "parent") {
+      const childMarkets = await this.marketModel.find({
+        parentMarketId: market._id,
+        status: { $ne: "resolved" },
+      })
+
+      this.logger.log(
+        `Cascading resolution from parent ${marketId} to ${childMarkets.length} child markets (outcome: ${winningOutcome})`,
+      )
+
+      for (const child of childMarkets) {
+        child.status = "resolved"
+        child.resolvedOutcome = winningOutcome
+        child.resolvedByAdmin = adminAddress
+        await child.save()
+
+        // Trigger PvP match resolution for each child market
+        await this.pvpService.resolvePvpMatchesForMarket(
+          child._id.toString(),
+          winningOutcome,
+        )
+
+        this.logger.log(
+          `Resolved child market ${child._id} (${child.optionName || child.question}) -> ${winningOutcome}`,
+        )
+
+        // Emit socket events for each child market
+        this.socketGateway.broadcastToRoom(
+          `market:${child._id.toString()}`,
+          "market-updated",
+          { marketId: child._id.toString() },
+        )
+      }
+    } else {
+      // For non-parent markets, trigger PvP match resolution directly
+      await this.pvpService.resolvePvpMatchesForMarket(marketId, winningOutcome)
+    }
 
     this.logger.log(
       `Market ${marketId} status transitioned from ${oldStatus} to resolved (outcome: ${winningOutcome}, by admin: ${adminAddress})`,

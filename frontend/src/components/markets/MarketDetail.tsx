@@ -19,6 +19,8 @@ import {
   Share,
   ShieldCheck,
   Trophy,
+  Circle,
+  CircleDot,
 } from "lucide-react"
 import { useQueryClient } from "@tanstack/react-query"
 import { toast } from "react-hot-toast"
@@ -358,27 +360,36 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
     })
   }, [activeMarket, profileId, disputeResolution, runAction])
 
-  const handleRedeem = useCallback(async () => {
-    if (!activeMarket || !profileId) return
-    await runAction("redeem", async () => {
-      await redeemWinnings(activeMarket.id)
-      await balance.refetch()
-    })
-  }, [activeMarket, profileId, redeemWinnings, runAction, balance])
+  const handleRedeem = useCallback(
+    async (claimAmount?: number) => {
+      if (!activeMarket || !profileId) return
+      await runAction("redeem", async () => {
+        await redeemWinnings(activeMarket.id, claimAmount)
+        await balance.refetch()
+      })
+    },
+    [activeMarket, profileId, redeemWinnings, runAction, balance],
+  )
 
-  const handleClaimCreatorLP = useCallback(async () => {
-    if (!activeMarket || !profileId) return
-    await runAction("claim_creator_lp", async () => {
-      await claimCreatorLP(activeMarket.id)
-    })
-  }, [activeMarket, profileId, claimCreatorLP, runAction])
+  const handleClaimCreatorLP = useCallback(
+    async (claimAmount?: number) => {
+      if (!activeMarket || !profileId) return
+      await runAction("claim_creator_lp", async () => {
+        await claimCreatorLP(activeMarket.id, claimAmount)
+      })
+    },
+    [activeMarket, profileId, claimCreatorLP, runAction],
+  )
 
-  const handleClaimRefund = useCallback(async () => {
-    if (!activeMarket || !profileId) return
-    await runAction("claim_refund", async () => {
-      await claimRefund(activeMarket.id)
-    })
-  }, [activeMarket, profileId, claimRefund, runAction])
+  const handleClaimRefund = useCallback(
+    async (claimAmount?: number) => {
+      if (!activeMarket || !profileId) return
+      await runAction("claim_refund", async () => {
+        await claimRefund(activeMarket.id, claimAmount)
+      })
+    },
+    [activeMarket, profileId, claimRefund, runAction],
+  )
 
   const approveTrading = useCallback(async () => {
     if (!activeMarket) return
@@ -2553,8 +2564,8 @@ function RedeemPanel({
   market: MarketPost
   positions: MarketPosition[]
   lpPositions: any[]
-  onRedeem: () => Promise<void>
-  onClaimCreatorLP: () => Promise<void>
+  onRedeem: (claimAmount?: number) => Promise<void>
+  onClaimCreatorLP: (claimAmount?: number) => Promise<void>
   actionLoading: string | null
   profileId: string | undefined
 }) {
@@ -2613,7 +2624,7 @@ function RedeemPanel({
               <button
                 className="verity-pill flex h-10 w-full items-center justify-center bg-meadow-green font-mono text-xs font-semibold uppercase tracking-[0.12em] text-white transition-opacity hover:opacity-85 disabled:cursor-not-allowed disabled:opacity-45"
                 disabled={Boolean(actionLoading) || !profileId}
-                onClick={onRedeem}
+                onClick={() => onRedeem(winningShares)}
                 type="button"
               >
                 {actionLoading === "redeem"
@@ -2647,7 +2658,7 @@ function RedeemPanel({
           <button
             className="verity-pill flex h-10 w-full items-center justify-center bg-inverse font-mono text-xs font-semibold uppercase tracking-[0.12em] text-inverse-text transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-45"
             disabled={Boolean(actionLoading) || !profileId}
-            onClick={onClaimCreatorLP}
+            onClick={() => onClaimCreatorLP(myLPPosition.lpShares)}
             type="button"
           >
             {actionLoading === "claim_creator_lp"
@@ -2669,7 +2680,7 @@ function RefundPanel({
 }: {
   market: MarketPost
   lpPositions: any[]
-  onClaimRefund: () => Promise<void>
+  onClaimRefund: (claimAmount?: number) => Promise<void>
   actionLoading: string | null
   profileId: string | undefined
 }) {
@@ -2704,7 +2715,7 @@ function RefundPanel({
         <button
           className="verity-pill flex h-10 w-full items-center justify-center bg-meadow-green font-mono text-xs font-semibold uppercase tracking-[0.12em] text-white transition-opacity hover:opacity-85 disabled:cursor-not-allowed disabled:opacity-45"
           disabled={Boolean(actionLoading) || !profileId}
-          onClick={onClaimRefund}
+          onClick={() => onClaimRefund(myLPPosition.lpShares)}
           type="button"
         >
           {actionLoading === "claim_refund"
@@ -2714,9 +2725,7 @@ function RefundPanel({
       </div>
     </section>
   )
-}
-
-function OutcomesPanel({
+}function OutcomesPanel({
   childMarkets,
   selectedChildId,
   selectedSide,
@@ -2729,23 +2738,12 @@ function OutcomesPanel({
   onSelectOptionAndSide: (id: string, side: VoteSide) => void
   marketStatus?: string
 }) {
-  const isPreMarket = childMarkets.some((child) =>
-    ["open_for_votes", "qualified", "funding_pool"].includes(
-      child.status || "",
-    ),
-  )
-
   return (
     <section className="verity-card p-5 border border-border bg-surface-solid shadow-subtle">
       <h2 className="mb-4 font-semibold tracking-[-0.18px] text-charcoal-primary flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span>Outcomes & Options</span>
         </div>
-        {/* {isPreMarket && (
-          <span className="text-[10px] bg-sky-blue/10 text-sky-blue px-2.5 py-0.5 rounded-full font-mono uppercase tracking-wider font-semibold">
-            Funding Phase
-          </span>
-        )} */}
       </h2>
       <div className="grid gap-3 sm:grid-cols-2">
         {childMarkets.map((child) => {
@@ -2761,53 +2759,50 @@ function OutcomesPanel({
             const minFunding = 40
             const progress = Math.min(100, (currentFunding / minFunding) * 100)
 
-            let borderClass =
-              "border-border bg-surface-muted/50 text-charcoal-primary"
-            if (isSelected) {
-              borderClass =
-                "border-sky-blue bg-sky-blue/[0.02] dark:bg-sky-blue/[0.04] shadow-sm"
-            }
-
             return (
               <div
                 key={child.id}
-                className={`flex flex-col p-4 rounded-xl border transition-all duration-200 ${borderClass}`}
+                onClick={() => onSelectOptionAndSide(child.id, "YES")}
+                className={`flex flex-col p-4 rounded-xl border transition-all duration-200 cursor-pointer relative ${
+                  isSelected
+                    ? "border-sky-blue bg-sky-blue/[0.02] dark:bg-sky-blue/[0.04] shadow-sm"
+                    : "border-border bg-surface-muted/50 text-charcoal-primary hover:border-sky-blue/40"
+                }`}
               >
-                <div className="flex items-start justify-between w-full gap-2">
-                  <span className="font-semibold text-charcoal-primary text-sm line-clamp-2">
-                    {child.optionName || child.question}
-                  </span>
-                  <span className="text-[9px] font-mono text-sky-blue border border-sky-blue/20 bg-sky-blue/5 px-1.5 py-0.5 rounded shrink-0 font-medium">
-                    Separate Pool
-                  </span>
-                </div>
-
-                <div className="mt-3.5 flex flex-col w-full">
-                  <div className="flex items-center justify-between font-mono text-[10px] text-ash mb-1">
-                    <span>Pool Funding Progress</span>
-                    <span className="font-semibold text-charcoal-primary">
-                      {currentFunding} / {minFunding} USDC
-                    </span>
+                <div className="flex items-start gap-2.5 w-full">
+                  <div className="mt-0.5 shrink-0">
+                    {isSelected ? (
+                      <CircleDot className="h-4.5 w-4.5 text-sky-blue" />
+                    ) : (
+                      <Circle className="h-4.5 w-4.5 text-ash/40 dark:text-ash/20 transition-colors" />
+                    )}
                   </div>
-                  <div className="h-2 w-full overflow-hidden rounded-full bg-white-surface shadow-subtle border border-stone-surface">
-                    <div
-                      className="h-full bg-sky-blue transition-all duration-500 rounded-full"
-                      style={{ width: `${progress}%` }}
-                    />
+                  <div className="flex flex-col min-w-0 flex-1">
+                    <div className="flex items-start justify-between gap-2">
+                      <span className="font-semibold text-charcoal-primary text-sm line-clamp-2">
+                        {child.optionName || child.question}
+                      </span>
+                      <span className="text-[9px] font-mono text-sky-blue border border-sky-blue/20 bg-sky-blue/5 px-1.5 py-0.5 rounded shrink-0 font-medium">
+                        Separate Pool
+                      </span>
+                    </div>
+
+                    <div className="mt-3 flex flex-col w-full">
+                      <div className="flex items-center justify-between font-mono text-[10px] text-ash mb-1">
+                        <span>Pool Funding Progress</span>
+                        <span className="font-semibold text-charcoal-primary">
+                          {currentFunding} / {minFunding} USDC
+                        </span>
+                      </div>
+                      <div className="h-2 w-full overflow-hidden rounded-full bg-white-surface dark:bg-zinc-900 shadow-subtle border border-stone-surface dark:border-zinc-800">
+                        <div
+                          className="h-full bg-sky-blue transition-all duration-500 rounded-full"
+                          style={{ width: `${progress}%` }}
+                        />
+                      </div>
+                    </div>
                   </div>
                 </div>
-
-                <button
-                  type="button"
-                  onClick={() => onSelectOptionAndSide(child.id, "YES")}
-                  className={`mt-4 w-full text-center py-2 px-3 rounded-lg font-mono text-xs font-bold transition-all duration-150 cursor-pointer ${
-                    isSelected
-                      ? "bg-sky-blue text-white border border-sky-blue shadow-sm"
-                      : "bg-sky-blue/10 text-sky-blue border border-sky-blue/20 hover:bg-sky-blue/20"
-                  }`}
-                >
-                  {isSelected ? "✓ Selected for Funding" : "Select to Fund"}
-                </button>
               </div>
             )
           }
@@ -2815,61 +2810,78 @@ function OutcomesPanel({
           const yesPrice = getMarketPrice(child, "YES")
           const noPrice = getMarketPrice(child, "NO")
 
+          const isPvp = child.category?.toLowerCase() === "pvp"
+          const yesLabel = isPvp ? (child.yesCondition || child.yes_condition || "YES") : "YES"
+          const noLabel = isPvp ? (child.noCondition || child.no_condition || "NO") : "NO"
+
           const isYesSelected = isSelected && selectedSide === "YES"
           const isNoSelected = isSelected && selectedSide === "NO"
 
           let borderClass =
-            "border-border bg-surface-muted/50 text-charcoal-primary"
+            "border-border bg-surface-muted/50 text-charcoal-primary hover:border-border-strong"
+          let radioColor = "text-ash/40 dark:text-ash/20"
+
           if (isYesSelected) {
             borderClass =
               "border-meadow-green bg-meadow-green/[0.03] dark:bg-meadow-green/[0.06] shadow-sm"
+            radioColor = "text-meadow-green"
           } else if (isNoSelected) {
             borderClass =
               "border-ember-orange bg-ember-orange/[0.03] dark:bg-ember-orange/[0.06] shadow-sm"
+            radioColor = "text-ember-orange"
+          }
+
+          const handleCardClick = () => {
+            onSelectOptionAndSide(child.id, selectedSide || "YES")
           }
 
           return (
             <div
               key={child.id}
-              className={`flex flex-col p-4 rounded-xl border transition-all duration-200 ${borderClass}`}
+              onClick={handleCardClick}
+              className={`flex flex-col p-4 rounded-xl border transition-all duration-200 cursor-pointer relative ${borderClass}`}
             >
-              <div className="flex items-center justify-between w-full">
-                <span className="font-semibold text-charcoal-primary text-sm">
-                  {child.optionName || child.question}
-                </span>
-                <span className="text-[10px] font-mono text-ash">
-                  Pool:{" "}
-                  {(
-                    Number(child.usdc_yes_amount || 0) +
-                    Number(child.usdc_no_amount || 0)
-                  ).toFixed(0)}{" "}
-                  USDC
-                </span>
-              </div>
+              <div className="flex items-start gap-2.5 w-full">
+                <div className="mt-0.5 shrink-0">
+                  {isSelected ? (
+                    <CircleDot className={`h-4.5 w-4.5 ${radioColor}`} />
+                  ) : (
+                    <Circle className="h-4.5 w-4.5 text-ash/40 dark:text-ash/20 transition-colors" />
+                  )}
+                </div>
 
-              <div className="mt-3.5 flex items-center gap-2 w-full">
-                <button
-                  type="button"
-                  onClick={() => onSelectOptionAndSide(child.id, "YES")}
-                  className={`flex-1 text-center py-2 px-3 rounded-lg font-mono text-xs font-bold transition-all duration-150 cursor-pointer ${
-                    isYesSelected
-                      ? "bg-meadow-green text-white border border-meadow-green shadow-sm"
-                      : "bg-meadow-green/10 text-meadow-green border border-meadow-green/20 hover:bg-meadow-green/20"
-                  }`}
-                >
-                  YES: {(yesPrice * 100).toFixed(0)}¢
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onSelectOptionAndSide(child.id, "NO")}
-                  className={`flex-1 text-center py-2 px-3 rounded-lg font-mono text-xs font-bold transition-all duration-150 cursor-pointer ${
-                    isNoSelected
-                      ? "bg-ember-orange text-white border border-ember-orange shadow-sm"
-                      : "bg-ember-orange/10 text-ember-orange border border-ember-orange/20 hover:bg-ember-orange/15"
-                  }`}
-                >
-                  NO: {(noPrice * 100).toFixed(0)}¢
-                </button>
+                <div className="flex flex-col min-w-0 flex-1">
+                  <div className="flex items-start justify-between w-full gap-2">
+                    <span className="font-semibold text-charcoal-primary text-sm line-clamp-2">
+                      {child.optionName || child.question}
+                    </span>
+                    <span className="text-[10px] font-mono text-ash shrink-0 mt-0.5">
+                      Pool:{" "}
+                      {(
+                        Number(child.usdc_yes_amount || 0) +
+                        Number(child.usdc_no_amount || 0)
+                      ).toFixed(0)}{" "}
+                      USDC
+                    </span>
+                  </div>
+
+                  <div className="mt-3.5 flex items-center gap-3">
+                    <span className={`px-2.5 py-1 rounded-[6px] font-mono text-xs font-bold border transition-colors ${
+                      isYesSelected
+                        ? "bg-meadow-green/10 text-meadow-green border-meadow-green/20"
+                        : "bg-stone-surface text-ash border-border"
+                    }`}>
+                      {yesLabel}: {(yesPrice * 100).toFixed(0)}¢
+                    </span>
+                    <span className={`px-2.5 py-1 rounded-[6px] font-mono text-xs font-bold border transition-colors ${
+                      isNoSelected
+                        ? "bg-ember-orange/10 text-ember-orange border-ember-orange/20"
+                        : "bg-stone-surface text-ash border-border"
+                    }`}>
+                      {noLabel}: {(noPrice * 100).toFixed(0)}¢
+                    </span>
+                  </div>
+                </div>
               </div>
             </div>
           )

@@ -45,7 +45,7 @@ export default function SendUsdcModal({
     const toastId = toast.loading("Sending USDC...")
     try {
       await transferUsdc(recipient, amount)
-      toast.success(`Successfully sent ${amount} USDC! ✓`, { id: toastId })
+      toast.success(`Successfully sent ${amount} USDC!`, { id: toastId })
       setRecipient("")
       setAmountInput("")
       onSuccess?.()

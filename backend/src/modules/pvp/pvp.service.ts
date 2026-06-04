@@ -736,11 +736,11 @@ export class PvpService {
   }
 
   async getPvpStatus(userId: string) {
-    // Find the latest active ticket (either queued or matched)
+    // Find the latest active ticket (either queued, matched, or resolved)
     const ticket = await this.pvpTicketModel
       .findOne({
         userId: new Types.ObjectId(userId),
-        status: { $in: ["queued", "matched"] },
+        status: { $in: ["queued", "matched", "resolved"] },
       })
       .sort({ createdAt: -1 })
 
@@ -763,6 +763,80 @@ export class PvpService {
     const children = await this.marketModel.find({
       parentMarketId: ticket.parentMarketId,
     })
+
+    const user = await this.userModel.findById(userId)
+    if (user && user.walletAddress) {
+      for (const child of children) {
+        try {
+          const onChain = await this.blockchainService.getUserOnChainBalances(
+            child._id.toString(),
+            user.walletAddress,
+          )
+
+          const isResolved =
+            child.status === "resolved" || child.resolvedOutcome
+          const winningOutcome = child.resolvedOutcome
+
+          // Sync YES Position
+          const isYesLosing = isResolved && winningOutcome === "NO"
+          if (!isYesLosing && onChain.yesBalance > 0) {
+            await this.marketPositionModel.updateOne(
+              {
+                marketId: child._id,
+                userId: new Types.ObjectId(userId),
+                side: "YES",
+              },
+              {
+                $set: { shares: onChain.yesBalance },
+                $setOnInsert: {
+                  avgPrice: 0.5,
+                  investedUsdc: onChain.yesBalance * 0.5,
+                  realizedPnl: 0,
+                },
+              },
+              { upsert: true },
+            )
+          } else {
+            await this.marketPositionModel.deleteOne({
+              marketId: child._id,
+              userId: new Types.ObjectId(userId),
+              side: "YES",
+            })
+          }
+
+          // Sync NO Position
+          const isNoLosing = isResolved && winningOutcome === "YES"
+          if (!isNoLosing && onChain.noBalance > 0) {
+            await this.marketPositionModel.updateOne(
+              {
+                marketId: child._id,
+                userId: new Types.ObjectId(userId),
+                side: "NO",
+              },
+              {
+                $set: { shares: onChain.noBalance },
+                $setOnInsert: {
+                  avgPrice: 0.5,
+                  investedUsdc: onChain.noBalance * 0.5,
+                  realizedPnl: 0,
+                },
+              },
+              { upsert: true },
+            )
+          } else {
+            await this.marketPositionModel.deleteOne({
+              marketId: child._id,
+              userId: new Types.ObjectId(userId),
+              side: "NO",
+            })
+          }
+        } catch (err) {
+          this.logger.error(
+            `Error syncing position in getPvpStatus for child ${child._id}: ${err.message}`,
+          )
+        }
+      }
+    }
 
     // Fetch the user's on-chain positions for all child markets (same as normal markets)
     const childMarketIds = children.map((c) => c._id)
@@ -798,6 +872,8 @@ export class PvpService {
             noCondition: matchChild?.noCondition || "NO",
             shares: position?.shares ?? 0,
             investedUsdc: position?.investedUsdc ?? 0,
+            status: matchChild?.status || "unknown",
+            resolvedOutcome: matchChild?.resolvedOutcome || null,
           }
         }),
       },
@@ -1005,4 +1081,55 @@ export class PvpService {
       creationFeeUsdc: 1,
     }
   }
+
+  async syncUnresolvedPvpPicks() {
+    this.logger.log("Running self-healing syncUnresolvedPvpPicks...")
+    // Find all matched tickets
+    const tickets = await this.pvpTicketModel.find({
+      status: "matched",
+    })
+
+    if (tickets.length === 0) return
+
+    for (const ticket of tickets) {
+      let updated = false
+      for (const pick of ticket.picks) {
+        if (pick.isCorrect === null) {
+          const market = await this.marketModel.findById(pick.marketId)
+          if (market && market.status === "resolved" && market.resolvedOutcome) {
+            pick.isCorrect = pick.selection === market.resolvedOutcome
+            updated = true
+            this.logger.log(
+              `Self-healing pick resolution for market ${pick.marketId.toString()} on ticket ${ticket._id.toString()} -> isCorrect: ${pick.isCorrect}`,
+            )
+          }
+        }
+      }
+
+      if (updated) {
+        ticket.markModified("picks")
+        await ticket.save()
+
+        // Check if all 7 picks are resolved
+        const allResolved = ticket.picks.every((p) => p.isCorrect !== null)
+        if (allResolved) {
+          const match = await this.pvpMatchModel.findById(ticket.matchId)
+          if (match && match.status === "matched") {
+            const ticket1 = await this.pvpTicketModel.findById(match.ticket1Id)
+            const ticket2 = await this.pvpTicketModel.findById(match.ticket2Id)
+
+            if (
+              ticket1 &&
+              ticket2 &&
+              ticket1.picks.every((p) => p.isCorrect !== null) &&
+              ticket2.picks.every((p) => p.isCorrect !== null)
+            ) {
+              await this.resolveMatch(match, ticket1, ticket2)
+            }
+          }
+        }
+      }
+    }
+  }
 }
+
