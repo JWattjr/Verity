@@ -239,7 +239,7 @@ export default function PvpArenaTab({
   // PvP Arena Skeleton Loader
   if (pvpEventsLoading || pvpStatusLoading) {
     return (
-      <div className="flex flex-col gap-4 animate-pulse">
+      <div className="lg:col-span-2 flex flex-col gap-4 animate-pulse">
         <div className="verity-card p-6 flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-4">
             <div className="h-16 w-16 rounded-full bg-stone-surface dark:bg-zinc-800" />
