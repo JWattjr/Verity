@@ -631,7 +631,6 @@ export function usePvpLeaderboardQuery() {
     queryKey: ["pvp-leaderboards"] as const,
     queryFn: () =>
       apiRequest<{
-        elo: any[]
         xp: any[]
         referrers: any[]
       }>("/pvp/leaderboards"),

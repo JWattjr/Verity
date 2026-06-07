@@ -47,9 +47,6 @@ export class PvpTicket {
   @Prop({ type: Number, default: 0 })
   xpEarned: number
 
-  @Prop({ type: Number, default: 0 })
-  eloChange: number
-
   @Prop({ type: Boolean, default: false })
   doubleBoostActive: boolean
 

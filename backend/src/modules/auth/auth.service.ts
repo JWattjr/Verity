@@ -40,7 +40,6 @@ export interface UserResponse {
   updatedAt: string
   isOnboarded: boolean
   referredById: string | null
-  eloRating: number
   arenaXp: number
   doubleBoostRemaining: number
   hasWonFirstPvpDuel: boolean
@@ -81,7 +80,6 @@ export function serializeUser(user: UserDocument): UserResponse {
     updatedAt,
     isOnboarded: user.isOnboarded || false,
     referredById: user.referredById ? user.referredById.toString() : null,
-    eloRating: user.eloRating ?? 1000,
     arenaXp: user.arenaXp ?? 0,
     doubleBoostRemaining: user.doubleBoostRemaining ?? 0,
     hasWonFirstPvpDuel: user.hasWonFirstPvpDuel ?? false,
@@ -119,7 +117,6 @@ export function placeholderUserProfile(authorId: string): UserResponse {
     updatedAt: now,
     isOnboarded: false,
     referredById: null,
-    eloRating: 1000,
     arenaXp: 0,
     doubleBoostRemaining: 0,
     hasWonFirstPvpDuel: false,

@@ -26,6 +26,8 @@ import { NotificationsService } from "../notifications/notifications.service"
 import { CreatePvpEventDto, SubmitTicketDto } from "./pvp.dto"
 import { BlockchainService } from "../blockchain/blockchain.service"
 import { LiquidityService } from "../liquidity/liquidity.service"
+import { calculatePvpResultXp, calculatePvpScore } from "./pvp-scoring"
+import type { PvpResult } from "./pvp-scoring"
 
 @Injectable()
 export class PvpService {
@@ -311,14 +313,14 @@ export class PvpService {
       await existing.save()
     }
 
-    // Consume double boost if remaining > 0
+    // Consume an XP boost if remaining > 0.
     let doubleBoostActive = false
     if (user.doubleBoostRemaining > 0) {
       user.doubleBoostRemaining -= 1
       await user.save()
       doubleBoostActive = true
       this.logger.log(
-        `User ${userId} consumed a double boost. remaining: ${user.doubleBoostRemaining}`,
+        `User ${userId} consumed an XP boost. remaining: ${user.doubleBoostRemaining}`,
       )
     }
 
@@ -512,39 +514,16 @@ export class PvpService {
       `Resolving PvP match ${match._id} for users ${match.user1Id} and ${match.user2Id}`,
     )
 
-    // 1. Calculate scores
-    const correct1 = ticket1.picks.filter((p) => p.isCorrect === true).length
-    const wrong1 = 7 - correct1
-    let score1 = correct1 * 70 + wrong1 * 30
-    if (correct1 === 7) score1 += 100 // Perfect Game bonus
+    // 1. Each correct prediction is worth one match point.
+    const score1 = calculatePvpScore(ticket1.picks)
+    const score2 = calculatePvpScore(ticket2.picks)
 
-    const correct2 = ticket2.picks.filter((p) => p.isCorrect === true).length
-    const wrong2 = 7 - correct2
-    let score2 = correct2 * 70 + wrong2 * 30
-    if (correct2 === 7) score2 += 100 // Perfect Game bonus
-
-    // 2. Determine Winner/Loser with Lock-in Tie-Breaker
+    // 2. Equal scores are a draw.
     let winnerId: Types.ObjectId | null = null
     if (score1 > score2) {
       winnerId = match.user1Id
     } else if (score2 > score1) {
       winnerId = match.user2Id
-    } else {
-      // Tie breaker: Lock-in time
-      const time1 = ticket1.createdAt
-        ? new Date(ticket1.createdAt).getTime()
-        : 0
-      const time2 = ticket2.createdAt
-        ? new Date(ticket2.createdAt).getTime()
-        : 0
-      if (time1 < time2) {
-        winnerId = match.user1Id
-      } else if (time2 < time1) {
-        winnerId = match.user2Id
-      } else {
-        // True draw (extremely rare but possible)
-        winnerId = null
-      }
     }
 
     // 3. Load Users
@@ -554,34 +533,22 @@ export class PvpService {
     ])
     if (!user1 || !user2) return
 
-    // 4. Calculate ELO Changes (K = 32)
-    const elo1 = user1.eloRating ?? 1000
-    const elo2 = user2.eloRating ?? 1000
-    const exp1 = 1 / (1 + Math.pow(10, (elo2 - elo1) / 400))
-    const exp2 = 1 / (1 + Math.pow(10, (elo1 - elo2) / 400))
+    const result1: PvpResult = winnerId
+      ? winnerId.toString() === user1._id.toString()
+        ? "win"
+        : "loss"
+      : "draw"
+    const result2: PvpResult = winnerId
+      ? winnerId.toString() === user2._id.toString()
+        ? "win"
+        : "loss"
+      : "draw"
 
-    let s1 = 0.5
-    let s2 = 0.5
-    if (winnerId) {
-      if (winnerId.toString() === user1._id.toString()) {
-        s1 = 1
-        s2 = 0
-      } else {
-        s1 = 0
-        s2 = 1
-      }
-    }
+    // 4. Award Result XP, a +20 perfect bonus, and an optional 1.2x boost.
+    const xp1 = calculatePvpResultXp(result1, score1, ticket1.doubleBoostActive)
+    const xp2 = calculatePvpResultXp(result2, score2, ticket2.doubleBoostActive)
 
-    const dRating1 = Math.round(32 * (s1 - exp1))
-    const dRating2 = Math.round(32 * (s2 - exp2))
-
-    // 5. Award XP (including double boost if active)
-    const xp1 = score1 * (ticket1.doubleBoostActive ? 2 : 1)
-    const xp2 = score2 * (ticket2.doubleBoostActive ? 2 : 1)
-
-    // 6. Update user stats
-    user1.eloRating = Math.max(100, elo1 + dRating1)
-    user2.eloRating = Math.max(100, elo2 + dRating2)
+    // 5. Update user stats
     user1.arenaXp += xp1
     user2.arenaXp += xp2
 
@@ -593,11 +560,11 @@ export class PvpService {
         user1.pvpMatchesWonCount += 1
         user2.pvpMatchesLostCount += 1
 
-        // Co-Op First Win Boost (Referee + Referrer gets +2 double boosts)
+        // A referred player's first win grants two boosts to their referrer.
         if (!user1.hasWonFirstPvpDuel) {
           user1.hasWonFirstPvpDuel = true
           if (user1.referredById) {
-            await this.awardFirstWinBoosts(user1)
+            await this.awardReferrerFirstWinBoosts(user1)
           }
         }
       } else {
@@ -607,7 +574,7 @@ export class PvpService {
         if (!user2.hasWonFirstPvpDuel) {
           user2.hasWonFirstPvpDuel = true
           if (user2.referredById) {
-            await this.awardFirstWinBoosts(user2)
+            await this.awardReferrerFirstWinBoosts(user2)
           }
         }
       }
@@ -616,32 +583,10 @@ export class PvpService {
       user2.pvpMatchesDrawnCount += 1
     }
 
-    // 7. Referral XP Kickback (5%)
-    let kickback1 = 0
-    let kickback2 = 0
-    if (user1.referredById) {
-      kickback1 = Math.round(xp1 * 0.05)
-      await this.userModel.findByIdAndUpdate(user1.referredById, {
-        $inc: { arenaXp: kickback1 },
-      })
-      this.logger.log(
-        `Referral Kickback of ${kickback1} XP awarded to referrer of user ${user1._id}`,
-      )
-    }
-    if (user2.referredById) {
-      kickback2 = Math.round(xp2 * 0.05)
-      await this.userModel.findByIdAndUpdate(user2.referredById, {
-        $inc: { arenaXp: kickback2 },
-      })
-      this.logger.log(
-        `Referral Kickback of ${kickback2} XP awarded to referrer of user ${user2._id}`,
-      )
-    }
-
     // Save users
     await Promise.all([user1.save(), user2.save()])
 
-    // 8. Update Match and Ticket records
+    // 6. Update Match and Ticket records
     match.status = "resolved"
     match.winnerId = winnerId
     match.resolvedAt = new Date()
@@ -650,13 +595,11 @@ export class PvpService {
     ticket1.status = "resolved"
     ticket1.score = score1
     ticket1.xpEarned = xp1
-    ticket1.eloChange = dRating1
     await ticket1.save()
 
     ticket2.status = "resolved"
     ticket2.score = score2
     ticket2.xpEarned = xp2
-    ticket2.eloChange = dRating2
     await ticket2.save()
 
     // Broadcast Socket events
@@ -690,7 +633,7 @@ export class PvpService {
       user2._id.toString(),
       "pvp_resolved",
       `PvP Duel Resolved: You ${res1}`,
-      `Your battle against @${u2} resolved. Score: ${score1} vs ${score2}. Elo: ${dRating1 > 0 ? `+${dRating1}` : dRating1} (New ELO: ${user1.eloRating}). XP Earned: +${xp1}.`,
+      `Your battle against @${u2} resolved. Score: ${score1} vs ${score2}. Arena XP earned: +${xp1}.`,
       match._id.toString(),
     )
     await this.notificationsService.createNotification(
@@ -698,40 +641,30 @@ export class PvpService {
       user1._id.toString(),
       "pvp_resolved",
       `PvP Duel Resolved: You ${res2}`,
-      `Your battle against @${u1} resolved. Score: ${score2} vs ${score1}. Elo: ${dRating2 > 0 ? `+${dRating2}` : dRating2} (New ELO: ${user2.eloRating}). XP Earned: +${xp2}.`,
+      `Your battle against @${u1} resolved. Score: ${score2} vs ${score1}. Arena XP earned: +${xp2}.`,
       match._id.toString(),
     )
   }
 
-  private async awardFirstWinBoosts(referee: UserDocument) {
-    const referrer = await this.userModel.findById(referee.referredById)
+  private async awardReferrerFirstWinBoosts(referredPlayer: UserDocument) {
+    const referrer = await this.userModel.findById(referredPlayer.referredById)
     if (!referrer) return
 
-    // Increment double boosts by 2 for both referee and referrer
-    referee.doubleBoostRemaining = (referee.doubleBoostRemaining ?? 0) + 2
+    // Keep the existing field name for database compatibility.
     referrer.doubleBoostRemaining = (referrer.doubleBoostRemaining ?? 0) + 2
     await referrer.save()
 
-    // Send notifications
-    await this.notificationsService.createNotification(
-      referee._id.toString(),
-      referrer._id.toString(),
-      "pvp_boost",
-      "Co-Op Double Boost Active! ⚡",
-      `Congratulations on your first win! You and your referrer @${referrer.username} both got 2 Double-Boosts (2x XP).`,
-      referee._id.toString(),
-    )
     await this.notificationsService.createNotification(
       referrer._id.toString(),
-      referee._id.toString(),
+      referredPlayer._id.toString(),
       "pvp_boost",
-      "Referral Double Boost Awarded! ⚡",
-      `Your referred friend @${referee.username} won their first duel! You both got 2 Double-Boosts (2x XP).`,
-      referrer._id.toString(),
+      "Referral XP Boosts Awarded!",
+      `Your referred friend @${referredPlayer.username} won their first duel. You received 2 Arena XP boosts (1.2x XP each).`,
+      referredPlayer._id.toString(),
     )
 
     this.logger.log(
-      `Co-Op double boosts (+2) awarded to referee ${referee._id} and referrer ${referrer._id}`,
+      `Two XP boosts awarded to referrer ${referrer._id} after referred player ${referredPlayer._id} earned their first win`,
     )
   }
 
@@ -889,7 +822,6 @@ export class PvpService {
             id: opponent._id.toString(),
             username: opponent.username,
             avatarUrl: opponent.avatarUrl,
-            eloRating: opponent.eloRating ?? 1000,
             picks: opponentTicket
               ? opponentTicket.picks.map((p) => {
                   const matchChild = children.find(
@@ -924,14 +856,6 @@ export class PvpService {
   }
 
   async getLeaderboards() {
-    // ELO (Skill)
-    const eloList = await this.userModel
-      .find({
-        isOnboarded: true,
-      })
-      .sort({ eloRating: -1 })
-      .limit(50)
-
     // XP (Volume)
     const xpList = await this.userModel
       .find({
@@ -959,19 +883,13 @@ export class PvpService {
     ])
 
     return {
-      elo: eloList.map((u) => ({
-        id: u._id.toString(),
-        username: u.username,
-        displayName: u.displayName,
-        avatarUrl: u.avatarUrl,
-        eloRating: u.eloRating ?? 1000,
-      })),
       xp: xpList.map((u) => ({
         id: u._id.toString(),
         username: u.username,
         displayName: u.displayName,
         avatarUrl: u.avatarUrl,
         arenaXp: u.arenaXp ?? 0,
+        pvpMatchesLostCount: u.pvpMatchesLostCount ?? 0,
       })),
       referrers: referrerRankings.map((r) => ({
         id: r.referrerUser._id.toString(),
@@ -994,8 +912,6 @@ export class PvpService {
       })
       .sort({ arenaXp: -1 })
 
-    // Calculate total kickback XP generated (roughly 5% of referee's ELO/XP if we just display the count or compute it from matches)
-    // We can count their referees, double boost remaining, etc.
     return {
       referralLink: user.username,
       doubleBoostRemaining: user.doubleBoostRemaining ?? 0,
@@ -1051,7 +967,6 @@ export class PvpService {
         myScore: myTicket?.score ?? 0,
         oppScore: oppTicket?.score ?? 0,
         xpEarned: myTicket?.xpEarned ?? 0,
-        eloChange: myTicket?.eloChange ?? 0,
         opponent: oppUser
           ? {
               id: oppUser._id.toString(),
@@ -1096,7 +1011,11 @@ export class PvpService {
       for (const pick of ticket.picks) {
         if (pick.isCorrect === null) {
           const market = await this.marketModel.findById(pick.marketId)
-          if (market && market.status === "resolved" && market.resolvedOutcome) {
+          if (
+            market &&
+            market.status === "resolved" &&
+            market.resolvedOutcome
+          ) {
             pick.isCorrect = pick.selection === market.resolvedOutcome
             updated = true
             this.logger.log(
@@ -1132,4 +1051,3 @@ export class PvpService {
     }
   }
 }
-

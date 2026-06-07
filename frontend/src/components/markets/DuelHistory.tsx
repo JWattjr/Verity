@@ -52,8 +52,7 @@ export default function DuelHistory({ matchHistory }: DuelHistoryProps) {
                   Score: {item.myScore} - {item.oppScore}
                 </span>
                 <span className="font-semibold text-charcoal-primary dark:text-zinc-300">
-                  {item.eloChange >= 0 ? "+" : ""}
-                  {item.eloChange} ELO
+                  +{item.xpEarned} XP
                 </span>
               </div>
             </div>

@@ -62,9 +62,6 @@ export class User {
   })
   referredById: Types.ObjectId | null
 
-  @Prop({ type: Number, default: 1000 })
-  eloRating: number
-
   @Prop({ type: Number, default: 0 })
   arenaXp: number
 

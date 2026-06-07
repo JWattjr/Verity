@@ -33,15 +33,7 @@ export default function PvpSidebarStats({
         </h3>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
-        <div className="rounded-[10px] bg-white-surface dark:bg-zinc-900/50 p-3 shadow-subtle text-center">
-          <span className="text-[10px] font-mono text-ash uppercase block">
-            ELO Rating
-          </span>
-          <strong className="text-xl font-mono text-charcoal-primary dark:text-white block mt-1">
-            {profile?.eloRating ?? 1000}
-          </strong>
-        </div>
+      <div>
         <div className="rounded-[10px] bg-white-surface dark:bg-zinc-900/50 p-3 shadow-subtle text-center">
           <span className="text-[10px] font-mono text-ash uppercase block">
             Arena XP

@@ -25,7 +25,6 @@ export interface Profile {
   updatedAt?: string
   isOnboarded?: boolean
   referredById?: string | null
-  eloRating?: number
   arenaXp?: number
   doubleBoostRemaining?: number
   hasWonFirstPvpDuel?: boolean

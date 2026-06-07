@@ -181,7 +181,7 @@ export default function StandardMarketsFeed({
                 </h3>
                 <p className="text-xs text-graphite dark:text-zinc-400 mt-2 leading-relaxed">
                   Make 7 predictions on this matchup. Battle head-to-head
-                  for ELO Rating, XP boosts, and bragging rights.
+                  for Arena XP, boosts, and bragging rights.
                 </p>
               </div>
 

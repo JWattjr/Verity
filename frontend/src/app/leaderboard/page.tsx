@@ -2,43 +2,60 @@
 
 import { useState } from "react"
 import { usePvpLeaderboardQuery } from "@/store/verity/verityQueries"
-import { Trophy, Zap, Users, Info, CircleHelp, Medal } from "lucide-react"
+import { Zap, Users, Info, CircleHelp, Medal } from "lucide-react"
 import Link from "next/link"
 
-type LeaderboardTab = "elo" | "xp" | "referrers" | "points-system"
+type LeaderboardTab = "xp" | "referrers" | "points-system"
 
 export default function LeaderboardPage() {
-  const [activeTab, setActiveTab] = useState<LeaderboardTab>("elo")
+  const [activeTab, setActiveTab] = useState<LeaderboardTab>("xp")
   const { data: leaderboardData, isLoading, error } = usePvpLeaderboardQuery()
 
-  const pointsDraft = [
+  const pvpRules = [
     {
-      role: "Free voters",
-      logic: "+10 pts for every correct resolved free prediction. +0 for incorrect predictions.",
+      role: "Match ticket",
+      logic:
+        "Choose one outcome for each of the 7 World Cup propositions before the event locks.",
     },
     {
-      role: "Free vote eligibility",
-      logic: "User must hold 10 USDC for 24 hours to unlock 10 free votes for the next 24 hours.",
+      role: "Match scoring",
+      logic:
+        "Each correct prediction is worth 1 point. Incorrect predictions are worth 0 points. The maximum match score is 7.",
     },
     {
-      role: "Referrals",
-      logic: "+5 pts per qualified referral + 10% of the referred user's weekly points for their first 4 weeks.",
+      role: "Match result",
+      logic:
+        "The player with the higher score wins. If both players finish with the same score, the duel is a draw.",
     },
     {
-      role: "Market creators",
-      logic: "+100 pts for creating a valid market. +100 pts if the market becomes active / bonds.",
+      role: "Result XP",
+      logic:
+        "Winner: 100 Arena XP. Loser: 30 Arena XP. Draw: 50 Arena XP for each player.",
     },
     {
-      role: "Traders",
-      logic: "Points based on trading volume and fees generated. Gets a 1.2x boost if they voted on the market before it bonded.",
+      role: "Perfect score",
+      logic:
+        "A player who correctly predicts all 7 propositions earns an additional 20 Arena XP.",
     },
     {
-      role: "Seeders",
-      logic: "Seeders share a fixed 500-point pool pro rata for each market that successfully bonds.",
+      role: "XP boost",
+      logic:
+        "An active boost multiplies the player's total Result XP, including a perfect-score bonus, by 1.2. One boost is automatically used when a ticket is submitted.",
     },
     {
-      role: "LP providers",
-      logic: "Points depend on liquidity contribution, time provided, and the market's volume/fees after bonding.",
+      role: "Referral reward",
+      logic:
+        "When a referred player wins their first PvP duel, their referrer receives 2 XP boosts. The referred player receives no boost and there is no referral XP kickback.",
+    },
+    {
+      role: "Arena grade",
+      logic:
+        "Players unlock an Arena grade at 30 total XP. Grades progress from Bronze through Mythic based on total Arena XP.",
+    },
+    {
+      role: "Special Grade",
+      logic:
+        "Players with more than 30 Arena XP and no recorded PvP losses receive the lavender Special Grade tag alongside their Arena grade.",
     },
   ]
 
@@ -49,30 +66,20 @@ export default function LeaderboardPage() {
         <div className="absolute -right-3 -top-3 h-24 w-24 rounded-full bg-indigo-500/10" />
         <div className="relative max-w-[480px]">
           <p className="mb-2 font-mono text-[11px] font-semibold uppercase tracking-[0.16em] text-indigo-600 dark:text-indigo-400">
-            Rankings & Rep
+            World Cup PvP Arena
           </p>
           <h1 className="text-[32px] font-semibold leading-[1.06] tracking-[-0.7px] text-midnight dark:text-white sm:text-[40px]">
-            The Verity Leaderboard
+            World Cup PvP Leaderboard
           </h1>
           <p className="mt-3 text-[14px] leading-[1.47] tracking-[-0.2px] text-graphite dark:text-zinc-400">
-            See where you rank in skill ELO, prediction volume, and referral contribution.
+            Track Arena XP earned from Verity&apos;s World Cup head-to-head
+            prediction events.
           </p>
         </div>
       </section>
 
       {/* Tabs */}
       <div className="flex border-b border-border dark:border-zinc-800 gap-2 overflow-x-auto pb-px">
-        <button
-          onClick={() => setActiveTab("elo")}
-          className={`flex items-center gap-2 border-b-2 px-4 py-3 text-sm font-medium tracking-tight whitespace-nowrap transition-colors ${
-            activeTab === "elo"
-              ? "border-charcoal-primary text-charcoal-primary dark:border-white dark:text-white"
-              : "border-transparent text-ash hover:text-charcoal-primary dark:hover:text-white"
-          }`}
-        >
-          <Trophy className="h-4 w-4" />
-          Skill ELO
-        </button>
         <button
           onClick={() => setActiveTab("xp")}
           className={`flex items-center gap-2 border-b-2 px-4 py-3 text-sm font-medium tracking-tight whitespace-nowrap transition-colors ${
@@ -82,7 +89,7 @@ export default function LeaderboardPage() {
           }`}
         >
           <Zap className="h-4 w-4" />
-          XP Volume
+          Arena XP
         </button>
         <button
           onClick={() => setActiveTab("referrers")}
@@ -104,7 +111,7 @@ export default function LeaderboardPage() {
           }`}
         >
           <Info className="h-4 w-4" />
-          Points System Draft
+          PvP Rules
         </button>
       </div>
 
@@ -125,38 +132,20 @@ export default function LeaderboardPage() {
 
         {!isLoading && !error && (
           <>
-            {activeTab === "elo" && (
-              <div className="verity-card overflow-hidden">
-                <div className="p-4 border-b border-border dark:border-zinc-800 bg-white-surface/40 dark:bg-zinc-900/40">
-                  <h3 className="text-sm font-semibold tracking-tight text-charcoal-primary dark:text-white">ELO Skill Leaderboard</h3>
-                  <p className="text-xs text-ash mt-0.5">Ranked by head-to-head match prediction ELO rating.</p>
-                </div>
-                {leaderboardData?.elo?.length === 0 ? (
-                  <div className="p-8 text-center text-sm text-ash">No rankings available yet.</div>
-                ) : (
-                  <div className="divide-y divide-border dark:divide-zinc-800">
-                    {leaderboardData?.elo?.map((user: any, index: number) => (
-                      <UserLeaderboardRow
-                        key={user.id}
-                        user={user}
-                        rank={index + 1}
-                        scoreLabel="ELO"
-                        scoreValue={user.eloRating}
-                      />
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-
             {activeTab === "xp" && (
               <div className="verity-card overflow-hidden">
                 <div className="p-4 border-b border-border dark:border-zinc-800 bg-white-surface/40 dark:bg-zinc-900/40">
-                  <h3 className="text-sm font-semibold tracking-tight text-charcoal-primary dark:text-white">XP Volume Leaderboard</h3>
-                  <p className="text-xs text-ash mt-0.5">Ranked by total accumulated Arena XP.</p>
+                  <h3 className="text-sm font-semibold tracking-tight text-charcoal-primary dark:text-white">
+                    World Cup Arena XP
+                  </h3>
+                  <p className="text-xs text-ash mt-0.5">
+                    Ranked by Result XP earned from resolved PvP duels.
+                  </p>
                 </div>
                 {leaderboardData?.xp?.length === 0 ? (
-                  <div className="p-8 text-center text-sm text-ash">No rankings available yet.</div>
+                  <div className="p-8 text-center text-sm text-ash">
+                    No rankings available yet.
+                  </div>
                 ) : (
                   <div className="divide-y divide-border dark:divide-zinc-800">
                     {leaderboardData?.xp?.map((user: any, index: number) => (
@@ -176,23 +165,31 @@ export default function LeaderboardPage() {
             {activeTab === "referrers" && (
               <div className="verity-card overflow-hidden">
                 <div className="p-4 border-b border-border dark:border-zinc-800 bg-white-surface/40 dark:bg-zinc-900/40">
-                  <h3 className="text-sm font-semibold tracking-tight text-charcoal-primary dark:text-white">Top Referrers</h3>
-                  <p className="text-xs text-ash mt-0.5">Ranked by total number of referred onboarded users.</p>
+                  <h3 className="text-sm font-semibold tracking-tight text-charcoal-primary dark:text-white">
+                    Top Referrers
+                  </h3>
+                  <p className="text-xs text-ash mt-0.5">
+                    Ranked by total number of referred onboarded users.
+                  </p>
                 </div>
                 {leaderboardData?.referrers?.length === 0 ? (
-                  <div className="p-8 text-center text-sm text-ash">No referrals recorded yet.</div>
+                  <div className="p-8 text-center text-sm text-ash">
+                    No referrals recorded yet.
+                  </div>
                 ) : (
                   <div className="divide-y divide-border dark:divide-zinc-800">
-                    {leaderboardData?.referrers?.map((user: any, index: number) => (
-                      <UserLeaderboardRow
-                        key={user.id}
-                        user={user}
-                        rank={index + 1}
-                        scoreLabel="Referrals"
-                        scoreValue={user.referralCount}
-                        extraInfo={`(${user.arenaXp} XP)`}
-                      />
-                    ))}
+                    {leaderboardData?.referrers?.map(
+                      (user: any, index: number) => (
+                        <UserLeaderboardRow
+                          key={user.id}
+                          user={user}
+                          rank={index + 1}
+                          scoreLabel="Referrals"
+                          scoreValue={user.referralCount}
+                          extraInfo={`(${user.arenaXp} XP)`}
+                        />
+                      ),
+                    )}
                   </div>
                 )}
               </div>
@@ -207,10 +204,11 @@ export default function LeaderboardPage() {
                     </span>
                     <div>
                       <h3 className="text-base font-semibold tracking-tight text-charcoal-primary dark:text-white">
-                        System-wide Points Draft
+                        World Cup PvP Scoring
                       </h3>
                       <p className="text-sm text-graphite dark:text-zinc-400 mt-1">
-                        Here is the point award schema designed to gamify predictions and rewards across the entire Verity platform.
+                        These are the scoring and Arena XP rules used for the
+                        current World Cup PvP test.
                       </p>
                     </div>
                   </div>
@@ -221,13 +219,16 @@ export default function LeaderboardPage() {
                     <table className="w-full border-collapse text-left text-sm">
                       <thead>
                         <tr className="border-b border-border dark:border-zinc-800 bg-white-surface/40 dark:bg-zinc-900/40 text-xs font-mono font-bold uppercase tracking-wider text-ash">
-                          <th className="p-4 w-[160px]">Activity</th>
-                          <th className="p-4">Reward Logic</th>
+                          <th className="p-4 w-[160px]">PvP Rule</th>
+                          <th className="p-4">How It Works</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-border dark:divide-zinc-800">
-                        {pointsDraft.map((item) => (
-                          <tr key={item.role} className="hover:bg-white-surface/20 dark:hover:bg-zinc-900/20">
+                        {pvpRules.map((item) => (
+                          <tr
+                            key={item.role}
+                            className="hover:bg-white-surface/20 dark:hover:bg-zinc-900/20"
+                          >
                             <td className="p-4 font-semibold text-charcoal-primary dark:text-white align-top">
                               {item.role}
                             </td>
@@ -265,20 +266,14 @@ function UserLeaderboardRow({
   const isTopThree = rank <= 3
   const rankColors = [
     "bg-amber-400 text-amber-950 dark:bg-amber-500/20 dark:text-amber-300", // Gold
-    "bg-zinc-300 text-zinc-950 dark:bg-zinc-700/30 dark:text-zinc-300",    // Silver
-    "bg-amber-600 text-amber-50 dark:bg-amber-700/20 dark:text-amber-400",  // Bronze
+    "bg-zinc-300 text-zinc-950 dark:bg-zinc-700/30 dark:text-zinc-300", // Silver
+    "bg-amber-600 text-amber-50 dark:bg-amber-700/20 dark:text-amber-400", // Bronze
   ]
-
-  const eloTiers = (elo: number) => {
-    if (elo < 1100) return { name: "Bronze", color: "text-amber-700 bg-amber-500/10" }
-    if (elo < 1300) return { name: "Silver", color: "text-zinc-400 bg-zinc-500/10" }
-    if (elo < 1500) return { name: "Gold", color: "text-amber-500 bg-amber-500/10" }
-    if (elo < 1700) return { name: "Platinum", color: "text-cyan-400 bg-cyan-500/10" }
-    if (elo < 1900) return { name: "Diamond", color: "text-indigo-400 bg-indigo-500/10" }
-    return { name: "Legend", color: "text-purple-400 bg-purple-500/10 font-bold" }
-  }
-
-  const tier = scoreLabel === "ELO" ? eloTiers(scoreValue) : null
+  const grade = getArenaGrade(scoreLabel, scoreValue)
+  const hasSpecialGrade =
+    scoreLabel === "XP" &&
+    scoreValue > 30 &&
+    Number(user.pvpMatchesLostCount ?? 0) === 0
 
   return (
     <div className="flex items-center justify-between p-4 hover:bg-white-surface/20 dark:hover:bg-zinc-900/20 transition-colors">
@@ -301,7 +296,7 @@ function UserLeaderboardRow({
                 alt={user.displayName || user.username}
                 className="h-full w-full object-cover"
                 onError={(e) => {
-                  e.currentTarget.style.display = 'none'
+                  e.currentTarget.style.display = "none"
                 }}
               />
             ) : (
@@ -324,11 +319,20 @@ function UserLeaderboardRow({
 
       {/* Score */}
       <div className="flex items-center gap-3 shrink-0">
-        {tier && (
-          <span className={`px-2 py-0.5 rounded text-[10px] font-semibold tracking-wider uppercase font-mono ${tier.color}`}>
-            {tier.name}
-          </span>
-        )}
+        <div className="flex items-center gap-1.5">
+          {grade && (
+            <span
+              className={`rounded px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider font-mono ${grade.color}`}
+            >
+              {grade.name}
+            </span>
+          )}
+          {hasSpecialGrade && (
+            <span className="rounded bg-violet-400/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-violet-600 dark:text-violet-300 font-mono">
+              Special Grade
+            </span>
+          )}
+        </div>
         <div className="text-right">
           <span className="font-semibold text-sm text-charcoal-primary dark:text-white font-mono">
             {scoreValue}
@@ -340,4 +344,50 @@ function UserLeaderboardRow({
       </div>
     </div>
   )
+}
+
+function getArenaGrade(scoreLabel: string, arenaXp: number) {
+  if (scoreLabel !== "XP") return null
+  if (arenaXp < 30) return null
+
+  if (arenaXp <= 499) {
+    return {
+      name: "Bronze",
+      color: "bg-amber-700/10 text-amber-700 dark:text-amber-500",
+    }
+  }
+  if (arenaXp <= 1499) {
+    return {
+      name: "Silver",
+      color: "bg-zinc-500/10 text-zinc-500 dark:text-zinc-300",
+    }
+  }
+  if (arenaXp <= 2999) {
+    return {
+      name: "Gold",
+      color: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
+    }
+  }
+  if (arenaXp <= 4999) {
+    return {
+      name: "Platinum",
+      color: "bg-cyan-500/10 text-cyan-600 dark:text-cyan-400",
+    }
+  }
+  if (arenaXp <= 6999) {
+    return {
+      name: "Diamond",
+      color: "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400",
+    }
+  }
+  if (arenaXp <= 9000) {
+    return {
+      name: "Legend",
+      color: "bg-purple-500/10 text-purple-600 dark:text-purple-400",
+    }
+  }
+  return {
+    name: "Mythic",
+    color: "bg-fuchsia-500/10 text-fuchsia-600 dark:text-fuchsia-400",
+  }
 }

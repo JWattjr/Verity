@@ -45,11 +45,17 @@ export default function PvpArenaTab({
   // Local state for ticket builder
   const [showBuilderOverride, setShowBuilderOverride] = useState<boolean>(false)
   const [betAmountPerSelection, setBetAmountPerSelection] = useState<number>(5)
-  const [selectedPvpEventId, setSelectedPvpEventId] = useState<string | null>(null)
-  const [pvpSelections, setPvpSelections] = useState<Record<string, "YES" | "NO">>({})
+  const [selectedPvpEventId, setSelectedPvpEventId] = useState<string | null>(
+    null,
+  )
+  const [pvpSelections, setPvpSelections] = useState<
+    Record<string, "YES" | "NO">
+  >({})
 
   // Local state for child market liquidity modal
-  const [liquidityMarketId, setLiquidityMarketId] = useState<string | null>(null)
+  const [liquidityMarketId, setLiquidityMarketId] = useState<string | null>(
+    null,
+  )
 
   // Poll matchmaking status if queued
   useEffect(() => {
@@ -71,7 +77,9 @@ export default function PvpArenaTab({
   const selectedPvpEvent = useMemo(() => {
     if (!pvpEvents || pvpEvents.length === 0) return null
     if (selectedPvpEventId) {
-      return pvpEvents.find((e: any) => e.id === selectedPvpEventId) || pvpEvents[0]
+      return (
+        pvpEvents.find((e: any) => e.id === selectedPvpEventId) || pvpEvents[0]
+      )
     }
     return pvpEvents[0]
   }, [pvpEvents, selectedPvpEventId])
@@ -90,32 +98,14 @@ export default function PvpArenaTab({
 
   const runningScoreUser = useMemo(() => {
     if (!pvpStatus?.ticket?.picks) return 0
-    const correct = pvpStatus.ticket.picks.filter(
-      (p: any) => p.isCorrect === true,
-    ).length
-    const resolved = pvpStatus.ticket.picks.filter(
-      (p: any) => p.isCorrect !== null,
-    ).length
-    if (resolved === 0) return 0
-    const wrong = resolved - correct
-    let score = correct * 70 + wrong * 30
-    if (correct === 7) score += 100
-    return score
+    return pvpStatus.ticket.picks.filter((p: any) => p.isCorrect === true)
+      .length
   }, [pvpStatus])
 
   const runningScoreOpponent = useMemo(() => {
     if (!pvpStatus?.opponent?.picks) return 0
-    const correct = pvpStatus.opponent.picks.filter(
-      (p: any) => p.isCorrect === true,
-    ).length
-    const resolved = pvpStatus.opponent.picks.filter(
-      (p: any) => p.isCorrect !== null,
-    ).length
-    if (resolved === 0) return 0
-    const wrong = resolved - correct
-    let score = correct * 70 + wrong * 30
-    if (correct === 7) score += 100
-    return score
+    return pvpStatus.opponent.picks.filter((p: any) => p.isCorrect === true)
+      .length
   }, [pvpStatus])
 
   const optionForLP = useMemo(() => {
@@ -181,7 +171,9 @@ export default function PvpArenaTab({
       }
 
       // 2. Build 7 buy calls
-      const rawAmountPerSelection = BigInt(Math.round(betAmountPerSelection * 1e6))
+      const rawAmountPerSelection = BigInt(
+        Math.round(betAmountPerSelection * 1e6),
+      )
       selectedPvpEvent.options.forEach((opt: any) => {
         const side = pvpSelections[opt.id]
         const isYes = side === "YES"
@@ -202,7 +194,9 @@ export default function PvpArenaTab({
       )
 
       // 4. Register trades on backend
-      const finalizeToastId = toast.loading("Finalizing on-chain trades on Verity...")
+      const finalizeToastId = toast.loading(
+        "Finalizing on-chain trades on Verity...",
+      )
       const tradePromises = Object.keys(pvpSelections).map((marketId) => {
         const side = pvpSelections[marketId]
         return executeMarketTrade({
@@ -225,7 +219,9 @@ export default function PvpArenaTab({
       })
       toast.dismiss(queueToastId)
 
-      toast.success("Successfully purchased picks & submitted ticket! Queued for opponent...")
+      toast.success(
+        "Successfully purchased picks & submitted ticket! Queued for opponent...",
+      )
       void refetchPvpStatus()
       setShowBuilderOverride(false)
     } catch (err: any) {
@@ -393,7 +389,7 @@ export default function PvpArenaTab({
 
               <div className="mt-4 pt-4 border-t border-border dark:border-zinc-800 flex items-center justify-between">
                 <p className="text-xs text-ash">
-                  Duel is resolved. XP and ELO updates have been applied.
+                  Duel is resolved. Arena XP has been awarded.
                 </p>
                 <button
                   onClick={() => setShowBuilderOverride(true)}
@@ -470,7 +466,8 @@ export default function PvpArenaTab({
                   Your Predictions & Outcomes
                 </h3>
                 <p className="text-xs text-ash mt-0.5">
-                  Track your selections, payouts, and opponent picks in real-time.
+                  Track your selections, payouts, and opponent picks in
+                  real-time.
                 </p>
               </div>
             </div>
@@ -509,7 +506,10 @@ export default function PvpArenaTab({
                       <p className="text-xs text-ash mt-0.5">
                         Claim {totalWinnings.toFixed(2)} USDC from{" "}
                         {claimablePicks.length} winning{" "}
-                        {claimablePicks.length === 1 ? "proposition" : "propositions"}.
+                        {claimablePicks.length === 1
+                          ? "proposition"
+                          : "propositions"}
+                        .
                       </p>
                     </div>
                   </div>
@@ -542,7 +542,11 @@ export default function PvpArenaTab({
                     {/* Proposition Title */}
                     <div className="flex flex-col min-w-0 flex-1">
                       <span className="text-sm font-semibold tracking-tight text-charcoal-primary dark:text-zinc-200 uppercase">
-                        {(childOpt?.optionName || pick.optionName || "Pick").toUpperCase()}
+                        {(
+                          childOpt?.optionName ||
+                          pick.optionName ||
+                          "Pick"
+                        ).toUpperCase()}
                       </span>
                       <span className="text-[10px] text-stone-400 dark:text-zinc-500 font-mono mt-1.5 flex items-center gap-1.5 flex-wrap">
                         <span>
@@ -606,11 +610,11 @@ export default function PvpArenaTab({
                           </span>
                         ) : pick.isCorrect === true ? (
                           <span className="px-2 py-0.5 rounded font-mono font-bold text-[10px] bg-meadow-green/10 text-meadow-green border border-meadow-green/20 mt-0.5">
-                            +70 pts
+                            +1 pt
                           </span>
                         ) : (
                           <span className="px-2 py-0.5 rounded font-mono font-bold text-[10px] bg-ember-orange/10 text-ember-orange border border-ember-orange/20 mt-0.5">
-                            +30 pts
+                            0 pts
                           </span>
                         )}
                       </div>
@@ -633,6 +637,12 @@ export default function PvpArenaTab({
             <p className="text-xs text-ash mt-0.5">
               Submit selections to queue for head-to-head matchup.
             </p>
+          </div>
+
+          <div className="rounded-[10px] border border-indigo-500/15 bg-indigo-500/5 px-3 py-2.5 text-[11px] leading-relaxed text-ash">
+            Each correct pick scores 1 point. Win: 100 Result XP, draw: 50,
+            loss: 30. A perfect 7/7 adds 20 XP, and an active boost applies 1.2x
+            to the total.
           </div>
 
           {pvpEvents.length === 0 && (
@@ -681,7 +691,8 @@ export default function PvpArenaTab({
                           <span>
                             Pool:{" "}
                             <strong className="text-charcoal-primary dark:text-white">
-                              ${Number(opt.liquidity ?? 40).toLocaleString()} USDC
+                              ${Number(opt.liquidity ?? 40).toLocaleString()}{" "}
+                              USDC
                             </strong>
                           </span>
                           <span>•</span>
@@ -772,7 +783,9 @@ export default function PvpArenaTab({
                       max="1000"
                       value={betAmountPerSelection}
                       onChange={(e) =>
-                        setBetAmountPerSelection(Math.max(1, Number(e.target.value)))
+                        setBetAmountPerSelection(
+                          Math.max(1, Number(e.target.value)),
+                        )
                       }
                       className="w-20 h-9 px-2 border border-border dark:border-zinc-800 bg-white-surface dark:bg-zinc-900 text-xs font-bold font-mono rounded-md text-charcoal-primary dark:text-white outline-none focus:border-indigo-500 text-right"
                     />
@@ -791,7 +804,7 @@ export default function PvpArenaTab({
                 </div>
               </div>
 
-              {/* Double Boost indicator and submit button */}
+              {/* XP boost indicator and submit button */}
               <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between border-t border-border dark:border-zinc-800 pt-4 mt-2">
                 <div className="flex items-center gap-2">
                   <Zap
@@ -808,7 +821,7 @@ export default function PvpArenaTab({
                     </strong>
                     {referralsData &&
                       referralsData.doubleBoostRemaining > 0 &&
-                      " (Auto-active 2x XP)"}
+                      " (Auto-active 1.2x XP)"}
                   </span>
                 </div>
 
@@ -817,7 +830,9 @@ export default function PvpArenaTab({
                   disabled={submitTicketMutation.isPending}
                   className="verity-pill px-6 h-11 bg-indigo-600 text-white hover:bg-indigo-500 font-bold uppercase tracking-wider text-xs shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                 >
-                  {submitTicketMutation.isPending ? "Queuing..." : "Submit ticket & Queue"}
+                  {submitTicketMutation.isPending
+                    ? "Queuing..."
+                    : "Submit ticket & Queue"}
                   <ChevronRight className="h-4 w-4" />
                 </button>
               </div>
