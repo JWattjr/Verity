@@ -253,6 +253,7 @@ export class MarketsKeeperService implements OnModuleInit, OnModuleDestroy {
               market.yesCondition,
               market.noCondition,
               market.resolutionSource,
+              market.category,
             )
 
             if (result.outcome === "INVALID") {

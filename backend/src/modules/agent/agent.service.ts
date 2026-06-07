@@ -69,6 +69,7 @@ export class AgentService {
     yesCondition: string,
     noCondition: string,
     resolutionSource: string,
+    category?: string,
   ): Promise<AgentResolutionResult> {
     const provider = (
       this.configService.get<string>("LLM_PROVIDER") || "mock"
@@ -107,12 +108,17 @@ Do not include any other markdown formatting, code block markers, or text outsid
     } else {
       // Mock Fallback for local testing/dev
       this.logger.log(`Using mock LLM resolution for question: "${question}"`)
-      const lower = question.toLowerCase()
-      const outcome = lower.includes("no")
-        ? "NO"
-        : lower.includes("invalid")
-          ? "INVALID"
-          : "YES"
+      let outcome: "YES" | "NO" | "INVALID"
+      if (category === "pvp") {
+        outcome = Math.random() < 0.5 ? "YES" : "NO"
+      } else {
+        const lower = question.toLowerCase()
+        outcome = lower.includes("no")
+          ? "NO"
+          : lower.includes("invalid")
+            ? "INVALID"
+            : "YES"
+      }
       return {
         outcome,
         reasoning: `Mock reasoning for question: ${question}. Web search returned ${searchContext.length} chars of context.`,

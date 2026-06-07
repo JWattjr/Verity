@@ -86,6 +86,34 @@ describe("AgentService", () => {
       expect(res.reasoning).toContain("Mock reasoning")
     })
 
+    it("should randomly resolve pvp category markets to YES or NO when provider is mock", async () => {
+      const randomSpy = jest.spyOn(Math, "random")
+
+      // Force Math.random() < 0.5 to get YES
+      randomSpy.mockReturnValue(0.3)
+      const resYes = await service.resolveMarket(
+        "Will BTC reach 100k?",
+        "Yes side",
+        "No side",
+        "Source",
+        "pvp",
+      )
+      expect(resYes.outcome).toBe("YES")
+
+      // Force Math.random() >= 0.5 to get NO
+      randomSpy.mockReturnValue(0.7)
+      const resNo = await service.resolveMarket(
+        "Will BTC reach 100k?",
+        "Yes side",
+        "No side",
+        "Source",
+        "pvp",
+      )
+      expect(resNo.outcome).toBe("NO")
+
+      randomSpy.mockRestore()
+    })
+
     it("should resolve using OpenAI", async () => {
       jest.spyOn(configService, "get").mockImplementation((key) => {
         if (key === "LLM_PROVIDER") return "openai"

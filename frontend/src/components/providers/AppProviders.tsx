@@ -7,6 +7,7 @@ import { RightPanelSlotProvider } from "@/hooks/useRightPanelSlot"
 import { Toaster } from "react-hot-toast"
 import { queryClient } from "@/lib/queryClient"
 import AuthModals from "./AuthModals"
+import TxConfirmModal from "./TxConfirmModal"
 
 export default function AppProviders({ children }: { children: ReactNode }) {
   return (
@@ -15,6 +16,7 @@ export default function AppProviders({ children }: { children: ReactNode }) {
         <RightPanelSlotProvider>
           {children}
           <AuthModals />
+          <TxConfirmModal />
           <Toaster position="top-right" toastOptions={{ duration: 5000 }} />
         </RightPanelSlotProvider>
       </ThemeProvider>
