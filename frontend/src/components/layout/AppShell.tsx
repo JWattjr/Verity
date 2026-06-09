@@ -14,7 +14,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const { joinRoom, leaveRoom } = useSocket()
   const pathname = usePathname()
   
-  const isMarketsListingPage = pathname === "/markets"
+  const isFullWidthPage = pathname === "/markets" || pathname === "/portfolio"
 
   useEffect(() => {
     if (profile?.id) {
@@ -32,11 +32,11 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           <Sidebar />
         </div>
 
-        <main className={`min-w-0 flex-1 ${isMarketsListingPage ? "max-w-[1000px]" : "max-w-[672px]"} pb-24 sm:pb-0`}>
+        <main className={`min-w-0 flex-1 ${isFullWidthPage ? "max-w-[1000px]" : "max-w-[672px]"} pb-24 sm:pb-0`}>
           {children}
         </main>
 
-        {!isMarketsListingPage && (
+        {!isFullWidthPage && (
           <aside className="sticky top-0 hidden h-screen w-[312px] shrink-0 flex-col py-4 lg:flex">
             <RightPanel />
           </aside>

@@ -61,6 +61,7 @@ export interface MarketPositionResponse {
   usdc_no_amount?: number
   status?: string
   resolved_outcome?: string | null
+  category?: string | null
 }
 
 export interface MarketTradeResponse {
@@ -152,6 +153,9 @@ export class MarketsService {
         ? m.resolvedOutcome
         : null
 
+    const category =
+      m && typeof m === "object" && "category" in m ? m.category : null
+
     return {
       id: position.id || (position as any)._id?.toString(),
       market_id:
@@ -171,6 +175,7 @@ export class MarketsService {
       usdc_no_amount,
       status,
       resolved_outcome,
+      category,
     }
   }
 

@@ -149,6 +149,7 @@ export interface MarketPosition {
   usdc_no_amount?: number
   status?: string
   resolved_outcome?: string | null
+  category?: string | null
 }
 
 export interface MarketTrade {
