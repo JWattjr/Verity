@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { Award, Check, Copy } from "lucide-react"
-import { toast } from "react-hot-toast"
+import { toast } from "@/lib/toast"
 
 interface PvpSidebarStatsProps {
   profile: any
@@ -25,7 +25,7 @@ export default function PvpSidebarStats({
   }
 
   return (
-    <div className="verity-card p-5 bg-gradient-to-br from-indigo-50/10 to-transparent dark:from-indigo-950/5">
+    <div className="verity-card p-5 bg-indigo-50/10 dark:from-indigo-950/5">
       <div className="flex items-center gap-2.5 border-b border-border dark:border-zinc-800 pb-3 mb-4">
         <Award className="h-5 w-5 text-indigo-500" />
         <h3 className="font-mono text-xs font-bold uppercase tracking-wider text-charcoal-primary dark:text-white">
@@ -59,7 +59,9 @@ export default function PvpSidebarStats({
           <label className="text-[10px] font-mono font-bold uppercase tracking-wider text-ash">
             Referral Link
           </label>
-          <span className="text-[9px] font-mono text-ash/70">(Earn XP boosts)</span>
+          <span className="text-[9px] font-mono text-ash/70">
+            (Earn XP boosts)
+          </span>
         </div>
         <div className="flex h-9 items-center rounded-[8px] border border-border dark:border-zinc-800 bg-white-surface dark:bg-zinc-900 px-2.5 transition-colors">
           <input

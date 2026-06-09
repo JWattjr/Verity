@@ -92,8 +92,8 @@ export default function MarketCard({
   profile,
 }: MarketCardProps) {
   const isPvp = category?.toLowerCase() === "pvp"
-  const yesLabel = isPvp ? (yesCondition || "YES") : "YES"
-  const noLabel = isPvp ? (noCondition || "NO") : "NO"
+  const yesLabel = isPvp ? yesCondition || "YES" : "YES"
+  const noLabel = isPvp ? noCondition || "NO" : "NO"
   const [lpAmount, setLpAmount] = useState("10")
   const [tradeAmount, setTradeAmount] = useState("10")
   const totalUsdc = usdcYes + usdcNo
@@ -328,7 +328,9 @@ export default function MarketCard({
               onClick={() => onUsdcVote?.("YES", Number(tradeAmount))}
               type="button"
             >
-              {actionLoadingStatus === "buy_yes" ? "Buying..." : `BUY ${yesLabel}`}
+              {actionLoadingStatus === "buy_yes"
+                ? "Buying..."
+                : `BUY ${yesLabel}`}
             </button>
             <button
               className="clickable flex-1 text-center py-2 px-3 rounded-lg font-mono text-xs font-bold transition-all duration-150 bg-ember-orange/10 text-ember-orange border border-ember-orange/20 hover:bg-ember-orange/15 disabled:cursor-not-allowed disabled:opacity-40"
@@ -338,7 +340,9 @@ export default function MarketCard({
               onClick={() => onUsdcVote?.("NO", Number(tradeAmount))}
               type="button"
             >
-              {actionLoadingStatus === "buy_no" ? "Buying..." : `BUY ${noLabel}`}
+              {actionLoadingStatus === "buy_no"
+                ? "Buying..."
+                : `BUY ${noLabel}`}
             </button>
           </div>
         </div>

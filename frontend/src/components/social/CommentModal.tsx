@@ -11,7 +11,7 @@ import {
   type MarketComment,
 } from "@/lib/verity"
 import { useWalletProfile } from "@/hooks/useWalletProfile"
-import toast from "react-hot-toast"
+import toast from "@/lib/toast"
 
 interface CommentModalProps {
   post?: FeedPost | null

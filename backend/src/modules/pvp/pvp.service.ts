@@ -19,6 +19,8 @@ import {
   MarketDocument,
   MarketPosition,
   MarketPositionDocument,
+  MarketTrade,
+  MarketTradeDocument,
 } from "../markets/markets.model"
 import { Post, PostDocument } from "../posts/posts.model"
 import { SocketGateway } from "../socket/socket.gateway"
@@ -86,6 +88,8 @@ export class PvpService {
     @InjectModel(Market.name) private marketModel: Model<MarketDocument>,
     @InjectModel(MarketPosition.name)
     private marketPositionModel: Model<MarketPositionDocument>,
+    @InjectModel(MarketTrade.name)
+    private marketTradeModel: Model<MarketTradeDocument>,
     @InjectModel(Post.name) private postModel: Model<PostDocument>,
     @InjectModel(User.name) private userModel: Model<UserDocument>,
     private readonly socketGateway: SocketGateway,
@@ -1071,6 +1075,107 @@ export class PvpService {
         outcome = match.winnerId.toString() === userId ? "WIN" : "LOSS"
       }
 
+      // Fetch children child options for this parent event
+      const children = await this.marketModel.find({
+        parentMarketId: match.parentMarketId,
+        marketType: "child",
+      })
+
+      // Fetch user's and opponent's trades on these child markets to figure out how much they bet/earned
+      const childMarketIds = children.map((c) => c._id)
+      const [myTrades, oppTrades] = await Promise.all([
+        this.marketTradeModel.find({
+          userId: uId,
+          marketId: { $in: childMarketIds },
+          action: "BUY",
+        }),
+        this.marketTradeModel.find({
+          userId: oppId,
+          marketId: { $in: childMarketIds },
+          action: "BUY",
+        }),
+      ])
+
+      const myPicks = myTicket
+        ? myTicket.picks.map((p) => {
+            const child = children.find(
+              (c) => c._id.toString() === p.marketId.toString()
+            )
+            const trade = myTrades.find(
+              (t) => t.marketId.toString() === p.marketId.toString()
+            )
+            const investedUsdc = trade ? trade.amountUsdc : 5
+            let shares = trade ? trade.shares : 0
+
+            // Self-healing: if shares is equal to investedUsdc, estimate actual shares based on child pools
+            if (shares === investedUsdc && child) {
+              const yesPool = Number(child.usdcYesAmount ?? 0)
+              const noPool = Number(child.usdcNoAmount ?? 0)
+              const totalPool = yesPool + noPool
+              let yesProb = 50
+              if (totalPool > 0) {
+                yesProb = (yesPool / totalPool) * 100
+              }
+              const noProb = 100 - yesProb
+              const price = p.selection === "YES" ? yesProb / 100 : noProb / 100
+              shares = investedUsdc / (price || 0.5)
+            }
+
+            const winningsUsdc = p.isCorrect === true ? shares : 0
+            return {
+              marketId: p.marketId.toString(),
+              optionName: child?.optionName || "Unknown",
+              selection: p.selection,
+              isCorrect: p.isCorrect,
+              yesCondition: child?.yesCondition || "YES",
+              noCondition: child?.noCondition || "NO",
+              resolvedOutcome: child?.resolvedOutcome || null,
+              investedUsdc,
+              winningsUsdc,
+            }
+          })
+        : []
+
+      const oppPicks = oppTicket
+        ? oppTicket.picks.map((p) => {
+            const child = children.find(
+              (c) => c._id.toString() === p.marketId.toString()
+            )
+            const trade = oppTrades.find(
+              (t) => t.marketId.toString() === p.marketId.toString()
+            )
+            const investedUsdc = trade ? trade.amountUsdc : 5
+            let shares = trade ? trade.shares : 0
+
+            // Self-healing: if shares is equal to investedUsdc, estimate actual shares based on child pools
+            if (shares === investedUsdc && child) {
+              const yesPool = Number(child.usdcYesAmount ?? 0)
+              const noPool = Number(child.usdcNoAmount ?? 0)
+              const totalPool = yesPool + noPool
+              let yesProb = 50
+              if (totalPool > 0) {
+                yesProb = (yesPool / totalPool) * 100
+              }
+              const noProb = 100 - yesProb
+              const price = p.selection === "YES" ? yesProb / 100 : noProb / 100
+              shares = investedUsdc / (price || 0.5)
+            }
+
+            const winningsUsdc = p.isCorrect === true ? shares : 0
+            return {
+              marketId: p.marketId.toString(),
+              optionName: child?.optionName || "Unknown",
+              selection: p.selection,
+              isCorrect: p.isCorrect,
+              yesCondition: child?.yesCondition || "YES",
+              noCondition: child?.noCondition || "NO",
+              resolvedOutcome: child?.resolvedOutcome || null,
+              investedUsdc,
+              winningsUsdc,
+            }
+          })
+        : []
+
       result.push({
         matchId: match._id.toString(),
         resolvedAt: match.resolvedAt,
@@ -1080,6 +1185,9 @@ export class PvpService {
         myScore: myTicket?.score ?? 0,
         oppScore: oppTicket?.score ?? 0,
         xpEarned: myTicket?.xpEarned ?? 0,
+        doubleBoostActive: myTicket?.doubleBoostActive ?? false,
+        myPicks,
+        oppPicks,
         opponent: oppUser
           ? {
               id: oppUser._id.toString(),

@@ -6,7 +6,7 @@ import { shortAddress } from "@/lib/arc"
 import { displayHandle, displayName as getDisplayName } from "@/lib/verity"
 import { LogOut, Copy, Check, Wallet } from "lucide-react"
 import { useState } from "react"
-import { toast } from "react-hot-toast"
+import { toast } from "@/lib/toast"
 import Link from "next/link"
 
 export default function SidebarProfile() {

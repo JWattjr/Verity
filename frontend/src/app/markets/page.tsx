@@ -1,6 +1,7 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, Suspense } from "react"
+import { useSearchParams } from "next/navigation"
 import { useFeed } from "@/hooks/useFeed"
 import { useWalletProfile } from "@/hooks/useWalletProfile"
 import {
@@ -19,9 +20,19 @@ import DuelHistory from "@/components/markets/DuelHistory"
 
 type MarketsTab = "general" | "pvp-arena"
 
-export default function MarketsPage() {
-  const [activeTab, setActiveTab] = useState<MarketsTab>("general")
+function MarketsContent() {
+  const searchParams = useSearchParams()
+  const tabQuery = searchParams.get("tab") as MarketsTab | null
+  const [activeTab, setActiveTab] = useState<MarketsTab>(
+    (tabQuery === "general" || tabQuery === "pvp-arena") ? tabQuery : "general"
+  )
   const { profile } = useWalletProfile()
+
+  useEffect(() => {
+    if (tabQuery === "general" || tabQuery === "pvp-arena") {
+      setActiveTab(tabQuery)
+    }
+  }, [tabQuery])
 
   // Standard feed markets (excludes pvp)
   const {
@@ -102,5 +113,13 @@ export default function MarketsPage() {
         </div>
       )}
     </div>
+  )
+}
+
+export default function MarketsPage() {
+  return (
+    <Suspense fallback={<div className="w-full text-center py-12 text-ash">Loading...</div>}>
+      <MarketsContent />
+    </Suspense>
   )
 }

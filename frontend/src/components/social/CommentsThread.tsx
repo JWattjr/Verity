@@ -10,7 +10,7 @@ import {
 } from "@/lib/verity"
 import { useWalletProfile } from "@/hooks/useWalletProfile"
 import { useAddCommentMutation } from "@/store/verity/verityQueries"
-import { toast } from "react-hot-toast"
+import { toast } from "@/lib/toast"
 import CommentModal from "@/components/social/CommentModal"
 
 interface CommentsThreadProps {

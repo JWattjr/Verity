@@ -10,7 +10,7 @@ import {
   useFollowUserMutation,
   useUnfollowUserMutation,
 } from "@/store/verity/verityQueries"
-import toast from "react-hot-toast"
+import toast from "@/lib/toast"
 
 interface FollowButtonProps {
   profile: Profile

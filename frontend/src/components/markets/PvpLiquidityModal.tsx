@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { X } from "lucide-react"
-import { toast } from "react-hot-toast"
+import { toast } from "@/lib/toast"
 import { useMarketLiquidity } from "@/hooks/useMarketLiquidity"
 import { useUsdcBalance } from "@/hooks/useUsdcBalance"
 

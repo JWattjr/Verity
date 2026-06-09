@@ -14,7 +14,7 @@ import {
   useRemoveLiquidityMutation,
   useExecuteMarketTradeMutation,
 } from "@/store/verity/verityQueries"
-import { toast } from "react-hot-toast"
+import { toast } from "@/lib/toast"
 
 function formatMarketId(marketId: string): `0x${string}` {
   const clean = marketId.replace(/^0x/, "")

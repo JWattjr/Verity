@@ -1,7 +1,7 @@
 import { create } from "zustand"
 import { apiRequest } from "@/store/apiClient"
 import type { Profile } from "@/lib/verity"
-import { toast } from "react-hot-toast"
+import { toast } from "@/lib/toast"
 import { queryClient } from "@/lib/queryClient"
 import { useAuthStore } from "@/store/authStore"
 
@@ -108,7 +108,6 @@ export const useTxStore = create<TxStore>((set, get) => ({
         },
       )
 
-      toast.success("Transaction executed successfully!")
       txConfirmState.resolve(res.txHash)
       set((s) => ({ txConfirmState: { ...s.txConfirmState, isOpen: false } }))
       queryClient.invalidateQueries()

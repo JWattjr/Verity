@@ -3,7 +3,7 @@
 import React, { useState } from "react"
 import { X, Loader2 } from "lucide-react"
 import { useUsdcTransfer } from "@/hooks/useUsdcTransfer"
-import toast from "react-hot-toast"
+import toast from "@/lib/toast"
 
 interface SendUsdcModalProps {
   isOpen: boolean

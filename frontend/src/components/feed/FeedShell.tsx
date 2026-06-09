@@ -12,6 +12,7 @@ import { useFeed } from "@/hooks/useFeed"
 import { useWalletProfile } from "@/hooks/useWalletProfile"
 import { useMarketLiquidity } from "@/hooks/useMarketLiquidity"
 import { useSocket } from "@/hooks/useSocket"
+import { Swords, Timer, ChevronRight } from "lucide-react"
 import {
   displayHandle,
   displayName,
@@ -28,7 +29,7 @@ import {
   useToggleReshareMutation,
   useCastFreeVoteMutation,
 } from "@/store/verity/verityQueries"
-import { toast } from "react-hot-toast"
+import { toast } from "@/lib/toast"
 
 const FEED_CATEGORIES = [
   "Crypto",
@@ -135,8 +136,36 @@ export default function FeedShell() {
   }
 
   const visibleItems = useMemo(() => {
-    if (!activeCategory) return items
-    return items.filter((item) => item.market?.category === activeCategory)
+    const activeItems = items.filter((item) => {
+      if (item.type === "market" && item.market) {
+        const isResolved =
+          item.market.status === "resolved" ||
+          item.market.status === "voided" ||
+          (item.market.category?.toLowerCase() === "pvp" &&
+            (() => {
+              const children =
+                item.market.childMarkets || item.market.child_markets || []
+              return (
+                children.length > 0 &&
+                children.every(
+                  (child: any) =>
+                    child.status === "resolved" ||
+                    child.status === "voided" ||
+                    child.resolvedOutcome,
+                )
+              )
+            })())
+
+        if (isResolved) {
+          return false
+        }
+      }
+      return true
+    })
+    if (!activeCategory) return activeItems
+    return activeItems.filter(
+      (item) => item.market?.category === activeCategory,
+    )
   }, [activeCategory, items])
 
   async function runAction(action: () => Promise<unknown>) {
@@ -224,7 +253,13 @@ export default function FeedShell() {
                   }),
                 )
               }
-              onOpenMarket={(market) => router.push(`/markets/${market.id}`)}
+              onOpenMarket={(market) => {
+                if (market.category?.toLowerCase() === "pvp") {
+                  router.push("/markets?tab=pvp-arena")
+                } else {
+                  router.push(`/markets/${market.id}`)
+                }
+              }}
               onOpenPost={(post) => router.push(`/posts/${post.id}`)}
               onReshare={() =>
                 runAction(() =>
@@ -311,9 +346,51 @@ function FeedCard({
   profile: Profile | null
   onComment: () => void
 }) {
-  return (
-    <div className="flex flex-col gap-2">
-      {item.type === "market" && item.market ? (
+  const isPvp = item.market?.category?.toLowerCase() === "pvp"
+
+  const renderContent = () => {
+    if (item.type === "market" && item.market) {
+      if (isPvp) {
+        return (
+          <article
+            onClick={() => onOpenMarket(item.market!)}
+            className="verity-card p-5 border border-indigo-200 dark:border-indigo-950 bg-indigo-50/20 hover:border-indigo-400 dark:hover:border-indigo-800 transition-all cursor-pointer group relative flex flex-col justify-between"
+          >
+            <div className="absolute top-4 right-4 flex items-center gap-1 bg-indigo-500/10 px-2 py-0.5 rounded-full text-[9px] font-mono font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider shadow-subtle">
+              <Swords className="h-3 w-3" />
+              PvP Matchup
+            </div>
+
+            <div>
+              <span className="font-mono text-[10px] font-bold text-ash uppercase tracking-wider">
+                World Cup Arena
+              </span>
+              <h3 className="text-xl font-bold tracking-tight text-charcoal-primary dark:text-white mt-1 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+                {item.market.question}
+              </h3>
+              <p className="text-xs text-graphite dark:text-zinc-400 mt-2 leading-relaxed">
+                Predict all propositions for the match. Battle head-to-head for
+                Arena XP, boosts, and bragging rights.
+              </p>
+            </div>
+
+            <div className="mt-6 flex items-center justify-between border-t border-dashed border-indigo-100 dark:border-indigo-950/60 pt-3">
+              <div className="flex items-center gap-2 font-mono text-[10px] text-ash">
+                <Timer className="h-3.5 w-3.5" />
+                <span>
+                  Closes: {new Date(item.market.deadline).toLocaleDateString()}
+                </span>
+              </div>
+              <span className="flex items-center gap-1 font-mono text-xs font-semibold text-indigo-600 dark:text-indigo-400">
+                Predict Now
+                <ChevronRight className="h-4 w-4 group-hover:translate-x-0.5 transition-transform" />
+              </span>
+            </div>
+          </article>
+        )
+      }
+
+      return (
         <MarketCard
           category={item.market.category}
           comments={item.commentsCount}
@@ -367,28 +444,32 @@ function FeedCard({
           isConnected={isConnected}
           onAddLP={(amount) => onAddLP(item.market!, amount)}
         />
-      ) : (
-        <PostCard
-          comments={item.commentsCount}
-          content={item.content}
-          handle={displayHandle(item.author)}
-          liked={item.viewerLiked}
-          likes={item.likesCount}
-          name={displayName(item.author)}
-          onComment={onComment}
-          onOpenDetails={() => onOpenPost(item)}
-          onLike={onLike}
-          onReshare={onReshare}
-          onShare={onShare}
-          reshares={item.resharesCount}
-          reshared={item.viewerReshared}
-          time={relativeTime(item.created_at)}
-          profile={item.author}
-          profileHref={`/profile/${encodeURIComponent(item.author.id)}`}
-        />
-      )}
-    </div>
-  )
+      )
+    }
+
+    return (
+      <PostCard
+        comments={item.commentsCount}
+        content={item.content}
+        handle={displayHandle(item.author)}
+        liked={item.viewerLiked}
+        likes={item.likesCount}
+        name={displayName(item.author)}
+        onComment={onComment}
+        onOpenDetails={() => onOpenPost(item)}
+        onLike={onLike}
+        onReshare={onReshare}
+        onShare={onShare}
+        reshares={item.resharesCount}
+        reshared={item.viewerReshared}
+        time={relativeTime(item.created_at)}
+        profile={item.author}
+        profileHref={`/profile/${encodeURIComponent(item.author.id)}`}
+      />
+    )
+  }
+
+  return <div className="flex flex-col gap-2">{renderContent()}</div>
 }
 
 function calculateYesPercent(market: MarketPost) {

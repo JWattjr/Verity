@@ -9,8 +9,16 @@ import {
   useCastFreeVoteMutation,
   useExecuteMarketTradeMutation,
 } from "@/store/verity/verityQueries"
-import { Swords, User, Bot, Zap, ChevronRight, Award } from "lucide-react"
-import { toast } from "react-hot-toast"
+import {
+  Swords,
+  User,
+  Bot,
+  Zap,
+  ChevronRight,
+  Award,
+  HelpCircle,
+} from "lucide-react"
+import { toast } from "@/lib/toast"
 import PvpLiquidityModal from "./PvpLiquidityModal"
 
 function formatMarketId(marketId: string): `0x${string}` {
@@ -52,6 +60,7 @@ export default function PvpArenaTab({
     Record<string, "YES" | "NO">
   >({})
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false)
+  const [showTooltip, setShowTooltip] = useState<boolean>(false)
 
   // Local state for child market liquidity modal
   const [liquidityMarketId, setLiquidityMarketId] = useState<string | null>(
@@ -164,13 +173,31 @@ export default function PvpArenaTab({
     }
     if (!selectedPvpEvent) return
 
-    const picks = Object.keys(pvpSelections).map((marketId) => ({
-      marketId,
-      selection: pvpSelections[marketId],
-    }))
+    const picks = Object.keys(pvpSelections).map((marketId) => {
+      const selection = pvpSelections[marketId]
+      const opt = selectedPvpEvent.options.find((o: any) => o.id === marketId)
+      const yesPool = Number(opt?.usdcYesAmount ?? 0)
+      const noPool = Number(opt?.usdcNoAmount ?? 0)
+      const totalPool = yesPool + noPool
+      let yesProb = 50
+      if (totalPool > 0) {
+        yesProb = (yesPool / totalPool) * 100
+      }
+      const noProb = 100 - yesProb
+      const price = selection === "YES" ? yesProb / 100 : noProb / 100
+      const shares = betAmountPerSelection / (price || 0.5)
+
+      return {
+        marketId,
+        selection,
+        shares,
+      }
+    })
 
     if (picks.length < 3) {
-      toast.error("Please make a selection for at least 3 options from different categories.")
+      toast.error(
+        "Please make a selection for at least 3 options from different categories.",
+      )
       return
     }
 
@@ -251,6 +278,7 @@ export default function PvpArenaTab({
           side: pick.selection,
           action: "BUY",
           amount: betAmountPerSelection,
+          grossAmount: pick.shares,
           txHash: hash,
         })
       })
@@ -350,9 +378,7 @@ export default function PvpArenaTab({
   }
 
   const hasActiveDuel =
-    pvpStatus?.status === "queued" ||
-    pvpStatus?.status === "matched" ||
-    pvpStatus?.status === "resolved"
+    pvpStatus?.status === "queued" || pvpStatus?.status === "matched"
 
   return (
     <div className="lg:col-span-2 flex flex-col gap-4">
@@ -360,13 +386,13 @@ export default function PvpArenaTab({
         <div className="flex flex-col gap-4">
           {/* H2H Status Banner */}
           {pvpStatus.status === "queued" ? (
-            <div className="verity-card p-6 flex flex-col md:flex-row items-center justify-between gap-4 relative overflow-hidden bg-gradient-to-br from-sky-blue/10 via-transparent to-transparent">
+            <div className="verity-card p-6 flex flex-col md:flex-row items-center justify-between gap-4 relative overflow-hidden bg-sky-blue/10">
               <div className="absolute top-0 left-0 w-full h-1 bg-sky-blue animate-pulse" />
 
               <div className="flex items-center gap-4">
                 <div className="relative h-16 w-16 rounded-full border border-sky-blue/20 flex items-center justify-center overflow-hidden shrink-0">
                   <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(0,144,255,0.06),transparent)]" />
-                  <div className="absolute h-full w-0.5 bg-gradient-to-t from-sky-blue to-transparent top-0 left-1/2 origin-bottom rotate-animate" />
+                  <div className="absolute h-full w-0.5 bg-sky-blue top-0 left-1/2 origin-bottom rotate-animate" />
                   <Swords className="h-6 w-6 text-sky-blue relative z-10 animate-pulse" />
                 </div>
                 <div className="text-left">
@@ -388,7 +414,7 @@ export default function PvpArenaTab({
               </div>
             </div>
           ) : pvpStatus.status === "resolved" ? (
-            <div className="verity-card p-5 border border-sky-blue/30 dark:border-sky-blue/20 bg-gradient-to-br from-sky-blue/5 via-transparent to-transparent">
+            <div className="verity-card p-5 border border-sky-blue/30 dark:border-sky-blue/20 bg-sky-blue/5">
               <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
                 {/* Left: You */}
                 <div className="flex items-center gap-3 w-full sm:w-auto">
@@ -469,7 +495,7 @@ export default function PvpArenaTab({
               </div>
             </div>
           ) : (
-            <div className="verity-card p-5 border border-sky-blue/30 dark:border-sky-blue/20 bg-gradient-to-br from-sky-blue/5 via-transparent to-transparent">
+            <div className="verity-card p-5 border border-sky-blue/30 dark:border-sky-blue/20 bg-sky-blue/5">
               <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
                 {/* Left: You */}
                 <div className="flex items-center gap-3 w-full sm:w-auto">
@@ -698,26 +724,96 @@ export default function PvpArenaTab({
       {/* Ticket Builder Form */}
       {(!hasActiveDuel || showBuilderOverride) && (
         <div className="verity-card p-5 flex flex-col gap-4">
-          <div className="border-b border-border dark:border-zinc-800 pb-3">
-            <h3 className="text-lg font-bold tracking-tight text-charcoal-primary dark:text-white flex items-center gap-2">
-              Arena ticket builder
-            </h3>
-            <p className="text-xs text-ash mt-0.5">
-              Submit selections to queue for head-to-head matchup.
-            </p>
-          </div>
-
-          <div className="rounded-[10px] border border-indigo-500/15 bg-indigo-500/5 px-3 py-2.5 text-[11px] leading-relaxed text-ash">
-            Each correct pick scores 1 point. Win: 100 Result XP, draw: 50,
-            loss: 30. A perfect score adds 20 XP, and an active boost applies
-            1.2x to the total. <strong className="text-amber-600 dark:text-amber-400">Note: You can select at most one prediction per category group to build your ticket.</strong>
-          </div>
-
-          {pvpEvents.length === 0 && (
-            <div className="p-8 text-center text-sm text-ash border border-dashed border-border dark:border-zinc-800 rounded-[12px] bg-parchment-card dark:bg-zinc-950/20">
-              No active PvP events right now. Check back soon for new matchups!
+          <div className="border-b border-border dark:border-zinc-800 pb-3 flex items-start justify-between gap-4">
+            <div>
+              <h3 className="text-lg font-bold tracking-tight text-charcoal-primary dark:text-white flex items-center gap-2">
+                Arena ticket builder
+              </h3>
+              <p className="text-xs text-ash mt-0.5">
+                Submit selections to queue for head-to-head matchup.
+              </p>
             </div>
-          )}
+            <div className="relative">
+              <button
+                type="button"
+                onMouseEnter={() => setShowTooltip(true)}
+                onMouseLeave={() => setShowTooltip(false)}
+                className="p-1.5 rounded-full text-ash hover:text-charcoal-primary dark:hover:text-white hover:bg-stone-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer shrink-0"
+                aria-label="Rules Info"
+              >
+                <HelpCircle className="h-5 w-5" />
+              </button>
+              {showTooltip && (
+                <div className="absolute right-0 top-9 z-50 w-72 p-4 rounded-xl bg-white dark:bg-zinc-950 border border-border dark:border-zinc-800 shadow-xl text-xs leading-relaxed text-charcoal-secondary dark:text-zinc-300 font-sans font-medium">
+                  Each correct pick scores 1 point. Win: 100 Result XP, draw:
+                  50, loss: 30. A perfect score adds 20 XP, and an active boost
+                  applies 1.2x to the total.{" "}
+                  <strong className="text-amber-600 dark:text-amber-400">
+                    Note: You can select at most one prediction per category
+                    group to build your ticket.
+                  </strong>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {pvpEvents.length === 0 &&
+            (() => {
+              const claimablePicks =
+                pvpStatus?.ticket?.picks?.filter(
+                  (p: any) => p.isCorrect === true && (p.shares ?? 0) > 0,
+                ) || []
+
+              if (claimablePicks.length > 0) {
+                const totalWinnings = claimablePicks.reduce(
+                  (acc: number, p: any) => acc + (p.shares ?? 0),
+                  0,
+                )
+
+                const handleClaimAll = async () => {
+                  try {
+                    const marketIds = claimablePicks.map((p: any) => p.marketId)
+                    await redeemMultipleWinnings(marketIds, totalWinnings)
+                    void refetchPvpStatus()
+                  } catch (err) {
+                    console.error("Failed to claim all winnings", err)
+                  }
+                }
+
+                return (
+                  <div className="p-4 rounded-xl bg-meadow-green/10 border border-meadow-green/20 flex flex-col md:flex-row items-center justify-between gap-3 text-left">
+                    <div className="flex items-center gap-2">
+                      <div>
+                        <h4 className="text-sm font-bold text-meadow-green font-sans">
+                          You have unclaimed winnings from your last duel!
+                        </h4>
+                        <p className="text-xs text-ash mt-0.5 font-medium font-sans">
+                          Claim {totalWinnings.toFixed(2)} USDC from{" "}
+                          {claimablePicks.length} winning{" "}
+                          {claimablePicks.length === 1
+                            ? "proposition"
+                            : "propositions"}
+                          .
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={handleClaimAll}
+                      className="px-4 py-2 rounded-[8px] bg-meadow-green hover:bg-meadow-green/90 text-white text-xs font-bold transition-all shadow-sm shrink-0 font-sans cursor-pointer"
+                    >
+                      Claim All Winnings
+                    </button>
+                  </div>
+                )
+              }
+
+              return (
+                <div className="p-8 text-center text-sm text-ash border border-dashed border-border dark:border-zinc-800 rounded-[12px] bg-parchment-card dark:bg-zinc-950/20">
+                  No active PvP events right now. Check back soon for new
+                  matchups!
+                </div>
+              )
+            })()}
 
           {pvpEvents.length > 0 && selectedPvpEvent && (
             <div className="flex flex-col gap-4">
@@ -925,6 +1021,57 @@ export default function PvpArenaTab({
                   <ChevronRight className="h-4 w-4" />
                 </button>
               </div>
+
+              {/* Claim Winnings Banner at bottom */}
+              {(() => {
+                const claimablePicks =
+                  pvpStatus?.ticket?.picks?.filter(
+                    (p: any) => p.isCorrect === true && (p.shares ?? 0) > 0,
+                  ) || []
+
+                if (claimablePicks.length === 0) return null
+
+                const totalWinnings = claimablePicks.reduce(
+                  (acc: number, p: any) => acc + (p.shares ?? 0),
+                  0,
+                )
+
+                const handleClaimAll = async () => {
+                  try {
+                    const marketIds = claimablePicks.map((p: any) => p.marketId)
+                    await redeemMultipleWinnings(marketIds, totalWinnings)
+                    void refetchPvpStatus()
+                  } catch (err) {
+                    console.error("Failed to claim all winnings", err)
+                  }
+                }
+
+                return (
+                  <div className="p-4 rounded-xl bg-meadow-green/10 border border-meadow-green/20 flex flex-col md:flex-row items-center justify-between gap-3 text-left mt-4">
+                    <div className="flex items-center gap-2">
+                      <div>
+                        <h4 className="text-sm font-bold text-meadow-green font-sans">
+                          You have unclaimed winnings from your last duel!
+                        </h4>
+                        <p className="text-xs text-ash mt-0.5 font-medium font-sans">
+                          Claim {totalWinnings.toFixed(2)} USDC from{" "}
+                          {claimablePicks.length} winning{" "}
+                          {claimablePicks.length === 1
+                            ? "proposition"
+                            : "propositions"}
+                          .
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={handleClaimAll}
+                      className="px-4 py-2 rounded-[8px] bg-meadow-green hover:bg-meadow-green/90 text-white text-xs font-bold transition-all shadow-sm shrink-0 font-sans cursor-pointer"
+                    >
+                      Claim All Winnings
+                    </button>
+                  </div>
+                )
+              })()}
             </div>
           )}
         </div>

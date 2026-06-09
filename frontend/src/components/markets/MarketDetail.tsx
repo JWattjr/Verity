@@ -4,7 +4,7 @@ import Link from "next/link"
 import { useSearchParams } from "next/navigation"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useQueryClient } from "@tanstack/react-query"
-import { toast } from "react-hot-toast"
+import { toast } from "@/lib/toast"
 
 import VerityAgentPanel from "@/components/markets/VerityAgentPanel"
 import CommentModal from "@/components/social/CommentModal"

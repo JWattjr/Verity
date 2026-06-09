@@ -10,7 +10,7 @@ import {
   FACTORY_ADDRESS,
   publicClient,
 } from "@/lib/arc"
-import { toast } from "react-hot-toast"
+import { toast } from "@/lib/toast"
 
 function formatMarketId(marketId: string): `0x${string}` {
   const clean = marketId.replace(/^0x/, "")

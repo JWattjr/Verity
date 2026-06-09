@@ -19,7 +19,7 @@ import {
   useCreateNormalPostMutation,
   useValidateMarketPostMutation,
 } from "@/store/verity/verityQueries"
-import { toast } from "react-hot-toast"
+import { toast } from "@/lib/toast"
 import {
   FACTORY_ADDRESS,
   arcUsdcAddress,

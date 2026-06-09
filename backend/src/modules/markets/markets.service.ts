@@ -424,11 +424,6 @@ export class MarketsService {
     } else {
       // We only want to show binary/parent markets, NOT child markets!
       query.marketType = { $ne: "child" }
-      
-      // Exclude PvP Arena markets from standard market queries
-      if (filters.category !== "pvp") {
-        query.category = { $ne: "pvp" }
-      }
     }
 
     const sort: Record<string, any> = filters.trending
