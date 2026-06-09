@@ -31,9 +31,10 @@ export class PvpPickInput {
   @IsNotEmpty()
   marketId: string
 
-  @ApiProperty({ description: "User choice", enum: ["YES", "NO"] })
-  @IsEnum(["YES", "NO"])
-  selection: "YES" | "NO"
+  @ApiProperty({ description: "User choice (YES, NO, or custom outcome name)" })
+  @IsString()
+  @IsNotEmpty()
+  selection: string
 }
 
 export class SubmitTicketDto {

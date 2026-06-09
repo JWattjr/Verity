@@ -91,12 +91,11 @@ export class CastFreeVoteDto {
   profileId?: string
 
   @ApiProperty({
-    description: "Side of the vote",
-    enum: ["YES", "NO"],
+    description: "Side of the vote (YES, NO, or custom outcome name)",
     example: "YES",
   })
-  @IsEnum(["YES", "NO"], { message: "Vote side must be YES or NO." })
-  side: "YES" | "NO"
+  @IsString({ message: "Vote side must be a string." })
+  side: string
 }
 
 export class ExecuteTradeDto {
@@ -108,12 +107,11 @@ export class ExecuteTradeDto {
   profileId: string
 
   @ApiProperty({
-    description: "Side of the prediction trade",
-    enum: ["YES", "NO"],
+    description: "Side of the prediction trade (YES, NO, or custom outcome name)",
     example: "YES",
   })
-  @IsEnum(["YES", "NO"], { message: "Trade side must be YES or NO." })
-  side: "YES" | "NO"
+  @IsString({ message: "Trade side must be a string." })
+  side: string
 
   @ApiProperty({
     description: "Action type",
@@ -159,13 +157,11 @@ export class ExecuteTradeDto {
 
 export class ResolveMarketDto {
   @ApiProperty({
-    description: "Winning outcome",
-    enum: ["YES", "NO"],
+    description: "Winning outcome (YES, NO, outcome index, or option name)",
     example: "YES",
   })
   @IsString()
-  @IsIn(["YES", "NO"])
-  winningOutcome: "YES" | "NO"
+  winningOutcome: string
 
   @ApiProperty({
     description: "Transaction hash of the resolution on-chain",

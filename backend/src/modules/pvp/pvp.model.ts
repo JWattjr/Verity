@@ -9,8 +9,8 @@ export class PvpPick {
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: "Market", required: true })
   marketId: Types.ObjectId
 
-  @Prop({ type: String, enum: ["YES", "NO"], required: true })
-  selection: "YES" | "NO"
+  @Prop({ type: String, required: true })
+  selection: string
 
   @Prop({ type: Boolean, default: null })
   isCorrect: boolean | null

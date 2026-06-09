@@ -48,7 +48,7 @@ export function determineOptionGroup(
     name === `${tB} wins` ||
     name === "draw"
   ) {
-    return "match_winner"
+    return "major"
   }
 
   if (name.includes("scores first goal") || name.includes("first goal")) {
@@ -63,15 +63,25 @@ export function determineOptionGroup(
     return "clean_sheet"
   }
 
-  if (name.includes("commits more fouls") || name.includes("fouls")) {
+  if (
+    name.includes("commits more fouls") ||
+    name.includes("fouls") ||
+    name.includes("foul")
+  ) {
     return "fouls_leader"
   }
 
   if (
-    name.includes("has over 2.5 yellow cards") ||
-    name.includes("yellow cards")
+    name.includes("yellow card") ||
+    name.includes("yellow cards") ||
+    name.includes("card") ||
+    name.includes("cards")
   ) {
-    return "yellow_cards"
+    return "cards"
+  }
+
+  if (name.includes("corner") || name.includes("corners")) {
+    return "corners"
   }
 
   return `unique_${optionName.replace(/\s+/g, "_").toLowerCase()}`
@@ -173,41 +183,102 @@ export class PvpService {
         this.logger.error(`Failed to categorize options with AI: ${err.message}`)
       }
 
+      // Map option groups to their clean names (and make sure match_winner/moneyline becomes major)
+      const cleanGroupsMap: Record<string, string> = {}
+      for (const [opt, grp] of Object.entries(optionGroupsMap)) {
+        cleanGroupsMap[opt] = (grp === "match_winner" || grp === "moneyline") ? "major" : grp
+      }
+
+      const groups: Record<string, string[]> = {}
       for (let i = 0; i < dto.options.length; i++) {
         const optionName = dto.options[i]
-        const optionGroup = optionGroupsMap[optionName] || determineOptionGroup(optionName, teamA, teamB)
+        let optionGroup = cleanGroupsMap[optionName] || determineOptionGroup(optionName, teamA, teamB)
+        if (optionGroup === "match_winner" || optionGroup === "moneyline") {
+          optionGroup = "major"
+        }
+        if (!groups[optionGroup]) {
+          groups[optionGroup] = []
+        }
+        groups[optionGroup].push(optionName)
+      }
+
+      // We will loop over each option group to create one child market per group!
+      for (const [optionGroup, groupOptions] of Object.entries(groups)) {
+        const outcomeCount = groupOptions.length
+        
+        // Formulate question and optionName
+        let questionSuffix = ""
+        let optionName = ""
+        if (optionGroup === "major") {
+          questionSuffix = "Major"
+          optionName = "Major"
+        } else if (optionGroup === "spread") {
+          questionSuffix = "Spread"
+          optionName = "Spread"
+        } else if (optionGroup === "totals") {
+          questionSuffix = "Totals"
+          optionName = "Totals"
+        } else {
+          const capitalized = optionGroup.split("_").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ")
+          questionSuffix = capitalized
+          optionName = capitalized
+        }
+
+        // Determine handicap if applicable
+        let handicap: number | null = null
+        if (optionGroup === "spread" || optionGroup === "totals") {
+          // Try to extract from the first option containing a number
+          for (const opt of groupOptions) {
+            const numMatch = opt.match(/([+-]?\d+(?:\.\d+)?)/)
+            if (numMatch) {
+              handicap = Math.abs(parseFloat(numMatch[1]))
+              break
+            }
+          }
+        }
+
+        // Generate clean outcomes (e.g. for Major, draw or win team names)
+        const outcomes = groupOptions.map(opt => opt.trim())
+
+        const childMarketId = new Types.ObjectId()
+        childMarketIds.push(childMarketId)
+
         const child = await this.marketModel.create({
+          _id: childMarketId,
           postId: post._id,
           authorId: new Types.ObjectId(adminId),
-          question: `${dto.question.trim()} - ${optionName.trim()}`,
+          question: `${dto.question.trim()} - ${questionSuffix}`,
           category: "pvp",
           deadline: new Date(dto.deadline),
           resolutionSource: dto.resolutionSource.trim(),
-          yesCondition: "YES",
-          noCondition: "NO",
+          yesCondition: outcomes[0] || "YES",
+          noCondition: outcomes[1] || "NO",
           status: "funding_pool", // temporary status while funding
           marketType: "child",
           parentMarketId: parentMarket._id,
-          optionName: optionName.trim(),
+          optionName,
           teamName: teamA, // Keep teamA as primary associated team
           optionGroup,
+          outcomeCount,
+          outcomes,
+          handicap,
         })
-        childMarketIds.push(child._id)
 
         // Pre-deposit 40 USDC on-chain
         const preDepositTxHash =
           await this.blockchainService.adminCreateMarketPreDeposit(
-            child._id.toString(),
+            childMarketId.toString(),
             40,
           )
 
-        // Register on-chain
+        // Register on-chain with outcomeCount
         try {
           await this.blockchainService.registerMarket(
-            child._id.toString(),
+            childMarketId.toString(),
             adminWalletAddress,
             deadlineUnix,
             fundingDeadlineUnix,
+            outcomeCount,
           )
         } catch (error) {
           const msg = error?.message || ""
@@ -218,14 +289,14 @@ export class PvpService {
 
         // Initialize database pool from pre-deposit (which will sync and transition status to "tradable")
         await this.liquidityService.initializePoolFromPreDeposit(
-          child._id.toString(),
+          childMarketId.toString(),
           adminId,
           adminWalletAddress,
           preDepositTxHash,
           40,
         )
 
-        const updatedChild = await this.marketModel.findById(child._id)
+        const updatedChild = await this.marketModel.findById(childMarketId)
         if (updatedChild) {
           childMarkets.push(updatedChild)
         } else {
@@ -318,6 +389,7 @@ export class PvpService {
         id: parent._id.toString(),
         question: parent.question,
         deadline: parent.deadline,
+        createdAt: parent.createdAt,
         resolutionSource: parent.resolutionSource,
         yesCondition: parent.yesCondition,
         noCondition: parent.noCondition,
@@ -331,6 +403,93 @@ export class PvpService {
           noCondition: c.noCondition,
           liquidity: c.liquidity,
           optionGroup: c.optionGroup,
+          outcomeCount: c.outcomeCount,
+          outcomes: c.outcomes,
+          outcomePrices: c.outcomePrices,
+        })),
+      })
+    }
+
+    return result
+  }
+
+  /**
+   * Returns the parentMarketId + event question for every event where
+   * the user still has an active (queued or matched) ticket.
+   * Used by the frontend to merge into the events dropdown so
+   * users can view their unresolved duels even after the event deadline.
+   */
+  async getMyActiveTickets(userId: string) {
+    // 1. Find queued or matched tickets
+    const activeTickets = await this.pvpTicketModel.find({
+      userId: new Types.ObjectId(userId),
+      status: { $in: ["queued", "matched"] },
+    })
+
+    // 2. Find user positions with shares > 0
+    const activePositions = await this.marketPositionModel.find({
+      userId: new Types.ObjectId(userId),
+      shares: { $gt: 0 },
+    })
+
+    const childMarketIds = activePositions.map((p) => p.marketId)
+    const childMarkets = await this.marketModel.find({
+      _id: { $in: childMarketIds },
+      marketType: "child",
+    })
+    const parentMarketIdsFromPositions = childMarkets
+      .map((m) => m.parentMarketId?.toString())
+      .filter(Boolean)
+
+    // 3. Find resolved tickets where parentMarketId is in parentMarketIdsFromPositions
+    const resolvedTicketsWithShares = await this.pvpTicketModel.find({
+      userId: new Types.ObjectId(userId),
+      status: "resolved",
+      parentMarketId: {
+        $in: parentMarketIdsFromPositions.map((id) => new Types.ObjectId(id)),
+      },
+    })
+
+    const tickets = [...activeTickets, ...resolvedTicketsWithShares]
+
+    if (tickets.length === 0) return []
+
+    // Deduplicate by parentMarketId
+    const parentIds = [
+      ...new Set(tickets.map((t) => t.parentMarketId.toString())),
+    ]
+
+    const result: any[] = []
+    for (const pid of parentIds) {
+      const parent = await this.marketModel.findById(pid)
+      if (!parent) continue
+
+      const children = await this.marketModel.find({
+        parentMarketId: parent._id,
+        marketType: "child",
+      })
+
+      result.push({
+        id: parent._id.toString(),
+        question: parent.question,
+        deadline: parent.deadline,
+        createdAt: parent.createdAt,
+        resolutionSource: parent.resolutionSource,
+        yesCondition: parent.yesCondition,
+        noCondition: parent.noCondition,
+        options: children.map((c) => ({
+          id: c._id.toString(),
+          optionName: c.optionName,
+          status: c.status,
+          usdcYesAmount: c.usdcYesAmount,
+          usdcNoAmount: c.usdcNoAmount,
+          yesCondition: c.yesCondition,
+          noCondition: c.noCondition,
+          liquidity: c.liquidity,
+          optionGroup: c.optionGroup,
+          outcomeCount: c.outcomeCount,
+          outcomes: c.outcomes,
+          outcomePrices: c.outcomePrices,
         })),
       })
     }
@@ -557,7 +716,7 @@ export class PvpService {
 
   async resolvePvpMatchesForMarket(
     marketId: string,
-    winningOutcome: "YES" | "NO",
+    winningOutcome: string,
   ) {
     // Find all matched tickets containing this child market
     const tickets = await this.pvpTicketModel.find({
@@ -567,6 +726,8 @@ export class PvpService {
 
     if (tickets.length === 0) return
 
+    const market = await this.marketModel.findById(marketId)
+
     this.logger.log(
       `Resolving child market ${marketId} outcome: ${winningOutcome} on ${tickets.length} PvP tickets.`,
     )
@@ -575,8 +736,28 @@ export class PvpService {
       let updated = false
       for (const pick of ticket.picks) {
         if (pick.marketId.toString() === marketId) {
-          pick.isCorrect = pick.selection === winningOutcome
+          const isStringMatch = pick.selection.toLowerCase().trim() === winningOutcome.toLowerCase().trim()
+          
+          let isIndexMatch = false
+          if (market && market.outcomes && market.outcomes.length > 0) {
+            const selIdx = market.outcomes.findIndex(o => o.toLowerCase().trim() === pick.selection.toLowerCase().trim())
+            const winIdx = market.outcomes.findIndex(o => o.toLowerCase().trim() === winningOutcome.toLowerCase().trim())
+            if (selIdx >= 0 && winIdx >= 0 && selIdx === winIdx) {
+              isIndexMatch = true
+            }
+          }
+          
+          pick.isCorrect = isStringMatch || isIndexMatch
           updated = true
+
+          // Delete losing position immediately so they don't clutter the active ticket list
+          if (!pick.isCorrect) {
+            await this.marketPositionModel.deleteOne({
+              marketId: pick.marketId,
+              userId: ticket.userId,
+              side: pick.selection,
+            })
+          }
         }
       }
 
@@ -785,13 +966,18 @@ export class PvpService {
     )
   }
 
-  async getPvpStatus(userId: string) {
+  async getPvpStatus(userId: string, parentMarketId?: string) {
+    const query: any = {
+      userId: new Types.ObjectId(userId),
+      status: { $in: ["queued", "matched", "resolved"] },
+    }
+    if (parentMarketId) {
+      query.parentMarketId = new Types.ObjectId(parentMarketId)
+    }
+
     // Find the latest active ticket (either queued, matched, or resolved)
     const ticket = await this.pvpTicketModel
-      .findOne({
-        userId: new Types.ObjectId(userId),
-        status: { $in: ["queued", "matched", "resolved"] },
-      })
+      .findOne(query)
       .sort({ createdAt: -1 })
 
     if (!ticket) return null
@@ -818,6 +1004,31 @@ export class PvpService {
     if (user && user.walletAddress) {
       for (const child of children) {
         try {
+          // If the child market is resolved in DB, ensure it is also resolved on-chain
+          if (child.status === "resolved" && child.resolvedOutcome) {
+            try {
+              const onChainState =
+                await this.blockchainService.readOnChainMarketState(
+                  child._id.toString(),
+                )
+              if (!onChainState.resolved) {
+                this.logger.log(
+                  `Child market ${child._id} is resolved in DB but not on-chain. Resolving on-chain...`,
+                )
+                const winningIsYes =
+                  child.resolvedOutcome.toUpperCase().trim() === "YES"
+                await this.blockchainService.resolveMarket(
+                  child._id.toString(),
+                  winningIsYes,
+                )
+              }
+            } catch (err) {
+              this.logger.error(
+                `Failed to check/resolve child market ${child._id} on-chain in getPvpStatus: ${err.message}`,
+              )
+            }
+          }
+
           const onChain = await this.blockchainService.getUserOnChainBalances(
             child._id.toString(),
             user.walletAddress,

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo, useCallback } from "react"
 import { apiRequest } from "@/store/apiClient"
 import { toast } from "react-hot-toast"
 import {
@@ -19,6 +19,13 @@ import {
   Wallet,
   Copy,
   Info,
+  ChevronDown,
+  ChevronUp,
+  Trophy,
+  Flag,
+  Target,
+  AlertTriangle,
+  Minus,
 } from "lucide-react"
 
 interface Market {
@@ -32,19 +39,25 @@ interface Market {
   noCondition?: string
 }
 
-const PREDEFINED_PROPOSITIONS = [
-  "wins the match",
-  "scores first goal",
-  "leads at halftime",
-  "has more corner kicks",
-  "keeps a clean sheet",
-  "has over 2.5 yellow cards",
-  "scores in both halves",
-  "ends in a draw",
-  "receives a red card",
-  "commits more fouls",
-  "has over 1.5 offsides",
-]
+/* ─────────────────────────────────────────────
+   Category-based proposition builder types
+   ───────────────────────────────────────────── */
+interface CategoryState {
+  enabled: boolean
+  line?: number // handicap line (e.g. 9.5 corners)
+}
+
+const CORNER_LINES = [6.5, 7.5, 8.5, 9.5, 10.5]
+const GOAL_LINES = [0.5, 1.5, 2.5, 3.5, 4.5]
+const CARD_LINES = [2.5, 3.5, 4.5, 5.5, 6.5]
+
+function parseTeams(question: string): { teamA: string; teamB: string } {
+  const vsMatch = question.match(/(.+?)\s+vs\.?\s+(.+)/i)
+  if (vsMatch) return { teamA: vsMatch[1].trim(), teamB: vsMatch[2].trim() }
+  const dashMatch = question.match(/(.+?)\s+-\s+(.+)/)
+  if (dashMatch) return { teamA: dashMatch[1].trim(), teamB: dashMatch[2].trim() }
+  return { teamA: "Team A", teamB: "Team B" }
+}
 
 export default function AdminPage() {
   const [token, setToken] = useState("")
@@ -61,8 +74,20 @@ export default function AdminPage() {
   // PvP Event Form State
   const [pvpQuestion, setPvpQuestion] = useState("")
   const [pvpDeadline, setPvpDeadline] = useState("")
-  const [pvpResolutionSource, setPvpResolutionSource] = useState("World Cup Oracle")
-  const [pvpOptions, setPvpOptions] = useState<string[]>([])
+  const [pvpResolutionSource, setPvpResolutionSource] =
+    useState("World Cup Oracle")
+
+  // Category-based proposition builder state
+  const [categories, setCategories] = useState<Record<string, CategoryState>>({
+    winner: { enabled: false },
+    corners: { enabled: false, line: 9.5 },
+    goals: { enabled: false, line: 2.5 },
+    cards: { enabled: false, line: 3.5 },
+  })
+
+  // Custom propositions
+  const [customOptions, setCustomOptions] = useState<string[]>([])
+  const [customOptionText, setCustomOptionText] = useState("")
 
   // Admin Wallet & Balance State
   const [adminBalances, setAdminBalances] = useState<{
@@ -73,65 +98,74 @@ export default function AdminPage() {
     creationFeeUsdc: number
   } | null>(null)
 
-  // Options Pool Selector State
-  const [customOptions, setCustomOptions] = useState<string[]>([])
-  const [customOptionText, setCustomOptionText] = useState("")
-
-  const getDynamicPropositions = () => {
-    if (!pvpQuestion.trim()) {
-      return [
-        "Team A wins the match",
-        "Team B wins the match",
-        "Match ends in a draw",
-        "Team A scores first goal",
-        "Team B scores first goal",
-        "Team A leads at halftime",
-        "Team B leads at halftime",
-        "Team A keeps a clean sheet",
-        "Team B keeps a clean sheet",
-        "has over 2.5 yellow cards",
-        "Team A commits more fouls",
-        "Team B commits more fouls",
-      ]
-    }
-
-    let teamA = "Team A"
-    let teamB = "Team B"
-    const vsMatch = pvpQuestion.match(/(.+?)\s+vs\.?\s+(.+)/i)
-    if (vsMatch) {
-      teamA = vsMatch[1].trim()
-      teamB = vsMatch[2].trim()
-    } else {
-      const dashMatch = pvpQuestion.match(/(.+?)\s+-\s+(.+)/)
-      if (dashMatch) {
-        teamA = dashMatch[1].trim()
-        teamB = dashMatch[2].trim()
-      }
-    }
-
-    return [
-      `${teamA} wins the match`,
-      `${teamB} wins the match`,
-      "Match ends in a draw",
-      `${teamA} scores first goal`,
-      `${teamB} scores first goal`,
-      `${teamA} leads at halftime`,
-      `${teamB} leads at halftime`,
-      `${teamA} keeps a clean sheet`,
-      `${teamB} keeps a clean sheet`,
-      "has over 2.5 yellow cards",
-      `${teamA} commits more fouls`,
-      `${teamB} commits more fouls`,
-    ]
-  }
-
-  const availableOptions = [...getDynamicPropositions(), ...customOptions]
-
   // Arbitration / Resolve Form State
   const [selectedMarketId, setSelectedMarketId] = useState<string | null>(null)
   const [winningOutcome, setWinningOutcome] = useState<"YES" | "NO">("YES")
   const [resolveTxHash, setResolveTxHash] = useState("0x" + "a".repeat(64))
-  const [adminAddress, setAdminAddress] = useState("0x0000000000000000000000000000000000000000")
+  const [adminAddress, setAdminAddress] = useState(
+    "0x0000000000000000000000000000000000000000",
+  )
+
+  // Parse team names from question
+  const { teamA, teamB } = useMemo(
+    () => parseTeams(pvpQuestion),
+    [pvpQuestion],
+  )
+
+  const hasTeams = pvpQuestion.trim().length > 0
+
+  // Build propositions from enabled categories
+  const generatedOptions = useMemo(() => {
+    const opts: string[] = []
+    const a = hasTeams ? teamA : "Team A"
+    const b = hasTeams ? teamB : "Team B"
+
+    if (categories.winner.enabled) {
+      opts.push(`${a} wins the match`)
+      opts.push(`Match ends in a draw`)
+      opts.push(`${b} wins the match`)
+    }
+
+    if (categories.corners.enabled && categories.corners.line != null) {
+      const line = categories.corners.line
+      opts.push(`Match has under ${line} corners`)
+      opts.push(`Match has over ${line} corners`)
+    }
+
+    if (categories.goals.enabled && categories.goals.line != null) {
+      const line = categories.goals.line
+      opts.push(`Match has under ${line} goals`)
+      opts.push(`Match has over ${line} goals`)
+    }
+
+    if (categories.cards.enabled && categories.cards.line != null) {
+      const line = categories.cards.line
+      opts.push(`Match has under ${line} yellow cards`)
+      opts.push(`Match has over ${line} yellow cards`)
+    }
+
+    return [...opts, ...customOptions]
+  }, [categories, customOptions, teamA, teamB, hasTeams])
+
+  const toggleCategory = useCallback(
+    (key: string) => {
+      setCategories((prev) => ({
+        ...prev,
+        [key]: { ...prev[key], enabled: !prev[key].enabled },
+      }))
+    },
+    [],
+  )
+
+  const setCategoryLine = useCallback(
+    (key: string, line: number) => {
+      setCategories((prev) => ({
+        ...prev,
+        [key]: { ...prev[key], line },
+      }))
+    },
+    [],
+  )
 
   // Fetch admin status/balances
   async function fetchAdminStatus() {
@@ -152,18 +186,22 @@ export default function AdminPage() {
     toast.success("Address copied to clipboard!")
   }
 
-  // Add custom option to pool helper
+  // Add custom option
   function handleAddCustomOption() {
     const text = customOptionText.trim()
     if (!text) return
-    const lowerText = text.toLowerCase()
-    if (availableOptions.map(o => o.toLowerCase()).includes(lowerText)) {
-      toast.error("Option already exists in the pool.")
+    if (
+      [...generatedOptions].map((o) => o.toLowerCase()).includes(text.toLowerCase())
+    ) {
+      toast.error("Option already exists.")
       return
     }
     setCustomOptions([...customOptions, text])
-    setPvpOptions([...pvpOptions, text])
     setCustomOptionText("")
+  }
+
+  function handleRemoveCustomOption(index: number) {
+    setCustomOptions(customOptions.filter((_, i) => i !== index))
   }
 
   // Check auth on load
@@ -181,7 +219,6 @@ export default function AdminPage() {
   async function fetchMarkets() {
     setMarketsLoading(true)
     try {
-      // Fetch markets directly with the admin filter query
       const data = await apiRequest<any[]>("/markets?admin=true")
       const parsed: Market[] = data.map((item: any) => ({
         id: item.id || item._id,
@@ -237,11 +274,14 @@ export default function AdminPage() {
     if (!otpCode.trim()) return
     setLoading(true)
     try {
-      const response = await apiRequest<{ token: string; user: any }>("/auth/verify-otp", {
-        method: "POST",
-        body: JSON.stringify({ email: email.trim(), code: otpCode.trim() }),
-      })
-      
+      const response = await apiRequest<{ token: string; user: any }>(
+        "/auth/verify-otp",
+        {
+          method: "POST",
+          body: JSON.stringify({ email: email.trim(), code: otpCode.trim() }),
+        },
+      )
+
       if (response.user?.role !== "admin") {
         throw new Error("This account does not have administrator privileges.")
       }
@@ -267,8 +307,8 @@ export default function AdminPage() {
       return
     }
 
-    if (pvpOptions.length < 3 || pvpOptions.some(opt => !opt.trim())) {
-      toast.error("You must specify at least 3 options.")
+    if (generatedOptions.length < 3 || generatedOptions.some((opt) => !opt.trim())) {
+      toast.error("You must enable enough categories for at least 3 propositions.")
       return
     }
 
@@ -280,12 +320,21 @@ export default function AdminPage() {
           question: pvpQuestion.trim(),
           deadline: new Date(pvpDeadline).toISOString(),
           resolutionSource: pvpResolutionSource.trim(),
-          options: pvpOptions.map(opt => opt.trim()),
+          options: generatedOptions.map((opt) => opt.trim()),
         }),
       })
-      toast.success(`Successfully deployed PvP Event + ${pvpOptions.length} Proposition markets!`)
+      toast.success(
+        `Successfully deployed PvP Event + ${generatedOptions.length} Proposition markets!`,
+      )
       setPvpQuestion("")
       setPvpDeadline("")
+      setCategories({
+        winner: { enabled: false },
+        corners: { enabled: false, line: 9.5 },
+        goals: { enabled: false, line: 2.5 },
+        cards: { enabled: false, line: 3.5 },
+      })
+      setCustomOptions([])
       void fetchMarkets()
       void fetchAdminStatus()
     } catch (err: any) {
@@ -355,8 +404,12 @@ export default function AdminPage() {
             <span className="flex h-12 w-12 items-center justify-center rounded-[14px] bg-indigo-500/10 text-indigo-600 dark:text-indigo-400">
               <ShieldAlert className="h-6 w-6" />
             </span>
-            <h1 className="text-2xl font-bold mt-3 tracking-tight">Verity Admin Login</h1>
-            <p className="text-xs text-ash mt-1">Please authenticate to access administrative moderation controls.</p>
+            <h1 className="text-2xl font-bold mt-3 tracking-tight">
+              Verity Admin Login
+            </h1>
+            <p className="text-xs text-ash mt-1">
+              Please authenticate to access administrative moderation controls.
+            </p>
           </div>
 
           {/* Tab Selection */}
@@ -417,7 +470,7 @@ export default function AdminPage() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="verity-pill flex-[2] h-11 bg-indigo-600 text-white hover:bg-indigo-500 text-xs uppercase tracking-wider disabled:opacity-50"
+                  className="verity-pill flex-2 h-11 bg-indigo-600 text-white hover:bg-indigo-500 text-xs uppercase tracking-wider disabled:opacity-50"
                 >
                   {loading ? "Verifying..." : "Verify & Sign In"}
                 </button>
@@ -426,9 +479,11 @@ export default function AdminPage() {
           )}
 
           <div className="relative flex py-2 items-center">
-            <div className="flex-grow border-t border-border"></div>
-            <span className="flex-shrink mx-4 text-[10px] font-mono font-bold uppercase text-ash">Or Direct JWT</span>
-            <div className="flex-grow border-t border-border"></div>
+            <div className="grow border-t border-border"></div>
+            <span className="shrink mx-4 text-[10px] font-mono font-bold uppercase text-ash">
+              Or Direct JWT
+            </span>
+            <div className="grow border-t border-border"></div>
           </div>
 
           <form onSubmit={handleDirectLogin} className="flex flex-col gap-3">
@@ -456,7 +511,7 @@ export default function AdminPage() {
     )
   }
 
-  // Render Admin Console Dashboard
+  // ─── Render Admin Console Dashboard ───────────────────────────
   return (
     <div className="min-h-screen flex flex-col">
       {/* Navbar Header */}
@@ -467,11 +522,15 @@ export default function AdminPage() {
               A
             </div>
             <div>
-              <h1 className="font-bold text-sm leading-tight text-charcoal-primary dark:text-white">Admin Console</h1>
-              <span className="text-[10px] font-mono text-ash uppercase">Verity Predictions</span>
+              <h1 className="font-bold text-sm leading-tight text-charcoal-primary dark:text-white">
+                Admin Console
+              </h1>
+              <span className="text-[10px] font-mono text-ash uppercase">
+                Verity Predictions
+              </span>
             </div>
           </div>
-          
+
           <button
             onClick={handleLogOut}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border hover:border-red-400 hover:text-red-500 transition-all font-mono text-xs text-ash"
@@ -488,21 +547,26 @@ export default function AdminPage() {
         <section className="lg:col-span-5 flex flex-col gap-6">
           {/* Admin Wallet Status Card */}
           {adminBalances && (
-            <div className="verity-card p-5 bg-gradient-to-br from-indigo-500/[0.04] via-transparent to-transparent border border-indigo-500/10 flex flex-col gap-4">
+            <div className="verity-card p-5 bg-linear-to-br from-indigo-500/4 via-transparent to-transparent border border-indigo-500/10 flex flex-col gap-4">
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-2.5">
                   <div className="h-9 w-9 rounded-lg bg-indigo-500/10 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
                     <Wallet className="h-5 w-5" />
                   </div>
                   <div>
-                    <h3 className="text-xs font-bold uppercase tracking-wider text-ash">Admin Wallet Status</h3>
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-ash">
+                      Admin Wallet Status
+                    </h3>
                     <div className="flex items-center gap-1.5 mt-0.5">
                       <span className="font-mono text-[10px] text-charcoal-primary dark:text-zinc-300">
-                        {adminBalances.adminAddress.slice(0, 6)}...{adminBalances.adminAddress.slice(-4)}
+                        {adminBalances.adminAddress.slice(0, 6)}...
+                        {adminBalances.adminAddress.slice(-4)}
                       </span>
                       <button
                         type="button"
-                        onClick={() => copyToClipboard(adminBalances.adminAddress)}
+                        onClick={() =>
+                          copyToClipboard(adminBalances.adminAddress)
+                        }
                         className="text-ash hover:text-indigo-600 p-0.5 rounded transition-colors"
                         title="Copy Address"
                       >
@@ -520,15 +584,25 @@ export default function AdminPage() {
 
               <div className="grid grid-cols-2 gap-4 mt-2 pt-3 border-t border-border dark:border-zinc-800/80">
                 <div>
-                  <span className="block text-[10px] font-bold text-ash uppercase">USDC Balance</span>
+                  <span className="block text-[10px] font-bold text-ash uppercase">
+                    USDC Balance
+                  </span>
                   <span className="font-mono text-base font-bold text-charcoal-primary dark:text-white">
-                    {adminBalances.usdcBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    {adminBalances.usdcBalance.toLocaleString(undefined, {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}
                   </span>
                 </div>
                 <div>
-                  <span className="block text-[10px] font-bold text-ash uppercase">Gas (ARC) Balance</span>
+                  <span className="block text-[10px] font-bold text-ash uppercase">
+                    Gas (ARC) Balance
+                  </span>
                   <span className="font-mono text-base font-bold text-charcoal-primary dark:text-white">
-                    {adminBalances.arcBalance.toLocaleString(undefined, { minimumFractionDigits: 4, maximumFractionDigits: 4 })}
+                    {adminBalances.arcBalance.toLocaleString(undefined, {
+                      minimumFractionDigits: 4,
+                      maximumFractionDigits: 4,
+                    })}
                   </span>
                 </div>
               </div>
@@ -536,24 +610,48 @@ export default function AdminPage() {
               <div className="p-3 bg-stone-50 dark:bg-zinc-900/30 rounded-lg border border-border dark:border-zinc-800/80 flex items-start gap-2">
                 <Info className="h-4 w-4 text-indigo-500 shrink-0 mt-0.5" />
                 <div className="text-[10px] text-ash leading-relaxed">
-                  <p className="font-semibold text-charcoal-primary dark:text-zinc-300">PvP Event Cost Estimator:</p>
-                  <p>Deployment requires funding each child option with <span className="font-bold text-indigo-600 dark:text-indigo-400">{adminBalances.preDepositUsdcPerOption.toFixed(2)} USDC</span>.</p>
-                  <p className="mt-0.5">Total funding cost for {pvpOptions.length} options: <span className="font-bold text-indigo-600 dark:text-indigo-400">{(adminBalances.preDepositUsdcPerOption * pvpOptions.length).toFixed(2)} USDC</span> + gas fees.</p>
+                  <p className="font-semibold text-charcoal-primary dark:text-zinc-300">
+                    PvP Event Cost Estimator:
+                  </p>
+                  <p>
+                    Deployment requires funding each child option with{" "}
+                    <span className="font-bold text-indigo-600 dark:text-indigo-400">
+                      {adminBalances.preDepositUsdcPerOption.toFixed(2)} USDC
+                    </span>
+                    .
+                  </p>
+                  <p className="mt-0.5">
+                    Total funding cost for {generatedOptions.length} options:{" "}
+                    <span className="font-bold text-indigo-600 dark:text-indigo-400">
+                      {(
+                        adminBalances.preDepositUsdcPerOption *
+                        generatedOptions.length
+                      ).toFixed(2)}{" "}
+                      USDC
+                    </span>{" "}
+                    + gas fees.
+                  </p>
                 </div>
               </div>
             </div>
           )}
 
-          <div className="verity-card p-5 flex flex-col gap-4">
+          <div className="verity-card p-5 flex flex-col gap-5">
             <div className="border-b border-border pb-3">
               <h2 className="text-base font-bold tracking-tight text-charcoal-primary dark:text-white flex items-center gap-2">
                 <Swords className="h-5 w-5 text-indigo-500" />
                 Deploy World Cup PvP Matchup
               </h2>
-              <p className="text-xs text-ash mt-0.5">Creates a parent event and YES/NO proposition child markets.</p>
+              <p className="text-xs text-ash mt-0.5">
+                Creates a parent event and child proposition markets.
+              </p>
             </div>
 
-            <form onSubmit={handleDeployPvpEvent} className="flex flex-col gap-4">
+            <form
+              onSubmit={handleDeployPvpEvent}
+              className="flex flex-col gap-5"
+            >
+              {/* Match Title */}
               <div className="space-y-1.5">
                 <label className="block text-[10px] font-bold uppercase tracking-wider text-ash">
                   Match Title / Question
@@ -561,13 +659,27 @@ export default function AdminPage() {
                 <input
                   type="text"
                   required
-                  placeholder="e.g. USA vs Paraguay"
+                  placeholder="e.g. Paraguay vs Japan"
                   value={pvpQuestion}
                   onChange={(e) => setPvpQuestion(e.target.value)}
                   className="w-full h-11 px-3 border border-border dark:border-zinc-800 bg-transparent text-sm rounded-[10px] outline-none focus:border-indigo-500 transition-colors"
                 />
+                {hasTeams && (
+                  <div className="flex items-center gap-2 mt-1.5">
+                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-indigo-50 dark:bg-indigo-950/30 border border-indigo-100 dark:border-indigo-900/40 text-[11px] font-semibold text-indigo-700 dark:text-indigo-300">
+                      <Flag className="h-3 w-3" />
+                      {teamA}
+                    </span>
+                    <span className="text-[10px] font-bold text-ash">vs</span>
+                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-rose-50 dark:bg-rose-950/30 border border-rose-100 dark:border-rose-900/40 text-[11px] font-semibold text-rose-700 dark:text-rose-300">
+                      <Flag className="h-3 w-3" />
+                      {teamB}
+                    </span>
+                  </div>
+                )}
               </div>
 
+              {/* Deadline */}
               <div className="space-y-1.5">
                 <label className="block text-[10px] font-bold uppercase tracking-wider text-ash">
                   Event Lock-In Deadline
@@ -581,6 +693,7 @@ export default function AdminPage() {
                 />
               </div>
 
+              {/* Resolution Source */}
               <div className="space-y-1.5">
                 <label className="block text-[10px] font-bold uppercase tracking-wider text-ash">
                   Resolution Oracle Source
@@ -595,82 +708,272 @@ export default function AdminPage() {
                 />
               </div>
 
-              {/* Options Pool Selector */}
-              <div className="space-y-2.5">
+              {/* ─── Category-Based Proposition Builder ─── */}
+              <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="block text-[10px] font-bold uppercase tracking-wider text-ash">
-                    Propositions Pool (Select at least 3)
+                    Market Propositions
                   </span>
-                  <span className={`text-[10px] font-bold font-mono px-1.5 py-0.5 rounded ${
-                    pvpOptions.length >= 3 ? "bg-green-500/10 text-green-600" : "bg-amber-500/10 text-amber-600"
-                  }`}>
-                    Selected: {pvpOptions.length} (min 3)
-                  </span>
-                </div>
-
-                {/* Predefined Propositions List */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 bg-stone-50 dark:bg-zinc-900/30 p-3 rounded-[10px] border border-border dark:border-zinc-800 max-h-48 overflow-y-auto">
-                  {availableOptions.map((opt) => {
-                    const isSelected = pvpOptions.includes(opt)
-                    return (
-                      <label
-                        key={opt}
-                        className={`flex items-center gap-2 p-2 rounded-lg cursor-pointer border text-xs transition-all ${
-                          isSelected
-                            ? "bg-indigo-50/50 dark:bg-indigo-950/20 border-indigo-200 dark:border-indigo-900/50 text-indigo-900 dark:text-indigo-200 font-semibold"
-                            : "bg-white dark:bg-zinc-900 border-border dark:border-zinc-800/80 text-charcoal-primary dark:text-zinc-300 hover:bg-stone-50/50"
-                        }`}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={isSelected}
-                          className="rounded text-indigo-600 focus:ring-indigo-500 border-border dark:border-zinc-800"
-                          onChange={() => {
-                            if (isSelected) {
-                              setPvpOptions(pvpOptions.filter((o) => o !== opt))
-                            } else {
-                              setPvpOptions([...pvpOptions, opt])
-                            }
-                          }}
-                        />
-                        <span className="truncate">{opt}</span>
-                      </label>
-                    )
-                  })}
-                </div>
-
-                {/* Add Custom Proposition */}
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    placeholder="Type custom proposition..."
-                    value={customOptionText}
-                    onChange={(e) => setCustomOptionText(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault()
-                        handleAddCustomOption()
-                      }
-                    }}
-                    className="flex-1 h-9 px-3 border border-border dark:border-zinc-800 bg-transparent text-xs rounded-[8px] outline-none focus:border-indigo-500 transition-colors"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleAddCustomOption}
-                    className="px-3 h-9 bg-indigo-50 hover:bg-indigo-100 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-indigo-600 dark:text-zinc-200 rounded-[8px] text-xs font-semibold flex items-center gap-1 transition-all border border-indigo-100 dark:border-zinc-700"
+                  <span
+                    className={`text-[10px] font-bold font-mono px-1.5 py-0.5 rounded ${
+                      generatedOptions.length >= 3
+                        ? "bg-green-500/10 text-green-600"
+                        : "bg-amber-500/10 text-amber-600"
+                    }`}
                   >
-                    <Plus className="h-3.5 w-3.5" />
-                    Add
-                  </button>
+                    {generatedOptions.length} propositions
+                  </span>
+                </div>
+
+                {/* ─── Winner Category ─── */}
+                <CategoryCard
+                  title="Match Winner"
+                  subtitle="3-way: Win / Draw / Win"
+                  icon={<Trophy className="h-4 w-4" />}
+                  enabled={categories.winner.enabled}
+                  onToggle={() => toggleCategory("winner")}
+                  accentColor="indigo"
+                >
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="flex flex-col items-center gap-1.5 p-3 rounded-lg bg-indigo-50/80 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900/40">
+                      <span className="text-[10px] font-bold uppercase text-ash tracking-wider">Home</span>
+                      <span className="text-sm font-bold text-indigo-700 dark:text-indigo-300 text-center leading-tight">
+                        {hasTeams ? teamA : "Team A"}
+                      </span>
+                    </div>
+                    <div className="flex flex-col items-center gap-1.5 p-3 rounded-lg bg-stone-100/80 dark:bg-zinc-800/40 border border-stone-200 dark:border-zinc-700/60">
+                      <span className="text-[10px] font-bold uppercase text-ash tracking-wider">Draw</span>
+                      <span className="text-sm font-bold text-stone-600 dark:text-zinc-300 text-center leading-tight">
+                        Draw
+                      </span>
+                    </div>
+                    <div className="flex flex-col items-center gap-1.5 p-3 rounded-lg bg-rose-50/80 dark:bg-rose-950/20 border border-rose-100 dark:border-rose-900/40">
+                      <span className="text-[10px] font-bold uppercase text-ash tracking-wider">Away</span>
+                      <span className="text-sm font-bold text-rose-700 dark:text-rose-300 text-center leading-tight">
+                        {hasTeams ? teamB : "Team B"}
+                      </span>
+                    </div>
+                  </div>
+                </CategoryCard>
+
+                {/* ─── Corners Category ─── */}
+                <CategoryCard
+                  title="Corners"
+                  subtitle={`Over / Under ${categories.corners.line}`}
+                  icon={<Flag className="h-4 w-4" />}
+                  enabled={categories.corners.enabled}
+                  onToggle={() => toggleCategory("corners")}
+                  accentColor="emerald"
+                >
+                  <div className="space-y-2.5">
+                    <span className="block text-[10px] font-bold uppercase text-ash tracking-wider">
+                      Select handicap line
+                    </span>
+                    <div className="flex gap-1.5">
+                      {CORNER_LINES.map((line) => (
+                        <button
+                          key={line}
+                          type="button"
+                          onClick={() => setCategoryLine("corners", line)}
+                          className={`flex-1 h-9 rounded-lg text-xs font-bold transition-all border ${
+                            categories.corners.line === line
+                              ? "bg-emerald-600 text-white border-emerald-600 shadow-sm"
+                              : "bg-white dark:bg-zinc-900 border-border dark:border-zinc-700 text-stone-600 dark:text-zinc-400 hover:border-emerald-400 hover:text-emerald-600"
+                          }`}
+                        >
+                          {line}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 mt-1">
+                      <div className="flex items-center justify-center gap-1.5 p-2 rounded-lg bg-emerald-50/80 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/40">
+                        <ChevronDown className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                        <span className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-300">
+                          Under {categories.corners.line}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-center gap-1.5 p-2 rounded-lg bg-emerald-50/80 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/40">
+                        <ChevronUp className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                        <span className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-300">
+                          Over {categories.corners.line}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </CategoryCard>
+
+                {/* ─── Goals Category ─── */}
+                <CategoryCard
+                  title="Goals"
+                  subtitle={`Over / Under ${categories.goals.line}`}
+                  icon={<Target className="h-4 w-4" />}
+                  enabled={categories.goals.enabled}
+                  onToggle={() => toggleCategory("goals")}
+                  accentColor="amber"
+                >
+                  <div className="space-y-2.5">
+                    <span className="block text-[10px] font-bold uppercase text-ash tracking-wider">
+                      Select handicap line
+                    </span>
+                    <div className="flex gap-1.5">
+                      {GOAL_LINES.map((line) => (
+                        <button
+                          key={line}
+                          type="button"
+                          onClick={() => setCategoryLine("goals", line)}
+                          className={`flex-1 h-9 rounded-lg text-xs font-bold transition-all border ${
+                            categories.goals.line === line
+                              ? "bg-amber-500 text-white border-amber-500 shadow-sm"
+                              : "bg-white dark:bg-zinc-900 border-border dark:border-zinc-700 text-stone-600 dark:text-zinc-400 hover:border-amber-400 hover:text-amber-600"
+                          }`}
+                        >
+                          {line}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 mt-1">
+                      <div className="flex items-center justify-center gap-1.5 p-2 rounded-lg bg-amber-50/80 dark:bg-amber-950/20 border border-amber-100 dark:border-amber-900/40">
+                        <ChevronDown className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+                        <span className="text-[11px] font-semibold text-amber-700 dark:text-amber-300">
+                          Under {categories.goals.line}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-center gap-1.5 p-2 rounded-lg bg-amber-50/80 dark:bg-amber-950/20 border border-amber-100 dark:border-amber-900/40">
+                        <ChevronUp className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+                        <span className="text-[11px] font-semibold text-amber-700 dark:text-amber-300">
+                          Over {categories.goals.line}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </CategoryCard>
+
+                {/* ─── Yellow Cards Category ─── */}
+                <CategoryCard
+                  title="Yellow Cards"
+                  subtitle={`Over / Under ${categories.cards.line}`}
+                  icon={<AlertTriangle className="h-4 w-4" />}
+                  enabled={categories.cards.enabled}
+                  onToggle={() => toggleCategory("cards")}
+                  accentColor="yellow"
+                >
+                  <div className="space-y-2.5">
+                    <span className="block text-[10px] font-bold uppercase text-ash tracking-wider">
+                      Select handicap line
+                    </span>
+                    <div className="flex gap-1.5">
+                      {CARD_LINES.map((line) => (
+                        <button
+                          key={line}
+                          type="button"
+                          onClick={() => setCategoryLine("cards", line)}
+                          className={`flex-1 h-9 rounded-lg text-xs font-bold transition-all border ${
+                            categories.cards.line === line
+                              ? "bg-yellow-500 text-white border-yellow-500 shadow-sm"
+                              : "bg-white dark:bg-zinc-900 border-border dark:border-zinc-700 text-stone-600 dark:text-zinc-400 hover:border-yellow-400 hover:text-yellow-600"
+                          }`}
+                        >
+                          {line}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 mt-1">
+                      <div className="flex items-center justify-center gap-1.5 p-2 rounded-lg bg-yellow-50/80 dark:bg-yellow-950/20 border border-yellow-100 dark:border-yellow-900/40">
+                        <ChevronDown className="h-3.5 w-3.5 text-yellow-600 dark:text-yellow-400" />
+                        <span className="text-[11px] font-semibold text-yellow-700 dark:text-yellow-300">
+                          Under {categories.cards.line}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-center gap-1.5 p-2 rounded-lg bg-yellow-50/80 dark:bg-yellow-950/20 border border-yellow-100 dark:border-yellow-900/40">
+                        <ChevronUp className="h-3.5 w-3.5 text-yellow-600 dark:text-yellow-400" />
+                        <span className="text-[11px] font-semibold text-yellow-700 dark:text-yellow-300">
+                          Over {categories.cards.line}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </CategoryCard>
+
+                {/* ─── Custom Propositions ─── */}
+                <div className="rounded-xl border border-dashed border-border dark:border-zinc-700 p-3 space-y-2.5">
+                  <span className="block text-[10px] font-bold uppercase text-ash tracking-wider">
+                    Custom Propositions
+                  </span>
+                  {customOptions.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5">
+                      {customOptions.map((opt, idx) => (
+                        <span
+                          key={idx}
+                          className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-stone-100 dark:bg-zinc-800 border border-border dark:border-zinc-700 text-[11px] font-medium text-stone-700 dark:text-zinc-300"
+                        >
+                          {opt}
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveCustomOption(idx)}
+                            className="text-stone-400 hover:text-red-500 transition-colors ml-0.5"
+                          >
+                            <Minus className="h-3 w-3" />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder="Type custom proposition..."
+                      value={customOptionText}
+                      onChange={(e) => setCustomOptionText(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault()
+                          handleAddCustomOption()
+                        }
+                      }}
+                      className="flex-1 h-9 px-3 border border-border dark:border-zinc-800 bg-transparent text-xs rounded-[8px] outline-none focus:border-indigo-500 transition-colors"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleAddCustomOption}
+                      className="px-3 h-9 bg-indigo-50 hover:bg-indigo-100 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-indigo-600 dark:text-zinc-200 rounded-[8px] text-xs font-semibold flex items-center gap-1 transition-all border border-indigo-100 dark:border-zinc-700"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      Add
+                    </button>
+                  </div>
                 </div>
               </div>
 
+              {/* ─── Summary Preview ─── */}
+              {generatedOptions.length > 0 && (
+                <div className="rounded-xl bg-stone-50 dark:bg-zinc-900/40 border border-border dark:border-zinc-800 p-3">
+                  <span className="block text-[10px] font-bold uppercase text-ash tracking-wider mb-2">
+                    Preview — {generatedOptions.length} propositions will be created
+                  </span>
+                  <div className="space-y-1">
+                    {generatedOptions.map((opt, idx) => (
+                      <div
+                        key={idx}
+                        className="flex items-center gap-2 text-[11px] text-stone-600 dark:text-zinc-400"
+                      >
+                        <span className="h-1.5 w-1.5 rounded-full bg-indigo-400 shrink-0" />
+                        {opt}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <button
                 type="submit"
-                disabled={loading || pvpOptions.length < 3}
-                className="verity-pill w-full h-11 bg-indigo-600 text-white hover:bg-indigo-500 text-xs uppercase tracking-wider shadow-subtle disabled:opacity-40 disabled:cursor-not-allowed mt-2"
+                disabled={loading || generatedOptions.length < 3}
+                className="verity-pill w-full h-11 bg-indigo-600 text-white hover:bg-indigo-500 text-xs uppercase tracking-wider shadow-subtle disabled:opacity-40 disabled:cursor-not-allowed mt-1"
               >
-                {loading ? "Deploying..." : pvpOptions.length < 3 ? `Select at least 3 options (Selected: ${pvpOptions.length})` : "Deploy Event & Options"}
+                {loading
+                  ? "Deploying..."
+                  : generatedOptions.length < 3
+                    ? `Enable more categories (${generatedOptions.length}/3 min)`
+                    : `Deploy Event — ${generatedOptions.length} Propositions`}
               </button>
             </form>
           </div>
@@ -678,11 +981,12 @@ export default function AdminPage() {
 
         {/* Right Side: Prediction Markets Arbitration */}
         <section className="lg:col-span-7 flex flex-col gap-6">
-          
           {/* Resolve Dialog Modal Card */}
-          {selectedMarketId && (
+          {selectedMarketId &&
             (() => {
-              const selectedMarket = markets.find((m) => m.id === selectedMarketId)
+              const selectedMarket = markets.find(
+                (m) => m.id === selectedMarketId,
+              )
               return (
                 <div className="verity-card p-5 border border-amber-300 dark:border-amber-950 bg-amber-500/5">
                   <div className="flex items-center justify-between border-b border-dashed border-border pb-3 mb-4">
@@ -705,7 +1009,10 @@ export default function AdminPage() {
                     </button>
                   </div>
 
-                  <form onSubmit={handleResolveMarket} className="flex flex-col gap-4">
+                  <form
+                    onSubmit={handleResolveMarket}
+                    className="flex flex-col gap-4"
+                  >
                     <div className="space-y-2">
                       <label className="block text-[10px] font-bold uppercase tracking-wider text-ash">
                         Winning Outcome
@@ -767,13 +1074,14 @@ export default function AdminPage() {
                       disabled={loading}
                       className="verity-pill w-full h-11 bg-amber-500 hover:bg-amber-600 text-white font-bold uppercase tracking-wider text-xs shadow-md mt-2 disabled:opacity-50"
                     >
-                      {loading ? "Finalizing Settlement..." : "Publish Settlement & Distribute Pools"}
+                      {loading
+                        ? "Finalizing Settlement..."
+                        : "Publish Settlement & Distribute Pools"}
                     </button>
                   </form>
                 </div>
               )
-            })()
-          )}
+            })()}
 
           {/* Market Moderation Dashboard */}
           <div className="verity-card overflow-hidden">
@@ -783,7 +1091,10 @@ export default function AdminPage() {
                   <TrendingUp className="h-4 w-4" />
                   Prediction Market Moderation
                 </h3>
-                <p className="text-xs text-ash mt-0.5 font-mono">Approve qualified markets for trading and resolve settled markets.</p>
+                <p className="text-xs text-ash mt-0.5 font-mono">
+                  Approve qualified markets for trading and resolve settled
+                  markets.
+                </p>
               </div>
 
               <button
@@ -791,7 +1102,9 @@ export default function AdminPage() {
                 disabled={marketsLoading}
                 className="h-8 w-8 rounded-lg hover:bg-stone-100 dark:hover:bg-zinc-800 border border-border flex items-center justify-center text-ash hover:text-charcoal-primary dark:hover:text-white transition-colors"
               >
-                <RefreshCw className={`h-4 w-4 ${marketsLoading ? "animate-spin" : ""}`} />
+                <RefreshCw
+                  className={`h-4 w-4 ${marketsLoading ? "animate-spin" : ""}`}
+                />
               </button>
             </div>
 
@@ -815,25 +1128,31 @@ export default function AdminPage() {
                   </thead>
                   <tbody className="divide-y divide-border dark:divide-zinc-800">
                     {markets.map((market) => (
-                      <tr key={market.id} className="hover:bg-stone-50/40 dark:hover:bg-zinc-900/20">
+                      <tr
+                        key={market.id}
+                        className="hover:bg-stone-50/40 dark:hover:bg-zinc-900/20"
+                      >
                         <td className="p-3 align-middle">
                           <span className="block font-semibold text-charcoal-primary dark:text-zinc-100 font-sans text-xs truncate max-w-[280px]">
                             {market.question}
                           </span>
                           <span className="text-[9px] text-ash block mt-0.5">
-                            ID: {market.id.slice(-6).toUpperCase()} • Cat: {market.category}
+                            ID: {market.id.slice(-6).toUpperCase()} • Cat:{" "}
+                            {market.category}
                           </span>
                         </td>
                         <td className="p-3 align-middle">
-                          <span className={`inline-flex px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider font-mono ${
-                            market.status === "qualified"
-                              ? "bg-amber-500/10 text-amber-600"
-                              : market.status === "tradable"
-                                ? "bg-green-500/10 text-green-600"
-                                : market.status === "open_for_votes"
-                                  ? "bg-blue-500/10 text-blue-600"
-                                  : "bg-zinc-500/10 text-zinc-500"
-                          }`}>
+                          <span
+                            className={`inline-flex px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider font-mono ${
+                              market.status === "qualified"
+                                ? "bg-amber-500/10 text-amber-600"
+                                : market.status === "tradable"
+                                  ? "bg-green-500/10 text-green-600"
+                                  : market.status === "open_for_votes"
+                                    ? "bg-blue-500/10 text-blue-600"
+                                    : "bg-zinc-500/10 text-zinc-500"
+                            }`}
+                          >
                             {market.status}
                           </span>
                         </td>
@@ -846,7 +1165,8 @@ export default function AdminPage() {
                               Approve Trading
                             </button>
                           )}
-                          {(market.status === "tradable" || market.status === "resolving") && (
+                          {(market.status === "tradable" ||
+                            market.status === "resolving") && (
                             <button
                               onClick={() => setSelectedMarketId(market.id)}
                               className="px-2 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded text-[10px] font-bold uppercase tracking-wider font-mono cursor-pointer transition-colors shadow-subtle"
@@ -854,7 +1174,9 @@ export default function AdminPage() {
                               Arbitrate Resolve
                             </button>
                           )}
-                          {!["qualified", "tradable", "resolving"].includes(market.status) && (
+                          {!["qualified", "tradable", "resolving"].includes(
+                            market.status,
+                          ) && (
                             <span className="text-[10px] text-ash font-mono uppercase">
                               No Actions
                             </span>
@@ -869,6 +1191,116 @@ export default function AdminPage() {
           </div>
         </section>
       </main>
+    </div>
+  )
+}
+
+/* ──────────────────────────────────────────────
+   CategoryCard — reusable toggle card component
+   ────────────────────────────────────────────── */
+function CategoryCard({
+  title,
+  subtitle,
+  icon,
+  enabled,
+  onToggle,
+  accentColor,
+  children,
+}: {
+  title: string
+  subtitle: string
+  icon: React.ReactNode
+  enabled: boolean
+  onToggle: () => void
+  accentColor: string
+  children: React.ReactNode
+}) {
+  // Map accent colors to classes
+  const colorMap: Record<string, { bg: string; border: string; text: string; toggle: string }> = {
+    indigo: {
+      bg: "bg-indigo-50/50 dark:bg-indigo-950/10",
+      border: "border-indigo-200 dark:border-indigo-900/50",
+      text: "text-indigo-600 dark:text-indigo-400",
+      toggle: "bg-indigo-600",
+    },
+    emerald: {
+      bg: "bg-emerald-50/50 dark:bg-emerald-950/10",
+      border: "border-emerald-200 dark:border-emerald-900/50",
+      text: "text-emerald-600 dark:text-emerald-400",
+      toggle: "bg-emerald-600",
+    },
+    amber: {
+      bg: "bg-amber-50/50 dark:bg-amber-950/10",
+      border: "border-amber-200 dark:border-amber-900/50",
+      text: "text-amber-600 dark:text-amber-400",
+      toggle: "bg-amber-500",
+    },
+    yellow: {
+      bg: "bg-yellow-50/50 dark:bg-yellow-950/10",
+      border: "border-yellow-200 dark:border-yellow-900/50",
+      text: "text-yellow-600 dark:text-yellow-400",
+      toggle: "bg-yellow-500",
+    },
+  }
+
+  const colors = colorMap[accentColor] || colorMap.indigo
+
+  return (
+    <div
+      className={`rounded-xl border transition-all overflow-hidden ${
+        enabled
+          ? `${colors.bg} ${colors.border}`
+          : "border-border dark:border-zinc-800 bg-white dark:bg-zinc-900/30"
+      }`}
+    >
+      {/* Header — always visible */}
+      <button
+        type="button"
+        onClick={onToggle}
+        className="w-full flex items-center justify-between p-3 gap-3 cursor-pointer group"
+      >
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div
+            className={`h-8 w-8 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
+              enabled
+                ? `${colors.toggle} text-white`
+                : "bg-stone-100 dark:bg-zinc-800 text-stone-400 dark:text-zinc-500 group-hover:text-stone-600"
+            }`}
+          >
+            {icon}
+          </div>
+          <div className="text-left min-w-0">
+            <span className="block text-sm font-bold text-charcoal-primary dark:text-white leading-tight">
+              {title}
+            </span>
+            <span className="block text-[10px] text-ash font-mono truncate">
+              {subtitle}
+            </span>
+          </div>
+        </div>
+
+        {/* Toggle Switch */}
+        <div
+          className={`relative h-6 w-11 rounded-full shrink-0 transition-colors ${
+            enabled ? colors.toggle : "bg-stone-200 dark:bg-zinc-700"
+          }`}
+        >
+          <div
+            className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${
+              enabled ? "translate-x-5" : "translate-x-0.5"
+            }`}
+          />
+        </div>
+      </button>
+
+      {/* Body — collapsible */}
+      <div
+        className={`transition-all overflow-hidden ${
+          enabled ? "max-h-[500px] opacity-100" : "max-h-0 opacity-0"
+        }`}
+      >
+        <div className="px-3 pb-3">{children}</div>
+      </div>
     </div>
   )
 }

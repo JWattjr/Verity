@@ -56,6 +56,7 @@ interface StandardMarketsFeedProps {
   setActiveTab: (tab: "general" | "pvp-arena") => void
   pvpEvents: any[]
   pvpEventsLoading: boolean
+  setSelectedPvpEventId?: (id: string | null) => void
 }
 
 export default function StandardMarketsFeed({
@@ -66,6 +67,7 @@ export default function StandardMarketsFeed({
   setActiveTab,
   pvpEvents,
   pvpEventsLoading,
+  setSelectedPvpEventId,
 }: StandardMarketsFeedProps) {
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
@@ -195,7 +197,12 @@ export default function StandardMarketsFeed({
             return (
               <article
                 key={market.id}
-                onClick={() => setActiveTab("pvp-arena")}
+                onClick={() => {
+                  if (setSelectedPvpEventId) {
+                    setSelectedPvpEventId(market.id)
+                  }
+                  setActiveTab("pvp-arena")
+                }}
                 className="verity-card p-5 border border-indigo-200 dark:border-indigo-950 bg-indigo-50/20 hover:border-indigo-400 dark:hover:border-indigo-800 transition-all cursor-pointer group relative flex flex-col justify-between"
               >
                 <div className="absolute top-4 right-4 flex items-center gap-1 bg-indigo-500/10 px-2 py-0.5 rounded-full text-[9px] font-mono font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider shadow-subtle">

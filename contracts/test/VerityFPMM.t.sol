@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import "forge-std/Test.sol";
-import "../src/ConditionalTokenVault.sol";
-import "../src/VerityFPMM.sol";
-import "../src/VerityMarketFactory.sol";
-import "./helpers/MockUSDC.sol";
-import "./helpers/MockPyth.sol";
+import { Test } from "forge-std/Test.sol";
+import { ConditionalTokenVault } from "../src/ConditionalTokenVault.sol";
+import { VerityFPMM } from "../src/VerityFPMM.sol";
+import { VerityMarketFactory } from "../src/VerityMarketFactory.sol";
+import { MockUSDC } from "./helpers/MockUSDC.sol";
+import { MockPyth } from "./helpers/MockPyth.sol";
 
 /// @title VerityFPMMTest
 contract VerityFPMMTest is Test {
@@ -37,7 +37,7 @@ contract VerityFPMMTest is Test {
       address(pyth)
     );
 
-    vault.setFPMM(address(fpmm));
+    vault.setFpmm(address(fpmm));
     vault.setFactory(address(factory));
     fpmm.setFactory(address(factory));
 
@@ -82,7 +82,7 @@ contract VerityFPMMTest is Test {
     vm.prank(creator);
     factory.depositPreMarketLiquidity(marketId, 40e6); // 40 USDC immediately deploys it
     vm.prank(creator);
-    fpmm.claimPreMarketLPShares(marketId);
+    fpmm.claimPreMarketLpShares(marketId);
   }
 
   // ─── Escrow & Pool Creation Tests ────────────────────────────────────
@@ -110,9 +110,9 @@ contract VerityFPMMTest is Test {
     // Pool should now be active
     (
       uint256 yBal,
-      uint256 nBal,
+      ,
       uint256 totalShares,
-      uint256 totalDep,
+      ,
       bool activeAfter,
 
     ) = fpmm.getPoolBalances(marketId);
@@ -122,9 +122,9 @@ contract VerityFPMMTest is Test {
 
     // Claim shares
     vm.prank(creator);
-    fpmm.claimPreMarketLPShares(marketId);
+    fpmm.claimPreMarketLpShares(marketId);
     vm.prank(lp1);
-    fpmm.claimPreMarketLPShares(marketId);
+    fpmm.claimPreMarketLpShares(marketId);
 
     // Check LP shares were distributed
     assertEq(

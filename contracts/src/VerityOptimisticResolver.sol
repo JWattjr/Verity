@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import "./VerityMarketFactory.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { VerityMarketFactory } from "./VerityMarketFactory.sol";
 
 contract VerityOptimisticResolver {
     using SafeERC20 for IERC20;
@@ -19,8 +19,8 @@ contract VerityOptimisticResolver {
     }
 
     // ─── State ───────────────────────────────────────────────────────────
-    IERC20 public immutable usdc;
-    VerityMarketFactory public immutable factory;
+    IERC20 public immutable USDC;
+    VerityMarketFactory public immutable FACTORY;
     address public arbitrator;
 
     uint256 public disputeWindow = 2 minutes;
@@ -65,14 +65,18 @@ contract VerityOptimisticResolver {
 
     // ─── Modifiers ───────────────────────────────────────────────────────
     modifier onlyArbitrator() {
-        if (msg.sender != arbitrator) revert Unauthorized();
+        _onlyArbitrator();
         _;
+    }
+
+    function _onlyArbitrator() internal view {
+        if (msg.sender != arbitrator) revert Unauthorized();
     }
 
     // ─── Constructor ─────────────────────────────────────────────────────
     constructor(address _usdc, address _factory, address _arbitrator) {
-        usdc = IERC20(_usdc);
-        factory = VerityMarketFactory(_factory);
+        USDC = IERC20(_usdc);
+        FACTORY = VerityMarketFactory(_factory);
         arbitrator = _arbitrator;
     }
 
@@ -107,8 +111,9 @@ contract VerityOptimisticResolver {
             bool registered,
             ,
             bool resolved,
-            bool voided
-        ) = factory.marketRegistry(marketId);
+            bool voided,
+            
+        ) = FACTORY.marketRegistry(marketId);
 
         if (!registered) revert ProposalDoesNotExist(); // Or market not registered
         if (resolved || voided) revert MarketAlreadyResolved();
@@ -118,7 +123,7 @@ contract VerityOptimisticResolver {
         if (prop.proposer != address(0)) revert ProposalAlreadyExists();
 
         // Lock proposer's bond
-        usdc.safeTransferFrom(msg.sender, address(this), resolutionBond);
+        USDC.safeTransferFrom(msg.sender, address(this), resolutionBond);
 
         proposals[marketId] = Proposal({
             proposer: msg.sender,
@@ -150,8 +155,9 @@ contract VerityOptimisticResolver {
             bool registered,
             ,
             bool resolved,
-            bool voided
-        ) = factory.marketRegistry(marketId);
+            bool voided,
+            
+        ) = FACTORY.marketRegistry(marketId);
 
         if (!registered) revert ProposalDoesNotExist();
         if (resolved || voided) revert MarketAlreadyResolved();
@@ -161,7 +167,7 @@ contract VerityOptimisticResolver {
         if (prop.proposer != address(0)) revert ProposalAlreadyExists();
 
         // Lock proposer's bond
-        usdc.safeTransferFrom(msg.sender, address(this), resolutionBond);
+        USDC.safeTransferFrom(msg.sender, address(this), resolutionBond);
 
         proposals[marketId] = Proposal({
             proposer: beneficiary,
@@ -190,7 +196,7 @@ contract VerityOptimisticResolver {
             revert DisputeWindowExpired();
 
         // Lock disputer's bond
-        usdc.safeTransferFrom(msg.sender, address(this), resolutionBond);
+        USDC.safeTransferFrom(msg.sender, address(this), resolutionBond);
 
         prop.disputed = true;
         prop.disputer = msg.sender;
@@ -211,7 +217,7 @@ contract VerityOptimisticResolver {
             revert DisputeWindowExpired();
 
         // Lock disputer's bond
-        usdc.safeTransferFrom(msg.sender, address(this), resolutionBond);
+        USDC.safeTransferFrom(msg.sender, address(this), resolutionBond);
 
         prop.disputed = true;
         prop.disputer = beneficiary;
@@ -231,10 +237,10 @@ contract VerityOptimisticResolver {
         prop.finalized = true;
 
         // Refund the proposer's bond
-        usdc.safeTransfer(prop.proposer, resolutionBond);
+        USDC.safeTransfer(prop.proposer, resolutionBond);
 
         // Callback to factory to execute resolution
-        factory.resolveMarketFromResolver(
+        FACTORY.resolveMarketFromResolver(
             marketId,
             prop.proposedWinningOutcome
         );
@@ -266,10 +272,10 @@ contract VerityOptimisticResolver {
         }
 
         // Transfer both bonds to the winner
-        usdc.safeTransfer(winner, payout);
+        USDC.safeTransfer(winner, payout);
 
         // Callback to factory to execute resolution
-        factory.resolveMarketFromResolver(marketId, winningIsYes);
+        FACTORY.resolveMarketFromResolver(marketId, winningIsYes);
 
         emit DisputeResolved(marketId, winningIsYes, winner, payout);
     }

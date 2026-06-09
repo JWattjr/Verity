@@ -270,14 +270,16 @@ export function useMarketLiquidity() {
   async function buyTokens(
     marketId: string,
     profileId: string,
-    isYes: boolean,
+    isYesOrIndex: boolean | number,
     amount: number,
     feeAmount: number,
     grossAmount: number,
+    customSide?: string,
   ) {
     checkPreconditions()
 
-    const side = isYes ? "YES" : "NO"
+    const isMulti = typeof isYesOrIndex === "number"
+    const side = customSide || (isYesOrIndex === true ? "YES" : "NO")
     const toastId = toast.loading(`Preparing ${side} token purchase...`)
     try {
       const rawAmount = BigInt(Math.round(amount * 1e6))
@@ -315,11 +317,19 @@ export function useMarketLiquidity() {
         })
       }
 
-      calls.push({
-        contractAddress: FPMM_ADDRESS,
-        abiFunctionSignature: "buy(bytes32,bool,uint256)",
-        abiParameters: [formattedId, isYes, rawAmount],
-      })
+      if (isMulti) {
+        calls.push({
+          contractAddress: FPMM_ADDRESS,
+          abiFunctionSignature: "buyOutcome(bytes32,uint256,uint256)",
+          abiParameters: [formattedId, BigInt(isYesOrIndex), rawAmount],
+        })
+      } else {
+        calls.push({
+          contractAddress: FPMM_ADDRESS,
+          abiFunctionSignature: "buy(bytes32,bool,uint256)",
+          abiParameters: [formattedId, isYesOrIndex, rawAmount],
+        })
+      }
 
       toast.dismiss(toastId)
 
@@ -357,14 +367,16 @@ export function useMarketLiquidity() {
   async function sellTokens(
     marketId: string,
     profileId: string,
-    isYes: boolean,
+    isYesOrIndex: boolean | number,
     tokenAmount: number,
     netUsdcReceived: number,
     feeAmount: number,
+    customSide?: string,
   ) {
     checkPreconditions()
 
-    const side = isYes ? "YES" : "NO"
+    const isMulti = typeof isYesOrIndex === "number"
+    const side = customSide || (isYesOrIndex === true ? "YES" : "NO")
     const toastId = toast.loading(`Preparing ${side} token sale...`)
     try {
       const rawAmount = BigInt(Math.round(tokenAmount * 1e6))
@@ -402,11 +414,19 @@ export function useMarketLiquidity() {
         })
       }
 
-      calls.push({
-        contractAddress: FPMM_ADDRESS,
-        abiFunctionSignature: "sell(bytes32,bool,uint256)",
-        abiParameters: [formattedId, isYes, rawAmount],
-      })
+      if (isMulti) {
+        calls.push({
+          contractAddress: FPMM_ADDRESS,
+          abiFunctionSignature: "sellOutcome(bytes32,uint256,uint256)",
+          abiParameters: [formattedId, BigInt(isYesOrIndex), rawAmount],
+        })
+      } else {
+        calls.push({
+          contractAddress: FPMM_ADDRESS,
+          abiFunctionSignature: "sell(bytes32,bool,uint256)",
+          abiParameters: [formattedId, isYesOrIndex, rawAmount],
+        })
+      }
 
       toast.dismiss(toastId)
 

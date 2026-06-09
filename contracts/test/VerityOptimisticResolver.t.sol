@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import "forge-std/Test.sol";
-import "../src/ConditionalTokenVault.sol";
-import "../src/VerityFPMM.sol";
-import "../src/VerityMarketFactory.sol";
-import "../src/VerityOptimisticResolver.sol";
-import "./helpers/MockUSDC.sol";
-import "./helpers/MockPyth.sol";
+import { Test } from "forge-std/Test.sol";
+import { ConditionalTokenVault } from "../src/ConditionalTokenVault.sol";
+import { VerityFPMM } from "../src/VerityFPMM.sol";
+import { VerityMarketFactory } from "../src/VerityMarketFactory.sol";
+import { VerityOptimisticResolver } from "../src/VerityOptimisticResolver.sol";
+import { MockUSDC } from "./helpers/MockUSDC.sol";
+import { MockPyth } from "./helpers/MockPyth.sol";
 
 contract VerityOptimisticResolverTest is Test {
     MockUSDC usdc;
@@ -48,7 +48,7 @@ contract VerityOptimisticResolverTest is Test {
         );
 
         // Wire up permissions
-        vault.setFPMM(address(fpmm));
+        vault.setFpmm(address(fpmm));
         vault.setFactory(address(factory));
         fpmm.setFactory(address(factory));
 
@@ -209,7 +209,7 @@ contract VerityOptimisticResolverTest is Test {
         );
 
         // Verify factory market resolved
-        (, , , , , bool resolved, ) = factory.marketRegistry(marketId);
+        (, , , , , bool resolved, , ) = factory.marketRegistry(marketId);
         assertTrue(resolved, "Market should be marked resolved on factory");
 
         // Verify proposal state
@@ -266,7 +266,7 @@ contract VerityOptimisticResolverTest is Test {
         );
 
         // Verify market resolved on factory
-        (, , , , , bool resolved, ) = factory.marketRegistry(marketId);
+        (, , , , , bool resolved, , ) = factory.marketRegistry(marketId);
         assertTrue(resolved, "Market should be resolved on factory");
     }
 
@@ -305,7 +305,7 @@ contract VerityOptimisticResolverTest is Test {
         );
 
         // Verify market resolved on factory
-        (, , , , , bool resolved, ) = factory.marketRegistry(marketId);
+        (, , , , , bool resolved, , ) = factory.marketRegistry(marketId);
         assertTrue(resolved, "Market should be resolved on factory");
     }
 }

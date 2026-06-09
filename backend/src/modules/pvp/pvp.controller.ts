@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, UseGuards, Request } from "@nestjs/common"
+import { Controller, Get, Post, Body, UseGuards, Request, Query } from "@nestjs/common"
 import { PvpService } from "./pvp.service"
 import { CreatePvpEventDto, SubmitTicketDto } from "./pvp.dto"
 import { JwtAuthGuard } from "../../common/guards/jwt-auth.guard"
@@ -47,8 +47,11 @@ export class PvpController {
     summary:
       "Retrieve the current active queued or matched PvP ticket/duel for a user",
   })
-  async getPvpStatus(@Request() req: any) {
-    return this.pvpService.getPvpStatus(req.user.id)
+  async getPvpStatus(
+    @Request() req: any,
+    @Query("parentMarketId") parentMarketId?: string,
+  ) {
+    return this.pvpService.getPvpStatus(req.user.id, parentMarketId)
   }
 
   @Get("leaderboards")
@@ -68,6 +71,17 @@ export class PvpController {
   })
   async getReferrals(@Request() req: any) {
     return this.pvpService.getReferrals(req.user.id)
+  }
+
+  @Get("my-active-tickets")
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary:
+      "Retrieve all PvP events where the user has an active (queued/matched) ticket",
+  })
+  async getMyActiveTickets(@Request() req: any) {
+    return this.pvpService.getMyActiveTickets(req.user.id)
   }
 
   @Get("history")

@@ -101,7 +101,7 @@ export default function DuelHistory({ matchHistory }: DuelHistoryProps) {
               </div>
 
               {/* Outcome Banner & Stats Summary */}
-              <div className="p-4 rounded-xl border flex flex-col md:flex-row items-center justify-between gap-4 bg-gradient-to-br from-indigo-50/10 via-transparent to-transparent border-border dark:border-zinc-800">
+              <div className="p-4 rounded-xl border flex flex-col md:flex-row items-center justify-between gap-4 bg-linear-to-br from-indigo-50/10 via-transparent to-transparent border-border dark:border-zinc-800">
                 <div className="flex items-center gap-3 w-full md:w-auto">
                   <div
                     className={`h-11 w-11 rounded-full flex items-center justify-center shrink-0 border ${

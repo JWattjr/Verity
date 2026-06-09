@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import "forge-std/Test.sol";
-import "../src/ConditionalTokenVault.sol";
-import "../src/VerityFPMM.sol";
-import "../src/VerityMarketFactory.sol";
-import "./helpers/MockUSDC.sol";
-import "./helpers/MockPyth.sol";
+import { Test } from "forge-std/Test.sol";
+import { ConditionalTokenVault } from "../src/ConditionalTokenVault.sol";
+import { VerityFPMM } from "../src/VerityFPMM.sol";
+import { VerityMarketFactory } from "../src/VerityMarketFactory.sol";
+import { MockUSDC } from "./helpers/MockUSDC.sol";
+import { MockPyth } from "./helpers/MockPyth.sol";
 
 /// @title ConditionalTokenVaultTest
 contract ConditionalTokenVaultTest is Test {
@@ -31,7 +31,7 @@ contract ConditionalTokenVaultTest is Test {
         factory = new VerityMarketFactory(address(fpmm), address(vault), address(usdc), address(pyth));
 
         // Wire up permissions
-        vault.setFPMM(address(fpmm));
+        vault.setFpmm(address(fpmm));
         vault.setFactory(address(factory));
         fpmm.setFactory(address(factory));
 
@@ -124,7 +124,8 @@ contract ConditionalTokenVaultTest is Test {
         factory.resolveMarket(marketId, true);
 
         assertTrue(vault.isResolved(marketId), "Market should be resolved");
-        (bool resolved, bool winningIsYes,) = vault.markets(marketId);
+        (bool resolved, uint256 winningOutcomeIndex,,) = vault.markets(marketId);
+        bool winningIsYes = (winningOutcomeIndex == 0);
         assertTrue(resolved, "Should be resolved");
         assertTrue(winningIsYes, "YES should be winning");
     }
@@ -236,11 +237,12 @@ contract ConditionalTokenVaultTest is Test {
         factory.resolveMarketWithPyth{value: 1 wei}(marketId, priceUpdate);
 
         // Verify market resolved to YES
-        (, , , , , bool resolved, bool voided) = factory.marketRegistry(marketId);
+        (, , , , , bool resolved, bool voided, ) = factory.marketRegistry(marketId);
         assertTrue(resolved, "Market should be resolved");
         assertFalse(voided, "Market should not be voided");
         
-        (bool vaultResolved, bool winningIsYes, ) = vault.markets(marketId);
+        (bool vaultResolved, uint256 winningOutcomeIndex,, ) = vault.markets(marketId);
+        bool winningIsYes = (winningOutcomeIndex == 0);
         assertTrue(vaultResolved, "Vault should be resolved");
         assertTrue(winningIsYes, "YES outcome should win");
     }
@@ -271,11 +273,12 @@ contract ConditionalTokenVaultTest is Test {
         factory.resolveMarketWithPyth{value: 1 wei}(marketId, priceUpdate);
 
         // Verify market resolved to NO
-        (, , , , , bool resolved, bool voided) = factory.marketRegistry(marketId);
+        (, , , , , bool resolved, bool voided, ) = factory.marketRegistry(marketId);
         assertTrue(resolved, "Market should be resolved");
         assertFalse(voided, "Market should not be voided");
         
-        (bool vaultResolved, bool winningIsYes, ) = vault.markets(marketId);
+        (bool vaultResolved, uint256 winningOutcomeIndex,, ) = vault.markets(marketId);
+        bool winningIsYes = (winningOutcomeIndex == 0);
         assertTrue(vaultResolved, "Vault should be resolved");
         assertFalse(winningIsYes, "NO outcome should win");
     }

@@ -148,6 +148,16 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
     }
   }, [activeMarketId, postId, joinRoom, leaveRoom])
 
+  // Set default side for multi-outcome markets
+  useEffect(() => {
+    if (activeMarket && activeMarket.outcomeCount && activeMarket.outcomeCount > 2) {
+      const outcomes = activeMarket.outcomes || []
+      if (outcomes.length > 0 && !outcomes.includes(selectedSide)) {
+        setSelectedSide(outcomes[0])
+      }
+    }
+  }, [activeMarket, selectedSide])
+
   // Queries
   const { data: poolStateData } = usePoolStateQuery(activeMarketId || "")
   const { data: lpPositionsData } = useLPPositionsQuery(activeMarketId || "", profileId || "")
@@ -402,24 +412,29 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
         if (!Number.isFinite(amount) || amount <= 0) {
           throw new Error("Enter a valid USDC amount.")
         }
-        const isYes = side === "YES"
+        const isMulti = activeMarket.outcomeCount !== undefined && activeMarket.outcomeCount > 2
+        const outcomeIndex = isMulti ? activeMarket.outcomes?.indexOf(side) ?? -1 : -1
+        const isYesOrIndex = isMulti ? outcomeIndex : (side === "YES")
+
         if (tradeAction === "BUY") {
           await buyTokens(
             activeMarket.id,
             profileId,
-            isYes,
+            isYesOrIndex,
             tradeAmountNumber,
             tradeFee,
             buyShares,
+            isMulti ? side : undefined,
           )
         } else {
           await sellTokens(
             activeMarket.id,
             profileId,
-            isYes,
+            isYesOrIndex,
             amount,
             tradeTotal,
             tradeFee,
+            isMulti ? side : undefined,
           )
         }
       })
@@ -519,6 +534,9 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
             maxSellShares={selectedSideShares}
             yesCondition={activeMarket?.yes_condition || activeMarket?.yesCondition || "Yes"}
             noCondition={activeMarket?.no_condition || activeMarket?.noCondition || "No"}
+            outcomeCount={activeMarket?.outcomeCount}
+            outcomes={activeMarket?.outcomes}
+            outcomePrices={activeMarket?.outcomePrices}
           />
         )}
 

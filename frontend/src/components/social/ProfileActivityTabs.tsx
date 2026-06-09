@@ -359,6 +359,9 @@ function ActivityItem({
         viewerVote={item.viewerVote}
         yesCondition={market.yes_condition}
         yesPercent={yesPercent}
+        outcomeCount={market.outcomeCount}
+        outcomes={market.outcomes}
+        outcomePrices={market.outcomePrices}
       />
     )
   }

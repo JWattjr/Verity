@@ -523,10 +523,17 @@ Do not include any other markdown formatting, code block markers, or text outsid
         mapping[opt] = "halftime_leader"
       } else if (name.includes("clean sheet")) {
         mapping[opt] = "clean_sheet"
-      } else if (name.includes("foul")) {
+      } else if (name.includes("foul") || name.includes("fouls")) {
         mapping[opt] = "fouls_leader"
-      } else if (name.includes("yellow card")) {
-        mapping[opt] = "yellow_cards"
+      } else if (
+        name.includes("yellow card") ||
+        name.includes("yellow cards") ||
+        name.includes("card") ||
+        name.includes("cards")
+      ) {
+        mapping[opt] = "cards"
+      } else if (name.includes("corner") || name.includes("corners")) {
+        mapping[opt] = "corners"
       } else {
         mapping[opt] = `unique_${opt.replace(/\s+/g, "_").toLowerCase()}`
       }

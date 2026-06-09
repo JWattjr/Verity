@@ -377,12 +377,7 @@ export default function ComposeBox({ onCreated }: ComposeBoxProps) {
     })
   }
 
-  const dynamicCost = useMemo(() => {
-    const optionCount = isMultiOption
-      ? options.filter((o) => o.trim().length > 0).length
-      : 1
-    return optionCount * 11
-  }, [isMultiOption, options])
+  const dynamicCost = 11
 
   const primaryLabel = useMemo(() => {
     if (saving) return "Posting..."
@@ -430,45 +425,8 @@ export default function ComposeBox({ onCreated }: ComposeBoxProps) {
 
         if (isMultiOption) {
           const validOptions = options.filter((o) => o.trim().length > 0)
-          const optionMarketIds = validOptions.map(() => generateObjectId())
-          const totalCostRaw = BigInt(validOptions.length * 11 * 1e6)
-          const calls: Array<{
-            contractAddress: string
-            abiFunctionSignature: string
-            abiParameters: any[]
-          }> = []
-
-          // Check Factory allowance
-          const allowance = await publicClient.readContract({
-            address: arcUsdcAddress,
-            abi: erc20Abi,
-            functionName: "allowance",
-            args: [user.walletAddress as `0x${string}`, FACTORY_ADDRESS],
-          })
-
-          if (allowance < totalCostRaw) {
-            calls.push({
-              contractAddress: arcUsdcAddress,
-              abiFunctionSignature: "approve(address,uint256)",
-              abiParameters: [FACTORY_ADDRESS, totalCostRaw],
-            })
-          }
-
-          // Batch createMarketPreDeposit calls
-          optionMarketIds.forEach((childId) => {
-            const formattedChildId = ("0x" + childId.padEnd(64, "0")) as Address
-            calls.push({
-              contractAddress: FACTORY_ADDRESS,
-              abiFunctionSignature: "createMarketPreDeposit(bytes32,uint256)",
-              abiParameters: [formattedChildId, BigInt("10000000")],
-            })
-          })
-
-          txHash = await executeTxBatch(
-            calls,
-            `Deploy Multi-Option Market (${validOptions.length} Options) with ${validOptions.length * 10} USDC Pool Liquidity`,
-            validOptions.length * 11,
-          )
+          const payment = await createMarketPreDeposit(marketId, 10)
+          txHash = payment.hash
 
           await createMarketPost({
             authorId: user.id,
@@ -479,8 +437,8 @@ export default function ComposeBox({ onCreated }: ComposeBoxProps) {
             content: finalMarket.question.trim(),
             creationFeeTxHash: txHash,
             feeCollectorAddress: FACTORY_ADDRESS,
-            options: validOptions,
-            optionMarketIds,
+            outcomeCount: validOptions.length,
+            outcomes: validOptions,
           })
         } else {
           // Binary Market Pre-Deposit

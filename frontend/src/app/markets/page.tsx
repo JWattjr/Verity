@@ -1,11 +1,12 @@
 "use client"
 
-import { useState, useEffect, Suspense } from "react"
+import { useState, useEffect, useMemo, Suspense } from "react"
 import { useSearchParams } from "next/navigation"
 import { useFeed } from "@/hooks/useFeed"
 import { useWalletProfile } from "@/hooks/useWalletProfile"
 import {
   useActivePvpEventsQuery,
+  useMyActivePvpTicketsQuery,
   usePvpStatusQuery,
   useReferralsQuery,
   usePvpMatchHistoryQuery,
@@ -42,13 +43,58 @@ function MarketsContent() {
   } = useFeed(profile?.id, true)
 
   // PvP API queries
-  const { data: pvpEvents = [], isLoading: pvpEventsLoading } =
+  const { data: pvpEventsRaw = [], isLoading: pvpEventsLoading } =
     useActivePvpEventsQuery()
+  const { data: myActiveTicketEvents = [] } = useMyActivePvpTicketsQuery()
+
+  // Merge active events + events where user has active tickets (dedup by id)
+  const pvpEvents = useMemo(() => {
+    const seen = new Set<string>()
+    const merged: any[] = []
+    for (const evt of pvpEventsRaw) {
+      if (!seen.has(evt.id)) {
+        seen.add(evt.id)
+        merged.push(evt)
+      }
+    }
+    for (const evt of myActiveTicketEvents) {
+      if (!seen.has(evt.id)) {
+        seen.add(evt.id)
+        merged.push(evt)
+      }
+    }
+    // Sort by createdAt descending (newest first)
+    return merged.sort((a, b) => {
+      const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0
+      const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0
+      return dateB - dateA
+    })
+  }, [pvpEventsRaw, myActiveTicketEvents])
+
+  const [selectedPvpEventId, setSelectedPvpEventId] = useState<string | null>(null)
+  const [hasManuallySelected, setHasManuallySelected] = useState<boolean>(false)
+
+  // Sync selected event to the most recent one if user hasn't manually selected one
+  useEffect(() => {
+    if (pvpEvents && pvpEvents.length > 0) {
+      if (!hasManuallySelected) {
+        setSelectedPvpEventId(pvpEvents[0].id)
+      }
+    } else {
+      setSelectedPvpEventId(null)
+    }
+  }, [pvpEvents, hasManuallySelected])
+
+  const handleSelectPvpEvent = (id: string | null) => {
+    setHasManuallySelected(true)
+    setSelectedPvpEventId(id)
+  }
+
   const {
     data: pvpStatus,
     refetch: refetchPvpStatus,
     isLoading: pvpStatusLoading,
-  } = usePvpStatusQuery()
+  } = usePvpStatusQuery(selectedPvpEventId)
   const { data: referralsData } = useReferralsQuery()
   const { data: matchHistory = [] } = usePvpMatchHistoryQuery()
 
@@ -57,7 +103,13 @@ function MarketsContent() {
       {/* Tabs Menu */}
       <div className="flex border-b border-border dark:border-zinc-800 gap-2 pb-px mb-4">
         <button
-          onClick={() => setActiveTab("general")}
+          onClick={() => {
+            setActiveTab("general")
+            setHasManuallySelected(false)
+            if (pvpEvents && pvpEvents.length > 0) {
+              setSelectedPvpEventId(pvpEvents[0].id)
+            }
+          }}
           className={`flex items-center gap-2 border-b-2 px-4 py-3 text-sm font-semibold tracking-tight whitespace-nowrap transition-colors ${
             activeTab === "general"
               ? "border-charcoal-primary text-charcoal-primary dark:border-white dark:text-white"
@@ -67,7 +119,13 @@ function MarketsContent() {
           General
         </button>
         <button
-          onClick={() => setActiveTab("pvp-arena")}
+          onClick={() => {
+            setActiveTab("pvp-arena")
+            setHasManuallySelected(false)
+            if (pvpEvents && pvpEvents.length > 0) {
+              setSelectedPvpEventId(pvpEvents[0].id)
+            }
+          }}
           className={`flex items-center gap-2 border-b-2 px-4 py-3 text-sm font-semibold tracking-tight whitespace-nowrap transition-colors ${
             activeTab === "pvp-arena"
               ? "border-charcoal-primary text-charcoal-primary dark:border-white dark:text-white"
@@ -88,6 +146,7 @@ function MarketsContent() {
           setActiveTab={setActiveTab}
           pvpEvents={pvpEvents}
           pvpEventsLoading={pvpEventsLoading}
+          setSelectedPvpEventId={handleSelectPvpEvent}
         />
       )}
 
@@ -103,6 +162,8 @@ function MarketsContent() {
             refetchPvpStatus={refetchPvpStatus}
             profile={profile}
             referralsData={referralsData}
+            selectedPvpEventId={selectedPvpEventId}
+            setSelectedPvpEventId={handleSelectPvpEvent}
           />
 
           {/* Right Sidebar: Profile stats & Duel History */}

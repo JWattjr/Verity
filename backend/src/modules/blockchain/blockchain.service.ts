@@ -395,6 +395,23 @@ export class BlockchainService implements OnModuleInit {
     }
   }
 
+  async readOutcomeBalances(marketId: string): Promise<bigint[]> {
+    const formattedMarketId = this.formatMarketId(marketId)
+    try {
+      const result = await this.publicClient.readContract({
+        address: this.fpmmAddress,
+        abi: this.fpmmAbi,
+        functionName: "getOutcomeBalances",
+        args: [formattedMarketId],
+      })
+      return result as bigint[]
+    } catch (error) {
+      throw new Error(
+        `Failed to read outcome balances for market ${marketId}: ${error.message}`,
+      )
+    }
+  }
+
   async readLPShares(marketId: string, userAddress: string) {
     const formattedMarketId = this.formatMarketId(marketId)
     const formattedUserAddress = this.formatAddress(userAddress)
@@ -726,6 +743,7 @@ export class BlockchainService implements OnModuleInit {
     creator: string,
     deadline: number,
     fundingDeadline: number,
+    outcomeCount: number = 2,
   ): Promise<string> {
     if (!this.walletClient) {
       throw new Error(
@@ -745,9 +763,11 @@ export class BlockchainService implements OnModuleInit {
           creator as `0x${string}`,
           BigInt(deadline),
           BigInt(fundingDeadline),
+          BigInt(outcomeCount),
         ],
         chain: arcTestnet,
       })
+      await this.publicClient.waitForTransactionReceipt({ hash: txHash })
       return txHash
     } catch (error) {
       throw new Error(`Failed to register market ${marketId}: ${error.message}`)
@@ -785,9 +805,36 @@ export class BlockchainService implements OnModuleInit {
     }
   }
 
+  async resolveMarket(
+    marketId: string,
+    winningIsYes: boolean,
+  ): Promise<string> {
+    if (!this.walletClient) {
+      throw new Error("Wallet client not initialized")
+    }
+
+    const formattedMarketId = this.formatMarketId(marketId)
+    try {
+      const txHash = await this.walletClient.writeContract({
+        address: this.factoryAddress,
+        abi: this.factoryAbi,
+        functionName: "resolveMarket",
+        args: [formattedMarketId, winningIsYes],
+        chain: arcTestnet,
+      })
+      await this.publicClient.waitForTransactionReceipt({ hash: txHash })
+      return txHash
+    } catch (error) {
+      throw new Error(
+        `Failed to resolve market ${marketId} on-chain: ${error.message}`,
+      )
+    }
+  }
+
   getAdminAddress(): string {
     return this.account?.address || ""
   }
+
 
   async getAdminBalances() {
     if (!this.account) {
@@ -856,6 +903,7 @@ export class BlockchainService implements OnModuleInit {
         ],
         chain: arcTestnet,
       })
+      await this.publicClient.waitForTransactionReceipt({ hash: txHash })
       return txHash
     } catch (error) {
       throw new Error(

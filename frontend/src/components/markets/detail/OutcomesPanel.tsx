@@ -45,7 +45,7 @@ export default function OutcomesPanel({
                 onClick={() => onSelectOptionAndSide(child.id, "YES")}
                 className={`flex flex-col p-4 rounded-xl border transition-all duration-200 cursor-pointer relative ${
                   isSelected
-                    ? "border-sky-blue bg-sky-blue/[0.02] dark:bg-sky-blue/[0.04] shadow-sm"
+                    ? "border-sky-blue bg-sky-blue/2 dark:bg-sky-blue/4 shadow-sm"
                     : "border-border bg-surface-muted/50 text-charcoal-primary hover:border-sky-blue/40"
                 }`}
               >
@@ -87,32 +87,50 @@ export default function OutcomesPanel({
             )
           }
 
-          const yesPrice = getMarketPrice(child, "YES")
-          const noPrice = getMarketPrice(child, "NO")
+          const isMulti =
+            child.outcomeCount !== undefined && child.outcomeCount > 2
+          const outcomes = child.outcomes || []
+          const outcomePrices = child.outcomePrices || []
+
+          const yesPrice = !isMulti ? getMarketPrice(child, "YES") : 0
+          const noPrice = !isMulti ? getMarketPrice(child, "NO") : 0
 
           const isPvp = child.category?.toLowerCase() === "pvp"
-          const yesLabel = isPvp ? child.yesCondition || child.yes_condition || "YES" : "YES"
-          const noLabel = isPvp ? child.noCondition || child.no_condition || "NO" : "NO"
+          const yesLabel = isPvp
+            ? child.yesCondition || child.yes_condition || "YES"
+            : "YES"
+          const noLabel = isPvp
+            ? child.noCondition || child.no_condition || "NO"
+            : "NO"
 
-          const isYesSelected = isSelected && selectedSide === "YES"
-          const isNoSelected = isSelected && selectedSide === "NO"
+          const isYesSelected = !isMulti && isSelected && selectedSide === "YES"
+          const isNoSelected = !isMulti && isSelected && selectedSide === "NO"
 
           let borderClass =
             "border-border bg-surface-muted/50 text-charcoal-primary hover:border-border-strong"
           let radioColor = "text-ash/40 dark:text-ash/20"
 
-          if (isYesSelected) {
-            borderClass =
-              "border-meadow-green bg-meadow-green/[0.03] dark:bg-meadow-green/[0.06] shadow-sm"
-            radioColor = "text-meadow-green"
-          } else if (isNoSelected) {
-            borderClass =
-              "border-ember-orange bg-ember-orange/[0.03] dark:bg-ember-orange/[0.06] shadow-sm"
-            radioColor = "text-ember-orange"
+          if (isSelected) {
+            if (isMulti) {
+              borderClass =
+                "border-sky-blue bg-sky-blue/[0.02] dark:bg-sky-blue/[0.04] shadow-sm"
+              radioColor = "text-sky-blue"
+            } else if (isYesSelected) {
+              borderClass =
+                "border-meadow-green bg-meadow-green/[0.03] dark:bg-meadow-green/[0.06] shadow-sm"
+              radioColor = "text-meadow-green"
+            } else if (isNoSelected) {
+              borderClass =
+                "border-ember-orange bg-ember-orange/[0.03] dark:bg-ember-orange/[0.06] shadow-sm"
+              radioColor = "text-ember-orange"
+            }
           }
 
           const handleCardClick = () => {
-            onSelectOptionAndSide(child.id, selectedSide || "YES")
+            onSelectOptionAndSide(
+              child.id,
+              isMulti ? outcomes[0] || "YES" : selectedSide || "YES",
+            )
           }
 
           return (
@@ -137,29 +155,65 @@ export default function OutcomesPanel({
                     </span>
                     <span className="text-[10px] font-mono text-ash shrink-0 mt-0.5">
                       Pool:{" "}
-                      {(
-                        Number(child.usdc_yes_amount || 0) +
-                        Number(child.usdc_no_amount || 0)
-                      ).toFixed(0)}{" "}
+                      {isMulti
+                        ? (child.liquidity ?? 0).toFixed(0)
+                        : (
+                            Number(child.usdc_yes_amount || 0) +
+                            Number(child.usdc_no_amount || 0)
+                          ).toFixed(0)}{" "}
                       USDC
                     </span>
                   </div>
 
-                  <div className="mt-3.5 flex items-center gap-3">
-                    <span className={`px-2.5 py-1 rounded-[6px] font-mono text-xs font-bold border transition-colors ${
-                      isYesSelected
-                        ? "bg-meadow-green/10 text-meadow-green border-meadow-green/20"
-                        : "bg-stone-surface text-ash border-border"
-                    }`}>
-                      {yesLabel}: {(yesPrice * 100).toFixed(0)}¢
-                    </span>
-                    <span className={`px-2.5 py-1 rounded-[6px] font-mono text-xs font-bold border transition-colors ${
-                      isNoSelected
-                        ? "bg-ember-orange/10 text-ember-orange border-ember-orange/20"
-                        : "bg-stone-surface text-ash border-border"
-                    }`}>
-                      {noLabel}: {(noPrice * 100).toFixed(0)}¢
-                    </span>
+                  <div className="mt-3.5 flex flex-wrap items-center gap-3">
+                    {isMulti ? (
+                      outcomes.map((outcomeName, idx) => {
+                        const price =
+                          outcomePrices[idx] ?? 1 / child.outcomeCount!
+                        const priceCents = Math.round(price * 100)
+                        const isThisSelected =
+                          isSelected && selectedSide === outcomeName
+
+                        return (
+                          <button
+                            key={outcomeName}
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              onSelectOptionAndSide(child.id, outcomeName)
+                            }}
+                            className={`px-2.5 py-1 rounded-[6px] font-mono text-xs font-bold border transition-colors ${
+                              isThisSelected
+                                ? "bg-sky-blue/10 text-sky-blue border-sky-blue/20"
+                                : "bg-stone-surface text-ash border-border hover:border-sky-blue/40"
+                            }`}
+                          >
+                            {outcomeName}: {priceCents}¢
+                          </button>
+                        )
+                      })
+                    ) : (
+                      <>
+                        <span
+                          className={`px-2.5 py-1 rounded-[6px] font-mono text-xs font-bold border transition-colors ${
+                            isYesSelected
+                              ? "bg-meadow-green/10 text-meadow-green border-meadow-green/20"
+                              : "bg-stone-surface text-ash border-border"
+                          }`}
+                        >
+                          {yesLabel}: {(yesPrice * 100).toFixed(0)}¢
+                        </span>
+                        <span
+                          className={`px-2.5 py-1 rounded-[6px] font-mono text-xs font-bold border transition-colors ${
+                            isNoSelected
+                              ? "bg-ember-orange/10 text-ember-orange border-ember-orange/20"
+                              : "bg-stone-surface text-ash border-border"
+                          }`}
+                        >
+                          {noLabel}: {(noPrice * 100).toFixed(0)}¢
+                        </span>
+                      </>
+                    )}
                   </div>
                 </div>
               </div>

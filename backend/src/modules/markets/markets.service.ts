@@ -775,14 +775,59 @@ export class MarketsService {
 
   async syncMarketPrices(marketId: string): Promise<void> {
     try {
+      const market = await this.marketModel.findById(marketId)
+      if (!market) return
+
       const balances = await this.blockchainService.readPoolBalances(
         marketId as `0x${string}`,
       )
-      await this.marketModel.findByIdAndUpdate(marketId, {
-        usdcYesAmount: Number(balances.yesBalance) / 1e6,
-        usdcNoAmount: Number(balances.noBalance) / 1e6,
+
+      const updateData: any = {
         liquidity: Number(balances.totalDeposited) / 1e6,
-      })
+      }
+
+      const outcomeCount = market.outcomeCount ?? 2
+      if (outcomeCount > 2) {
+        try {
+          const rawBalances = await this.blockchainService.readOutcomeBalances(marketId)
+          const outcomeBalances = rawBalances.map((b) => Number(b) / 1e6)
+          updateData.outcomeBalances = outcomeBalances
+
+          // Calculate outcome prices: p_j = (1/x_j) / sum(1/x_i)
+          const hasZero = outcomeBalances.some((b) => b === 0)
+          if (hasZero) {
+            updateData.outcomePrices = new Array(outcomeCount).fill(1 / outcomeCount)
+          } else {
+            const invSum = outcomeBalances.reduce((sum, b) => sum + (1 / b), 0)
+            updateData.outcomePrices = outcomeBalances.map((b) => (1 / b) / invSum)
+          }
+          
+          updateData.usdcYesAmount = outcomeBalances[0] || 0
+          updateData.usdcNoAmount = outcomeBalances[1] || 0
+        } catch (e) {
+          this.logger.warn(`Failed to read multi-outcome balances for ${marketId}: ${e.message}`)
+          const yesBal = Number(balances.yesBalance) / 1e6
+          const noBal = Number(balances.noBalance) / 1e6
+          updateData.outcomeBalances = [yesBal, noBal]
+          updateData.outcomePrices = [0.5, 0.5]
+        }
+      } else {
+        const yesBal = Number(balances.yesBalance) / 1e6
+        const noBal = Number(balances.noBalance) / 1e6
+        updateData.usdcYesAmount = yesBal
+        updateData.usdcNoAmount = noBal
+        updateData.outcomeBalances = [yesBal, noBal]
+
+        const total = yesBal + noBal
+        if (total === 0) {
+          updateData.outcomePrices = [0.5, 0.5]
+        } else {
+          const yesPrice = noBal / total
+          updateData.outcomePrices = [yesPrice, 1 - yesPrice]
+        }
+      }
+
+      await this.marketModel.findByIdAndUpdate(marketId, updateData)
     } catch (e) {
       this.logger.warn(
         `Failed to sync market prices for ${marketId}: ${e.message}`,
@@ -792,7 +837,7 @@ export class MarketsService {
 
   async resolveMarket(
     marketId: string,
-    winningOutcome: "YES" | "NO",
+    winningOutcome: string,
     txHash: string,
     adminAddress: string,
   ): Promise<MarketResponse> {
@@ -806,8 +851,31 @@ export class MarketsService {
 
     const oldStatus = market.status
     market.status = "resolved"
-    market.resolvedOutcome = winningOutcome
     market.resolvedByAdmin = adminAddress
+
+    const outcomeCount = market.outcomeCount ?? 2
+    if (outcomeCount > 2) {
+      let winningIndex = -1
+      if (/^\d+$/.test(winningOutcome)) {
+        winningIndex = parseInt(winningOutcome, 10)
+      } else if (market.outcomes && market.outcomes.length > 0) {
+        winningIndex = market.outcomes.findIndex(
+          (o) => o.toLowerCase().trim() === winningOutcome.toLowerCase().trim(),
+        )
+      }
+
+      if (winningIndex >= 0 && winningIndex < outcomeCount) {
+        market.winningOutcomeIndex = winningIndex
+        market.resolvedOutcome = market.outcomes[winningIndex] as any
+      } else {
+        market.winningOutcomeIndex = 0
+        market.resolvedOutcome = (market.outcomes[0] || winningOutcome) as any
+      }
+    } else {
+      market.resolvedOutcome = winningOutcome as any
+      market.winningOutcomeIndex = winningOutcome === "YES" ? 0 : 1
+    }
+
     await market.save()
 
     // If this is a PvP parent market, cascade resolution to all child markets
@@ -826,6 +894,22 @@ export class MarketsService {
         child.resolvedOutcome = winningOutcome
         child.resolvedByAdmin = adminAddress
         await child.save()
+
+        // Resolve child market on-chain
+        try {
+          const winningIsYes = winningOutcome.toUpperCase().trim() === "YES"
+          await this.blockchainService.resolveMarket(
+            child._id.toString(),
+            winningIsYes,
+          )
+          this.logger.log(
+            `Successfully resolved child market ${child._id} on-chain (winningIsYes: ${winningIsYes})`,
+          )
+        } catch (err) {
+          this.logger.error(
+            `Failed to resolve child market ${child._id} on-chain: ${err.message}`,
+          )
+        }
 
         // Trigger PvP match resolution for each child market
         await this.pvpService.resolvePvpMatchesForMarket(
