@@ -160,6 +160,9 @@ export class Market {
   @Prop({ type: String, default: null, trim: true })
   teamName: string | null
 
+  @Prop({ type: String, default: null, trim: true })
+  optionGroup: string | null
+
   @Prop({ type: String, default: null })
   proposalReasoning: string | null
 

@@ -1,5 +1,3 @@
-export const PERFECT_PVP_SCORE = 7
-
 export type PvpResult = "win" | "loss" | "draw"
 
 const RESULT_XP: Record<PvpResult, number> = {
@@ -20,9 +18,10 @@ export function calculatePvpScore(
 export function calculatePvpResultXp(
   result: PvpResult,
   score: number,
+  totalPicks: number,
   boostActive: boolean,
 ): number {
-  const perfectBonus = score === PERFECT_PVP_SCORE ? PERFECT_SCORE_BONUS_XP : 0
+  const perfectBonus = score === totalPicks ? PERFECT_SCORE_BONUS_XP : 0
   const resultXp = RESULT_XP[result] + perfectBonus
 
   return Math.round(resultXp * (boostActive ? XP_BOOST_MULTIPLIER : 1))

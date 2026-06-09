@@ -28,6 +28,52 @@ import { BlockchainService } from "../blockchain/blockchain.service"
 import { LiquidityService } from "../liquidity/liquidity.service"
 import { calculatePvpResultXp, calculatePvpScore } from "./pvp-scoring"
 import type { PvpResult } from "./pvp-scoring"
+import { AgentService } from "../agent/agent.service"
+
+export function determineOptionGroup(
+  optionName: string,
+  teamA: string,
+  teamB: string,
+): string {
+  const name = optionName.toLowerCase().trim()
+  const tA = teamA.toLowerCase().trim()
+  const tB = teamB.toLowerCase().trim()
+
+  if (
+    name.includes("wins the match") ||
+    name.includes("ends in a draw") ||
+    name === `${tA} wins` ||
+    name === `${tB} wins` ||
+    name === "draw"
+  ) {
+    return "match_winner"
+  }
+
+  if (name.includes("scores first goal") || name.includes("first goal")) {
+    return "first_goal"
+  }
+
+  if (name.includes("leads at halftime") || name.includes("halftime")) {
+    return "halftime_leader"
+  }
+
+  if (name.includes("keeps a clean sheet") || name.includes("clean sheet")) {
+    return "clean_sheet"
+  }
+
+  if (name.includes("commits more fouls") || name.includes("fouls")) {
+    return "fouls_leader"
+  }
+
+  if (
+    name.includes("has over 2.5 yellow cards") ||
+    name.includes("yellow cards")
+  ) {
+    return "yellow_cards"
+  }
+
+  return `unique_${optionName.replace(/\s+/g, "_").toLowerCase()}`
+}
 
 @Injectable()
 export class PvpService {
@@ -46,6 +92,7 @@ export class PvpService {
     private readonly notificationsService: NotificationsService,
     private readonly blockchainService: BlockchainService,
     private readonly liquidityService: LiquidityService,
+    private readonly agentService: AgentService,
   ) {}
 
   async createPvpEvent(adminId: string, dto: CreatePvpEventDto) {
@@ -104,7 +151,7 @@ export class PvpService {
         marketType: "parent",
       })
 
-      // 3. Create exactly 7 Child Markets and Register/Fund them on-chain
+      // 3. Create Child Markets and Register/Fund them on-chain
       const childMarkets: MarketDocument[] = []
       const deadlineUnix = Math.floor(new Date(dto.deadline).getTime() / 1000)
       const now = new Date()
@@ -115,8 +162,16 @@ export class PvpService {
           : sevenDaysFromNow
       const fundingDeadlineUnix = Math.floor(fundingDeadline.getTime() / 1000)
 
+      let optionGroupsMap: Record<string, string> = {}
+      try {
+        optionGroupsMap = await this.agentService.categorizeOptions(dto.question, dto.options)
+      } catch (err) {
+        this.logger.error(`Failed to categorize options with AI: ${err.message}`)
+      }
+
       for (let i = 0; i < dto.options.length; i++) {
         const optionName = dto.options[i]
+        const optionGroup = optionGroupsMap[optionName] || determineOptionGroup(optionName, teamA, teamB)
         const child = await this.marketModel.create({
           postId: post._id,
           authorId: new Types.ObjectId(adminId),
@@ -124,13 +179,14 @@ export class PvpService {
           category: "pvp",
           deadline: new Date(dto.deadline),
           resolutionSource: dto.resolutionSource.trim(),
-          yesCondition: teamA,
-          noCondition: teamB,
+          yesCondition: "YES",
+          noCondition: "NO",
           status: "funding_pool", // temporary status while funding
           marketType: "child",
           parentMarketId: parentMarket._id,
           optionName: optionName.trim(),
           teamName: teamA, // Keep teamA as primary associated team
+          optionGroup,
         })
         childMarketIds.push(child._id)
 
@@ -174,7 +230,7 @@ export class PvpService {
       }
 
       this.logger.log(
-        `Admin ${adminId} successfully deployed PvP Event: ${parentMarket._id} with 7 child options and pre-deposited USDC.`,
+        `Admin ${adminId} successfully deployed PvP Event: ${parentMarket._id} with ${childMarkets.length} child options and pre-deposited USDC.`,
       )
 
       // Broadcast updates
@@ -270,6 +326,7 @@ export class PvpService {
           yesCondition: c.yesCondition,
           noCondition: c.noCondition,
           liquidity: c.liquidity,
+          optionGroup: c.optionGroup,
         })),
       })
     }
@@ -294,6 +351,47 @@ export class PvpService {
       throw new BadRequestException(
         "Event deadline has passed. Predictions are locked.",
       )
+    }
+
+    // Verify picks size
+    if (dto.picks.length < 3) {
+      throw new BadRequestException("Ticket must contain at least 3 picks.")
+    }
+    const childCount = await this.marketModel.countDocuments({
+      parentMarketId: parent._id,
+      marketType: "child",
+    })
+    if (dto.picks.length > childCount) {
+      throw new BadRequestException(
+        `Ticket cannot contain more than ${childCount} picks, but got ${dto.picks.length}.`,
+      )
+    }
+
+    // Validate that the user doesn't select multiple options from the same group
+    const childMarkets = await this.marketModel.find({
+      parentMarketId: parent._id,
+      marketType: "child",
+    })
+    const groupSelections: Record<string, string[]> = {}
+    for (const pick of dto.picks) {
+      const child = childMarkets.find((m) => m._id.toString() === pick.marketId)
+      if (!child) {
+        throw new BadRequestException(`Market option ${pick.marketId} not found in this event.`)
+      }
+      if (child.optionGroup) {
+        if (!groupSelections[child.optionGroup]) {
+          groupSelections[child.optionGroup] = []
+        }
+        groupSelections[child.optionGroup].push(pick.marketId)
+      }
+    }
+
+    for (const [group, marketIds] of Object.entries(groupSelections)) {
+      if (marketIds.length > 1) {
+        throw new BadRequestException(
+          `You cannot make multiple selections from the same option group: ${group}.`,
+        )
+      }
     }
 
     // Cancel existing queued/matched ticket
@@ -435,7 +533,7 @@ export class PvpService {
       bestOpponent.userId.toString(),
       "pvp_matched",
       "PvP Arena Opponent Found!",
-      `You've been matched against @${u2Name} for the event with a selection divergence of ${maxDivergence}/7.`,
+      `You've been matched against @${u2Name} for the event with a selection divergence of ${maxDivergence} picks.`,
       match._id.toString(),
     )
     await this.notificationsService.createNotification(
@@ -443,7 +541,7 @@ export class PvpService {
       ticket.userId.toString(),
       "pvp_matched",
       "PvP Arena Opponent Found!",
-      `You've been matched against @${u1Name} for the event with a selection divergence of ${maxDivergence}/7.`,
+      `You've been matched against @${u1Name} for the event with a selection divergence of ${maxDivergence} picks.`,
       match._id.toString(),
     )
 
@@ -482,7 +580,7 @@ export class PvpService {
         ticket.markModified("picks")
         await ticket.save()
 
-        // Check if all 7 picks are resolved
+        // Check if all picks are resolved
         const allResolved = ticket.picks.every((p) => p.isCorrect !== null)
         if (allResolved) {
           const match = await this.pvpMatchModel.findById(ticket.matchId)
@@ -518,11 +616,16 @@ export class PvpService {
     const score1 = calculatePvpScore(ticket1.picks)
     const score2 = calculatePvpScore(ticket2.picks)
 
-    // 2. Equal scores are a draw.
+    // 2. Equal accuracy is a draw.
+    const accuracy1 =
+      ticket1.picks.length > 0 ? score1 / ticket1.picks.length : 0
+    const accuracy2 =
+      ticket2.picks.length > 0 ? score2 / ticket2.picks.length : 0
+
     let winnerId: Types.ObjectId | null = null
-    if (score1 > score2) {
+    if (accuracy1 > accuracy2) {
       winnerId = match.user1Id
-    } else if (score2 > score1) {
+    } else if (accuracy2 > accuracy1) {
       winnerId = match.user2Id
     }
 
@@ -545,8 +648,18 @@ export class PvpService {
       : "draw"
 
     // 4. Award Result XP, a +20 perfect bonus, and an optional 1.2x boost.
-    const xp1 = calculatePvpResultXp(result1, score1, ticket1.doubleBoostActive)
-    const xp2 = calculatePvpResultXp(result2, score2, ticket2.doubleBoostActive)
+    const xp1 = calculatePvpResultXp(
+      result1,
+      score1,
+      ticket1.picks.length,
+      ticket1.doubleBoostActive,
+    )
+    const xp2 = calculatePvpResultXp(
+      result2,
+      score2,
+      ticket2.picks.length,
+      ticket2.doubleBoostActive,
+    )
 
     // 5. Update user stats
     user1.arenaXp += xp1
@@ -633,7 +746,7 @@ export class PvpService {
       user2._id.toString(),
       "pvp_resolved",
       `PvP Duel Resolved: You ${res1}`,
-      `Your battle against @${u2} resolved. Score: ${score1} vs ${score2}. Arena XP earned: +${xp1}.`,
+      `Your battle against @${u2} resolved. Score: ${score1}/${ticket1.picks.length} vs ${score2}/${ticket2.picks.length}. Arena XP earned: +${xp1}.`,
       match._id.toString(),
     )
     await this.notificationsService.createNotification(
@@ -641,7 +754,7 @@ export class PvpService {
       user1._id.toString(),
       "pvp_resolved",
       `PvP Duel Resolved: You ${res2}`,
-      `Your battle against @${u1} resolved. Score: ${score2} vs ${score1}. Arena XP earned: +${xp2}.`,
+      `Your battle against @${u1} resolved. Score: ${score2}/${ticket2.picks.length} vs ${score1}/${ticket1.picks.length}. Arena XP earned: +${xp2}.`,
       match._id.toString(),
     )
   }
@@ -1029,7 +1142,7 @@ export class PvpService {
         ticket.markModified("picks")
         await ticket.save()
 
-        // Check if all 7 picks are resolved
+        // Check if all picks are resolved
         const allResolved = ticket.picks.every((p) => p.isCorrect !== null)
         if (allResolved) {
           const match = await this.pvpMatchModel.findById(ticket.matchId)

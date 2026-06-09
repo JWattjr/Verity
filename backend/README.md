@@ -14,7 +14,7 @@ The backend is organized into 12 domain modules under `src/modules/`:
 | **markets**       | Market creation, free voting (10/day cap), USDC trading (buy/sell), position tracking                    |
 | **liquidity**     | LP pool initialization, deposits, withdrawals, 24h lock enforcement, on-chain state sync                 |
 | **blockchain**    | Viem-based on-chain reads/writes, Account Abstraction calldata decoder, transaction receipt verification |
-| **agent**         | AI resolution agent — web search via Tavily, outcome analysis via Claude/Gemini/OpenAI                   |
+| **agent**         | AI resolution agent — web search via DuckDuckGo, outcome analysis via Claude/Gemini/OpenAI/DeepSeek      |
 | **notifications** | Activity feed: likes, comments, reshares, market events                                                  |
 | **socket**        | Socket.IO WebSocket gateway for real-time feed/market/user broadcasts                                    |
 | **comments**      | Threaded comment system on posts                                                                         |
@@ -77,8 +77,8 @@ PRIVY_APP_ID=<your-privy-app-id>
 PRIVY_APP_SECRET=<your-privy-app-secret>
 
 # AI Agent (optional — defaults to mock)
-LLM_PROVIDER=claude   # claude | gemini | openai | mock
-TAVILY_API_KEY=tvly-...
+LLM_PROVIDER=claude   # claude | gemini | openai | deepseek | mock
+DEEPSEEK_API_KEY=sk-...
 CLAUDE_API_KEY=sk-ant-...
 
 # E2E testing (requires gas + USDC)

@@ -7,6 +7,8 @@ import { Market } from "../src/modules/markets/markets.model"
 import { User } from "../src/modules/users/users.model"
 import { ConfigService } from "@nestjs/config"
 import { SocketGateway } from "../src/modules/socket/socket.gateway"
+import { PvpService } from "../src/modules/pvp/pvp.service"
+import { LiquidityService } from "../src/modules/liquidity/liquidity.service"
 
 describe("MarketsKeeperService", () => {
   let service: MarketsKeeperService
@@ -118,6 +120,18 @@ describe("MarketsKeeperService", () => {
           provide: SocketGateway,
           useValue: {
             broadcastToRoom: jest.fn(),
+          },
+        },
+        {
+          provide: PvpService,
+          useValue: {
+            syncUnresolvedPvpPicks: jest.fn(),
+          },
+        },
+        {
+          provide: LiquidityService,
+          useValue: {
+            voidExpiredPools: jest.fn(),
           },
         },
       ],

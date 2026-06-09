@@ -62,15 +62,7 @@ export default function AdminPage() {
   const [pvpQuestion, setPvpQuestion] = useState("")
   const [pvpDeadline, setPvpDeadline] = useState("")
   const [pvpResolutionSource, setPvpResolutionSource] = useState("World Cup Oracle")
-  const [pvpOptions, setPvpOptions] = useState<string[]>([
-    "wins the match",
-    "scores first goal",
-    "leads at halftime",
-    "has more corner kicks",
-    "keeps a clean sheet",
-    "has over 2.5 yellow cards",
-    "scores in both halves",
-  ])
+  const [pvpOptions, setPvpOptions] = useState<string[]>([])
 
   // Admin Wallet & Balance State
   const [adminBalances, setAdminBalances] = useState<{
@@ -82,8 +74,58 @@ export default function AdminPage() {
   } | null>(null)
 
   // Options Pool Selector State
-  const [availableOptions, setAvailableOptions] = useState<string[]>(PREDEFINED_PROPOSITIONS)
+  const [customOptions, setCustomOptions] = useState<string[]>([])
   const [customOptionText, setCustomOptionText] = useState("")
+
+  const getDynamicPropositions = () => {
+    if (!pvpQuestion.trim()) {
+      return [
+        "Team A wins the match",
+        "Team B wins the match",
+        "Match ends in a draw",
+        "Team A scores first goal",
+        "Team B scores first goal",
+        "Team A leads at halftime",
+        "Team B leads at halftime",
+        "Team A keeps a clean sheet",
+        "Team B keeps a clean sheet",
+        "has over 2.5 yellow cards",
+        "Team A commits more fouls",
+        "Team B commits more fouls",
+      ]
+    }
+
+    let teamA = "Team A"
+    let teamB = "Team B"
+    const vsMatch = pvpQuestion.match(/(.+?)\s+vs\.?\s+(.+)/i)
+    if (vsMatch) {
+      teamA = vsMatch[1].trim()
+      teamB = vsMatch[2].trim()
+    } else {
+      const dashMatch = pvpQuestion.match(/(.+?)\s+-\s+(.+)/)
+      if (dashMatch) {
+        teamA = dashMatch[1].trim()
+        teamB = dashMatch[2].trim()
+      }
+    }
+
+    return [
+      `${teamA} wins the match`,
+      `${teamB} wins the match`,
+      "Match ends in a draw",
+      `${teamA} scores first goal`,
+      `${teamB} scores first goal`,
+      `${teamA} leads at halftime`,
+      `${teamB} leads at halftime`,
+      `${teamA} keeps a clean sheet`,
+      `${teamB} keeps a clean sheet`,
+      "has over 2.5 yellow cards",
+      `${teamA} commits more fouls`,
+      `${teamB} commits more fouls`,
+    ]
+  }
+
+  const availableOptions = [...getDynamicPropositions(), ...customOptions]
 
   // Arbitration / Resolve Form State
   const [selectedMarketId, setSelectedMarketId] = useState<string | null>(null)
@@ -112,16 +154,15 @@ export default function AdminPage() {
 
   // Add custom option to pool helper
   function handleAddCustomOption() {
-    const text = customOptionText.trim().toLowerCase()
+    const text = customOptionText.trim()
     if (!text) return
-    if (availableOptions.includes(text)) {
+    const lowerText = text.toLowerCase()
+    if (availableOptions.map(o => o.toLowerCase()).includes(lowerText)) {
       toast.error("Option already exists in the pool.")
       return
     }
-    setAvailableOptions([...availableOptions, text])
-    if (pvpOptions.length < 7) {
-      setPvpOptions([...pvpOptions, text])
-    }
+    setCustomOptions([...customOptions, text])
+    setPvpOptions([...pvpOptions, text])
     setCustomOptionText("")
   }
 
@@ -218,7 +259,7 @@ export default function AdminPage() {
     }
   }
 
-  // Deploy PvP Parent + 7 Child events
+  // Deploy PvP Parent + child events
   async function handleDeployPvpEvent(e: React.FormEvent) {
     e.preventDefault()
     if (!pvpQuestion.trim() || !pvpDeadline || !pvpResolutionSource.trim()) {
@@ -226,8 +267,8 @@ export default function AdminPage() {
       return
     }
 
-    if (pvpOptions.length !== 7 || pvpOptions.some(opt => !opt.trim())) {
-      toast.error("You must specify exactly 7 options.")
+    if (pvpOptions.length < 3 || pvpOptions.some(opt => !opt.trim())) {
+      toast.error("You must specify at least 3 options.")
       return
     }
 
@@ -242,7 +283,7 @@ export default function AdminPage() {
           options: pvpOptions.map(opt => opt.trim()),
         }),
       })
-      toast.success("Successfully deployed PvP Event + 7 Proposition markets!")
+      toast.success(`Successfully deployed PvP Event + ${pvpOptions.length} Proposition markets!`)
       setPvpQuestion("")
       setPvpDeadline("")
       void fetchMarkets()
@@ -496,8 +537,8 @@ export default function AdminPage() {
                 <Info className="h-4 w-4 text-indigo-500 shrink-0 mt-0.5" />
                 <div className="text-[10px] text-ash leading-relaxed">
                   <p className="font-semibold text-charcoal-primary dark:text-zinc-300">PvP Event Cost Estimator:</p>
-                  <p>Deployment requires funding 7 child options with <span className="font-bold text-indigo-600 dark:text-indigo-400">{adminBalances.preDepositUsdcPerOption.toFixed(2)} USDC</span> each.</p>
-                  <p className="mt-0.5">Total funding cost: <span className="font-bold text-indigo-600 dark:text-indigo-400">{(adminBalances.preDepositUsdcPerOption * 7).toFixed(2)} USDC</span> + gas fees.</p>
+                  <p>Deployment requires funding each child option with <span className="font-bold text-indigo-600 dark:text-indigo-400">{adminBalances.preDepositUsdcPerOption.toFixed(2)} USDC</span>.</p>
+                  <p className="mt-0.5">Total funding cost for {pvpOptions.length} options: <span className="font-bold text-indigo-600 dark:text-indigo-400">{(adminBalances.preDepositUsdcPerOption * pvpOptions.length).toFixed(2)} USDC</span> + gas fees.</p>
                 </div>
               </div>
             </div>
@@ -509,7 +550,7 @@ export default function AdminPage() {
                 <Swords className="h-5 w-5 text-indigo-500" />
                 Deploy World Cup PvP Matchup
               </h2>
-              <p className="text-xs text-ash mt-0.5">Creates a parent event and 7 YES/NO proposition child markets.</p>
+              <p className="text-xs text-ash mt-0.5">Creates a parent event and YES/NO proposition child markets.</p>
             </div>
 
             <form onSubmit={handleDeployPvpEvent} className="flex flex-col gap-4">
@@ -558,12 +599,12 @@ export default function AdminPage() {
               <div className="space-y-2.5">
                 <div className="flex items-center justify-between">
                   <span className="block text-[10px] font-bold uppercase tracking-wider text-ash">
-                    Propositions Pool (Select exactly 7)
+                    Propositions Pool (Select at least 3)
                   </span>
                   <span className={`text-[10px] font-bold font-mono px-1.5 py-0.5 rounded ${
-                    pvpOptions.length === 7 ? "bg-green-500/10 text-green-600" : "bg-amber-500/10 text-amber-600"
+                    pvpOptions.length >= 3 ? "bg-green-500/10 text-green-600" : "bg-amber-500/10 text-amber-600"
                   }`}>
-                    Selected: {pvpOptions.length} / 7
+                    Selected: {pvpOptions.length} (min 3)
                   </span>
                 </div>
 
@@ -588,11 +629,7 @@ export default function AdminPage() {
                             if (isSelected) {
                               setPvpOptions(pvpOptions.filter((o) => o !== opt))
                             } else {
-                              if (pvpOptions.length >= 7) {
-                                toast.error("You can select exactly 7 options. Please uncheck another option first.")
-                              } else {
-                                setPvpOptions([...pvpOptions, opt])
-                              }
+                              setPvpOptions([...pvpOptions, opt])
                             }
                           }}
                         />
@@ -630,10 +667,10 @@ export default function AdminPage() {
 
               <button
                 type="submit"
-                disabled={loading || pvpOptions.length !== 7}
+                disabled={loading || pvpOptions.length < 3}
                 className="verity-pill w-full h-11 bg-indigo-600 text-white hover:bg-indigo-500 text-xs uppercase tracking-wider shadow-subtle disabled:opacity-40 disabled:cursor-not-allowed mt-2"
               >
-                {loading ? "Deploying..." : pvpOptions.length !== 7 ? `Select ${7 - pvpOptions.length} More Option(s)` : "Deploy Event & Options"}
+                {loading ? "Deploying..." : pvpOptions.length < 3 ? `Select at least 3 options (Selected: ${pvpOptions.length})` : "Deploy Event & Options"}
               </button>
             </form>
           </div>

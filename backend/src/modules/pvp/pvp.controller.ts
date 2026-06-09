@@ -18,7 +18,7 @@ export class PvpController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({
-    summary: "Admin-only: Deploy a new PvP Parent + 7 Child Markets event",
+    summary: "Admin-only: Deploy a new PvP Parent + Child Markets event with dynamic options (min 3)",
   })
   async createPvpEvent(@Request() req: any, @Body() dto: CreatePvpEventDto) {
     return this.pvpService.createPvpEvent(req.user.id, dto)

@@ -18,11 +18,10 @@ export class CreatePvpEventDto {
   @IsNotEmpty()
   resolutionSource: string
 
-  @ApiProperty({ description: "Exactly 7 proposition questions/options", type: [String] })
+  @ApiProperty({ description: "Proposition questions/options (minimum 3)", type: [String] })
   @IsArray()
   @IsString({ each: true })
-  @ArrayMinSize(7)
-  @ArrayMaxSize(7)
+  @ArrayMinSize(3)
   options: string[]
 }
 
@@ -43,11 +42,10 @@ export class SubmitTicketDto {
   @IsNotEmpty()
   parentMarketId: string
 
-  @ApiProperty({ description: "Exactly 7 picks on options", type: [PvpPickInput] })
+  @ApiProperty({ description: "Picks on options (minimum 3)", type: [PvpPickInput] })
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => PvpPickInput)
-  @ArrayMinSize(7)
-  @ArrayMaxSize(7)
+  @ArrayMinSize(3)
   picks: PvpPickInput[]
 }

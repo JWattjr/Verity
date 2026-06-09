@@ -51,6 +51,7 @@ export default function PvpArenaTab({
   const [pvpSelections, setPvpSelections] = useState<
     Record<string, "YES" | "NO">
   >({})
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false)
 
   // Local state for child market liquidity modal
   const [liquidityMarketId, setLiquidityMarketId] = useState<string | null>(
@@ -88,11 +89,7 @@ export default function PvpArenaTab({
   useEffect(() => {
     if (selectedPvpEvent) {
       setSelectedPvpEventId(selectedPvpEvent.id)
-      const initial: Record<string, "YES" | "NO"> = {}
-      selectedPvpEvent.options.forEach((opt: any) => {
-        initial[opt.id] = "YES" // Default to YES
-      })
-      setPvpSelections(initial)
+      setPvpSelections({})
     }
   }, [selectedPvpEvent])
 
@@ -113,6 +110,52 @@ export default function PvpArenaTab({
     return selectedPvpEvent.options.find((o: any) => o.id === liquidityMarketId)
   }, [liquidityMarketId, selectedPvpEvent])
 
+  const totalVolume = useMemo(() => {
+    if (!selectedPvpEvent?.options) return 0
+    return selectedPvpEvent.options.reduce(
+      (sum: number, opt: any) => sum + Number(opt.liquidity ?? 0),
+      0,
+    )
+  }, [selectedPvpEvent])
+
+  const formattedDeadline = useMemo(() => {
+    if (!selectedPvpEvent?.deadline) return ""
+    const date = new Date(selectedPvpEvent.deadline)
+    return date.toLocaleDateString(undefined, {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    })
+  }, [selectedPvpEvent])
+
+  // Helper to toggle selection while enforcing max 1 pick per option group
+  const handleToggleSelection = (optId: string, side: "YES" | "NO") => {
+    setPvpSelections((prev) => {
+      const next = { ...prev }
+
+      if (next[optId] === side) {
+        delete next[optId]
+        return next
+      }
+
+      const currentOpt = selectedPvpEvent?.options?.find(
+        (o: any) => o.id === optId,
+      )
+      const group = currentOpt?.optionGroup
+
+      if (group) {
+        selectedPvpEvent.options.forEach((otherOpt: any) => {
+          if (otherOpt.id !== optId && otherOpt.optionGroup === group) {
+            delete next[otherOpt.id]
+          }
+        })
+      }
+
+      next[optId] = side
+      return next
+    })
+  }
+
   // Submit PvP ticket transaction batch
   async function handleSubmitPvpTicket() {
     if (!profile || !user?.walletAddress) {
@@ -126,12 +169,13 @@ export default function PvpArenaTab({
       selection: pvpSelections[marketId],
     }))
 
-    if (picks.length !== 7) {
-      toast.error("Please make a selection for all 7 options.")
+    if (picks.length < 3) {
+      toast.error("Please make a selection for at least 3 options from different categories.")
       return
     }
 
-    const totalAmount = betAmountPerSelection * 7
+    setIsSubmitting(true)
+    const totalAmount = betAmountPerSelection * picks.length
     const rawTotalAmount = BigInt(Math.round(totalAmount * 1e6))
 
     const toastId = toast.loading("Preparing ticket transaction batch...")
@@ -170,17 +214,20 @@ export default function PvpArenaTab({
         })
       }
 
-      // 2. Build 7 buy calls
+      // 2. Build child buy calls
       const rawAmountPerSelection = BigInt(
         Math.round(betAmountPerSelection * 1e6),
       )
-      selectedPvpEvent.options.forEach((opt: any) => {
-        const side = pvpSelections[opt.id]
-        const isYes = side === "YES"
+      picks.forEach((pick) => {
+        const isYes = pick.selection === "YES"
         batchCalls.push({
           contractAddress: FPMM_ADDRESS,
           abiFunctionSignature: "buy(bytes32,bool,uint256)",
-          abiParameters: [formatMarketId(opt.id), isYes, rawAmountPerSelection],
+          abiParameters: [
+            formatMarketId(pick.marketId),
+            isYes,
+            rawAmountPerSelection,
+          ],
         })
       })
 
@@ -189,7 +236,7 @@ export default function PvpArenaTab({
       // 3. Execute batched on-chain buy calls
       const hash = await executeTxBatch(
         batchCalls,
-        `Purchase 7-selection PvP ticket for ${totalAmount} USDC`,
+        `Purchase ${picks.length}-selection PvP ticket for ${totalAmount} USDC`,
         totalAmount,
       )
 
@@ -197,12 +244,11 @@ export default function PvpArenaTab({
       const finalizeToastId = toast.loading(
         "Finalizing on-chain trades on Verity...",
       )
-      const tradePromises = Object.keys(pvpSelections).map((marketId) => {
-        const side = pvpSelections[marketId]
+      const tradePromises = picks.map((pick) => {
         return executeMarketTrade({
-          marketId,
+          marketId: pick.marketId,
           profileId: profile.id,
-          side,
+          side: pick.selection,
           action: "BUY",
           amount: betAmountPerSelection,
           txHash: hash,
@@ -229,6 +275,8 @@ export default function PvpArenaTab({
       if (!err.message?.includes("rejected")) {
         toast.error(err.message || "Failed to purchase tickets and queue.")
       }
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -257,20 +305,40 @@ export default function PvpArenaTab({
             <div className="h-11 w-full bg-stone-surface dark:bg-zinc-900 rounded-[10px]" />
           </div>
           <div className="space-y-3 mt-2">
-            <div className="h-4 w-56 bg-stone-surface dark:bg-zinc-800 rounded" />
-            <div className="space-y-2.5">
-              {Array.from({ length: 7 }).map((_, i) => (
+            <div className="flex items-center justify-between border-b border-border dark:border-zinc-800 pb-2 mb-2">
+              <div className="flex items-center gap-3">
+                <div className="h-4 w-24 bg-stone-surface dark:bg-zinc-800 rounded animate-pulse" />
+                <span className="text-zinc-300 dark:text-zinc-700">|</span>
+                <div className="h-4 w-24 bg-stone-surface dark:bg-zinc-800 rounded animate-pulse" />
+              </div>
+              <div className="h-3 w-32 bg-stone-surface dark:bg-zinc-800 rounded animate-pulse" />
+            </div>
+            <div className="divide-y divide-border/60 dark:divide-zinc-800/60">
+              {Array.from({
+                length: selectedPvpEvent?.options?.length || 5,
+              }).map((_, i) => (
                 <div
                   key={i}
-                  className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 rounded-xl border border-border dark:border-zinc-800/85 bg-parchment-card dark:bg-zinc-900/40 gap-3"
+                  className="flex items-center justify-between py-4 gap-4 px-1"
                 >
-                  <div className="flex-1 space-y-2">
+                  {/* Left: Option Name & Vol */}
+                  <div className="flex-1 min-w-0 space-y-2">
                     <div className="h-4 w-2/3 bg-stone-surface dark:bg-zinc-800 rounded" />
-                    <div className="h-3 w-1/3 bg-stone-surface dark:bg-zinc-800 rounded" />
+                    <div className="flex items-center gap-3 mt-1.5">
+                      <div className="h-3 w-12 bg-stone-surface dark:bg-zinc-800 rounded" />
+                      <div className="h-4 w-10 bg-stone-surface dark:bg-zinc-800 rounded-[6px]" />
+                    </div>
                   </div>
+
+                  {/* Middle: Implied Probability */}
+                  <div className="w-16 sm:w-24 flex justify-center shrink-0">
+                    <div className="h-5 w-8 bg-stone-surface dark:bg-zinc-800 rounded" />
+                  </div>
+
+                  {/* Right: Buttons */}
                   <div className="flex gap-2 shrink-0">
-                    <div className="h-8 w-16 bg-stone-surface dark:bg-zinc-800 rounded-lg" />
-                    <div className="h-8 w-16 bg-stone-surface dark:bg-zinc-800 rounded-lg" />
+                    <div className="h-9 w-[105px] sm:w-[120px] bg-stone-surface dark:bg-zinc-800 rounded-[10px]" />
+                    <div className="h-9 w-[105px] sm:w-[120px] bg-stone-surface dark:bg-zinc-800 rounded-[10px]" />
                   </div>
                 </div>
               ))}
@@ -361,7 +429,7 @@ export default function PvpArenaTab({
                         : "DRAW 🤝"}
                   </span>
                   <span className="text-[9px] font-mono text-stone-400 dark:text-zinc-500 mt-1">
-                    Divergence: {pvpStatus.match?.divergenceScore}/7
+                    Divergence: {pvpStatus.match?.divergenceScore} picks
                   </span>
                 </div>
 
@@ -430,7 +498,7 @@ export default function PvpArenaTab({
                     <Swords className="h-4 w-4 text-sky-blue" />
                   </div>
                   <span className="text-[9px] font-mono text-stone-400 dark:text-zinc-500 mt-1">
-                    Divergence: {pvpStatus.match?.divergenceScore}/7
+                    Divergence: {pvpStatus.match?.divergenceScore} picks
                   </span>
                 </div>
 
@@ -641,8 +709,8 @@ export default function PvpArenaTab({
 
           <div className="rounded-[10px] border border-indigo-500/15 bg-indigo-500/5 px-3 py-2.5 text-[11px] leading-relaxed text-ash">
             Each correct pick scores 1 point. Win: 100 Result XP, draw: 50,
-            loss: 30. A perfect 7/7 adds 20 XP, and an active boost applies 1.2x
-            to the total.
+            loss: 30. A perfect score adds 20 XP, and an active boost applies
+            1.2x to the total. <strong className="text-amber-600 dark:text-amber-400">Note: You can select at most one prediction per category group to build your ticket.</strong>
           </div>
 
           {pvpEvents.length === 0 && (
@@ -671,97 +739,111 @@ export default function PvpArenaTab({
                 </select>
               </div>
 
-              {/* 7 child questions inputs */}
+              {/* Child questions inputs */}
               <div className="space-y-3">
-                <span className="block text-xs font-mono font-bold uppercase tracking-wider text-ash">
-                  Propositions (Predict exactly 7 options)
-                </span>
+                <div className="flex items-center justify-between border-b border-border dark:border-zinc-800 pb-2 mb-2">
+                  <div className="flex items-center gap-3 text-xs font-mono text-ash font-medium">
+                    <span className="flex items-center gap-1.5">
+                      🏆 ${totalVolume.toLocaleString()} Vol.
+                    </span>
+                    <span className="text-zinc-300 dark:text-zinc-700">|</span>
+                    <span className="flex items-center gap-1.5">
+                      ⏰ {formattedDeadline}
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-mono text-ash uppercase font-bold tracking-wider animate-pulse">
+                    Predict min. 3 options (max 1 per category)
+                  </span>
+                </div>
 
-                <div className="space-y-2.5">
-                  {selectedPvpEvent.options.map((opt: any, idx: number) => (
-                    <div
-                      key={opt.id}
-                      className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 rounded-xl bg-parchment-card dark:bg-zinc-900/40 border border-border dark:border-zinc-800/80 hover:border-ash dark:hover:border-zinc-800 transition-all gap-3"
-                    >
-                      <div className="flex flex-col min-w-0 flex-1">
-                        <span className="text-sm font-medium tracking-tight text-charcoal-primary dark:text-zinc-200">
-                          {idx + 1}. {opt.optionName}
-                        </span>
-                        <span className="text-[10px] text-ash mt-1.5 font-mono flex items-center gap-1.5 flex-wrap">
-                          <span>
-                            Pool:{" "}
-                            <strong className="text-charcoal-primary dark:text-white">
-                              ${Number(opt.liquidity ?? 40).toLocaleString()}{" "}
-                              USDC
-                            </strong>
-                          </span>
-                          <span>•</span>
-                          <span>
-                            {opt.yesCondition || "YES"}:{" "}
-                            <strong className="text-meadow-green">
-                              {opt.yesCondition || "YES"}
-                            </strong>
-                          </span>
-                          <span>•</span>
-                          <span>
-                            {opt.noCondition || "NO"}:{" "}
-                            <strong className="text-ember-orange">
-                              {opt.noCondition || "NO"}
-                            </strong>
-                          </span>
-                        </span>
-                      </div>
+                <div className="divide-y divide-border/60 dark:divide-zinc-800/60">
+                  {selectedPvpEvent.options.map((opt: any) => {
+                    const yesPool = Number(opt.usdcYesAmount ?? 0)
+                    const noPool = Number(opt.usdcNoAmount ?? 0)
+                    const totalPool = yesPool + noPool
 
-                      <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto justify-end mt-2 sm:mt-0">
-                        {/* YES / NO Selection Buttons */}
-                        <div className="flex bg-white-surface dark:bg-zinc-900 border border-border dark:border-zinc-800/80 rounded-[8px] p-0.5 shrink-0">
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setPvpSelections((prev) => ({
-                                ...prev,
-                                [opt.id]: "YES",
-                              }))
-                            }
-                            className={`px-3 py-1.5 rounded-[6px] text-xs font-bold font-mono transition-all ${
-                              pvpSelections[opt.id] === "YES"
-                                ? "bg-meadow-green text-white shadow-subtle"
-                                : "text-ash hover:text-charcoal-primary dark:hover:text-white"
-                            }`}
-                          >
-                            {opt.yesCondition || "YES"}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setPvpSelections((prev) => ({
-                                ...prev,
-                                [opt.id]: "NO",
-                              }))
-                            }
-                            className={`px-3 py-1.5 rounded-[6px] text-xs font-bold font-mono transition-all ${
-                              pvpSelections[opt.id] === "NO"
-                                ? "bg-ember-orange text-white shadow-subtle"
-                                : "text-ash hover:text-charcoal-primary dark:hover:text-white"
-                            }`}
-                          >
-                            {opt.noCondition || "NO"}
-                          </button>
+                    let yesProb = 50
+                    if (totalPool > 0) {
+                      yesProb = (yesPool / totalPool) * 100
+                    }
+                    const noProb = 100 - yesProb
+
+                    const percentageDisplay = `${Math.round(yesProb)}%`
+                    const yesPrice = yesProb.toFixed(1)
+                    const noPrice = noProb.toFixed(1)
+
+                    return (
+                      <div
+                        key={opt.id}
+                        className="flex items-center justify-between py-4 hover:bg-zinc-50/30 dark:hover:bg-zinc-900/10 px-1 transition-all gap-4"
+                      >
+                        {/* Left: Option Name & Vol */}
+                        <div className="flex flex-col min-w-0 flex-1">
+                          <span className="text-sm font-semibold text-charcoal-primary dark:text-zinc-200 truncate">
+                            {opt.optionName}
+                          </span>
+                          <div className="flex items-center gap-3 mt-1.5 flex-wrap">
+                            <span className="text-[10px] text-ash font-medium">
+                              ${Number(opt.liquidity ?? 0).toLocaleString()}{" "}
+                              Vol.
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setLiquidityMarketId(opt.id)}
+                              className="px-2 py-0.5 rounded-[6px] text-[9px] font-bold font-mono transition-all text-ash hover:text-charcoal-primary dark:hover:text-white bg-[#FFBB25]/80 dark:bg-zinc-900/30 border border-border dark:border-zinc-800 hover:bg-zinc-200/50 dark:hover:bg-zinc-800/50 cursor-pointer shadow-sm shrink-0"
+                            >
+                              + LP
+                            </button>
+                          </div>
                         </div>
 
-                        {/* Add Liquidity button */}
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setLiquidityMarketId(opt.id)
-                          }}
-                          className="px-2.5 py-1.5 rounded-[8px] text-[10px] font-bold font-mono transition-colors bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 shrink-0"
-                        >
-                          + LP
-                        </button>
+                        {/* Middle: Implied Probability */}
+                        <div className="w-16 sm:w-24 text-center shrink-0">
+                          <span className="text-lg sm:text-xl font-bold font-sans text-charcoal-primary dark:text-white">
+                            {percentageDisplay}
+                          </span>
+                        </div>
+
+                        {/* Right: Buy Buttons */}
+                        <div className="flex items-center gap-2 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => handleToggleSelection(opt.id, "YES")}
+                            className={`w-[105px] sm:w-[120px] h-9 rounded-[10px] text-xs font-bold transition-all flex items-center justify-center gap-1 ${
+                              pvpSelections[opt.id] === "YES"
+                                ? "bg-emerald-600 text-white shadow-sm hover:bg-emerald-700"
+                                : "bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100/70 dark:hover:bg-emerald-950/30"
+                            }`}
+                          >
+                            Buy{" "}
+                            {opt.yesCondition
+                              ? opt.yesCondition === "YES"
+                                ? "Yes"
+                                : opt.yesCondition
+                              : "Yes"}{" "}
+                            {yesPrice}¢
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleToggleSelection(opt.id, "NO")}
+                            className={`w-[105px] sm:w-[120px] h-9 rounded-[10px] text-xs font-bold transition-all flex items-center justify-center gap-1 ${
+                              pvpSelections[opt.id] === "NO"
+                                ? "bg-rose-600 text-white shadow-sm hover:bg-rose-700"
+                                : "bg-rose-50 dark:bg-rose-950/20 text-rose-600 dark:text-rose-400 hover:bg-rose-100/70 dark:hover:bg-rose-950/30"
+                            }`}
+                          >
+                            Buy{" "}
+                            {opt.noCondition
+                              ? opt.noCondition === "NO"
+                                ? "No"
+                                : opt.noCondition
+                              : "No"}{" "}
+                            {noPrice}¢
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               </div>
 
@@ -773,7 +855,7 @@ export default function PvpArenaTab({
                       Bet Amount per selection
                     </span>
                     <span className="text-[10px] text-ash">
-                      Each of the 7 bets will be purchased for this amount.
+                      Each selected option will be purchased for this amount.
                     </span>
                   </div>
                   <div className="flex items-center gap-2">
@@ -796,10 +878,12 @@ export default function PvpArenaTab({
                 </div>
                 <div className="flex items-center justify-between border-t border-dashed border-border/60 dark:border-zinc-800/60 pt-2.5 mt-1">
                   <span className="text-xs font-mono text-ash font-bold uppercase">
-                    Total Ticket Cost (7 Selections)
+                    Total Ticket Cost ({Object.keys(pvpSelections).length}{" "}
+                    Selections)
                   </span>
                   <strong className="text-sm font-bold font-mono text-indigo-600 dark:text-indigo-400">
-                    {betAmountPerSelection * 7} USDC
+                    {betAmountPerSelection * Object.keys(pvpSelections).length}{" "}
+                    USDC
                   </strong>
                 </div>
               </div>
@@ -827,12 +911,17 @@ export default function PvpArenaTab({
 
                 <button
                   onClick={handleSubmitPvpTicket}
-                  disabled={submitTicketMutation.isPending}
+                  disabled={
+                    submitTicketMutation.isPending ||
+                    Object.keys(pvpSelections).length < 3
+                  }
                   className="verity-pill px-6 h-11 bg-indigo-600 text-white hover:bg-indigo-500 font-bold uppercase tracking-wider text-xs shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                 >
                   {submitTicketMutation.isPending
                     ? "Queuing..."
-                    : "Submit ticket & Queue"}
+                    : Object.keys(pvpSelections).length < 3
+                      ? `Select ${3 - Object.keys(pvpSelections).length} More Categories`
+                      : "Submit ticket & Queue"}
                   <ChevronRight className="h-4 w-4" />
                 </button>
               </div>

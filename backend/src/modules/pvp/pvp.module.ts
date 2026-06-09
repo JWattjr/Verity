@@ -9,6 +9,7 @@ import { PvpController } from "./pvp.controller"
 import { SocketModule } from "../socket/socket.module"
 import { NotificationsModule } from "../notifications/notifications.module"
 import { LiquidityModule } from "../liquidity/liquidity.module"
+import { AgentModule } from "../agent/agent.module"
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { LiquidityModule } from "../liquidity/liquidity.module"
     SocketModule,
     NotificationsModule,
     LiquidityModule,
+    AgentModule,
   ],
   controllers: [PvpController],
   providers: [PvpService],

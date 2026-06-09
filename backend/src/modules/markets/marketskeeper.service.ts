@@ -13,6 +13,7 @@ import { AgentService } from "../agent/agent.service"
 import { SocketGateway } from "../socket/socket.gateway"
 import { ConfigService } from "@nestjs/config"
 import { PvpService } from "../pvp/pvp.service"
+import { LiquidityService } from "../liquidity/liquidity.service"
 
 @Injectable()
 export class MarketsKeeperService implements OnModuleInit, OnModuleDestroy {
@@ -28,6 +29,7 @@ export class MarketsKeeperService implements OnModuleInit, OnModuleDestroy {
     private readonly configService: ConfigService,
     private readonly socketGateway: SocketGateway,
     private readonly pvpService: PvpService,
+    private readonly liquidityService: LiquidityService,
   ) {}
 
   onModuleInit() {
@@ -49,6 +51,7 @@ export class MarketsKeeperService implements OnModuleInit, OnModuleDestroy {
     this.isProcessing = true
 
     try {
+      await this.liquidityService.voidExpiredPools()
       await this.promoteQualifiedMarkets()
       await this.processPythMarkets()
       await this.processSubjectiveMarkets()
@@ -159,7 +162,7 @@ export class MarketsKeeperService implements OnModuleInit, OnModuleDestroy {
     // Find unresolved Pyth markets that have passed their deadline plus the delay cutoff
     const expiredMarkets = await this.marketModel.find({
       isPythMarket: true,
-      status: { $in: ["funding_pool", "tradable"] },
+      status: "tradable",
       deadline: { $lte: delayCutoff },
     })
 
@@ -206,7 +209,7 @@ export class MarketsKeeperService implements OnModuleInit, OnModuleDestroy {
     const expiredMarkets = await this.marketModel.find({
       isPythMarket: { $ne: true },
       marketType: { $ne: "parent" },
-      status: { $in: ["funding_pool", "tradable", "resolving"] },
+      status: { $in: ["tradable", "resolving"] },
       deadline: { $lte: now },
     })
 
