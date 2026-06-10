@@ -4,6 +4,7 @@ import { useMemo, useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import ComposeBox from "@/components/feed/ComposeBox"
 import { type FeedTabId } from "@/components/feed/FeedTabs"
+import MarketCard from "@/components/post/MarketCard"
 import PostCard from "@/components/post/PostCard"
 import CommentModal from "@/components/social/CommentModal"
 import { useDailyVotes } from "@/hooks/useDailyVotes"
@@ -388,24 +389,54 @@ function FeedCard({
         )
       }
 
+      const market = item.market!
+      const totalUsdc =
+        Number(market.usdc_yes_amount || 0) + Number(market.usdc_no_amount || 0)
+      const yesPercent =
+        totalUsdc > 0
+          ? (Number(market.usdc_yes_amount || 0) / totalUsdc) * 100
+          : 50
+
       return (
-        <PostCard
+        <MarketCard
+          category={market.category}
           comments={item.commentsCount}
-          content={item.content || item.market.question}
+          dailyVotesRemaining={dailyVotesRemaining}
+          deadline={new Date(market.deadline).toLocaleDateString()}
+          freeNoVotes={market.free_no_votes}
+          freeYesVotes={market.free_yes_votes}
           handle={displayHandle(item.author)}
-          liked={item.viewerLiked}
-          likes={item.likesCount}
+          liquidity={market.liquidity}
+          marketCreationFeeUsdc={market.market_creation_fee_usdc}
           name={displayName(item.author)}
-          onComment={onComment}
-          onOpenDetails={() => onOpenMarket(item.market!)}
-          onLike={onLike}
-          onReshare={onReshare}
-          onShare={onShare}
+          noCondition={market.no_condition}
+          onOpenDetails={() => onOpenMarket(market)}
+          postContent={item.content}
           profile={item.author}
           profileHref={`/profile/${encodeURIComponent(item.author.id)}`}
+          question={market.question}
+          resolutionSource={market.resolution_source}
           reshares={item.resharesCount}
-          reshared={item.viewerReshared}
+          status={market.status}
           time={relativeTime(item.created_at)}
+          totalFreeVotes={market.totalFreeVotes}
+          usdcNo={Number(market.usdc_no_amount)}
+          usdcYes={Number(market.usdc_yes_amount)}
+          viewerVote={item.viewerVote}
+          yesCondition={market.yes_condition}
+          yesPercent={yesPercent}
+          outcomeCount={market.outcomeCount}
+          outcomes={market.outcomes}
+          outcomePrices={market.outcomePrices}
+          isConnected={isConnected}
+          actionLoading={actionLoading === market.id}
+          onAddLP={(amount) => onAddLP(market, amount)}
+          onVote={(side) => onVote(market, side)}
+          onUsdcVote={(side, amount) => onUsdcVote(market, side, amount)}
+          onComment={onComment}
+          onReshare={onReshare}
+          onShare={onShare}
+          reshared={item.viewerReshared}
         />
       )
     }

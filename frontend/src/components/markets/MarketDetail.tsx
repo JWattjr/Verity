@@ -104,7 +104,7 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
   const postId = item?.id
   const detailMarketId = market?.id
 
-  // Auto-select first child market if parent
+  // Auto-select child market matching the route marketId, otherwise default to first child
   useEffect(() => {
     if (
       market?.marketType === "parent" &&
@@ -112,9 +112,22 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
       market.childMarkets.length > 0 &&
       !selectedChildId
     ) {
-      setSelectedChildId(market.childMarkets[0].id)
+      const matchingChild = market.childMarkets.find((child) => child.id === marketId)
+      if (matchingChild) {
+        setSelectedChildId(matchingChild.id)
+      } else {
+        setSelectedChildId(market.childMarkets[0].id)
+      }
     }
-  }, [market, selectedChildId])
+  }, [market, selectedChildId, marketId])
+
+  // Synchronize browser URL path with the selected option
+  useEffect(() => {
+    if (selectedChildId && selectedChildId !== marketId) {
+      const newUrl = `/markets/${selectedChildId}`
+      window.history.replaceState(null, "", newUrl)
+    }
+  }, [selectedChildId, marketId])
 
   const activeMarketId = selectedChildId || detailMarketId
 
