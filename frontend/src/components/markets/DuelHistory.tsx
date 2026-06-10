@@ -205,7 +205,7 @@ export default function DuelHistory({ matchHistory }: DuelHistoryProps) {
                         ? pick.yesCondition || "YES"
                         : pick.resolvedOutcome === "NO"
                           ? pick.noCondition || "NO"
-                          : "Pending"
+                          : pick.resolvedOutcome || "Pending"
 
                     return (
                       <div
@@ -242,12 +242,16 @@ export default function DuelHistory({ matchHistory }: DuelHistoryProps) {
                               className={`text-xs font-bold mt-0.5 block ${
                                 pick.selection === "YES"
                                   ? "text-meadow-green"
-                                  : "text-ember-orange"
+                                  : pick.selection === "NO"
+                                    ? "text-ember-orange"
+                                    : "text-indigo-600 dark:text-indigo-400"
                               }`}
                             >
                               {pick.selection === "YES"
                                 ? pick.yesCondition || "YES"
-                                : pick.noCondition || "NO"}
+                                : pick.selection === "NO"
+                                  ? pick.noCondition || "NO"
+                                  : pick.selection}
                             </span>
                           </div>
 
@@ -259,13 +263,17 @@ export default function DuelHistory({ matchHistory }: DuelHistoryProps) {
                               className={`text-xs font-bold mt-0.5 block ${
                                 oppPick?.selection === "YES"
                                   ? "text-meadow-green"
-                                  : "text-ember-orange"
+                                  : oppPick?.selection === "NO"
+                                    ? "text-ember-orange"
+                                    : "text-indigo-600 dark:text-indigo-400"
                               }`}
                             >
                               {oppPick
                                 ? oppPick.selection === "YES"
                                   ? pick.yesCondition || "YES"
-                                  : pick.noCondition || "NO"
+                                  : oppPick.selection === "NO"
+                                    ? pick.noCondition || "NO"
+                                    : oppPick.selection
                                 : "N/A"}
                             </span>
                           </div>

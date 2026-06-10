@@ -831,6 +831,32 @@ export class BlockchainService implements OnModuleInit {
     }
   }
 
+  async resolveMarketOutcome(
+    marketId: string,
+    winningOutcomeIndex: number,
+  ): Promise<string> {
+    if (!this.walletClient) {
+      throw new Error("Wallet client not initialized")
+    }
+
+    const formattedMarketId = this.formatMarketId(marketId)
+    try {
+      const txHash = await this.walletClient.writeContract({
+        address: this.factoryAddress,
+        abi: this.factoryAbi,
+        functionName: "resolveMarketOutcome",
+        args: [formattedMarketId, BigInt(winningOutcomeIndex)],
+        chain: arcTestnet,
+      })
+      await this.publicClient.waitForTransactionReceipt({ hash: txHash })
+      return txHash
+    } catch (error) {
+      throw new Error(
+        `Failed to resolve market outcome ${marketId} on-chain: ${error.message}`,
+      )
+    }
+  }
+
   getAdminAddress(): string {
     return this.account?.address || ""
   }

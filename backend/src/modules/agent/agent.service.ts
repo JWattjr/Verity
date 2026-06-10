@@ -143,12 +143,41 @@ export class AgentService {
       this.configService.get<string>("LLM_PROVIDER") || "mock"
     ).toLowerCase()
 
+    let cleanQuestion = question
+    // Map common PvP suffixes to clearer search terms
+    if (cleanQuestion.includes(" - Major")) {
+      cleanQuestion = cleanQuestion.replace(" - Major", " Match Winner")
+    } else if (cleanQuestion.includes(" - First Goal")) {
+      cleanQuestion = cleanQuestion.replace(" - First Goal", " First Team to Score")
+    } else if (cleanQuestion.includes(" - Red Card")) {
+      cleanQuestion = cleanQuestion.replace(" - Red Card", " Red Card")
+    } else if (cleanQuestion.includes(" - Yellow Cards") || cleanQuestion.includes(" - Cards")) {
+      cleanQuestion = cleanQuestion.replace(/ - (Yellow Cards|Cards)/g, " Yellow Cards")
+    } else if (cleanQuestion.includes(" - Corners")) {
+      cleanQuestion = cleanQuestion.replace(" - Corners", " Corners")
+    } else if (cleanQuestion.includes(" - Goals")) {
+      cleanQuestion = cleanQuestion.replace(" - Goals", " Goals")
+    } else if (cleanQuestion.includes(" - Spread")) {
+      cleanQuestion = cleanQuestion.replace(" - Spread", " Spread Winner")
+    } else if (cleanQuestion.includes(" - Totals")) {
+      cleanQuestion = cleanQuestion.replace(" - Totals", " Totals")
+    }
+
+    // Extract year from resolution source, falling back to the current year
+    const yearMatch = resolutionSource ? resolutionSource.match(/\b\d{4}\b/) : null
+    const year = yearMatch ? yearMatch[0] : String(new Date().getFullYear())
+
+    let searchQuery = cleanQuestion
+    if (!searchQuery.includes(year)) {
+      searchQuery = `${cleanQuestion} ${year}`
+    }
+
     // Perform web search to gather context
-    const searchContext = await this.searchWeb(question)
+    const searchContext = await this.searchWeb(searchQuery)
 
     const prompt = `You are an expert prediction market resolution agent. Your task is to resolve the following market question using the provided search results.
 
-Market Question: ${question}
+Market Question: ${cleanQuestion}
 Yes Condition: ${yesCondition}
 No Condition: ${noCondition}
 Resolution Source Info: ${resolutionSource}
@@ -517,14 +546,14 @@ Do not include any other markdown formatting, code block markers, or text outsid
       const name = opt.toLowerCase()
       if (name.includes("win") || name.includes("draw")) {
         mapping[opt] = "match_winner"
-      } else if (name.includes("goal")) {
+      } else if (name.includes("goal") || name.includes("score first") || name.includes("scores first")) {
         mapping[opt] = "first_goal"
       } else if (name.includes("halftime")) {
         mapping[opt] = "halftime_leader"
       } else if (name.includes("clean sheet")) {
         mapping[opt] = "clean_sheet"
-      } else if (name.includes("foul") || name.includes("fouls")) {
-        mapping[opt] = "fouls_leader"
+      } else if (name.includes("red card")) {
+        mapping[opt] = "red_card"
       } else if (
         name.includes("yellow card") ||
         name.includes("yellow cards") ||

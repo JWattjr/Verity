@@ -23,6 +23,7 @@ import {
   AlertTriangle,
   ChevronDown,
   ChevronUp,
+  ShieldAlert,
 } from "lucide-react"
 import { toast } from "@/lib/toast"
 import PvpLiquidityModal from "./PvpLiquidityModal"
@@ -179,7 +180,7 @@ export default function PvpArenaTab({
   const totalVolume = useMemo(() => {
     if (!selectedPvpEvent?.options) return 0
     return selectedPvpEvent.options.reduce(
-      (sum: number, opt: any) => sum + Number(opt.liquidity ?? 0),
+      (sum: number, opt: any) => sum + Number(opt.volume ?? 0),
       0,
     )
   }, [selectedPvpEvent])
@@ -802,7 +803,7 @@ export default function PvpArenaTab({
                     </div>
 
                     {/* Bottom row: Selections */}
-                    <div className="flex items-stretch gap-2">
+                    <div className="grid grid-cols-2 md:flex md:items-stretch gap-2">
                       {/* Your Pick */}
                       <div className="flex flex-col items-start bg-white-surface dark:bg-zinc-950 px-3 py-1.5 rounded-[8px] border border-border dark:border-zinc-800 flex-1 min-w-0">
                         <span className="text-[9px] font-inter text-ash uppercase">
@@ -836,6 +837,22 @@ export default function PvpArenaTab({
                           </span>
                         )}
                       </div>
+
+                      {/* Outcome — only shown when resolved */}
+                      {(pick.status === "resolved" || pick.resolvedOutcome !== null) && (
+                        <div className="flex flex-col items-start bg-zinc-100 dark:bg-zinc-900/60 px-3 py-1.5 rounded-[8px] border border-border dark:border-zinc-800 flex-1 min-w-0">
+                          <span className="text-[9px] font-inter text-ash uppercase">
+                            Outcome
+                          </span>
+                          <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400 truncate max-w-full">
+                            {pick.resolvedOutcome === "YES"
+                              ? childOpt?.yesCondition || "YES"
+                              : pick.resolvedOutcome === "NO"
+                                ? childOpt?.noCondition || "NO"
+                                : pick.resolvedOutcome}
+                          </span>
+                        </div>
+                      )}
 
                       {/* Points — only shown when resolved */}
                       {pick.isCorrect !== null && (
@@ -973,7 +990,7 @@ export default function PvpArenaTab({
                   const isMulti =
                     firstOpt?.outcomeCount && firstOpt.outcomeCount > 2
                   const groupVolume = opts.reduce(
-                    (s: number, o: any) => s + Number(o.liquidity ?? 0),
+                    (s: number, o: any) => s + Number(o.volume ?? 0),
                     0,
                   )
 
@@ -1348,6 +1365,36 @@ function getCategoryMeta(groupKey: string): CatMeta {
       ring: "ring-indigo-400/30",
       unselectedBg:
         "bg-indigo-50/80 dark:bg-indigo-950/20 text-indigo-700 dark:text-indigo-300 border border-indigo-100 dark:border-indigo-900/40",
+    },
+    match_winner: {
+      title: "Match Winner",
+      subtitle: "3-way: Win / Draw / Win",
+      icon: <Trophy className="h-4 w-4" />,
+      accent: "indigo",
+      selectedBg: "bg-indigo-600",
+      ring: "ring-indigo-400/30",
+      unselectedBg:
+        "bg-indigo-50/80 dark:bg-indigo-950/20 text-indigo-700 dark:text-indigo-300 border border-indigo-100 dark:border-indigo-900/40",
+    },
+    first_goal: {
+      title: "First Team to Score",
+      subtitle: "First to Score",
+      icon: <Target className="h-4 w-4" />,
+      accent: "orange",
+      selectedBg: "bg-orange-500",
+      ring: "ring-orange-400/30",
+      unselectedBg:
+        "bg-orange-50/80 dark:bg-orange-950/20 text-orange-700 dark:text-orange-300 border border-orange-100 dark:border-orange-900/40",
+    },
+    red_card: {
+      title: "Red Card",
+      subtitle: "Red card shown in match",
+      icon: <ShieldAlert className="h-4 w-4" />,
+      accent: "red",
+      selectedBg: "bg-red-600",
+      ring: "ring-red-400/30",
+      unselectedBg:
+        "bg-red-50/80 dark:bg-red-950/20 text-red-700 dark:text-red-300 border border-red-100 dark:border-red-900/40",
     },
     corners: {
       title: "Corners",

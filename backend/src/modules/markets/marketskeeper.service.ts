@@ -209,6 +209,11 @@ export class MarketsKeeperService implements OnModuleInit, OnModuleDestroy {
     const expiredMarkets = await this.marketModel.find({
       isPythMarket: { $ne: true },
       marketType: { $ne: "parent" },
+      // Exclude multi-outcome markets (optimistic resolver contract only supports binary)
+      // $or: [
+      //   { outcomeCount: { $exists: false } },
+      //   { outcomeCount: { $lte: 2 } },
+      // ],
       status: { $in: ["tradable", "resolving"] },
       deadline: { $lte: now },
     })
@@ -315,7 +320,10 @@ export class MarketsKeeperService implements OnModuleInit, OnModuleDestroy {
                   : "NO"
                 market.resolvedByAdmin = "0xKeeper"
                 await market.save()
-                await this.pvpService.resolvePvpMatchesForMarket(marketIdStr, market.resolvedOutcome)
+                await this.pvpService.resolvePvpMatchesForMarket(
+                  marketIdStr,
+                  market.resolvedOutcome,
+                )
                 this.logger.log(
                   `Synced finalized market ${marketIdStr} in database.`,
                 )
@@ -384,7 +392,10 @@ export class MarketsKeeperService implements OnModuleInit, OnModuleDestroy {
                   : "NO"
                 market.resolvedByAdmin = "0xKeeper"
                 await market.save()
-                await this.pvpService.resolvePvpMatchesForMarket(marketIdStr, market.resolvedOutcome)
+                await this.pvpService.resolvePvpMatchesForMarket(
+                  marketIdStr,
+                  market.resolvedOutcome,
+                )
 
                 this.logger.log(
                   `Successfully finalized resolution for market ${marketIdStr}.`,
@@ -424,7 +435,10 @@ export class MarketsKeeperService implements OnModuleInit, OnModuleDestroy {
       market.resolvedOutcome = winningOutcome
       market.resolvedByAdmin = "0xKeeper"
       await market.save()
-      await this.pvpService.resolvePvpMatchesForMarket(market._id.toString(), winningOutcome)
+      await this.pvpService.resolvePvpMatchesForMarket(
+        market._id.toString(),
+        winningOutcome,
+      )
 
       // Emit Socket events
       this.socketGateway.broadcastToRoom("feed", "feed-updated", {})
@@ -504,7 +518,10 @@ export class MarketsKeeperService implements OnModuleInit, OnModuleDestroy {
     market.resolvedOutcome = winningOutcome
     market.resolvedByAdmin = "0xKeeper" // Identifier for auto-resolution
     await market.save()
-    await this.pvpService.resolvePvpMatchesForMarket(market._id.toString(), winningOutcome)
+    await this.pvpService.resolvePvpMatchesForMarket(
+      market._id.toString(),
+      winningOutcome,
+    )
 
     this.logger.log(
       `Successfully resolved market ${market._id} to ${winningOutcome} on-chain & database.`,

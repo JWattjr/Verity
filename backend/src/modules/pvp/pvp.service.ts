@@ -385,6 +385,18 @@ export class PvpService {
         parentMarketId: parent._id,
         marketType: "child",
       })
+
+      const childIds = children.map((c) => c._id)
+      const trades = await this.marketTradeModel.find({
+        marketId: { $in: childIds },
+      })
+
+      const volumeMap: Record<string, number> = {}
+      for (const t of trades) {
+        const idStr = t.marketId.toString()
+        volumeMap[idStr] = (volumeMap[idStr] || 0) + Number(t.amountUsdc || 0)
+      }
+
       result.push({
         id: parent._id.toString(),
         question: parent.question,
@@ -402,6 +414,7 @@ export class PvpService {
           yesCondition: c.yesCondition,
           noCondition: c.noCondition,
           liquidity: c.liquidity,
+          volume: volumeMap[c._id.toString()] || 0,
           optionGroup: c.optionGroup,
           outcomeCount: c.outcomeCount,
           outcomes: c.outcomes,
@@ -469,6 +482,17 @@ export class PvpService {
         marketType: "child",
       })
 
+      const childIds = children.map((c) => c._id)
+      const trades = await this.marketTradeModel.find({
+        marketId: { $in: childIds },
+      })
+
+      const volumeMap: Record<string, number> = {}
+      for (const t of trades) {
+        const idStr = t.marketId.toString()
+        volumeMap[idStr] = (volumeMap[idStr] || 0) + Number(t.amountUsdc || 0)
+      }
+
       result.push({
         id: parent._id.toString(),
         question: parent.question,
@@ -486,6 +510,7 @@ export class PvpService {
           yesCondition: c.yesCondition,
           noCondition: c.noCondition,
           liquidity: c.liquidity,
+          volume: volumeMap[c._id.toString()] || 0,
           optionGroup: c.optionGroup,
           outcomeCount: c.outcomeCount,
           outcomes: c.outcomes,
@@ -1101,11 +1126,22 @@ export class PvpService {
 
     // Fetch the user's on-chain positions for all child markets (same as normal markets)
     const childMarketIds = children.map((c) => c._id)
-    const userPositions = await this.marketPositionModel.find({
-      userId: new Types.ObjectId(userId),
-      marketId: { $in: childMarketIds },
-      shares: { $gt: 0 },
-    })
+    const [userPositions, childTrades] = await Promise.all([
+      this.marketPositionModel.find({
+        userId: new Types.ObjectId(userId),
+        marketId: { $in: childMarketIds },
+        shares: { $gt: 0 },
+      }),
+      this.marketTradeModel.find({
+        marketId: { $in: childMarketIds },
+      }),
+    ])
+
+    const volumeMap: Record<string, number> = {}
+    for (const t of childTrades) {
+      const idStr = t.marketId.toString()
+      volumeMap[idStr] = (volumeMap[idStr] || 0) + Number(t.amountUsdc || 0)
+    }
 
     return {
       status: ticket.status,
@@ -1175,8 +1211,17 @@ export class PvpService {
             options: children.map((c) => ({
               id: c._id.toString(),
               optionName: c.optionName || c.question,
+              status: c.status,
+              usdcYesAmount: c.usdcYesAmount,
+              usdcNoAmount: c.usdcNoAmount,
               yesCondition: c.yesCondition || "YES",
               noCondition: c.noCondition || "NO",
+              liquidity: c.liquidity || 0,
+              volume: volumeMap[c._id.toString()] || 0,
+              optionGroup: c.optionGroup,
+              outcomeCount: c.outcomeCount,
+              outcomes: c.outcomes,
+              outcomePrices: c.outcomePrices,
             })),
           }
         : null,

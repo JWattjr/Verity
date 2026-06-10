@@ -309,9 +309,9 @@ contract VerityFPMM is ERC1155Holder {
             uint256 oldProduct = 1;
             uint256 newProduct = 1;
             for (uint256 i = 0; i < outcomeCount; i++) {
-                uint256 bal = pool.outcomeBalances[i];
+                uint256 bal = pool.outcomeBalances[i] / 1000;
                 oldProduct = oldProduct * bal;
-                newProduct = newProduct * (bal + usdcAmount);
+                newProduct = newProduct * ((pool.outcomeBalances[i] + usdcAmount) / 1000);
             }
             uint256 rootOld = nthRoot(oldProduct, outcomeCount);
             uint256 rootNew = nthRoot(newProduct, outcomeCount);
@@ -379,9 +379,9 @@ contract VerityFPMM is ERC1155Holder {
             uint256 oldProduct = 1;
             uint256 newProduct = 1;
             for (uint256 i = 0; i < outcomeCount; i++) {
-                uint256 bal = pool.outcomeBalances[i];
+                uint256 bal = pool.outcomeBalances[i] / 1000;
                 oldProduct = oldProduct * bal;
-                newProduct = newProduct * (bal + usdcAmount);
+                newProduct = newProduct * ((pool.outcomeBalances[i] + usdcAmount) / 1000);
             }
             uint256 rootOld = nthRoot(oldProduct, outcomeCount);
             uint256 rootNew = nthRoot(newProduct, outcomeCount);
@@ -875,20 +875,17 @@ contract VerityFPMM is ERC1155Holder {
         USDC.approve(address(VAULT), actualAmount);
         VAULT.mintOutcomeTokens(marketId, address(this), actualAmount, outcomeCount);
 
-        // 6. Apply multi-outcome constant product formula
-        uint256 numerator = 1;
-        for (uint256 i = 0; i < outcomeCount; i++) {
-            numerator = numerator * pool.outcomeBalances[i];
-        }
-
-        uint256 denominator = 1;
+        // 6. Apply multi-outcome constant product formula iteratively to prevent overflow
+        uint256 outcomeBalanceNew = pool.outcomeBalances[outcomeIndex];
         for (uint256 i = 0; i < outcomeCount; i++) {
             if (i != outcomeIndex) {
-                denominator = denominator * (pool.outcomeBalances[i] + actualAmount);
+                outcomeBalanceNew = Math.mulDiv(
+                    outcomeBalanceNew,
+                    pool.outcomeBalances[i],
+                    pool.outcomeBalances[i] + actualAmount
+                );
             }
         }
-
-        uint256 outcomeBalanceNew = numerator / denominator;
         uint256 xJ = pool.outcomeBalances[outcomeIndex];
         tokensOut = (xJ + actualAmount) - outcomeBalanceNew;
 
@@ -1042,7 +1039,7 @@ contract VerityFPMM is ERC1155Holder {
         if (n == 1) return x;
         if (n == 2) return Math.sqrt(x);
         
-        uint256 y = 40e6;
+        uint256 y = 40_000;
         uint256 yPrev = 0;
         for (uint256 i = 0; i < 30; i++) {
             uint256 denom = 1;

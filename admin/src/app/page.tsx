@@ -83,6 +83,8 @@ export default function AdminPage() {
     corners: { enabled: false, line: 9.5 },
     goals: { enabled: false, line: 2.5 },
     cards: { enabled: false, line: 3.5 },
+    firstScore: { enabled: false },
+    redCard: { enabled: false },
   })
 
   // Custom propositions
@@ -124,6 +126,17 @@ export default function AdminPage() {
       opts.push(`${a} wins the match`)
       opts.push(`Match ends in a draw`)
       opts.push(`${b} wins the match`)
+    }
+
+    if (categories.firstScore.enabled) {
+      opts.push(`${a} scores first`)
+      opts.push(`No goal in the match`)
+      opts.push(`${b} scores first`)
+    }
+
+    if (categories.redCard.enabled) {
+      opts.push(`At least one red card shown`)
+      opts.push(`No red cards shown`)
     }
 
     if (categories.corners.enabled && categories.corners.line != null) {
@@ -333,6 +346,8 @@ export default function AdminPage() {
         corners: { enabled: false, line: 9.5 },
         goals: { enabled: false, line: 2.5 },
         cards: { enabled: false, line: 3.5 },
+        firstScore: { enabled: false },
+        redCard: { enabled: false },
       })
       setCustomOptions([])
       void fetchMarkets()
@@ -751,6 +766,62 @@ export default function AdminPage() {
                       <span className="text-[10px] font-bold uppercase text-ash tracking-wider">Away</span>
                       <span className="text-sm font-bold text-rose-700 dark:text-rose-300 text-center leading-tight">
                         {hasTeams ? teamB : "Team B"}
+                      </span>
+                    </div>
+                  </div>
+                </CategoryCard>
+
+                {/* ─── First Team to Score Category ─── */}
+                <CategoryCard
+                  title="First Team to Score"
+                  subtitle="3-way: Team A / No Goal / Team B"
+                  icon={<Target className="h-4 w-4" />}
+                  enabled={categories.firstScore.enabled}
+                  onToggle={() => toggleCategory("firstScore")}
+                  accentColor="orange"
+                >
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="flex flex-col items-center gap-1.5 p-3 rounded-lg bg-orange-50/80 dark:bg-orange-950/20 border border-orange-100 dark:border-orange-900/40">
+                      <span className="text-[10px] font-bold uppercase text-ash tracking-wider">Home</span>
+                      <span className="text-sm font-bold text-orange-700 dark:text-orange-300 text-center leading-tight">
+                        {hasTeams ? teamA : "Team A"}
+                      </span>
+                    </div>
+                    <div className="flex flex-col items-center gap-1.5 p-3 rounded-lg bg-stone-100/80 dark:bg-zinc-800/40 border border-stone-200 dark:border-zinc-700/60">
+                      <span className="text-[10px] font-bold uppercase text-ash tracking-wider">No Goal</span>
+                      <span className="text-sm font-bold text-stone-600 dark:text-zinc-300 text-center leading-tight">
+                        No Goal
+                      </span>
+                    </div>
+                    <div className="flex flex-col items-center gap-1.5 p-3 rounded-lg bg-rose-50/80 dark:bg-rose-950/20 border border-rose-100 dark:border-rose-900/40">
+                      <span className="text-[10px] font-bold uppercase text-ash tracking-wider">Away</span>
+                      <span className="text-sm font-bold text-rose-700 dark:text-rose-300 text-center leading-tight">
+                        {hasTeams ? teamB : "Team B"}
+                      </span>
+                    </div>
+                  </div>
+                </CategoryCard>
+
+                {/* ─── Red Card Category ─── */}
+                <CategoryCard
+                  title="Red Card"
+                  subtitle="Red card shown in match"
+                  icon={<ShieldAlert className="h-4 w-4" />}
+                  enabled={categories.redCard.enabled}
+                  onToggle={() => toggleCategory("redCard")}
+                  accentColor="red"
+                >
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="flex flex-col items-center gap-1.5 p-3 rounded-lg bg-red-50/80 dark:bg-red-950/20 border border-red-100 dark:border-red-900/40">
+                      <span className="text-[10px] font-bold uppercase text-ash tracking-wider">Yes</span>
+                      <span className="text-sm font-bold text-red-700 dark:text-red-300 text-center leading-tight">
+                        Red card shown
+                      </span>
+                    </div>
+                    <div className="flex flex-col items-center gap-1.5 p-3 rounded-lg bg-stone-100/80 dark:bg-zinc-800/40 border border-stone-200 dark:border-zinc-700/60">
+                      <span className="text-[10px] font-bold uppercase text-ash tracking-wider">No</span>
+                      <span className="text-sm font-bold text-stone-600 dark:text-zinc-300 text-center leading-tight">
+                        No red cards
                       </span>
                     </div>
                   </div>

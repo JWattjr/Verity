@@ -363,6 +363,8 @@ export function useExecuteMarketTradeMutation() {
       void qc.invalidateQueries({ queryKey: ["feed"] })
       void qc.invalidateQueries({ queryKey: ["positions"] })
       void qc.invalidateQueries({ queryKey: ["trades"] })
+      void qc.invalidateQueries({ queryKey: ["pvp-active-events"] })
+      void qc.invalidateQueries({ queryKey: ["pvp-status"] })
     },
   })
 }
@@ -451,6 +453,8 @@ export function useAddLiquidityMutation() {
       void qc.invalidateQueries({ queryKey: ["feed"] })
       void qc.invalidateQueries({ queryKey: ["pool-state"] })
       void qc.invalidateQueries({ queryKey: ["lp-positions"] })
+      void qc.invalidateQueries({ queryKey: ["pvp-active-events"] })
+      void qc.invalidateQueries({ queryKey: ["pvp-status"] })
     },
   })
 }
@@ -477,6 +481,8 @@ export function useRemoveLiquidityMutation() {
       void qc.invalidateQueries({ queryKey: ["feed"] })
       void qc.invalidateQueries({ queryKey: ["pool-state"] })
       void qc.invalidateQueries({ queryKey: ["lp-positions"] })
+      void qc.invalidateQueries({ queryKey: ["pvp-active-events"] })
+      void qc.invalidateQueries({ queryKey: ["pvp-status"] })
     },
   })
 }
@@ -634,6 +640,7 @@ export function useSubmitPvpTicketMutation() {
       void qc.invalidateQueries({ queryKey: ["pvp-status"] })
       void qc.invalidateQueries({ queryKey: ["pvp-my-active-tickets"] })
       void qc.invalidateQueries({ queryKey: ["wallet-profile"] })
+      void qc.invalidateQueries({ queryKey: ["pvp-active-events"] })
     },
   })
 }

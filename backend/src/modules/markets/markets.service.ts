@@ -890,43 +890,97 @@ export class MarketsService {
       )
 
       for (const child of childMarkets) {
-        child.status = "resolved"
-        child.resolvedOutcome = winningOutcome
-        child.resolvedByAdmin = adminAddress
-        await child.save()
+        if (child.outcomeCount > 2) {
+          // Multi-outcome child market
+          const winningIndex = child.outcomes.findIndex(
+            (o) => o.toLowerCase().trim() === winningOutcome.toLowerCase().trim(),
+          )
+          if (winningIndex >= 0) {
+            child.status = "resolved"
+            child.resolvedOutcome = child.outcomes[winningIndex]
+            child.winningOutcomeIndex = winningIndex
+            child.resolvedByAdmin = adminAddress
+            await child.save()
 
-        // Resolve child market on-chain
-        try {
-          const winningIsYes = winningOutcome.toUpperCase().trim() === "YES"
-          await this.blockchainService.resolveMarket(
-            child._id.toString(),
-            winningIsYes,
-          )
-          this.logger.log(
-            `Successfully resolved child market ${child._id} on-chain (winningIsYes: ${winningIsYes})`,
-          )
-        } catch (err) {
-          this.logger.error(
-            `Failed to resolve child market ${child._id} on-chain: ${err.message}`,
-          )
+            // Resolve child market on-chain
+            try {
+              await this.blockchainService.resolveMarketOutcome(
+                child._id.toString(),
+                winningIndex,
+              )
+              this.logger.log(
+                `Successfully resolved multi-outcome child market ${child._id} on-chain to index ${winningIndex}`,
+              )
+            } catch (err) {
+              this.logger.error(
+                `Failed to resolve multi-outcome child market ${child._id} on-chain: ${err.message}`,
+              )
+            }
+
+            // Trigger PvP match resolution for each child market
+            await this.pvpService.resolvePvpMatchesForMarket(
+              child._id.toString(),
+              child.outcomes[winningIndex],
+            )
+
+            this.logger.log(
+              `Resolved multi-outcome child market ${child._id} (${child.optionName || child.question}) -> ${child.outcomes[winningIndex]}`,
+            )
+
+            // Emit socket events for each child market
+            this.socketGateway.broadcastToRoom(
+              `market:${child._id.toString()}`,
+              "market-updated",
+              { marketId: child._id.toString() },
+            )
+          }
+        } else {
+          // Binary child market
+          const isYesMatch = child.outcomes[0]?.toLowerCase().trim() === winningOutcome.toLowerCase().trim()
+          const isNoMatch = child.outcomes[1]?.toLowerCase().trim() === winningOutcome.toLowerCase().trim()
+
+          if (isYesMatch || isNoMatch) {
+            const childResolvedOutcome = isYesMatch ? "YES" : "NO"
+            child.status = "resolved"
+            child.resolvedOutcome = childResolvedOutcome
+            child.winningOutcomeIndex = isYesMatch ? 0 : 1
+            child.resolvedByAdmin = adminAddress
+            await child.save()
+
+            // Resolve child market on-chain
+            try {
+              const winningIsYes = isYesMatch
+              await this.blockchainService.resolveMarket(
+                child._id.toString(),
+                winningIsYes,
+              )
+              this.logger.log(
+                `Successfully resolved binary child market ${child._id} on-chain (winningIsYes: ${winningIsYes})`,
+              )
+            } catch (err) {
+              this.logger.error(
+                `Failed to resolve binary child market ${child._id} on-chain: ${err.message}`,
+              )
+            }
+
+            // Trigger PvP match resolution for each child market
+            await this.pvpService.resolvePvpMatchesForMarket(
+              child._id.toString(),
+              childResolvedOutcome,
+            )
+
+            this.logger.log(
+              `Resolved binary child market ${child._id} (${child.optionName || child.question}) -> ${childResolvedOutcome}`,
+            )
+
+            // Emit socket events for each child market
+            this.socketGateway.broadcastToRoom(
+              `market:${child._id.toString()}`,
+              "market-updated",
+              { marketId: child._id.toString() },
+            )
+          }
         }
-
-        // Trigger PvP match resolution for each child market
-        await this.pvpService.resolvePvpMatchesForMarket(
-          child._id.toString(),
-          winningOutcome,
-        )
-
-        this.logger.log(
-          `Resolved child market ${child._id} (${child.optionName || child.question}) -> ${winningOutcome}`,
-        )
-
-        // Emit socket events for each child market
-        this.socketGateway.broadcastToRoom(
-          `market:${child._id.toString()}`,
-          "market-updated",
-          { marketId: child._id.toString() },
-        )
       }
     } else {
       // For non-parent markets, trigger PvP match resolution directly

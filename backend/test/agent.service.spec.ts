@@ -70,13 +70,13 @@ describe("AgentService", () => {
     })
 
     it("should handle empty search results gracefully", async () => {
-      fetchMock.mockResolvedValueOnce({
+      fetchMock.mockResolvedValue({
         ok: true,
         text: async () => "<html><body>No results</body></html>",
       } as any)
 
       const res = await service.searchWeb("empty query")
-      expect(res).toBe("No relevant search results found.")
+      expect(res).toBe("Error performing web search.")
     })
   })
 

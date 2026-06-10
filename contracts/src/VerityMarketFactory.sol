@@ -428,6 +428,29 @@ contract VerityMarketFactory {
         emit MarketResolved(marketId, winningIsYes);
     }
 
+    /// @notice Admin resolves a multi-outcome market by setting the winning outcome index.
+    /// @param marketId Market identifier
+    /// @param winningOutcomeIndex Index of the winning outcome
+    function resolveMarketOutcome(
+        bytes32 marketId,
+        uint256 winningOutcomeIndex
+    ) external onlyAdmin {
+        MarketInfo storage info = marketRegistry[marketId];
+        if (!info.registered) revert MarketNotRegistered();
+        if (info.resolved) revert MarketAlreadyResolved();
+        if (info.voided) revert MarketAlreadyVoided();
+
+        info.resolved = true;
+
+        // Resolve on the VAULT (sets winning side for redemptions)
+        VAULT.resolveOutcome(marketId, winningOutcomeIndex);
+
+        // Mark pool as resolved on FPMM (allows creator withdrawal)
+        FPMM.markResolved(marketId);
+
+        emit MarketResolved(marketId, winningOutcomeIndex == 0);
+    }
+
     /// @notice Admin resolves a Pyth-registered market using historical cryptographic price updates.
     /// @param marketId Market identifier
     /// @param priceUpdate Signed price update VAAs from Pyth Hermes API
