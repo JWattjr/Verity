@@ -89,10 +89,9 @@ export default function PvpLiquidityModal({
           </div>
 
           <p className="text-[10px] font-mono text-ash leading-normal bg-stone-50 dark:bg-zinc-900/50 p-2.5 rounded-lg border border-border/40 dark:border-zinc-800/40">
-            • Deposits USDC liquidity into the child market pool to
-            facilitate trading.
-            <br />
-            • Earn LP shares and trading fees from all BUY/SELL token
+            • Deposits USDC liquidity into the child market pool to facilitate
+            trading.
+            <br />• Earn LP shares and trading fees from all BUY/SELL token
             trades in this market.
           </p>
 

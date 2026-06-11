@@ -171,8 +171,7 @@ export default function PvpTicketBuilder({
                   const opt = selectedPvpEvent.options.find(
                     (o: any) => o.id === optId,
                   )
-                  const isMultiOpt =
-                    opt?.outcomeCount && opt.outcomeCount > 2
+                  const isMultiOpt = opt?.outcomeCount && opt.outcomeCount > 2
                   const displaySelection = isMultiOpt
                     ? cleanOutcomeName(
                         selection,
@@ -394,8 +393,7 @@ function MultiWayOutcomes({
       className={`grid gap-2 ${firstOpt.outcomeCount === 3 ? "grid-cols-3" : firstOpt.outcomeCount === 2 ? "grid-cols-2" : "grid-cols-3"}`}
     >
       {firstOpt.outcomes.map((outcomeName: string, idx: number) => {
-        const price =
-          firstOpt.outcomePrices?.[idx] ?? 1 / firstOpt.outcomeCount
+        const price = firstOpt.outcomePrices?.[idx] ?? 1 / firstOpt.outcomeCount
         const priceCents = (price * 100).toFixed(1)
         const isSelected = pvpSelections[firstOpt.id] === outcomeName
         const displayName = cleanOutcomeName(

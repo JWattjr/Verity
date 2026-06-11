@@ -89,36 +89,6 @@ export default function MarketHero({
         </span>
       </div>
 
-      {market.status === "open_for_votes" && (
-        <div className="relative mt-4 border-t border-dashed border-stone-surface pt-3">
-          <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2 font-mono text-xs text-ash">
-            <span>
-              Signals cast progress:{" "}
-              <strong className="text-charcoal-primary">
-                {totalVotes} / {targetVotes}
-              </strong>
-            </span>
-            {isDev && onDevQualify && (
-              <button
-                className="text-[10px] font-bold uppercase tracking-[0.08em] text-meadow-green hover:underline focus:outline-none"
-                disabled={devQualifyLoading}
-                onClick={onDevQualify}
-                type="button"
-              >
-                {devQualifyLoading
-                  ? "Fast-tracking..."
-                  : "[Skip signal review]"}
-              </button>
-            )}
-          </div>
-          <div className="h-1.5 overflow-hidden rounded-full bg-parchment-card shadow-subtle">
-            <div
-              className="h-full bg-meadow-green transition-all duration-500"
-              style={{ width: `${votesProgress}%` }}
-            />
-          </div>
-        </div>
-      )}
     </section>
   )
 }

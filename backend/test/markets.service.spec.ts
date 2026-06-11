@@ -27,7 +27,7 @@ describe("MarketsService", () => {
     _id: "60d0fe4f5311236168a109cc",
     id: "60d0fe4f5311236168a109cc",
     question: "Will BTC reach $100k?",
-    status: "open_for_votes",
+    status: "qualified",
     qualificationThreshold: 10,
     uniqueVoterThreshold: 5,
     createdAt: new Date(),
