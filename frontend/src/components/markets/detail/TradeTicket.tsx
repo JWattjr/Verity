@@ -206,7 +206,7 @@ export default function TradeTicket({
             >
               {action === "BUY"
                 ? `${balanceLabel} USDC balance`
-                : `${maxSellShares.toFixed(4)} ${sideLabel} available`}
+                : `${maxSellShares.toFixed(4)} ${selectedSide}`}
             </p>
           </div>
           <input
