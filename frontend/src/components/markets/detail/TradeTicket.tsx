@@ -178,14 +178,14 @@ export default function TradeTicket({
           <div className="mb-6 grid grid-cols-2 gap-3">
             <OutcomeButton
               active={selectedSide === "YES"}
-              label={yesCondition}
+              label="YES"
               price={yesPrice}
               side="YES"
               onClick={onSideChange}
             />
             <OutcomeButton
               active={selectedSide === "NO"}
-              label={noCondition}
+              label="NO"
               price={noPrice}
               side="NO"
               onClick={onSideChange}
@@ -206,7 +206,7 @@ export default function TradeTicket({
             >
               {action === "BUY"
                 ? `${balanceLabel} USDC balance`
-                : `${maxSellShares.toFixed(4)} ${sideLabel} available`}
+                : `${maxSellShares.toFixed(4)} ${selectedSide}`}
             </p>
           </div>
           <input
@@ -303,7 +303,7 @@ export default function TradeTicket({
             : isConnected
               ? action === "BUY" && isBalanceInsufficient
                 ? "Insufficient USDC Balance"
-                : `${action === "BUY" ? "Buy" : "Sell"} ${sideLabel}`
+                : `${action === "BUY" ? "Buy" : "Sell"} ${selectedSide}`
               : "Connect Wallet"}
         </button>
       </div>
