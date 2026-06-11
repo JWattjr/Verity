@@ -8,7 +8,7 @@ import ThemeToggle from "@/components/layout/ThemeToggle"
 export default function HomeExperience() {
   return (
     <div className="flex min-h-screen flex-col">
-      <div className="verity-card sticky top-0 z-20 mx-1.5 mt-2 flex items-center justify-between p-3 sm:hidden">
+      <div className="verity-card sticky top-0 z-20 mt-3 lg:mt-2 flex items-center justify-between p-3 sm:hidden">
         <div className="flex items-center">
           <div className="verity-blob flex h-8 w-8 items-center justify-center bg-sunburst-yellow text-sm font-semibold text-midnight">
             V
@@ -21,10 +21,10 @@ export default function HomeExperience() {
         <div className="flex items-center gap-2">
           <Link
             aria-label="Open Verity guide"
-            className="clickable-icon flex h-10 w-10 items-center justify-center bg-parchment-card text-graphite shadow-subtle hover:text-charcoal-primary"
+            className="clickable-icon flex h-8 w-8 md:h-10 md:w-10 items-center justify-center bg-parchment-card text-graphite shadow-subtle hover:text-charcoal-primary"
             href="/how-it-works"
           >
-            <CircleHelp className="h-5 w-5" />
+            <CircleHelp className="h-4 w-4 md:h-5 md:w-5" />
           </Link>
           <ThemeToggle />
         </div>

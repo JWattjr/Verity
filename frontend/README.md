@@ -25,7 +25,7 @@ components/
 ├── social/      # CommentModal — threaded comment dialog
 ├── wallet/      # PrivyOnboardingModal — 4-step onboarding flow (wallet → username → fund → success)
 ├── profile/     # PublicProfileView — user profile display
-├── layout/      # Sidebar, RightPanel, MobileNav, MobileComposeButton, ThemeToggle
+├── layout/      # Sidebar, RightPanel, MobileNav, MobileLeaderboardButton, ThemeToggle
 ├── providers/   # AppProviders — Privy, SmartWallets, QueryClient, ThemeProvider, Toaster
 └── ui/          # Reusable generic components (buttons, inputs, modals, badges, skeletons)
 ```
