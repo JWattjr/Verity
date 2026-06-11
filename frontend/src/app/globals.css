@@ -1,7 +1,7 @@
-@import 'tailwindcss';
+@import "tailwindcss";
 @source '..';
-@import 'tw-animate-css';
-@import 'shadcn/tailwind.css';
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
 
 @custom-variant dark (&:is(.dark *, [data-theme="dark"] *));
 
@@ -139,7 +139,7 @@
 /* ───────────────────────────────────────────────────────────────────────────
    DARK THEME — single consolidated block
    ─────────────────────────────────────────────────────────────────────────── */
-:root[data-theme='dark'] {
+:root[data-theme="dark"] {
   /* Dynamic neutral palette — dark values */
   --warm-canvas: #11110f;
   --stone-surface: #2a2926;
@@ -227,7 +227,7 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-:root[data-theme='dark'] body {
+:root[data-theme="dark"] body {
   background:
     radial-gradient(
       circle at 12% 8%,
@@ -384,8 +384,8 @@ body {
 .clickable[disabled],
 .clickable-icon[disabled],
 .clickable-tab[disabled],
-.clickable-card[aria-disabled='true'],
-.clickable-surface[aria-disabled='true'] {
+.clickable-card[aria-disabled="true"],
+.clickable-surface[aria-disabled="true"] {
   cursor: not-allowed;
   transform: none;
 }
@@ -487,7 +487,7 @@ body {
 
 .verity-blob::before,
 .verity-blob::after {
-  content: '';
+  content: "";
   position: absolute;
   top: 35%;
   width: 4px;
@@ -520,11 +520,11 @@ body {
    ─────────────────────────────────────────────────────────────────────────── */
 @theme inline {
   --font-heading:
-    'Geist', 'Geist Fallback', ui-sans-serif, system-ui, sans-serif;
-  --font-sans: 'Geist', 'Geist Fallback', ui-sans-serif, system-ui, sans-serif;
-  --font-mono: 'Geist Mono', 'Geist Mono Fallback', ui-monospace, monospace;
-  --font-family: 'Fraunces', Georgia, ui-serif, serif;
-  --font-inter: 'Inter', 'Geist', ui-sans-serif, system-ui, sans-serif;
+    "Geist", "Geist Fallback", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Geist", "Geist Fallback", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Geist Mono", "Geist Mono Fallback", ui-monospace, monospace;
+  --font-family: "Fraunces", Georgia, ui-serif, serif;
+  --font-inter: "Inter", "Geist", ui-sans-serif, system-ui, sans-serif;
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);

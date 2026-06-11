@@ -70,7 +70,7 @@ export class Market {
       "resolved",
       "voided",
     ],
-    default: "open_for_votes",
+    default: "qualified",
     index: true,
   })
   status: MarketStatus

@@ -2,9 +2,9 @@
 
 import { useState, useMemo } from "react"
 import Link from "next/link"
-import { Search, Swords, Timer, ChevronRight } from "lucide-react"
+import { Search, Swords, Timer, ChevronRight, MessageCircle, ArrowUp, ArrowDown, Share } from "lucide-react"
 import { toast } from "@/lib/toast"
-import { useCastFreeVoteMutation } from "@/store/verity/verityQueries"
+import { useCastFreeVoteMutation, useDailyVotesQuery } from "@/store/verity/verityQueries"
 import { calculateYesPercent, displayHandle } from "@/lib/verity"
 
 function getPhaseTag(status: string) {
@@ -72,6 +72,8 @@ export default function StandardMarketsFeed({
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
   const castFreeVoteMutation = useCastFreeVoteMutation()
+  const { data: dailyVotesData } = useDailyVotesQuery(profile?.id || "")
+  const dailyVotesRemaining = dailyVotesData?.votesRemaining ?? 10
 
   // Filtered standard markets
   const filteredMarkets = useMemo(() => {
@@ -310,8 +312,8 @@ export default function StandardMarketsFeed({
                 </div>
 
                 {/* Conditional BUY YES/NO vs UPVOTE/DOWNVOTE signals */}
-                <div className="flex items-center gap-2 border-t border-border dark:border-zinc-800/80 pt-3 mt-1">
-                  {isTradable ? (
+                {isTradable && (
+                  <div className="flex items-center gap-2 border-t border-border dark:border-zinc-800/80 pt-3 mt-1">
                     <div className="grid grid-cols-2 gap-2 w-full">
                       <Link
                         href={`/markets/${market.id}?action=BUY&side=YES`}
@@ -330,34 +332,70 @@ export default function StandardMarketsFeed({
                         </button>
                       </Link>
                     </div>
-                  ) : item.viewerVote !== null ? (
-                    <div className="w-full flex items-center justify-center py-2.5 px-4 rounded-[10px] bg-stone-100/30 dark:bg-zinc-900/20 border border-border/40 text-[11px] font-mono text-center">
-                      {item.viewerVote === "YES" ? (
-                        <span className="text-meadow-green flex items-center gap-1.5 font-bold uppercase tracking-wider">
-                          You upvoted this market
-                        </span>
-                      ) : (
-                        <span className="text-ember-orange flex items-center gap-1.5 font-bold uppercase tracking-wider">
-                          You downvoted this market
-                        </span>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-2 gap-2 w-full">
-                      <button
-                        onClick={() => handleFreeVote(market.id, "YES")}
-                        className="bg-meadow-green/10 hover:bg-meadow-green/15 text-meadow-green border border-meadow-green/20 dark:border-meadow-green/10 py-1.5 rounded-[8px] text-xs font-bold font-mono transition-colors shadow-subtle cursor-pointer"
-                      >
-                        UPVOTE
-                      </button>
-                      <button
-                        onClick={() => handleFreeVote(market.id, "NO")}
-                        className="bg-ember-orange/10 hover:bg-ember-orange/15 text-ember-orange border border-ember-orange/20 dark:border-ember-orange/10 py-1.5 rounded-[8px] text-xs font-bold font-mono transition-colors shadow-subtle cursor-pointer"
-                      >
-                        DOWNVOTE
-                      </button>
-                    </div>
-                  )}
+                  </div>
+                )}
+
+                {/* Bottom Action Bar */}
+                <div
+                  className="flex max-w-full items-center justify-between border-t border-dashed border-stone-surface dark:border-zinc-800/80 pt-3 mt-1 text-ash"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <Link
+                    href={`/markets/${market.id}#comments`}
+                    className="clickable-icon group flex items-center gap-2 px-1 text-ash hover:text-foreground"
+                  >
+                    <span className="rounded-full p-2">
+                      <MessageCircle className="h-4 w-4" />
+                    </span>
+                    <span className="text-xs">{item.commentsCount ?? 0}</span>
+                  </Link>
+
+                  <button
+                    aria-label={`Upvote ${market.question}`}
+                    aria-pressed={item.viewerVote === "YES"}
+                    className={`clickable-icon group flex items-center gap-2 px-1 hover:text-meadow-green ${
+                      item.viewerVote === "YES" ? "text-meadow-green" : "text-ash"
+                    }`}
+                    disabled={Boolean(item.viewerVote) || dailyVotesRemaining <= 0}
+                    onClick={() => handleFreeVote(market.id, "YES")}
+                    type="button"
+                  >
+                    <span className="rounded-full p-2">
+                      <ArrowUp className="h-4 w-4" />
+                    </span>
+                    <span className="text-xs">{market.free_yes_votes ?? 0}</span>
+                  </button>
+
+                  <button
+                    aria-label={`Downvote ${market.question}`}
+                    aria-pressed={item.viewerVote === "NO"}
+                    className={`clickable-icon group flex items-center gap-2 px-1 hover:text-ember-orange ${
+                      item.viewerVote === "NO" ? "text-ember-orange" : "text-ash"
+                    }`}
+                    disabled={Boolean(item.viewerVote) || dailyVotesRemaining <= 0}
+                    onClick={() => handleFreeVote(market.id, "NO")}
+                    type="button"
+                  >
+                    <span className="rounded-full p-2">
+                      <ArrowDown className="h-4 w-4" />
+                    </span>
+                    <span className="text-xs">{market.free_no_votes ?? 0}</span>
+                  </button>
+
+                  <button
+                    aria-label={`Share ${market.question}`}
+                    className="clickable-icon group flex items-center gap-2 px-1 text-ash hover:text-foreground"
+                    onClick={() => {
+                      const url = `${window.location.origin}/markets/${market.id}`;
+                      navigator.clipboard.writeText(url);
+                      toast.success("Market link copied to clipboard!");
+                    }}
+                    type="button"
+                  >
+                    <span className="rounded-full p-2">
+                      <Share className="h-4 w-4" />
+                    </span>
+                  </button>
                 </div>
               </div>
             </article>

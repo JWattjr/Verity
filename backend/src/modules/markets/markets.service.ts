@@ -8,6 +8,7 @@ import {
   BadRequestException,
   ForbiddenException,
   Logger,
+  OnModuleInit,
 } from "@nestjs/common"
 import { InjectModel } from "@nestjs/mongoose"
 import { Model, Types, SortOrder } from "mongoose"
@@ -46,6 +47,15 @@ export interface VoteResponse {
   dailyVotes: DailyVotesResponse
 }
 
+export interface MarketHistoryResponse {
+  id: string
+  marketId: string
+  marketQuestion: string
+  side: VoteSide
+  created_at: string
+  market_question?: string | null
+}
+
 export interface MarketPositionResponse {
   id: string
   market_id: string
@@ -82,8 +92,24 @@ export interface MarketTradeResponse {
 }
 
 @Injectable()
-export class MarketsService {
+export class MarketsService implements OnModuleInit {
   private readonly logger = new Logger(MarketsService.name)
+
+  async onModuleInit() {
+    try {
+      const result = await this.marketModel.updateMany(
+        { status: "open_for_votes" },
+        { $set: { status: "qualified" } },
+      )
+      if (result.modifiedCount > 0) {
+        this.logger.log(
+          `Successfully migrated ${result.modifiedCount} 'open_for_votes' markets to 'qualified' status.`,
+        )
+      }
+    } catch (err) {
+      this.logger.error(`Failed to migrate legacy markets status: ${err.message}`)
+    }
+  }
 
   constructor(
     @InjectModel(Market.name) private marketModel: Model<MarketDocument>,
@@ -336,34 +362,6 @@ export class MarketsService {
     ])
     const totalFreeVotes = freeYesVotes + freeNoVotes
 
-    let nextStatus = market.status
-    if (market.status === "open_for_votes") {
-      const hasMetThresholds = freeYesVotes >= 30
-      if (hasMetThresholds) {
-        nextStatus = "qualified"
-        if (
-          market.marketType === "parent" ||
-          (market as any).market_type === "parent"
-        ) {
-          await this.marketModel.updateMany(
-            { parentMarketId: market._id },
-            {
-              $set: {
-                status: "qualified",
-                totalFreeVotes: 30,
-                uniqueVotersCount: 30,
-                freeYesVotes: 30,
-                freeNoVotes: 0,
-              },
-            },
-          )
-          this.logger.log(
-            `Qualifying child markets for parent market ${marketId}`,
-          )
-        }
-      }
-    }
-
     const updatedMarket = await this.marketModel.findByIdAndUpdate(
       marketId,
       {
@@ -371,7 +369,6 @@ export class MarketsService {
         freeNoVotes,
         totalFreeVotes,
         uniqueVotersCount,
-        status: nextStatus,
       },
       { new: true, runValidators: true },
     )
@@ -379,11 +376,6 @@ export class MarketsService {
     this.logger.log(
       `Free vote casted on market ${marketId} by user ${userId}. Side: ${side}`,
     )
-    if (nextStatus !== market.status) {
-      this.logger.log(
-        `Market ${marketId} status transitioned from ${market.status} to ${nextStatus}`,
-      )
-    }
 
     // Emit Socket events
     this.socketGateway.broadcastToRoom("feed", "feed-updated", {})

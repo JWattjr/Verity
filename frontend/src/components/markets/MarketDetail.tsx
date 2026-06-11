@@ -66,6 +66,8 @@ import {
 } from "./detail/MarketMetadata"
 import MyHoldingsPanel from "./detail/MyHoldingsPanel"
 
+const EMPTY_ARRAY: any[] = []
+
 interface MarketDetailProps {
   marketId: string
 }
@@ -309,9 +311,10 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
       )
   }, [item, items])
 
-  const comments = fetchedComments || []
-  const positions = fetchedPositions || []
-  const trades = fetchedTrades || []
+  const comments = fetchedComments || EMPTY_ARRAY
+  const positions = fetchedPositions || EMPTY_ARRAY
+  const trades = fetchedTrades || EMPTY_ARRAY
+  const lpPositions = lpPositionsData || EMPTY_ARRAY
   const selectedSideShares = useMemo(
     () =>
       positions
@@ -779,15 +782,6 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
         onComment={() =>
           document.getElementById("market-comment-input")?.focus()
         }
-        onReshare={() =>
-          runAction("reshare", () =>
-            toggleReshare({
-              postId: item.id,
-              profileId: profile!.id,
-              currentlyReshared: item.viewerReshared,
-            }),
-          )
-        }
         onShare={() => sharePost(item)}
         onVote={(side) =>
           runAction("free_vote", () =>
@@ -798,8 +792,6 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
             }),
           )
         }
-        reshares={item.resharesCount}
-        reshared={item.viewerReshared}
         viewerVote={item.viewerVote}
       />
 
@@ -815,7 +807,7 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
       {activeMarket.status === "tradable" && (
         <ActiveMarketLPPanel
           actionLoading={actionPending}
-          lpPositions={lpPositionsData || []}
+          lpPositions={lpPositions}
           market={activeMarket}
           onAddLP={handleAddLP}
           onRemoveLP={handleRemoveLP}
@@ -839,7 +831,7 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
         <RedeemPanel
           market={activeMarket}
           positions={positions}
-          lpPositions={lpPositionsData || []}
+          lpPositions={lpPositions}
           onRedeem={handleRedeem}
           onClaimCreatorLP={handleClaimCreatorLP}
           actionLoading={actionPending}
@@ -850,7 +842,7 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
       {activeMarket.status === "voided" && (
         <RefundPanel
           market={activeMarket}
-          lpPositions={lpPositionsData || []}
+          lpPositions={lpPositions}
           onClaimRefund={handleClaimRefund}
           actionLoading={actionPending}
           profileId={profileId}

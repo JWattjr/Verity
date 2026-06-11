@@ -2,6 +2,8 @@
 
 import { useFeedQuery } from "@/store/verity/verityQueries"
 
+const EMPTY_ARRAY: any[] = []
+
 export function useFeed(profileId?: string, onlyMarkets = false) {
   const { data, isLoading, isError, error, refetch } = useFeedQuery(
     profileId,
@@ -13,7 +15,7 @@ export function useFeed(profileId?: string, onlyMarkets = false) {
     : null
 
   return {
-    items: data || [],
+    items: data || EMPTY_ARRAY,
     loading: isLoading,
     error: errorMessage,
     reload: refetch,
