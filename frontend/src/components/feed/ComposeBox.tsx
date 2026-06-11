@@ -1,7 +1,15 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
-import { Plus, Trash2, Calendar, Sparkles } from "lucide-react"
+import {
+  ShieldCheck,
+  Plus,
+  Trash2,
+  Calendar,
+  Sparkles,
+  HelpCircle,
+  X,
+} from "lucide-react"
 import { type MarketInput, type Profile } from "@/lib/verity"
 import { reviewPredictionPost, type VerityAgentReview } from "@/lib/verityAgent"
 import { useUsdcTransfer } from "@/hooks/useUsdcTransfer"
@@ -521,7 +529,7 @@ export default function ComposeBox({ onCreated }: ComposeBoxProps) {
       {/* Main Composer Row */}
       <div className="flex gap-3 sm:gap-4">
         {/* Avatar */}
-        <div className="shrink-0">
+        <div className={`shrink-0 ${isMarket ? "hidden sm:block" : ""}`}>
           <div className="verity-blob h-10 w-10 animate-pulse bg-ember-orange">
             <span className="verity-blob-smile" />
           </div>
@@ -547,12 +555,26 @@ export default function ComposeBox({ onCreated }: ComposeBoxProps) {
           {isMarket && (
             <div className="grid gap-3 rounded-xl bg-surface-muted/50 dark:bg-surface-muted/30 p-4 border border-border">
               {/* Mode Selector (Binary vs Multi-Option) */}
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-charcoal-primary">
-                  Market Outcome Mode
-                </span>
-                <div className="flex items-center gap-2">
-                  <div className="flex rounded-lg bg-stone-surface/50 dark:bg-stone-surface/30 p-1 border border-border text-xs font-semibold">
+              <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between border-b border-border/40 pb-3 mb-1">
+                <div className="flex items-center justify-between w-full sm:w-auto">
+                  <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-ash">
+                    Market Outcome Mode
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsMarket(false)
+                      setContent("")
+                    }}
+                    className="flex h-7 w-7 sm:hidden items-center justify-center rounded-full bg-stone-100 hover:bg-stone-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-ash hover:text-charcoal-primary transition-all cursor-pointer"
+                    aria-label="Cancel"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+
+                <div className="flex items-center justify-between sm:justify-end gap-2 w-full sm:w-auto">
+                  <div className="flex rounded-lg bg-stone-surface/50 dark:bg-stone-surface/30 p-0.5 border border-border text-xs font-semibold w-full sm:w-auto">
                     <button
                       type="button"
                       onClick={() => {
@@ -560,9 +582,9 @@ export default function ComposeBox({ onCreated }: ComposeBoxProps) {
                         setAgentReview(null)
                         setReviewedSignature("")
                       }}
-                      className={`px-3 py-1.5 rounded-md transition-all ${
+                      className={`flex-1 sm:flex-none text-center px-3 py-1.5 rounded-md transition-all cursor-pointer ${
                         !isMultiOption
-                          ? "bg-surface-solid text-charcoal-primary border border-border shadow-sm"
+                          ? "bg-white dark:bg-zinc-800 text-charcoal-primary border border-border/80 shadow-sm"
                           : "text-ash hover:text-charcoal-primary"
                       }`}
                     >
@@ -575,24 +597,26 @@ export default function ComposeBox({ onCreated }: ComposeBoxProps) {
                         setAgentReview(null)
                         setReviewedSignature("")
                       }}
-                      className={`px-3 py-1.5 rounded-md transition-all ${
+                      className={`flex-1 sm:flex-none text-center px-3 py-1.5 rounded-md transition-all cursor-pointer ${
                         isMultiOption
-                          ? "bg-surface-solid text-charcoal-primary border border-border shadow-sm"
+                          ? "bg-white dark:bg-zinc-800 text-charcoal-primary border border-border/80 shadow-sm"
                           : "text-ash hover:text-charcoal-primary"
                       }`}
                     >
                       Multi-Option List
                     </button>
                   </div>
+
                   <button
                     type="button"
                     onClick={() => {
                       setIsMarket(false)
                       setContent("")
                     }}
-                    className="text-xs text-ash hover:text-charcoal-primary px-2 py-1 cursor-pointer transition-colors"
+                    className="hidden sm:flex h-8 w-8 items-center justify-center rounded-full bg-stone-100 hover:bg-stone-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-ash hover:text-charcoal-primary transition-all cursor-pointer shrink-0"
+                    aria-label="Cancel"
                   >
-                    Cancel
+                    <X className="h-4 w-4" />
                   </button>
                 </div>
               </div>
