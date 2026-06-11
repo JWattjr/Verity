@@ -50,6 +50,9 @@ export interface MarketCardProps {
   onAddLP?: (amount: number) => Promise<void>
   profileHref?: string
   profile?: Profile
+  outcomeCount?: number
+  outcomes?: string[]
+  outcomePrices?: number[]
 }
 
 export default function MarketCard({
@@ -90,10 +93,19 @@ export default function MarketCard({
   onAddLP,
   profileHref,
   profile,
+  outcomeCount = 2,
+  outcomes = [],
+  outcomePrices = [],
 }: MarketCardProps) {
+  const isPvp = category?.toLowerCase() === "pvp"
+  const yesLabel = isPvp ? yesCondition || "YES" : "YES"
+  const noLabel = isPvp ? noCondition || "NO" : "NO"
   const [lpAmount, setLpAmount] = useState("10")
   const [tradeAmount, setTradeAmount] = useState("10")
   const totalUsdc = usdcYes + usdcNo
+  const isMulti = outcomeCount > 2
+  const outcomeList = isMulti ? outcomes : [yesLabel, noLabel]
+  const displayLiquidity = isMulti ? liquidity : totalUsdc
   const totalVotes = totalFreeVotes ?? freeYesVotes + freeNoVotes
   const isOpenForVotes = status === "open_for_votes"
   const isQualified = status === "qualified"
@@ -316,28 +328,57 @@ export default function MarketCard({
               </span>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              className="clickable flex-1 text-center py-2 px-3 rounded-lg font-mono text-xs font-bold transition-all duration-150 bg-meadow-green/10 text-meadow-green border border-meadow-green/20 hover:bg-meadow-green/20 disabled:cursor-not-allowed disabled:opacity-40"
-              disabled={
-                actionLoading || !isConnected || Number(tradeAmount) <= 0
-              }
-              onClick={() => onUsdcVote?.("YES", Number(tradeAmount))}
-              type="button"
-            >
-              {actionLoadingStatus === "buy_yes" ? "Buying..." : "BUY YES"}
-            </button>
-            <button
-              className="clickable flex-1 text-center py-2 px-3 rounded-lg font-mono text-xs font-bold transition-all duration-150 bg-ember-orange/10 text-ember-orange border border-ember-orange/20 hover:bg-ember-orange/15 disabled:cursor-not-allowed disabled:opacity-40"
-              disabled={
-                actionLoading || !isConnected || Number(tradeAmount) <= 0
-              }
-              onClick={() => onUsdcVote?.("NO", Number(tradeAmount))}
-              type="button"
-            >
-              {actionLoadingStatus === "buy_no" ? "Buying..." : "BUY NO"}
-            </button>
-          </div>
+          {isMulti ? (
+            <div className={`grid gap-2 ${outcomeList.length === 3 ? "grid-cols-3" : "grid-cols-2 sm:grid-cols-4"}`}>
+              {outcomeList.map((outcomeName, idx) => {
+                const price = outcomePrices?.[idx] ?? (1 / outcomeCount)
+                const priceCents = Math.round(price * 100)
+                const isBuyingThis = actionLoadingStatus === `buy_${idx}` || (actionLoadingStatus && actionLoadingStatus.toLowerCase() === `buy_${outcomeName.toLowerCase()}`)
+                
+                return (
+                  <button
+                    key={outcomeName}
+                    className="clickable flex-1 text-center py-2 px-1.5 rounded-lg font-mono text-xs font-bold transition-all duration-150 bg-sky-blue/10 text-sky-blue border border-sky-blue/20 hover:bg-sky-blue/20 disabled:cursor-not-allowed disabled:opacity-40 flex flex-col items-center justify-center gap-0.5"
+                    disabled={
+                      actionLoading || !isConnected || Number(tradeAmount) <= 0
+                    }
+                    onClick={() => onUsdcVote?.(outcomeName, Number(tradeAmount))}
+                    type="button"
+                  >
+                    <span className="truncate max-w-full px-1">{outcomeName}</span>
+                    <span className="text-[10px] opacity-80 font-normal">{isBuyingThis ? "Buying..." : `${priceCents}¢`}</span>
+                  </button>
+                )
+              })}
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                className="clickable flex-1 text-center py-2 px-3 rounded-lg font-mono text-xs font-bold transition-all duration-150 bg-meadow-green/10 text-meadow-green border border-meadow-green/20 hover:bg-meadow-green/20 disabled:cursor-not-allowed disabled:opacity-40"
+                disabled={
+                  actionLoading || !isConnected || Number(tradeAmount) <= 0
+                }
+                onClick={() => onUsdcVote?.("YES", Number(tradeAmount))}
+                type="button"
+              >
+                {actionLoadingStatus === "buy_yes"
+                  ? "Buying..."
+                  : `BUY ${yesLabel}`}
+              </button>
+              <button
+                className="clickable flex-1 text-center py-2 px-3 rounded-lg font-mono text-xs font-bold transition-all duration-150 bg-ember-orange/10 text-ember-orange border border-ember-orange/20 hover:bg-ember-orange/15 disabled:cursor-not-allowed disabled:opacity-40"
+                disabled={
+                  actionLoading || !isConnected || Number(tradeAmount) <= 0
+                }
+                onClick={() => onUsdcVote?.("NO", Number(tradeAmount))}
+                type="button"
+              >
+                {actionLoadingStatus === "buy_no"
+                  ? "Buying..."
+                  : `BUY ${noLabel}`}
+              </button>
+            </div>
+          )}
         </div>
       ) : canFreeVote ? (
         <div className="mb-3" onClick={stopClick}>
@@ -377,7 +418,7 @@ export default function MarketCard({
         {isTradable && (
           <span>
             Liquidity $
-            {totalUsdc.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+            {displayLiquidity.toLocaleString(undefined, { maximumFractionDigits: 2 })}
           </span>
         )}
         <span>Closes {deadline}</span>
@@ -393,11 +434,26 @@ export default function MarketCard({
 
       {isDetail && (
         <div className="mb-3 grid gap-2 rounded-[10px] bg-parchment-card p-3 font-mono text-[11px] text-ash shadow-subtle">
-          {yesCondition && (
-            <span className="text-meadow-green">YES: {yesCondition}</span>
-          )}
-          {noCondition && (
-            <span className="text-ember-orange">NO: {noCondition}</span>
+          {isMulti ? (
+            outcomes?.map((outcomeName, idx) => {
+              const price = outcomePrices?.[idx] ?? (1 / outcomeCount)
+              const priceCents = Math.round(price * 100)
+              return (
+                <div className="flex justify-between items-center" key={outcomeName}>
+                  <span className="text-charcoal-primary font-semibold">{outcomeName}</span>
+                  <span className="text-sky-blue font-mono font-bold">{priceCents}¢</span>
+                </div>
+              )
+            })
+          ) : (
+            <>
+              {yesCondition && (
+                <span className="text-meadow-green">YES: {yesCondition}</span>
+              )}
+              {noCondition && (
+                <span className="text-ember-orange">NO: {noCondition}</span>
+              )}
+            </>
           )}
         </div>
       )}

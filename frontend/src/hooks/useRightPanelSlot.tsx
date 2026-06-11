@@ -51,7 +51,7 @@ export function useSetRightPanelSlot(content: ReactNode, slotKey = "default") {
 
   useEffect(() => {
     setSlotContent(content)
-  }, [setSlotContent, slotKey])
+  }, [setSlotContent, content, slotKey])
 
   useEffect(() => clearSlotContent, [clearSlotContent])
 }

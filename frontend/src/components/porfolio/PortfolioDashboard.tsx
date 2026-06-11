@@ -9,7 +9,10 @@ import {
   Sparkles,
   Loader2,
   ArrowRight,
+  TrendingUp,
 } from "lucide-react"
+import { useDailyVotes } from "@/hooks/useDailyVotes"
+import { useFeed } from "@/hooks/useFeed"
 import { useUserPortfolio } from "@/hooks/useUserPortfolio"
 import { useUserTradesQuery } from "@/store/verity/verityQueries"
 import Link from "next/link"
@@ -29,6 +32,13 @@ export default function PortfolioDashboard() {
   const userId = profile?.id || ""
   const { data: trades, isLoading: isTradesLoading } =
     useUserTradesQuery(userId)
+  const { dailyVotes, isLoading: isDailyVotesLoading } = useDailyVotes(
+    profile?.id,
+  )
+  const { items: feedItems, loading: isFeedLoading } = useFeed(undefined, true)
+
+  const marketItems = feedItems.filter((item) => item.market)
+  const trending = marketItems.slice(0, 3)
 
   const [activeTab, setActiveTab] = useState<
     "overview" | "tokens" | "activity"
@@ -71,108 +81,217 @@ export default function PortfolioDashboard() {
 
   return (
     <div className="flex flex-col gap-6">
-      {/* Dynamic Header & Net Worth breakout */}
-      <section className="grid gap-4 md:grid-cols-3">
-        {/* Net Worth Card (2/3 width on desktop) */}
-        <div className="md:col-span-2 verity-card p-6 bg-surface-solid border border-border relative overflow-hidden flex flex-col justify-between">
-          <div className="absolute right-4 top-4">
-            <span className="verity-pill inline-flex items-center px-2 py-0.5 bg-meadow-green/10 text-meadow-green font-mono text-[9px] font-semibold">
-              Arc Testnet
-            </span>
-          </div>
-          <div>
-            <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-ash">
-              Total Portfolio Value
-            </span>
-            <h2 className="mt-2 font-mono text-4xl font-semibold tracking-[-0.9px] text-midnight">
-              ${stats.netWorth.toFixed(2)}
-            </h2>
-          </div>
+      {/* Top Grid: Left Side has Header + Net Worth + Actions, Right Side has Trending Markets */}
+      <section className="grid grid-cols-1 lg:grid-cols-3 gap-6 py-3 sm:py-4">
+        {/* Left Section (spanning 2 columns on desktop) */}
+        <div className="lg:col-span-2 flex flex-col gap-4">
+          {/* Title / Header Card (originally PagePanel header) */}
+          <section className="verity-card relative overflow-hidden p-4 sm:p-5">
+            <div className="absolute -right-5 -top-5 h-20 w-20 rounded-full bg-sunburst-yellow/30" />
+            <p className="relative font-mono text-xs font-semibold uppercase tracking-[0.16em] text-ember-orange">
+              Portfolio
+            </p>
+            <h1 className="relative mt-1 text-[30px] font-semibold leading-[1.08] tracking-[-0.7px] text-midnight sm:text-[34px] sm:tracking-[-0.9px]">
+              Prediction Portfolio
+            </h1>
+            <p className="relative mt-2 max-w-[520px] text-[15px] leading-[1.47] tracking-[-0.2px] text-graphite">
+              Manage your stakes, view prediction P&L, perform USDC transfers,
+              and track daily signals.
+            </p>
+          </section>
 
-          <div className="mt-6 grid grid-cols-3 gap-4 border-t border-stone-surface pt-4">
-            <div>
-              <span className="block font-mono text-[9px] font-semibold text-ash uppercase tracking-wider">
-                USDC Balance
-              </span>
-              <span className="font-mono text-base font-semibold text-charcoal-primary">
-                ${usdcBalance.toFixed(2)}
-              </span>
+          {/* Net Worth and Actions Grid */}
+          <div className="grid gap-4 md:grid-cols-3">
+            {/* Net Worth Card (2/3 width on desktop) */}
+            <div className="md:col-span-2 verity-card p-6 bg-surface-solid border border-border relative overflow-hidden flex flex-col justify-between">
+              <div className="absolute right-4 top-7 flex flex-col items-end gap-1.5">
+                {/* <span className="verity-pill inline-flex items-center px-2 py-0.5 bg-meadow-green/10 text-meadow-green font-mono text-[9px] font-semibold">
+                  Arc Testnet
+                </span> */}
+                <div className="text-right mt-1">
+                  <span className="block font-mono text-[8px] text-ash uppercase tracking-wider">
+                    Daily Signals
+                  </span>
+                  <span className="font-mono text-xs font-bold text-charcoal-primary">
+                    {isDailyVotesLoading
+                      ? "..."
+                      : `${dailyVotes.votesRemaining}/${dailyVotes.votesLimit}`}
+                  </span>
+                </div>
+              </div>
+              <div>
+                <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-ash">
+                  Total Portfolio Value
+                </span>
+                <h2 className="mt-2 font-mono text-4xl font-semibold tracking-[-0.9px] text-midnight">
+                  ${stats.netWorth.toFixed(2)}
+                </h2>
+              </div>
+
+              <div className="mt-6 grid grid-cols-3 gap-4 border-t border-stone-surface pt-4">
+                <div>
+                  <span className="block font-mono text-[9px] font-semibold text-ash uppercase tracking-wider">
+                    USDC Balance
+                  </span>
+                  <span className="font-mono text-base font-semibold text-charcoal-primary">
+                    ${usdcBalance.toFixed(2)}
+                  </span>
+                </div>
+                <div>
+                  <span className="block font-mono text-[9px] font-semibold text-ash uppercase tracking-wider">
+                    Active Positions
+                  </span>
+                  <span className="font-mono text-base font-semibold text-charcoal-primary">
+                    ${stats.holdingsValue.toFixed(2)}
+                  </span>
+                </div>
+                <div>
+                  <span className="block font-mono text-[9px] font-semibold text-ash uppercase tracking-wider">
+                    Unrealized P&L
+                  </span>
+                  <span
+                    className={`font-mono text-base font-semibold ${stats.unrealizedPnL >= 0 ? "text-meadow-green" : "text-ember-orange"}`}
+                  >
+                    {stats.unrealizedPnL >= 0 ? "+" : ""}
+                    {stats.unrealizedPnL.toFixed(2)} USDC
+                  </span>
+                </div>
+              </div>
             </div>
-            <div>
-              <span className="block font-mono text-[9px] font-semibold text-ash uppercase tracking-wider">
-                Active Positions
-              </span>
-              <span className="font-mono text-base font-semibold text-charcoal-primary">
-                ${stats.holdingsValue.toFixed(2)}
-              </span>
-            </div>
-            <div>
-              <span className="block font-mono text-[9px] font-semibold text-ash uppercase tracking-wider">
-                Unrealized P&L
-              </span>
-              <span
-                className={`font-mono text-base font-semibold ${stats.unrealizedPnL >= 0 ? "text-meadow-green" : "text-ember-orange"}`}
+
+            {/* Quick Actions Grid (1/3 width on desktop) */}
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                onClick={() => setIsSendOpen(true)}
+                className="verity-card p-4 flex flex-col items-center justify-center gap-2 bg-stone-surface hover:bg-stone-surface/80 border border-border rounded-[12px] transition-all cursor-pointer group text-center"
               >
-                {stats.unrealizedPnL >= 0 ? "+" : ""}
-                {stats.unrealizedPnL.toFixed(2)} USDC
-              </span>
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-ember-orange/10 text-ember-orange transition-transform group-hover:-translate-y-1">
+                  <Send className="h-5 w-5" />
+                </div>
+                <span className="text-xs font-semibold text-charcoal-primary tracking-[-0.1px]">
+                  Send
+                </span>
+              </button>
+
+              <button
+                onClick={() => setIsRecvOpen(true)}
+                className="verity-card p-4 flex flex-col items-center justify-center gap-2 bg-stone-surface hover:bg-stone-surface/80 border border-border rounded-[12px] transition-all cursor-pointer group text-center"
+              >
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-sky-blue/10 text-sky-blue transition-transform group-hover:translate-y-1">
+                  <ArrowDownLeft className="h-5 w-5" />
+                </div>
+                <span className="text-xs font-semibold text-charcoal-primary tracking-[-0.1px]">
+                  Receive
+                </span>
+              </button>
+
+              <Link
+                href="https://faucet.circle.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="verity-card p-4 flex flex-col items-center justify-center gap-2 bg-stone-surface hover:bg-stone-surface/80 border border-border rounded-[12px] transition-all cursor-pointer group text-center"
+              >
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-sunburst-yellow/10 text-sunburst-yellow transition-transform group-hover:scale-110">
+                  <Sparkles className="h-5 w-5" />
+                </div>
+                <span className="text-xs font-semibold text-charcoal-primary tracking-[-0.1px]">
+                  Faucet
+                </span>
+              </Link>
+
+              <Link
+                href={`https://testnet.arcscan.app/address/${profile?.walletAddress || ""}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="verity-card p-4 flex flex-col items-center justify-center gap-2 bg-stone-surface hover:bg-stone-surface/80 border border-border rounded-[12px] transition-all cursor-pointer group text-center"
+              >
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-graphite/10 text-graphite transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5">
+                  <ExternalLink className="h-5 w-5" />
+                </div>
+                <span className="text-xs font-semibold text-charcoal-primary tracking-[-0.1px] truncate w-full px-1">
+                  Explorer
+                </span>
+              </Link>
             </div>
           </div>
         </div>
 
-        {/* Quick Actions Grid (1/3 width on desktop) */}
-        <div className="grid grid-cols-2 gap-3">
-          <button
-            onClick={() => setIsSendOpen(true)}
-            className="verity-card p-4 flex flex-col items-center justify-center gap-2 bg-stone-surface hover:bg-stone-surface/80 border border-border rounded-[12px] transition-all cursor-pointer group text-center"
-          >
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-ember-orange/10 text-ember-orange transition-transform group-hover:-translate-y-1">
-              <Send className="h-5 w-5" />
+        {/* Right Section (spanning 1 column on desktop, holds Trending Markets) */}
+        <div className="lg:col-span-1">
+          <div className="verity-card flex flex-col overflow-hidden h-full">
+            <div className="border-b border-dashed border-stone-surface p-4">
+              <h2 className="flex items-center gap-2 font-mono text-xs font-semibold uppercase tracking-[0.16em] text-charcoal-primary">
+                <TrendingUp className="h-4 w-4 text-meadow-green" />
+                Trending Markets
+              </h2>
             </div>
-            <span className="text-xs font-semibold text-charcoal-primary tracking-[-0.1px]">
-              Send
-            </span>
-          </button>
 
-          <button
-            onClick={() => setIsRecvOpen(true)}
-            className="verity-card p-4 flex flex-col items-center justify-center gap-2 bg-stone-surface hover:bg-stone-surface/80 border border-border rounded-[12px] transition-all cursor-pointer group text-center"
-          >
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-sky-blue/10 text-sky-blue transition-transform group-hover:translate-y-1">
-              <ArrowDownLeft className="h-5 w-5" />
-            </div>
-            <span className="text-xs font-semibold text-charcoal-primary tracking-[-0.1px]">
-              Receive
-            </span>
-          </button>
+            <div className="flex flex-col grow justify-between">
+              {isFeedLoading ? (
+                <div className="flex flex-col animate-pulse">
+                  {[1, 2, 3].map((i) => (
+                    <div
+                      key={i}
+                      className="flex flex-col gap-2 border-b border-dashed border-stone-surface p-4"
+                    >
+                      <div className="h-3 w-20 rounded bg-stone-surface" />
+                      <div className="h-4 w-5/6 rounded bg-stone-surface" />
+                      <div className="flex justify-between items-center mt-1">
+                        <div className="h-3.5 w-12 rounded bg-stone-surface" />
+                        <div className="h-3.5 w-16 rounded bg-stone-surface" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : trending.length > 0 ? (
+                <div className="flex flex-col">
+                  {trending.map((item) => {
+                    const market = item.market
+                    const yes = market
+                      ? calculateYesPercent(
+                          Number(market.usdc_yes_amount),
+                          Number(market.usdc_no_amount),
+                        )
+                      : 50
+                    const volume = market
+                      ? Number(market.usdc_yes_amount) +
+                        Number(market.usdc_no_amount)
+                      : 0
 
-          <Link
-            href="https://faucet.circle.com"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="verity-card p-4 flex flex-col items-center justify-center gap-2 bg-stone-surface hover:bg-stone-surface/80 border border-border rounded-[12px] transition-all cursor-pointer group text-center"
-          >
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-sunburst-yellow/10 text-sunburst-yellow transition-transform group-hover:scale-110">
-              <Sparkles className="h-5 w-5" />
-            </div>
-            <span className="text-xs font-semibold text-charcoal-primary tracking-[-0.1px]">
-              Faucet
-            </span>
-          </Link>
+                    const isPvp = market?.category?.toLowerCase() === "pvp"
+                    const href = isPvp
+                      ? "/markets?tab=pvp-arena"
+                      : `/markets/${market?.id}`
 
-          <Link
-            href={`https://testnet.arcscan.app/address/${profile?.walletAddress || ""}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="verity-card p-4 flex flex-col items-center justify-center gap-2 bg-stone-surface hover:bg-stone-surface/80 border border-border rounded-[12px] transition-all cursor-pointer group text-center"
-          >
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-graphite/10 text-graphite transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5">
-              <ExternalLink className="h-5 w-5" />
+                    return (
+                      <Link
+                        href={href}
+                        className="flex cursor-pointer flex-col gap-2 border-b border-dashed border-stone-surface p-4 transition-colors hover:bg-parchment-card"
+                        key={item.id}
+                      >
+                        <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-ash">
+                          Trending in {market?.category || "Markets"}
+                        </span>
+                        <p className="line-clamp-2 text-sm font-semibold leading-snug tracking-[-0.18px] text-charcoal-primary">
+                          {market?.question}
+                        </p>
+                        <div className="mt-1 flex items-center justify-between">
+                          <span className="font-mono text-xs font-semibold text-meadow-green">
+                            {yes.toFixed(0)}% YES
+                          </span>
+                          <span className="font-mono text-xs text-ash">
+                            {volume.toLocaleString()} USDC
+                          </span>
+                        </div>
+                      </Link>
+                    )
+                  })}
+                </div>
+              ) : (
+                <div className="p-4 text-sm text-ash">No live markets yet.</div>
+              )}
             </div>
-            <span className="text-xs font-semibold text-charcoal-primary tracking-[-0.1px] truncate w-full px-1">
-              Explorer
-            </span>
-          </Link>
+          </div>
         </div>
       </section>
 
@@ -286,7 +405,11 @@ export default function PortfolioDashboard() {
                             </span>
                           </div>
                           <Link
-                            href={`/markets/${pos.market_id}`}
+                            href={
+                              pos.category?.toLowerCase() === "pvp"
+                                ? "/markets?tab=pvp-arena"
+                                : `/markets/${pos.market_id}`
+                            }
                             className="flex h-7 w-7 items-center justify-center rounded-[6px] bg-white-surface border border-border hover:bg-stone-surface transition-colors cursor-pointer text-ash hover:text-charcoal-primary"
                           >
                             <ArrowUpRight className="h-3.5 w-3.5" />
@@ -442,7 +565,11 @@ export default function PortfolioDashboard() {
                         </td>
                         <td className="py-3.5 text-right">
                           <Link
-                            href={`/markets/${pos.market_id}`}
+                            href={
+                              pos.category?.toLowerCase() === "pvp"
+                                ? "/markets?tab=pvp-arena"
+                                : `/markets/${pos.market_id}`
+                            }
                             className="inline-flex h-7 w-7 items-center justify-center rounded-[6px] bg-white-surface border border-border hover:bg-stone-surface transition-colors cursor-pointer text-ash hover:text-charcoal-primary"
                           >
                             <ArrowUpRight className="h-3.5 w-3.5" />
@@ -570,4 +697,10 @@ export default function PortfolioDashboard() {
       />
     </div>
   )
+}
+
+function calculateYesPercent(yes: number, no: number) {
+  const total = yes + no
+  if (total === 0) return 50
+  return (yes / total) * 100
 }

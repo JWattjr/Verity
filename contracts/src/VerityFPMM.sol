@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
-import "@openzeppelin/contracts/utils/math/Math.sol";
-import "./ConditionalTokenVault.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { ERC1155Holder } from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
+import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
+import { ConditionalTokenVault } from "./ConditionalTokenVault.sol";
 
 interface IVerityMarketFactory {
     function escrowBalances(bytes32 marketId) external view returns (uint256);
@@ -48,8 +48,8 @@ contract VerityFPMM is ERC1155Holder {
     uint256 public constant PRECISION = 1e18; // For price calculations
 
     // ─── State ───────────────────────────────────────────────────────────
-    ConditionalTokenVault public immutable vault;
-    IERC20 public immutable usdc;
+    ConditionalTokenVault public immutable VAULT;
+    IERC20 public immutable USDC;
     address public admin;
     address public factory; // Authorized VerityMarketFactory
     address public treasury; // Verity protocol treasury for 40% fees
@@ -57,10 +57,11 @@ contract VerityFPMM is ERC1155Holder {
     struct Pool {
         uint256 yesBalance;
         uint256 noBalance;
-        uint256 totalLPShares;
+        uint256[] outcomeBalances;
+        uint256 totalLpShares;
         uint256 creatorShares;
         address creator;
-        uint256 collectedFeesLP;
+        uint256 collectedFeesLp;
         uint256 collectedFeesTreasury;
         uint256 totalDeposited;
         bool active; // true once totalDeposited >= MIN_POOL_BALANCE
@@ -136,25 +137,37 @@ contract VerityFPMM is ERC1155Holder {
 
     // ─── Modifiers ───────────────────────────────────────────────────────
     modifier onlyFactory() {
-        if (msg.sender != factory) revert Unauthorized();
+        _onlyFactory();
         _;
+    }
+
+    function _onlyFactory() internal view {
+        if (msg.sender != factory) revert Unauthorized();
     }
 
     modifier onlyAdmin() {
-        if (msg.sender != admin) revert Unauthorized();
+        _onlyAdmin();
         _;
     }
 
+    function _onlyAdmin() internal view {
+        if (msg.sender != admin) revert Unauthorized();
+    }
+
     modifier poolMustBeActive(bytes32 marketId) {
+        _poolMustBeActive(marketId);
+        _;
+    }
+
+    function _poolMustBeActive(bytes32 marketId) internal view {
         if (!pools[marketId].active) revert PoolNotActive();
         if (pools[marketId].resolved) revert PoolNotActive();
-        _;
     }
 
     // ─── Constructor ─────────────────────────────────────────────────────
     constructor(address _vault, address _usdc, address _treasury) {
-        vault = ConditionalTokenVault(_vault);
-        usdc = IERC20(_usdc);
+        VAULT = ConditionalTokenVault(_vault);
+        USDC = IERC20(_usdc);
         treasury = _treasury;
         admin = msg.sender;
     }
@@ -177,6 +190,10 @@ contract VerityFPMM is ERC1155Holder {
     /// @notice Creates the pool after the escrow threshold is reached.
     /// @param marketId Market identifier (bytes32)
     function createPool(bytes32 marketId) external onlyFactory {
+        createPool(marketId, 0);
+    }
+
+    function createPool(bytes32 marketId, uint256 outcomeCount) public onlyFactory {
         if (pools[marketId].creator != address(0)) revert PoolAlreadyExists();
 
         IVerityMarketFactory factoryContract = IVerityMarketFactory(factory);
@@ -185,13 +202,21 @@ contract VerityFPMM is ERC1155Holder {
         if (totalUsdc < MIN_POOL_BALANCE) revert InsufficientDeposit();
 
         // Transfer total USDC from factory to this contract
-        usdc.safeTransferFrom(factory, address(this), totalUsdc);
+        USDC.safeTransferFrom(factory, address(this), totalUsdc);
 
         // Approve vault to pull USDC for minting
-        usdc.approve(address(vault), totalUsdc);
+        USDC.approve(address(VAULT), totalUsdc);
 
-        // Mint YES + NO tokens via vault
-        vault.mintPair(marketId, address(this), totalUsdc);
+        if (outcomeCount == 0) {
+            // Retrieve outcomeCount from vault
+            (, , , outcomeCount) = VAULT.markets(marketId);
+            if (outcomeCount == 0) {
+                outcomeCount = 2;
+            }
+        }
+
+        // Mint outcome tokens via vault
+        VAULT.mintOutcomeTokens(marketId, address(this), totalUsdc, outcomeCount);
 
         (address creator, , , , , , ) = factoryContract.marketRegistry(
             marketId
@@ -199,19 +224,26 @@ contract VerityFPMM is ERC1155Holder {
 
         // Initialize pool
         Pool storage pool = pools[marketId];
-        pool.yesBalance = totalUsdc;
-        pool.noBalance = totalUsdc;
-        pool.totalLPShares = totalUsdc; // 1:1 initial share ratio
+        pool.totalLpShares = totalUsdc; // 1:1 initial share ratio
         pool.creator = creator;
         pool.totalDeposited = totalUsdc;
         pool.active = true;
+
+        for (uint256 i = 0; i < outcomeCount; i++) {
+            pool.outcomeBalances.push(totalUsdc);
+        }
+
+        if (outcomeCount == 2) {
+            pool.yesBalance = totalUsdc;
+            pool.noBalance = totalUsdc;
+        }
 
         emit PoolActivated(marketId, totalUsdc);
         emit PoolCreated(marketId, creator, totalUsdc);
     }
 
     /// @notice Claim LP shares for pre-market deposits after pool activation
-    function claimPreMarketLPShares(bytes32 marketId) external {
+    function claimPreMarketLpShares(bytes32 marketId) external {
         Pool storage pool = pools[marketId];
         if (!pool.active) revert PoolNotActive();
 
@@ -255,34 +287,46 @@ contract VerityFPMM is ERC1155Holder {
         if (pool.resolved) revert PoolNotActive();
 
         // Transfer USDC from LP to this contract
-        usdc.safeTransferFrom(msg.sender, address(this), usdcAmount);
+        USDC.safeTransferFrom(msg.sender, address(this), usdcAmount);
 
         // Approve vault to pull USDC
-        usdc.approve(address(vault), usdcAmount);
+        USDC.approve(address(VAULT), usdcAmount);
 
-        // Mint YES + NO tokens
-        vault.mintPair(marketId, address(this), usdcAmount);
+        // Retrieve outcomeCount from vault
+        (, , , uint256 outcomeCount) = VAULT.markets(marketId);
+        if (outcomeCount == 0) {
+            outcomeCount = 2;
+        }
+
+        // Mint outcome tokens
+        VAULT.mintOutcomeTokens(marketId, address(this), usdcAmount, outcomeCount);
 
         // Calculate LP shares to mint
         uint256 newShares;
-        if (pool.totalLPShares == 0) {
+        if (pool.totalLpShares == 0) {
             newShares = usdcAmount;
         } else {
-            uint256 newProduct = (pool.yesBalance + usdcAmount) *
-                (pool.noBalance + usdcAmount);
-            uint256 oldProduct = pool.yesBalance * pool.noBalance;
-            uint256 sqrtNew = Math.sqrt(newProduct);
-            uint256 sqrtOld = Math.sqrt(oldProduct);
-            newShares =
-                (pool.totalLPShares * sqrtNew) /
-                sqrtOld -
-                pool.totalLPShares;
+            uint256 oldProduct = 1;
+            uint256 newProduct = 1;
+            for (uint256 i = 0; i < outcomeCount; i++) {
+                uint256 bal = pool.outcomeBalances[i] / 1000;
+                oldProduct = oldProduct * bal;
+                newProduct = newProduct * ((pool.outcomeBalances[i] + usdcAmount) / 1000);
+            }
+            uint256 rootOld = nthRoot(oldProduct, outcomeCount);
+            uint256 rootNew = nthRoot(newProduct, outcomeCount);
+            newShares = (pool.totalLpShares * rootNew) / rootOld - pool.totalLpShares;
         }
 
         // Update pool state
-        pool.yesBalance += usdcAmount;
-        pool.noBalance += usdcAmount;
-        pool.totalLPShares += newShares;
+        for (uint256 i = 0; i < outcomeCount; i++) {
+            pool.outcomeBalances[i] += usdcAmount;
+        }
+        if (outcomeCount == 2) {
+            pool.yesBalance = pool.outcomeBalances[0];
+            pool.noBalance = pool.outcomeBalances[1];
+        }
+        pool.totalLpShares += newShares;
         pool.totalDeposited += usdcAmount;
 
         // Track LP position
@@ -313,34 +357,46 @@ contract VerityFPMM is ERC1155Holder {
         if (pool.resolved) revert PoolNotActive();
 
         // Transfer USDC from caller to this contract
-        usdc.safeTransferFrom(msg.sender, address(this), usdcAmount);
+        USDC.safeTransferFrom(msg.sender, address(this), usdcAmount);
 
         // Approve vault to pull USDC
-        usdc.approve(address(vault), usdcAmount);
+        USDC.approve(address(VAULT), usdcAmount);
 
-        // Mint YES + NO tokens
-        vault.mintPair(marketId, address(this), usdcAmount);
+        // Retrieve outcomeCount from vault
+        (, , , uint256 outcomeCount) = VAULT.markets(marketId);
+        if (outcomeCount == 0) {
+            outcomeCount = 2;
+        }
+
+        // Mint outcome tokens
+        VAULT.mintOutcomeTokens(marketId, address(this), usdcAmount, outcomeCount);
 
         // Calculate LP shares to mint
         uint256 newShares;
-        if (pool.totalLPShares == 0) {
+        if (pool.totalLpShares == 0) {
             newShares = usdcAmount;
         } else {
-            uint256 newProduct = (pool.yesBalance + usdcAmount) *
-                (pool.noBalance + usdcAmount);
-            uint256 oldProduct = pool.yesBalance * pool.noBalance;
-            uint256 sqrtNew = Math.sqrt(newProduct);
-            uint256 sqrtOld = Math.sqrt(oldProduct);
-            newShares =
-                (pool.totalLPShares * sqrtNew) /
-                sqrtOld -
-                pool.totalLPShares;
+            uint256 oldProduct = 1;
+            uint256 newProduct = 1;
+            for (uint256 i = 0; i < outcomeCount; i++) {
+                uint256 bal = pool.outcomeBalances[i] / 1000;
+                oldProduct = oldProduct * bal;
+                newProduct = newProduct * ((pool.outcomeBalances[i] + usdcAmount) / 1000);
+            }
+            uint256 rootOld = nthRoot(oldProduct, outcomeCount);
+            uint256 rootNew = nthRoot(newProduct, outcomeCount);
+            newShares = (pool.totalLpShares * rootNew) / rootOld - pool.totalLpShares;
         }
 
         // Update pool state
-        pool.yesBalance += usdcAmount;
-        pool.noBalance += usdcAmount;
-        pool.totalLPShares += newShares;
+        for (uint256 i = 0; i < outcomeCount; i++) {
+            pool.outcomeBalances[i] += usdcAmount;
+        }
+        if (outcomeCount == 2) {
+            pool.yesBalance = pool.outcomeBalances[0];
+            pool.noBalance = pool.outcomeBalances[1];
+        }
+        pool.totalLpShares += newShares;
         pool.totalDeposited += usdcAmount;
 
         // Track LP position for beneficiary
@@ -377,69 +433,81 @@ contract VerityFPMM is ERC1155Holder {
             }
         }
 
-        // Calculate proportional token amounts
-        uint256 yesOut = (pool.yesBalance * shareAmount) / pool.totalLPShares;
-        uint256 noOut = (pool.noBalance * shareAmount) / pool.totalLPShares;
+        uint256 outcomeCount = pool.outcomeBalances.length;
+        if (outcomeCount == 0) {
+            outcomeCount = 2;
+        }
+
+        uint256[] memory outs = new uint256[](outcomeCount);
+        for (uint256 i = 0; i < outcomeCount; i++) {
+            uint256 bal = pool.outcomeBalances.length > 0 ? pool.outcomeBalances[i] : (i == 0 ? pool.yesBalance : pool.noBalance);
+            outs[i] = (bal * shareAmount) / pool.totalLpShares;
+        }
 
         // Update pool state
-        pool.yesBalance -= yesOut;
-        pool.noBalance -= noOut;
-        pool.totalLPShares -= shareAmount;
+        for (uint256 i = 0; i < pool.outcomeBalances.length; i++) {
+            pool.outcomeBalances[i] -= outs[i];
+        }
+        if (pool.outcomeBalances.length >= 2) {
+            pool.yesBalance = pool.outcomeBalances[0];
+            pool.noBalance = pool.outcomeBalances[1];
+        } else {
+            pool.yesBalance -= outs[0];
+            pool.noBalance -= outs[1];
+        }
+        pool.totalLpShares -= shareAmount;
         lpShares[marketId][msg.sender] -= shareAmount;
 
         if (pool.resolved) {
             // Determine if vault is resolved
-            (bool resolved, bool winningIsYes, ) = vault.markets(marketId);
+            (bool resolved, uint256 winningOutcomeIndex, , ) = VAULT.markets(marketId);
             if (resolved) {
                 // Resolved market: pay out the winning portion in USDC
-                uint256 usdcOut = winningIsYes ? yesOut : noOut;
+                uint256 usdcOut = outs[winningOutcomeIndex];
                 if (usdcOut > 0) {
-                    usdc.safeTransfer(msg.sender, usdcOut);
+                    USDC.safeTransfer(msg.sender, usdcOut);
                 }
             } else {
-                // Voided market: burn equal pairs of YES and NO to get USDC, and send to LP
-                uint256 burnAmount = yesOut < noOut ? yesOut : noOut;
+                // Voided market: burn equal pairs of outcomes to get USDC
+                uint256 burnAmount = outs[0];
+                for (uint256 i = 1; i < outcomeCount; i++) {
+                    if (outs[i] < burnAmount) {
+                        burnAmount = outs[i];
+                    }
+                }
                 if (burnAmount > 0) {
-                    vault.burnPair(marketId, address(this), burnAmount);
-                    usdc.safeTransfer(msg.sender, burnAmount);
+                    VAULT.burnOutcomeTokens(marketId, address(this), burnAmount, outcomeCount);
+                    USDC.safeTransfer(msg.sender, burnAmount);
                 }
-                // Transfer any remaining dust tokens (should be 0 or tiny)
-                uint256 yesId = vault.yesTokenId(marketId);
-                uint256 noId = vault.noTokenId(marketId);
-                if (yesOut > burnAmount) {
-                    vault.safeTransferFrom(
-                        address(this),
-                        msg.sender,
-                        yesId,
-                        yesOut - burnAmount,
-                        ""
-                    );
-                }
-                if (noOut > burnAmount) {
-                    vault.safeTransferFrom(
-                        address(this),
-                        msg.sender,
-                        noId,
-                        noOut - burnAmount,
-                        ""
-                    );
+                // Transfer dust
+                for (uint256 i = 0; i < outcomeCount; i++) {
+                    if (outs[i] > burnAmount) {
+                        uint256 tokenId = VAULT.outcomeTokenId(marketId, i);
+                        VAULT.safeTransferFrom(
+                            address(this),
+                            msg.sender,
+                            tokenId,
+                            outs[i] - burnAmount,
+                            ""
+                        );
+                    }
                 }
             }
         } else {
-            // Unresolved market (normal LP removal): Transfer YES + NO tokens to the LP
-            uint256 yesId = vault.yesTokenId(marketId);
-            uint256 noId = vault.noTokenId(marketId);
-            vault.safeTransferFrom(
-                address(this),
-                msg.sender,
-                yesId,
-                yesOut,
-                ""
-            );
-            vault.safeTransferFrom(address(this), msg.sender, noId, noOut, "");
+            // Unresolved market (normal LP removal): Transfer outcome tokens to LP
+            for (uint256 i = 0; i < outcomeCount; i++) {
+                uint256 tokenId = VAULT.outcomeTokenId(marketId, i);
+                VAULT.safeTransferFrom(
+                    address(this),
+                    msg.sender,
+                    tokenId,
+                    outs[i],
+                    ""
+                );
+            }
         }
 
-        emit LiquidityRemoved(marketId, msg.sender, shareAmount, yesOut, noOut);
+        emit LiquidityRemoved(marketId, msg.sender, shareAmount, outs[0], outcomeCount > 1 ? outs[1] : 0);
     }
 
     /// @notice Creator claims their locked liquidity after market resolution.
@@ -452,56 +520,66 @@ contract VerityFPMM is ERC1155Holder {
         uint256 creatorShareAmount = lpShares[marketId][msg.sender];
         if (creatorShareAmount == 0) revert InsufficientShares();
 
-        // Calculate proportional token amounts
-        uint256 yesOut = (pool.yesBalance * creatorShareAmount) /
-            pool.totalLPShares;
-        uint256 noOut = (pool.noBalance * creatorShareAmount) /
-            pool.totalLPShares;
+        uint256 outcomeCount = pool.outcomeBalances.length;
+        if (outcomeCount == 0) {
+            outcomeCount = 2;
+        }
+
+        uint256[] memory outs = new uint256[](outcomeCount);
+        for (uint256 i = 0; i < outcomeCount; i++) {
+            uint256 bal = pool.outcomeBalances.length > 0 ? pool.outcomeBalances[i] : (i == 0 ? pool.yesBalance : pool.noBalance);
+            outs[i] = (bal * creatorShareAmount) / pool.totalLpShares;
+        }
 
         // Update pool state
-        pool.yesBalance -= yesOut;
-        pool.noBalance -= noOut;
-        pool.totalLPShares -= creatorShareAmount;
+        for (uint256 i = 0; i < pool.outcomeBalances.length; i++) {
+            pool.outcomeBalances[i] -= outs[i];
+        }
+        if (pool.outcomeBalances.length >= 2) {
+            pool.yesBalance = pool.outcomeBalances[0];
+            pool.noBalance = pool.outcomeBalances[1];
+        } else {
+            pool.yesBalance -= outs[0];
+            pool.noBalance -= outs[1];
+        }
+        pool.totalLpShares -= creatorShareAmount;
         lpShares[marketId][msg.sender] = 0;
 
         // Determine if vault is resolved
-        (bool resolved, bool winningIsYes, ) = vault.markets(marketId);
+        (bool resolved, uint256 winningOutcomeIndex, , ) = VAULT.markets(marketId);
         if (resolved) {
-            uint256 usdcOut = winningIsYes ? yesOut : noOut;
+            uint256 usdcOut = outs[winningOutcomeIndex];
             if (usdcOut > 0) {
-                usdc.safeTransfer(msg.sender, usdcOut);
+                USDC.safeTransfer(msg.sender, usdcOut);
             }
         } else {
             // Voided: burn pairs and return USDC
-            uint256 burnAmount = yesOut < noOut ? yesOut : noOut;
+            uint256 burnAmount = outs[0];
+            for (uint256 i = 1; i < outcomeCount; i++) {
+                if (outs[i] < burnAmount) {
+                    burnAmount = outs[i];
+                }
+            }
             if (burnAmount > 0) {
-                vault.burnPair(marketId, address(this), burnAmount);
-                usdc.safeTransfer(msg.sender, burnAmount);
+                VAULT.burnOutcomeTokens(marketId, address(this), burnAmount, outcomeCount);
+                USDC.safeTransfer(msg.sender, burnAmount);
             }
             // Transfer dust if any
-            uint256 yesId = vault.yesTokenId(marketId);
-            uint256 noId = vault.noTokenId(marketId);
-            if (yesOut > burnAmount) {
-                vault.safeTransferFrom(
-                    address(this),
-                    msg.sender,
-                    yesId,
-                    yesOut - burnAmount,
-                    ""
-                );
-            }
-            if (noOut > burnAmount) {
-                vault.safeTransferFrom(
-                    address(this),
-                    msg.sender,
-                    noId,
-                    noOut - burnAmount,
-                    ""
-                );
+            for (uint256 i = 0; i < outcomeCount; i++) {
+                if (outs[i] > burnAmount) {
+                    uint256 tokenId = VAULT.outcomeTokenId(marketId, i);
+                    VAULT.safeTransferFrom(
+                        address(this),
+                        msg.sender,
+                        tokenId,
+                        outs[i] - burnAmount,
+                        ""
+                    );
+                }
             }
         }
 
-        emit CreatorLiquidityClaimed(marketId, msg.sender, yesOut, noOut);
+        emit CreatorLiquidityClaimed(marketId, msg.sender, outs[0], outcomeCount > 1 ? outs[1] : 0);
     }
 
     // ─── Trading ─────────────────────────────────────────────────────────
@@ -521,25 +599,25 @@ contract VerityFPMM is ERC1155Holder {
 
         // 1. Calculate and split fee
         uint256 fee = (usdcAmount * FEE_BPS) / BPS_DENOMINATOR;
-        uint256 feeLP = (fee * LP_FEE_SHARE) / 100;
-        uint256 feeTreasury = fee - feeLP;
+        uint256 feeLp = (fee * LP_FEE_SHARE) / 100;
+        uint256 feeTreasury = fee - feeLp;
         uint256 actualAmount = usdcAmount - fee;
 
         // 2. Transfer USDC from buyer
-        usdc.safeTransferFrom(msg.sender, address(this), usdcAmount);
+        USDC.safeTransferFrom(msg.sender, address(this), usdcAmount);
 
         // 3. Send treasury fee
         if (feeTreasury > 0) {
-            usdc.safeTransfer(treasury, feeTreasury);
+            USDC.safeTransfer(treasury, feeTreasury);
         }
 
         // 4. Track LP fees (stays in contract as extra value for LPs)
-        pool.collectedFeesLP += feeLP;
+        pool.collectedFeesLp += feeLp;
         pool.collectedFeesTreasury += feeTreasury;
 
         // 5. Mint YES + NO tokens via vault
-        usdc.approve(address(vault), actualAmount);
-        vault.mintPair(marketId, address(this), actualAmount);
+        USDC.approve(address(VAULT), actualAmount);
+        VAULT.mintPair(marketId, address(this), actualAmount);
 
         // 6. Apply FPMM formula
         uint256 y = pool.yesBalance;
@@ -555,8 +633,8 @@ contract VerityFPMM is ERC1155Holder {
             tokensOut = actualAmount + tokensFromPool;
 
             // Transfer YES tokens to buyer
-            uint256 yesId = vault.yesTokenId(marketId);
-            vault.safeTransferFrom(
+            uint256 yesId = VAULT.yesTokenId(marketId);
+            VAULT.safeTransferFrom(
                 address(this),
                 msg.sender,
                 yesId,
@@ -572,14 +650,19 @@ contract VerityFPMM is ERC1155Holder {
             tokensOut = actualAmount + tokensFromPool;
 
             // Transfer NO tokens to buyer
-            uint256 noId = vault.noTokenId(marketId);
-            vault.safeTransferFrom(
+            uint256 noId = VAULT.noTokenId(marketId);
+            VAULT.safeTransferFrom(
                 address(this),
                 msg.sender,
                 noId,
                 tokensOut,
                 ""
             );
+        }
+
+        if (pool.outcomeBalances.length >= 2) {
+            pool.outcomeBalances[0] = pool.yesBalance;
+            pool.outcomeBalances[1] = pool.noBalance;
         }
 
         emit TokensBought(
@@ -610,9 +693,9 @@ contract VerityFPMM is ERC1155Holder {
 
         // 1. Transfer tokens from seller to this contract
         uint256 tokenId = isYes
-            ? vault.yesTokenId(marketId)
-            : vault.noTokenId(marketId);
-        vault.safeTransferFrom(
+            ? VAULT.yesTokenId(marketId)
+            : VAULT.noTokenId(marketId);
+        VAULT.safeTransferFrom(
             msg.sender,
             address(this),
             tokenId,
@@ -649,42 +732,44 @@ contract VerityFPMM is ERC1155Holder {
         }
 
         // 3. Burn the pairs to retrieve USDC
-        vault.burnPair(marketId, address(this), grossUsdc);
+        VAULT.burnPair(marketId, address(this), grossUsdc);
 
         // 4. Deduct fee
         uint256 fee = (grossUsdc * FEE_BPS) / BPS_DENOMINATOR;
-        uint256 feeLP = (fee * LP_FEE_SHARE) / 100;
-        uint256 feeTreasury = fee - feeLP;
+        uint256 feeLp = (fee * LP_FEE_SHARE) / 100;
+        uint256 feeTreasury = fee - feeLp;
         usdcOut = grossUsdc - fee;
 
-        pool.collectedFeesLP += feeLP;
+        pool.collectedFeesLp += feeLp;
         pool.collectedFeesTreasury += feeTreasury;
 
         // 5. Send treasury fee and net USDC to seller
         if (feeTreasury > 0) {
-            usdc.safeTransfer(treasury, feeTreasury);
+            USDC.safeTransfer(treasury, feeTreasury);
         }
-        usdc.safeTransfer(msg.sender, usdcOut);
+        USDC.safeTransfer(msg.sender, usdcOut);
+
+        if (pool.outcomeBalances.length >= 2) {
+            pool.outcomeBalances[0] = pool.yesBalance;
+            pool.outcomeBalances[1] = pool.noBalance;
+        }
 
         emit TokensSold(marketId, msg.sender, isYes, tokenAmount, usdcOut, fee);
     }
 
     // ─── Resolution (called by Factory) ──────────────────────────────────
 
-    /// @notice Mark pool as resolved. Called by factory after vault resolution.
     function markResolved(bytes32 marketId) external onlyFactory {
         pools[marketId].resolved = true;
 
         // Query winning outcome from vault
-        (bool resolved, bool winningIsYes, ) = vault.markets(marketId);
+        (bool resolved, uint256 winningOutcomeIndex, , ) = VAULT.markets(marketId);
         if (resolved) {
-            uint256 winningId = winningIsYes
-                ? vault.yesTokenId(marketId)
-                : vault.noTokenId(marketId);
-            uint256 winningBalance = vault.balanceOf(address(this), winningId);
+            uint256 winningId = VAULT.outcomeTokenId(marketId, winningOutcomeIndex);
+            uint256 winningBalance = VAULT.balanceOf(address(this), winningId);
             if (winningBalance > 0) {
                 // Redeem all winning tokens held by the pool for USDC
-                vault.redeem(marketId);
+                VAULT.redeem(marketId);
             }
         }
     }
@@ -729,7 +814,7 @@ contract VerityFPMM is ERC1155Holder {
         returns (
             uint256 yesBalance,
             uint256 noBalance,
-            uint256 totalLPShares,
+            uint256 totalLpShares,
             uint256 totalDeposited,
             bool active,
             bool resolved
@@ -739,10 +824,236 @@ contract VerityFPMM is ERC1155Holder {
         return (
             pool.yesBalance,
             pool.noBalance,
-            pool.totalLPShares,
+            pool.totalLpShares,
             pool.totalDeposited,
             pool.active,
             pool.resolved
         );
+    }
+
+    /// @notice Get all outcome balances for a pool
+    function getOutcomeBalances(
+        bytes32 marketId
+    ) external view returns (uint256[] memory) {
+        return pools[marketId].outcomeBalances;
+    }
+
+    /// @notice Buy a specific outcome token using USDC via the generalized constant product formula.
+    /// @param marketId Market identifier
+    /// @param outcomeIndex Index of the outcome to buy
+    /// @param usdcAmount Total USDC to spend (fee is deducted from this)
+    /// @return tokensOut Number of outcome tokens received
+    function buyOutcome(
+        bytes32 marketId,
+        uint256 outcomeIndex,
+        uint256 usdcAmount
+    ) external poolMustBeActive(marketId) returns (uint256 tokensOut) {
+        if (usdcAmount == 0) revert ZeroAmount();
+        Pool storage pool = pools[marketId];
+        uint256 outcomeCount = pool.outcomeBalances.length;
+        require(outcomeIndex < outcomeCount, "Invalid outcome index");
+
+        // 1. Calculate and split fee
+        uint256 fee = (usdcAmount * FEE_BPS) / BPS_DENOMINATOR;
+        uint256 feeLp = (fee * LP_FEE_SHARE) / 100;
+        uint256 feeTreasury = fee - feeLp;
+        uint256 actualAmount = usdcAmount - fee;
+
+        // 2. Transfer USDC from buyer
+        USDC.safeTransferFrom(msg.sender, address(this), usdcAmount);
+
+        // 3. Send treasury fee
+        if (feeTreasury > 0) {
+            USDC.safeTransfer(treasury, feeTreasury);
+        }
+
+        // 4. Track LP fees
+        pool.collectedFeesLp += feeLp;
+        pool.collectedFeesTreasury += feeTreasury;
+
+        // 5. Mint outcome tokens via vault
+        USDC.approve(address(VAULT), actualAmount);
+        VAULT.mintOutcomeTokens(marketId, address(this), actualAmount, outcomeCount);
+
+        // 6. Apply multi-outcome constant product formula iteratively to prevent overflow
+        uint256 outcomeBalanceNew = pool.outcomeBalances[outcomeIndex];
+        for (uint256 i = 0; i < outcomeCount; i++) {
+            if (i != outcomeIndex) {
+                outcomeBalanceNew = Math.mulDiv(
+                    outcomeBalanceNew,
+                    pool.outcomeBalances[i],
+                    pool.outcomeBalances[i] + actualAmount
+                );
+            }
+        }
+        uint256 xJ = pool.outcomeBalances[outcomeIndex];
+        tokensOut = (xJ + actualAmount) - outcomeBalanceNew;
+
+        // 7. Update pool balances in storage
+        for (uint256 i = 0; i < outcomeCount; i++) {
+            if (i == outcomeIndex) {
+                pool.outcomeBalances[i] = outcomeBalanceNew;
+            } else {
+                pool.outcomeBalances[i] += actualAmount;
+            }
+        }
+
+        // 8. Sync yesBalance/noBalance for legacy compatibility
+        if (outcomeCount == 2) {
+            pool.yesBalance = pool.outcomeBalances[0];
+            pool.noBalance = pool.outcomeBalances[1];
+        }
+
+        // 9. Transfer purchased outcome tokens to buyer
+        uint256 tokenId = VAULT.outcomeTokenId(marketId, outcomeIndex);
+        VAULT.safeTransferFrom(
+            address(this),
+            msg.sender,
+            tokenId,
+            tokensOut,
+            ""
+        );
+
+        emit TokensBought(
+            marketId,
+            msg.sender,
+            outcomeIndex == 0,
+            usdcAmount,
+            tokensOut,
+            fee
+        );
+    }
+
+    /// @notice Sell outcome tokens back to the pool for USDC via the generalized constant product formula.
+    /// @param marketId Market identifier
+    /// @param outcomeIndex Index of the outcome to sell
+    /// @param tokenAmount Number of outcome tokens to sell
+    /// @return usdcOut Net USDC received after fees
+    function sellOutcome(
+        bytes32 marketId,
+        uint256 outcomeIndex,
+        uint256 tokenAmount
+    ) external poolMustBeActive(marketId) returns (uint256 usdcOut) {
+        if (tokenAmount == 0) revert ZeroAmount();
+        Pool storage pool = pools[marketId];
+        uint256 outcomeCount = pool.outcomeBalances.length;
+        require(outcomeIndex < outcomeCount, "Invalid outcome index");
+
+        // 1. Transfer tokens from seller to this contract
+        uint256 tokenId = VAULT.outcomeTokenId(marketId, outcomeIndex);
+        VAULT.safeTransferFrom(
+            msg.sender,
+            address(this),
+            tokenId,
+            tokenAmount,
+            ""
+        );
+
+        // 2. Solve for grossUsdc using binary search
+        uint256 grossUsdc = solveSellGrossUsdc(pool.outcomeBalances, outcomeIndex, tokenAmount);
+
+        // 3. Update pool balances in storage
+        for (uint256 i = 0; i < outcomeCount; i++) {
+            if (i == outcomeIndex) {
+                pool.outcomeBalances[i] = pool.outcomeBalances[i] + tokenAmount - grossUsdc;
+            } else {
+                pool.outcomeBalances[i] = pool.outcomeBalances[i] - grossUsdc;
+            }
+        }
+
+        // 4. Sync yesBalance/noBalance for legacy compatibility
+        if (outcomeCount == 2) {
+            pool.yesBalance = pool.outcomeBalances[0];
+            pool.noBalance = pool.outcomeBalances[1];
+        }
+
+        // 5. Burn the pairs via vault
+        VAULT.burnOutcomeTokens(marketId, address(this), grossUsdc, outcomeCount);
+
+        // 6. Deduct fee
+        uint256 fee = (grossUsdc * FEE_BPS) / BPS_DENOMINATOR;
+        uint256 feeLp = (fee * LP_FEE_SHARE) / 100;
+        uint256 feeTreasury = fee - feeLp;
+        usdcOut = grossUsdc - fee;
+
+        pool.collectedFeesLp += feeLp;
+        pool.collectedFeesTreasury += feeTreasury;
+
+        // 7. Send treasury fee and net USDC to seller
+        if (feeTreasury > 0) {
+            USDC.safeTransfer(treasury, feeTreasury);
+        }
+        USDC.safeTransfer(msg.sender, usdcOut);
+
+        emit TokensSold(
+            marketId,
+            msg.sender,
+            outcomeIndex == 0,
+            tokenAmount,
+            usdcOut,
+            fee
+        );
+    }
+
+    function solveSellGrossUsdc(
+        uint256[] memory balances,
+        uint256 outcomeIndex,
+        uint256 tokenAmount
+    ) public pure returns (uint256) {
+        uint256 outcomeCount = balances.length;
+        uint256 k = 1;
+        for (uint256 i = 0; i < outcomeCount; i++) {
+            k = k * balances[i];
+        }
+
+        uint256 low = 0;
+        uint256 high = balances[outcomeIndex] + tokenAmount;
+        for (uint256 i = 0; i < outcomeCount; i++) {
+            if (i != outcomeIndex && balances[i] < high) {
+                high = balances[i];
+            }
+        }
+
+        uint256 grossUsdc = 0;
+        for (uint256 iter = 0; iter < 30; iter++) {
+            uint256 mid = (low + high) / 2;
+            uint256 product = balances[outcomeIndex] + tokenAmount - mid;
+            for (uint256 i = 0; i < outcomeCount; i++) {
+                if (i != outcomeIndex) {
+                    product = product * (balances[i] - mid);
+                }
+            }
+
+            if (product > k) {
+                low = mid;
+                grossUsdc = mid;
+            } else {
+                high = mid;
+            }
+        }
+        return grossUsdc;
+    }
+
+    function nthRoot(uint256 x, uint256 n) public pure returns (uint256) {
+        if (x == 0) return 0;
+        if (n == 1) return x;
+        if (n == 2) return Math.sqrt(x);
+        
+        uint256 y = 40_000;
+        uint256 yPrev = 0;
+        for (uint256 i = 0; i < 30; i++) {
+            uint256 denom = 1;
+            for (uint256 j = 0; j < n - 1; j++) {
+                denom = denom * y;
+            }
+            uint256 yNext = ((n - 1) * y + x / denom) / n;
+            if (yNext == y || yNext == yPrev) {
+                y = yNext;
+                break;
+            }
+            yPrev = y;
+            y = yNext;
+        }
+        return y;
     }
 }

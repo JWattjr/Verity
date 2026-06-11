@@ -12,6 +12,8 @@ import { BlockchainService } from "../blockchain/blockchain.service"
 import { AgentService } from "../agent/agent.service"
 import { SocketGateway } from "../socket/socket.gateway"
 import { ConfigService } from "@nestjs/config"
+import { PvpService } from "../pvp/pvp.service"
+import { LiquidityService } from "../liquidity/liquidity.service"
 
 @Injectable()
 export class MarketsKeeperService implements OnModuleInit, OnModuleDestroy {
@@ -26,6 +28,8 @@ export class MarketsKeeperService implements OnModuleInit, OnModuleDestroy {
     private readonly agentService: AgentService,
     private readonly configService: ConfigService,
     private readonly socketGateway: SocketGateway,
+    private readonly pvpService: PvpService,
+    private readonly liquidityService: LiquidityService,
   ) {}
 
   onModuleInit() {
@@ -47,9 +51,11 @@ export class MarketsKeeperService implements OnModuleInit, OnModuleDestroy {
     this.isProcessing = true
 
     try {
+      await this.liquidityService.voidExpiredPools()
       await this.promoteQualifiedMarkets()
       await this.processPythMarkets()
       await this.processSubjectiveMarkets()
+      await this.pvpService.syncUnresolvedPvpPicks()
     } catch (error) {
       this.logger.error(`Error in keeper loop: ${error.message}`)
     } finally {
@@ -156,7 +162,7 @@ export class MarketsKeeperService implements OnModuleInit, OnModuleDestroy {
     // Find unresolved Pyth markets that have passed their deadline plus the delay cutoff
     const expiredMarkets = await this.marketModel.find({
       isPythMarket: true,
-      status: { $in: ["funding_pool", "tradable"] },
+      status: "tradable",
       deadline: { $lte: delayCutoff },
     })
 
@@ -199,9 +205,16 @@ export class MarketsKeeperService implements OnModuleInit, OnModuleDestroy {
   async processSubjectiveMarkets() {
     const now = new Date()
     // Find unresolved non-Pyth markets that have passed their deadline
+    // Exclude parent markets (PvP parents are DB-only containers, not registered on-chain)
     const expiredMarkets = await this.marketModel.find({
       isPythMarket: { $ne: true },
-      status: { $in: ["funding_pool", "tradable", "resolving"] },
+      marketType: { $ne: "parent" },
+      // Exclude multi-outcome markets (optimistic resolver contract only supports binary)
+      // $or: [
+      //   { outcomeCount: { $exists: false } },
+      //   { outcomeCount: { $lte: 2 } },
+      // ],
+      status: { $in: ["tradable", "resolving"] },
       deadline: { $lte: now },
     })
 
@@ -248,6 +261,8 @@ export class MarketsKeeperService implements OnModuleInit, OnModuleDestroy {
               market.yesCondition,
               market.noCondition,
               market.resolutionSource,
+              market.category,
+              market.outcomes,
             )
 
             if (result.outcome === "INVALID") {
@@ -257,14 +272,34 @@ export class MarketsKeeperService implements OnModuleInit, OnModuleDestroy {
               continue
             }
 
-            const proposedOutcomeBool = result.outcome === "YES"
+            let proposedIndex: number
+            if (market.outcomeCount && market.outcomeCount > 2) {
+              const idx = market.outcomes.findIndex(
+                (o) => o.toLowerCase().trim() === result.outcome.toLowerCase().trim()
+              )
+              if (idx === -1) {
+                this.logger.warn(`AI returned invalid outcome name: ${result.outcome}. Skipping proposal.`)
+                continue
+              }
+              proposedIndex = idx
+            } else {
+              if (result.outcome === "YES") {
+                proposedIndex = 0
+              } else if (result.outcome === "NO") {
+                proposedIndex = 1
+              } else {
+                this.logger.warn(`AI returned invalid binary outcome: ${result.outcome}. Skipping proposal.`)
+                continue
+              }
+            }
+
             this.logger.log(
-              `AI Agent proposed outcome: ${result.outcome}. Submitting proposeResolution transaction...`,
+              `AI Agent proposed outcome: ${result.outcome} (Index: ${proposedIndex}). Submitting proposeResolution transaction...`,
             )
 
             const txHash = await this.blockchainService.proposeResolution(
               marketIdStr,
-              proposedOutcomeBool,
+              proposedIndex,
             )
             await this.blockchainService.getTransactionReceipt(
               txHash as `0x${string}`,
@@ -273,13 +308,13 @@ export class MarketsKeeperService implements OnModuleInit, OnModuleDestroy {
             // Save proposal info to DB
             market.proposalReasoning = result.reasoning
             market.proposalCitations = result.citations
-            market.proposedOutcome = proposedOutcomeBool
+            market.proposedOutcome = proposedIndex === 0
             market.proposalProposer = "0xKeeper" // Mark keeper as proposer
             market.status = "resolving"
             await market.save()
 
             this.logger.log(
-              `Successfully proposed resolution for market ${marketIdStr} (Outcome: ${result.outcome})`,
+              `Successfully proposed resolution for market ${marketIdStr} (Outcome: ${result.outcome}, Index: ${proposedIndex})`,
             )
 
             // Emit Socket events
@@ -301,11 +336,19 @@ export class MarketsKeeperService implements OnModuleInit, OnModuleDestroy {
                     marketIdStr,
                   )
                 market.status = "resolved"
-                market.resolvedOutcome = onChainState.winningIsYes
-                  ? "YES"
-                  : "NO"
+                const winIdx = onChainState.winningOutcomeIndex
+                market.winningOutcomeIndex = winIdx
+                if (market.outcomeCount && market.outcomeCount > 2) {
+                  market.resolvedOutcome = market.outcomes[winIdx] as any
+                } else {
+                  market.resolvedOutcome = (winIdx === 0 ? "YES" : "NO") as any
+                }
                 market.resolvedByAdmin = "0xKeeper"
                 await market.save()
+                await this.pvpService.resolvePvpMatchesForMarket(
+                  marketIdStr,
+                  market.resolvedOutcome as string,
+                )
                 this.logger.log(
                   `Synced finalized market ${marketIdStr} in database.`,
                 )
@@ -369,11 +412,19 @@ export class MarketsKeeperService implements OnModuleInit, OnModuleDestroy {
                 )
 
                 market.status = "resolved"
-                market.resolvedOutcome = proposal.proposedWinningOutcome
-                  ? "YES"
-                  : "NO"
+                const winIdx = proposal.proposedOutcomeIndex
+                market.winningOutcomeIndex = winIdx
+                if (market.outcomeCount && market.outcomeCount > 2) {
+                  market.resolvedOutcome = market.outcomes[winIdx] as any
+                } else {
+                  market.resolvedOutcome = (winIdx === 0 ? "YES" : "NO") as any
+                }
                 market.resolvedByAdmin = "0xKeeper"
                 await market.save()
+                await this.pvpService.resolvePvpMatchesForMarket(
+                  marketIdStr,
+                  market.resolvedOutcome as string,
+                )
 
                 this.logger.log(
                   `Successfully finalized resolution for market ${marketIdStr}.`,
@@ -408,11 +459,22 @@ export class MarketsKeeperService implements OnModuleInit, OnModuleDestroy {
       this.logger.log(
         `Market ${market._id} is already resolved on-chain. Syncing database state...`,
       )
-      const winningOutcome = onChainStateBefore.winningIsYes ? "YES" : "NO"
+      const winIdx = onChainStateBefore.winningOutcomeIndex
+      market.winningOutcomeIndex = winIdx
+      let winningOutcome: string
+      if (market.outcomeCount && market.outcomeCount > 2) {
+        winningOutcome = market.outcomes[winIdx]
+      } else {
+        winningOutcome = winIdx === 0 ? "YES" : "NO"
+      }
       market.status = "resolved"
       market.resolvedOutcome = winningOutcome
       market.resolvedByAdmin = "0xKeeper"
       await market.save()
+      await this.pvpService.resolvePvpMatchesForMarket(
+        market._id.toString(),
+        winningOutcome,
+      )
 
       // Emit Socket events
       this.socketGateway.broadcastToRoom("feed", "feed-updated", {})
@@ -487,11 +549,22 @@ export class MarketsKeeperService implements OnModuleInit, OnModuleDestroy {
     }
 
     // 5. Update database status
-    const winningOutcome = onChainState.winningIsYes ? "YES" : "NO"
+    const winIdx = onChainState.winningOutcomeIndex
+    market.winningOutcomeIndex = winIdx
+    let winningOutcome: string
+    if (market.outcomeCount && market.outcomeCount > 2) {
+      winningOutcome = market.outcomes[winIdx]
+    } else {
+      winningOutcome = winIdx === 0 ? "YES" : "NO"
+    }
     market.status = "resolved"
     market.resolvedOutcome = winningOutcome
     market.resolvedByAdmin = "0xKeeper" // Identifier for auto-resolution
     await market.save()
+    await this.pvpService.resolvePvpMatchesForMarket(
+      market._id.toString(),
+      winningOutcome,
+    )
 
     this.logger.log(
       `Successfully resolved market ${market._id} to ${winningOutcome} on-chain & database.`,

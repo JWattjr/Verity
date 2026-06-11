@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react"
 import { io, Socket } from "socket.io-client"
 import { useQueryClient } from "@tanstack/react-query"
-import toast from "react-hot-toast"
+import toast from "@/lib/toast"
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:5050/api"

@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import "forge-std/Test.sol";
-import "../src/ConditionalTokenVault.sol";
-import "../src/VerityFPMM.sol";
-import "../src/VerityMarketFactory.sol";
-import "./helpers/MockUSDC.sol";
-import "./helpers/MockPyth.sol";
+import { Test } from "forge-std/Test.sol";
+import { ConditionalTokenVault } from "../src/ConditionalTokenVault.sol";
+import { VerityFPMM } from "../src/VerityFPMM.sol";
+import { VerityMarketFactory } from "../src/VerityMarketFactory.sol";
+import { MockUSDC } from "./helpers/MockUSDC.sol";
+import { MockPyth } from "./helpers/MockPyth.sol";
 
 /// @title VerityFPMMTest
 contract VerityFPMMTest is Test {
@@ -37,7 +37,7 @@ contract VerityFPMMTest is Test {
       address(pyth)
     );
 
-    vault.setFPMM(address(fpmm));
+    vault.setFpmm(address(fpmm));
     vault.setFactory(address(factory));
     fpmm.setFactory(address(factory));
 
@@ -82,7 +82,7 @@ contract VerityFPMMTest is Test {
     vm.prank(creator);
     factory.depositPreMarketLiquidity(marketId, 40e6); // 40 USDC immediately deploys it
     vm.prank(creator);
-    fpmm.claimPreMarketLPShares(marketId);
+    fpmm.claimPreMarketLpShares(marketId);
   }
 
   // ─── Escrow & Pool Creation Tests ────────────────────────────────────
@@ -110,9 +110,9 @@ contract VerityFPMMTest is Test {
     // Pool should now be active
     (
       uint256 yBal,
-      uint256 nBal,
+      ,
       uint256 totalShares,
-      uint256 totalDep,
+      ,
       bool activeAfter,
 
     ) = fpmm.getPoolBalances(marketId);
@@ -122,9 +122,9 @@ contract VerityFPMMTest is Test {
 
     // Claim shares
     vm.prank(creator);
-    fpmm.claimPreMarketLPShares(marketId);
+    fpmm.claimPreMarketLpShares(marketId);
     vm.prank(lp1);
-    fpmm.claimPreMarketLPShares(marketId);
+    fpmm.claimPreMarketLpShares(marketId);
 
     // Check LP shares were distributed
     assertEq(
@@ -659,5 +659,85 @@ contract VerityFPMMTest is Test {
       10,
       "Product must be preserved after buy and sell"
     );
+  }
+
+  function _createActiveMultiOutcomeMarket(bytes32 _marketId, uint256 outcomeCount, uint256 initialUsdc) internal {
+    factory.registerMarket(
+      _marketId,
+      creator,
+      block.timestamp + 30 days,
+      block.timestamp + 7 days,
+      outcomeCount
+    );
+    vm.prank(creator);
+    factory.depositPreMarketLiquidity(_marketId, initialUsdc);
+    vm.prank(creator);
+    fpmm.claimPreMarketLpShares(_marketId);
+  }
+
+  function test_resolveMarketOutcome() public {
+    bytes32 mId = keccak256("market-multi-resolve");
+    _createActiveMultiOutcomeMarket(mId, 3, 40e6);
+
+    // Resolve outcome index 2
+    factory.resolveMarketOutcome(mId, 2);
+
+    // Verify resolve on vault
+    (bool resolved, uint256 winningOutcomeIndex, , ) = vault.markets(mId);
+    assertTrue(resolved);
+    assertEq(winningOutcomeIndex, 2);
+
+    // Verify resolve on FPMM
+    (, , , , , bool fpmmResolved) = fpmm.getPoolBalances(mId);
+    assertTrue(fpmmResolved);
+  }
+
+  function test_multiOutcomeBuyMathOverflow() public {
+    bytes32 mId = keccak256("market-multi-buy-overflow");
+    // Fund accounts
+    usdc.mint(creator, 20_000e6);
+    usdc.mint(trader, 20_000e6);
+    
+    vm.startPrank(creator);
+    usdc.approve(address(factory), type(uint256).max);
+    vm.stopPrank();
+    vm.startPrank(trader);
+    usdc.approve(address(fpmm), type(uint256).max);
+    vm.stopPrank();
+
+    _createActiveMultiOutcomeMarket(mId, 3, 15_000e6);
+
+    // Verify it is active
+    (, , , , bool active, ) = fpmm.getPoolBalances(mId);
+    assertTrue(active);
+
+    // Buy outcome index 0 with 1,000 USDC
+    vm.prank(trader);
+    uint256 tokensOut = fpmm.buyOutcome(mId, 0, 1000e6);
+    assertTrue(tokensOut > 0);
+  }
+
+  function test_multiOutcomeAddLiquidityOverflow() public {
+    bytes32 mId = keccak256("market-multi-add-lp-overflow");
+    // Fund initial liquidity
+    usdc.mint(creator, 50_000e6);
+    usdc.mint(lp1, 50_000e6);
+
+    vm.startPrank(creator);
+    usdc.approve(address(factory), type(uint256).max);
+    vm.stopPrank();
+    vm.startPrank(lp1);
+    usdc.approve(address(fpmm), type(uint256).max);
+    vm.stopPrank();
+
+    _createActiveMultiOutcomeMarket(mId, 3, 30_000e6);
+
+    // LP1 adds 10,000 USDC of liquidity
+    vm.prank(lp1);
+    fpmm.addLiquidity(mId, 10_000e6);
+
+    // Check LP shares of LP1
+    uint256 lp1Shares = fpmm.lpShares(mId, lp1);
+    assertTrue(lp1Shares > 0);
   }
 }

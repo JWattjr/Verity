@@ -7,6 +7,8 @@ import { Market } from "../src/modules/markets/markets.model"
 import { User } from "../src/modules/users/users.model"
 import { ConfigService } from "@nestjs/config"
 import { SocketGateway } from "../src/modules/socket/socket.gateway"
+import { PvpService } from "../src/modules/pvp/pvp.service"
+import { LiquidityService } from "../src/modules/liquidity/liquidity.service"
 
 describe("MarketsKeeperService", () => {
   let service: MarketsKeeperService
@@ -55,12 +57,13 @@ describe("MarketsKeeperService", () => {
         .mockResolvedValue({ blockNumber: 12345 }),
       readOnChainMarketState: jest.fn().mockResolvedValue({
         resolved: true,
-        winningIsYes: true,
+        winningOutcomeIndex: 0,
         totalCollateral: BigInt(100),
+        outcomeCount: 2,
       }),
       readProposal: jest.fn().mockResolvedValue({
         proposer: "0x0000000000000000000000000000000000000000",
-        proposedWinningOutcome: false,
+        proposedOutcomeIndex: 1,
         proposalTime: BigInt(0),
         disputed: false,
         disputer: "0x0000000000000000000000000000000000000000",
@@ -118,6 +121,18 @@ describe("MarketsKeeperService", () => {
           provide: SocketGateway,
           useValue: {
             broadcastToRoom: jest.fn(),
+          },
+        },
+        {
+          provide: PvpService,
+          useValue: {
+            syncUnresolvedPvpPicks: jest.fn(),
+          },
+        },
+        {
+          provide: LiquidityService,
+          useValue: {
+            voidExpiredPools: jest.fn(),
           },
         },
       ],
@@ -190,10 +205,12 @@ describe("MarketsKeeperService", () => {
         mockSubjectiveMarket.yesCondition,
         mockSubjectiveMarket.noCondition,
         mockSubjectiveMarket.resolutionSource,
+        undefined,
+        undefined,
       )
       expect(blockchainService.proposeResolution).toHaveBeenCalledWith(
         mockSubjectiveMarket._id,
-        true,
+        0,
       )
       expect(mockSubjectiveMarket.proposalReasoning).toBe(
         "Arsenal won the league according to official standings.",
@@ -228,7 +245,7 @@ describe("MarketsKeeperService", () => {
       const threeHoursAgo = Math.floor(Date.now() / 1000) - 3 * 60 * 60
       blockchainService.readProposal.mockResolvedValue({
         proposer: "0x1234567890abcdef1234567890abcdef12345678",
-        proposedWinningOutcome: true,
+        proposedOutcomeIndex: 0,
         proposalTime: BigInt(threeHoursAgo),
         disputed: false,
         disputer: "0x0000000000000000000000000000000000000000",
@@ -251,7 +268,7 @@ describe("MarketsKeeperService", () => {
     it("should flag disputed market in database", async () => {
       blockchainService.readProposal.mockResolvedValue({
         proposer: "0x1234567890abcdef1234567890abcdef12345678",
-        proposedWinningOutcome: true,
+        proposedOutcomeIndex: 0,
         proposalTime: BigInt(Math.floor(Date.now() / 1000) - 60),
         disputed: true,
         disputer: "0xdisputeraddress",

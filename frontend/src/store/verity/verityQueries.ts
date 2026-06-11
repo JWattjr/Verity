@@ -363,6 +363,8 @@ export function useExecuteMarketTradeMutation() {
       void qc.invalidateQueries({ queryKey: ["feed"] })
       void qc.invalidateQueries({ queryKey: ["positions"] })
       void qc.invalidateQueries({ queryKey: ["trades"] })
+      void qc.invalidateQueries({ queryKey: ["pvp-active-events"] })
+      void qc.invalidateQueries({ queryKey: ["pvp-status"] })
     },
   })
 }
@@ -451,6 +453,8 @@ export function useAddLiquidityMutation() {
       void qc.invalidateQueries({ queryKey: ["feed"] })
       void qc.invalidateQueries({ queryKey: ["pool-state"] })
       void qc.invalidateQueries({ queryKey: ["lp-positions"] })
+      void qc.invalidateQueries({ queryKey: ["pvp-active-events"] })
+      void qc.invalidateQueries({ queryKey: ["pvp-status"] })
     },
   })
 }
@@ -477,6 +481,8 @@ export function useRemoveLiquidityMutation() {
       void qc.invalidateQueries({ queryKey: ["feed"] })
       void qc.invalidateQueries({ queryKey: ["pool-state"] })
       void qc.invalidateQueries({ queryKey: ["lp-positions"] })
+      void qc.invalidateQueries({ queryKey: ["pvp-active-events"] })
+      void qc.invalidateQueries({ queryKey: ["pvp-status"] })
     },
   })
 }
@@ -593,3 +599,99 @@ export function useUnfollowUserMutation() {
     },
   })
 }
+
+export function useActivePvpEventsQuery() {
+  return useQuery({
+    queryKey: ["pvp-active-events"] as const,
+    queryFn: () => apiRequest<any[]>("/pvp/active-events"),
+  })
+}
+
+export function useMyActivePvpTicketsQuery() {
+  return useQuery({
+    queryKey: ["pvp-my-active-tickets"] as const,
+    queryFn: () => apiRequest<any[]>("/pvp/my-active-tickets"),
+  })
+}
+
+export function usePvpStatusQuery(parentMarketId?: string | null) {
+  return useQuery({
+    queryKey: ["pvp-status", parentMarketId] as const,
+    queryFn: () => {
+      const url = parentMarketId ? `/pvp/status?parentMarketId=${parentMarketId}` : "/pvp/status"
+      return apiRequest<any>(url)
+    },
+    enabled: Boolean(parentMarketId),
+  })
+}
+
+export function useSubmitPvpTicketMutation() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (body: {
+      parentMarketId: string
+      picks: { marketId: string; selection: string }[]
+    }) =>
+      apiRequest<any>("/pvp/ticket", {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["pvp-status"] })
+      void qc.invalidateQueries({ queryKey: ["pvp-my-active-tickets"] })
+      void qc.invalidateQueries({ queryKey: ["wallet-profile"] })
+      void qc.invalidateQueries({ queryKey: ["pvp-active-events"] })
+    },
+  })
+}
+
+export function usePvpLeaderboardQuery() {
+  return useQuery({
+    queryKey: ["pvp-leaderboards"] as const,
+    queryFn: () =>
+      apiRequest<{
+        xp: any[]
+        referrers: any[]
+      }>("/pvp/leaderboards"),
+  })
+}
+
+export function useReferralsQuery() {
+  return useQuery({
+    queryKey: ["pvp-referrals"] as const,
+    queryFn: () =>
+      apiRequest<{
+        referralLink: string
+        doubleBoostRemaining: number
+        hasWonFirstPvpDuel: boolean
+        referees: any[]
+      }>("/pvp/referrals"),
+  })
+}
+
+export function usePvpMatchHistoryQuery() {
+  return useQuery({
+    queryKey: ["pvp-history"] as const,
+    queryFn: () => apiRequest<any[]>("/pvp/history"),
+  })
+}
+
+export function useCreatePvpEventMutation() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (body: {
+      question: string
+      deadline: string
+      resolutionSource: string
+      options: string[]
+    }) =>
+      apiRequest<any>("/pvp/events", {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["pvp-active-events"] })
+    },
+  })
+}
+

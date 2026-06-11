@@ -3,7 +3,7 @@
 import React, { useState } from "react"
 import { X, Loader2 } from "lucide-react"
 import { useUsdcTransfer } from "@/hooks/useUsdcTransfer"
-import toast from "react-hot-toast"
+import toast from "@/lib/toast"
 
 interface SendUsdcModalProps {
   isOpen: boolean
@@ -45,7 +45,7 @@ export default function SendUsdcModal({
     const toastId = toast.loading("Sending USDC...")
     try {
       await transferUsdc(recipient, amount)
-      toast.success(`Successfully sent ${amount} USDC! ✓`, { id: toastId })
+      toast.success(`Successfully sent ${amount} USDC!`, { id: toastId })
       setRecipient("")
       setAmountInput("")
       onSuccess?.()

@@ -24,7 +24,7 @@ Verity merges social media with on-chain prediction markets, letting users put U
 3. **On-Chain AMM Trading**
    - Qualified markets graduate to USDC-backed FPMM pools where users buy and sell outcome tokens at market-driven prices.
 4. **Autonomous Resolution**
-   - An AI agent powered by configurable LLMs (Claude, Gemini, OpenAI) and Tavily web search automatically resolves expired markets. Pyth price feeds handle objective price-based markets.
+    - An AI agent powered by configurable LLMs (Claude, Gemini, OpenAI) and DuckDuckGo web search automatically resolves expired markets. Pyth price feeds handle objective price-based markets.
 
 ## How It Works
 
@@ -63,8 +63,8 @@ sequenceDiagram
         Pyth-->>Keeper: Price update binary
         Keeper->>Contract: resolveMarketWithPyth(VAA)
     else Subjective Market
-        Keeper->>Tavily: Web search for evidence
-        Tavily-->>Keeper: Search results
+        Keeper->>DuckDuckGo: Web search for evidence
+        DuckDuckGo-->>Keeper: Search results
         Keeper->>LLM: Analyze evidence → YES/NO/INVALID
         LLM-->>Keeper: Proposed outcome + reasoning
         Keeper->>Resolver: proposeResolution(outcome)

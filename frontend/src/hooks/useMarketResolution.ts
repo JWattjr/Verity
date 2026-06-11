@@ -10,7 +10,7 @@ import {
   FACTORY_ADDRESS,
   publicClient,
 } from "@/lib/arc"
-import { toast } from "react-hot-toast"
+import { toast } from "@/lib/toast"
 
 function formatMarketId(marketId: string): `0x${string}` {
   const clean = marketId.replace(/^0x/, "")
@@ -95,7 +95,7 @@ export function useMarketResolution() {
         estimatedCost,
       )
 
-      toast.success("Resolution proposal disputed successfully! ✓")
+      toast.success("Resolution proposal disputed successfully!")
       return { txHash }
     } catch (error: any) {
       toast.dismiss(toastId)
@@ -106,7 +106,7 @@ export function useMarketResolution() {
     }
   }
 
-  async function redeemWinnings(marketId: string) {
+  async function redeemWinnings(marketId: string, claimAmountUsdc?: number) {
     const toastId = toast.loading("Preparing to redeem winnings...")
     try {
       checkPreconditions()
@@ -124,9 +124,10 @@ export function useMarketResolution() {
         ],
         "Redeem Winnings from Vault",
         0, // No USDC paid (USDC is redeemed/received)
+        claimAmountUsdc,
       )
 
-      toast.success("Winnings redeemed successfully! ✓")
+      toast.success("Winnings redeemed!")
       return { txHash }
     } catch (error: any) {
       toast.dismiss(toastId)
@@ -137,7 +138,40 @@ export function useMarketResolution() {
     }
   }
 
-  async function claimCreatorLP(marketId: string) {
+  async function redeemMultipleWinnings(
+    marketIds: string[],
+    claimAmountUsdc?: number,
+  ) {
+    const toastId = toast.loading("Preparing to redeem multiple winnings...")
+    try {
+      checkPreconditions()
+      const calls = marketIds.map((marketId) => ({
+        contractAddress: VAULT_ADDRESS,
+        abiFunctionSignature: "redeem(bytes32)",
+        abiParameters: [formatMarketId(marketId)],
+      }))
+
+      toast.dismiss(toastId)
+
+      const txHash = await executeTxBatch(
+        calls,
+        `Redeem ${marketIds.length} winnings`,
+        0, // No USDC paid
+        claimAmountUsdc,
+      )
+
+      toast.success("All winnings redeemed successfully!")
+      return { txHash }
+    } catch (error: any) {
+      toast.dismiss(toastId)
+      if (!error.message?.includes("rejected")) {
+        toast.error(error.message || "Redemption failed.")
+      }
+      throw error
+    }
+  }
+
+  async function claimCreatorLP(marketId: string, claimAmountUsdc?: number) {
     const toastId = toast.loading(
       "Preparing to claim locked creator liquidity...",
     )
@@ -157,9 +191,10 @@ export function useMarketResolution() {
         ],
         "Claim Locked Creator LP Liquidity",
         0, // No USDC paid
+        claimAmountUsdc,
       )
 
-      toast.success("Creator liquidity claimed successfully! ✓")
+      toast.success("Creator liquidity claimed successfully!")
       return { txHash }
     } catch (error: any) {
       toast.dismiss(toastId)
@@ -170,7 +205,7 @@ export function useMarketResolution() {
     }
   }
 
-  async function claimRefund(marketId: string) {
+  async function claimRefund(marketId: string, claimAmountUsdc?: number) {
     const toastId = toast.loading("Preparing to claim pre-market refund...")
     try {
       checkPreconditions()
@@ -188,9 +223,10 @@ export function useMarketResolution() {
         ],
         "Claim Pre-Market Deposit Refund",
         0, // No USDC paid
+        claimAmountUsdc,
       )
 
-      toast.success("USDC refund claimed successfully! ✓")
+      toast.success("USDC refund claimed successfully!")
       return { txHash }
     } catch (error: any) {
       toast.dismiss(toastId)
@@ -273,6 +309,7 @@ export function useMarketResolution() {
   return {
     disputeResolution,
     redeemWinnings,
+    redeemMultipleWinnings,
     claimCreatorLP,
     claimRefund,
     readProposal,

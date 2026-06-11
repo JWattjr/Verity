@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { ERC1155 } from "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 /// @title ConditionalTokenVault
 /// @notice ERC1155 vault that mints/burns YES+NO outcome tokens for prediction markets,
@@ -12,15 +12,16 @@ contract ConditionalTokenVault is ERC1155 {
     using SafeERC20 for IERC20;
 
     // ─── State ───────────────────────────────────────────────────────────
-    IERC20 public immutable usdc;
+    IERC20 public immutable USDC;
     address public admin;
     address public fpmm; // Authorized VerityFPMM contract
     address public factory; // Authorized VerityMarketFactory contract
 
     struct MarketOutcome {
         bool resolved;
-        bool winningIsYes;
+        uint256 winningOutcomeIndex;
         uint256 totalCollateral; // Total USDC locked for this market
+        uint256 outcomeCount;
     }
 
     mapping(bytes32 => MarketOutcome) public markets;
@@ -55,29 +56,41 @@ contract ConditionalTokenVault is ERC1155 {
     error ZeroAmount();
 
     // ─── Modifiers ───────────────────────────────────────────────────────
-    modifier onlyFPMM() {
-        if (msg.sender != fpmm) revert Unauthorized();
+    modifier onlyFpmm() {
+        _onlyFpmm();
         _;
+    }
+
+    function _onlyFpmm() internal view {
+        if (msg.sender != fpmm) revert Unauthorized();
     }
 
     modifier onlyFactory() {
-        if (msg.sender != factory) revert Unauthorized();
+        _onlyFactory();
         _;
     }
 
+    function _onlyFactory() internal view {
+        if (msg.sender != factory) revert Unauthorized();
+    }
+
     modifier onlyAdmin() {
-        if (msg.sender != admin) revert Unauthorized();
+        _onlyAdmin();
         _;
+    }
+
+    function _onlyAdmin() internal view {
+        if (msg.sender != admin) revert Unauthorized();
     }
 
     // ─── Constructor ─────────────────────────────────────────────────────
     constructor(address _usdc) ERC1155("") {
-        usdc = IERC20(_usdc);
+        USDC = IERC20(_usdc);
         admin = msg.sender;
     }
 
     // ─── Admin Setup ─────────────────────────────────────────────────────
-    function setFPMM(address _fpmm) external onlyAdmin {
+    function setFpmm(address _fpmm) external onlyAdmin {
         fpmm = _fpmm;
     }
 
@@ -90,18 +103,55 @@ contract ConditionalTokenVault is ERC1155 {
     }
 
     // ─── Token ID Helpers ────────────────────────────────────────────────
+    function outcomeTokenId(bytes32 marketId, uint256 outcomeIndex) public pure returns (uint256) {
+        return uint256(keccak256(abi.encodePacked(marketId, outcomeIndex)));
+    }
+
     function yesTokenId(bytes32 marketId) public pure returns (uint256) {
-        return uint256(keccak256(abi.encodePacked(marketId, "YES")));
+        return outcomeTokenId(marketId, 0);
     }
 
     function noTokenId(bytes32 marketId) public pure returns (uint256) {
-        return uint256(keccak256(abi.encodePacked(marketId, "NO")));
+        return outcomeTokenId(marketId, 1);
     }
 
     // ─── Core Functions ──────────────────────────────────────────────────
 
-    /// @notice Lock USDC and mint equal YES + NO tokens. Called by FPMM.
-    /// @dev Caller (FPMM) must have already transferred USDC to this contract,
+    /// @notice Lock USDC and mint equal outcome tokens. Called by Fpmm.
+    function mintOutcomeTokens(
+        bytes32 marketId,
+        address to,
+        uint256 amount,
+        uint256 outcomeCount
+    ) public onlyFpmm {
+        if (amount == 0) revert ZeroAmount();
+        if (markets[marketId].resolved) revert MarketAlreadyResolved();
+
+        MarketOutcome storage outcome = markets[marketId];
+        if (outcome.outcomeCount == 0) {
+            outcome.outcomeCount = outcomeCount;
+        } else {
+            require(outcome.outcomeCount == outcomeCount, "Outcome count mismatch");
+        }
+
+        // Pull USDC from the caller (Fpmm contract)
+        USDC.safeTransferFrom(msg.sender, address(this), amount);
+
+        // Update collateral tracking
+        outcome.totalCollateral += amount;
+
+        // Mint tokens for all outcomes
+        for (uint256 i = 0; i < outcomeCount; i++) {
+            uint256 tokenId = outcomeTokenId(marketId, i);
+            _mint(to, tokenId, amount, "");
+            totalSupply[tokenId] += amount;
+        }
+
+        emit PairMinted(marketId, to, amount);
+    }
+
+    /// @notice Lock USDC and mint equal YES + NO tokens. Called by Fpmm.
+    /// @dev Caller (Fpmm) must have already transferred USDC to this contract,
     ///      or `from` must have approved this contract for the USDC amount.
     /// @param marketId The market identifier
     /// @param to Address to receive the minted tokens
@@ -110,30 +160,46 @@ contract ConditionalTokenVault is ERC1155 {
         bytes32 marketId,
         address to,
         uint256 amount
-    ) external onlyFPMM {
+    ) external onlyFpmm {
+        mintOutcomeTokens(marketId, to, amount, 2);
+    }
+
+    /// @notice Burn equal outcome tokens and release USDC. Called by Fpmm.
+    function burnOutcomeTokens(
+        bytes32 marketId,
+        address from,
+        uint256 amount,
+        uint256 outcomeCount
+    ) public onlyFpmm {
         if (amount == 0) revert ZeroAmount();
         if (markets[marketId].resolved) revert MarketAlreadyResolved();
 
-        // Pull USDC from the caller (FPMM contract)
-        usdc.safeTransferFrom(msg.sender, address(this), amount);
+        MarketOutcome storage outcome = markets[marketId];
+        require(outcome.outcomeCount == outcomeCount, "Outcome count mismatch");
 
-        // Update collateral tracking
-        markets[marketId].totalCollateral += amount;
+        // Verify balances
+        for (uint256 i = 0; i < outcomeCount; i++) {
+            uint256 tokenId = outcomeTokenId(marketId, i);
+            if (balanceOf(from, tokenId) < amount) {
+                revert InsufficientBalance();
+            }
+        }
 
-        // Mint YES and NO tokens
-        uint256 yesId = yesTokenId(marketId);
-        uint256 noId = noTokenId(marketId);
+        // Burn tokens
+        for (uint256 i = 0; i < outcomeCount; i++) {
+            uint256 tokenId = outcomeTokenId(marketId, i);
+            _burn(from, tokenId, amount);
+            totalSupply[tokenId] -= amount;
+        }
 
-        _mint(to, yesId, amount, "");
-        _mint(to, noId, amount, "");
+        // Release USDC
+        outcome.totalCollateral -= amount;
+        USDC.safeTransfer(from, amount);
 
-        totalSupply[yesId] += amount;
-        totalSupply[noId] += amount;
-
-        emit PairMinted(marketId, to, amount);
+        emit PairBurned(marketId, from, amount);
     }
 
-    /// @notice Burn equal YES + NO tokens and release USDC. Called by FPMM.
+    /// @notice Burn equal YES + NO tokens and release USDC. Called by Fpmm.
     /// @param marketId The market identifier
     /// @param from Address to burn tokens from (must have approved this contract)
     /// @param amount Number of token pairs to burn
@@ -141,30 +207,23 @@ contract ConditionalTokenVault is ERC1155 {
         bytes32 marketId,
         address from,
         uint256 amount
-    ) external onlyFPMM {
-        if (amount == 0) revert ZeroAmount();
-        if (markets[marketId].resolved) revert MarketAlreadyResolved();
+    ) external onlyFpmm {
+        burnOutcomeTokens(marketId, from, amount, 2);
+    }
 
-        uint256 yesId = yesTokenId(marketId);
-        uint256 noId = noTokenId(marketId);
-
-        // Verify balances
-        if (balanceOf(from, yesId) < amount || balanceOf(from, noId) < amount) {
-            revert InsufficientBalance();
+    /// @notice Set the winning outcome for a market by outcome index. Called by Factory.
+    function resolveOutcome(bytes32 marketId, uint256 winningOutcomeIndex) external onlyFactory {
+        MarketOutcome storage outcome = markets[marketId];
+        if (outcome.resolved) revert MarketAlreadyResolved();
+        if (outcome.outcomeCount == 0) {
+            outcome.outcomeCount = 2; // default fallback if uninitialized
         }
+        require(winningOutcomeIndex < outcome.outcomeCount, "Invalid winning index");
 
-        // Burn tokens
-        _burn(from, yesId, amount);
-        _burn(from, noId, amount);
+        outcome.resolved = true;
+        outcome.winningOutcomeIndex = winningOutcomeIndex;
 
-        totalSupply[yesId] -= amount;
-        totalSupply[noId] -= amount;
-
-        // Release USDC
-        markets[marketId].totalCollateral -= amount;
-        usdc.safeTransfer(from, amount);
-
-        emit PairBurned(marketId, from, amount);
+        emit MarketResolved(marketId, winningOutcomeIndex == 0);
     }
 
     /// @notice Set the winning outcome for a market. Called by Factory (admin).
@@ -173,9 +232,12 @@ contract ConditionalTokenVault is ERC1155 {
     function resolve(bytes32 marketId, bool winningIsYes) external onlyFactory {
         MarketOutcome storage outcome = markets[marketId];
         if (outcome.resolved) revert MarketAlreadyResolved();
+        if (outcome.outcomeCount == 0) {
+            outcome.outcomeCount = 2;
+        }
 
         outcome.resolved = true;
-        outcome.winningIsYes = winningIsYes;
+        outcome.winningOutcomeIndex = winningIsYes ? 0 : 1;
 
         emit MarketResolved(marketId, winningIsYes);
     }
@@ -186,9 +248,7 @@ contract ConditionalTokenVault is ERC1155 {
         MarketOutcome storage outcome = markets[marketId];
         if (!outcome.resolved) revert MarketNotResolved();
 
-        uint256 winningId = outcome.winningIsYes
-            ? yesTokenId(marketId)
-            : noTokenId(marketId);
+        uint256 winningId = outcomeTokenId(marketId, outcome.winningOutcomeIndex);
 
         uint256 userBalance = balanceOf(msg.sender, winningId);
         if (userBalance == 0) revert InsufficientBalance();
@@ -199,7 +259,7 @@ contract ConditionalTokenVault is ERC1155 {
 
         // Reduce collateral and pay out
         outcome.totalCollateral -= userBalance;
-        usdc.safeTransfer(msg.sender, userBalance);
+        USDC.safeTransfer(msg.sender, userBalance);
 
         emit WinningsRedeemed(marketId, msg.sender, userBalance, userBalance);
     }

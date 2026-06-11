@@ -13,7 +13,7 @@ import {
   relativeTime,
   type Profile,
 } from "@/lib/verity"
-import toast from "react-hot-toast"
+import toast from "@/lib/toast"
 
 interface InlineCommentsSectionProps {
   postId: string

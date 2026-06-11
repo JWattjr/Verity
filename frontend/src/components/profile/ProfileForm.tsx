@@ -4,7 +4,7 @@ import { useState } from "react"
 import { Save } from "lucide-react"
 import { type Profile } from "@/lib/verity"
 import { useUpdateProfileMutation } from "@/store/verity/verityQueries"
-import { toast } from "react-hot-toast"
+import { toast } from "@/lib/toast"
 
 interface ProfileFormProps {
   profile: Profile | null

@@ -8,7 +8,6 @@ describe("AgentService", () => {
   let fetchMock: jest.SpyInstance
 
   const mockConfig = {
-    TAVILY_API_KEY: "tavily-key",
     LLM_PROVIDER: "mock",
     OPENAI_API_KEY: "openai-key",
     GEMINI_API_KEY: "gemini-key",
@@ -38,39 +37,46 @@ describe("AgentService", () => {
   })
 
   describe("searchWeb", () => {
-    it("should return warning message if TAVILY_API_KEY is missing", async () => {
-      jest.spyOn(configService, "get").mockImplementation((key) => {
-        if (key === "TAVILY_API_KEY") return null
-        return mockConfig[key]
-      })
+    it("should perform search using DuckDuckGo and parse HTML successfully", async () => {
+      const mockHtml = `
+        <html>
+          <body>
+            Some leading HTML...
+            <div class="result results_links results_links_deep web-result ">
+              <a class="result__a" href="https://url1.com">Result 1</a>
+              <span class="result__snippet">Snippet 1</span>
+            </div>
+            <div class="result results_links results_links_deep web-result ">
+              <a class="result__a" href="https://url2.com">Result 2</a>
+              <span class="result__snippet">Snippet 2</span>
+            </div>
+          </body>
+        </html>
+      `
 
-      const res = await service.searchWeb("test query")
-      expect(res).toBe("No web search results available.")
-    })
-
-    it("should perform search and format results", async () => {
       fetchMock.mockResolvedValueOnce({
         ok: true,
-        json: async () => ({
-          results: [
-            {
-              title: "Result 1",
-              url: "https://url1.com",
-              content: "Snippet 1",
-            },
-            {
-              title: "Result 2",
-              url: "https://url2.com",
-              content: "Snippet 2",
-            },
-          ],
-        }),
+        text: async () => mockHtml,
       } as any)
 
-      const res = await service.searchWeb("Bitcoin UCL")
+      const res = await service.searchWeb("test query")
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining("https://duckduckgo.com/html/"),
+        expect.anything(),
+      )
       expect(res).toContain("Result 1")
       expect(res).toContain("https://url1.com")
       expect(res).toContain("Snippet 2")
+    })
+
+    it("should handle empty search results gracefully", async () => {
+      fetchMock.mockResolvedValue({
+        ok: true,
+        text: async () => "<html><body>No results</body></html>",
+      } as any)
+
+      const res = await service.searchWeb("empty query")
+      expect(res).toBe("Error performing web search.")
     })
   })
 
@@ -84,6 +90,34 @@ describe("AgentService", () => {
       )
       expect(res.outcome).toBe("YES")
       expect(res.reasoning).toContain("Mock reasoning")
+    })
+
+    it("should randomly resolve pvp category markets to YES or NO when provider is mock", async () => {
+      const randomSpy = jest.spyOn(Math, "random")
+
+      // Force Math.random() < 0.5 to get YES
+      randomSpy.mockReturnValue(0.3)
+      const resYes = await service.resolveMarket(
+        "Will BTC reach 100k?",
+        "Yes side",
+        "No side",
+        "Source",
+        "pvp",
+      )
+      expect(resYes.outcome).toBe("YES")
+
+      // Force Math.random() >= 0.5 to get NO
+      randomSpy.mockReturnValue(0.7)
+      const resNo = await service.resolveMarket(
+        "Will BTC reach 100k?",
+        "Yes side",
+        "No side",
+        "Source",
+        "pvp",
+      )
+      expect(resNo.outcome).toBe("NO")
+
+      randomSpy.mockRestore()
     })
 
     it("should resolve using OpenAI", async () => {

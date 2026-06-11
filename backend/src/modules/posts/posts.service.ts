@@ -92,6 +92,12 @@ export interface MarketResponse {
   parentMarketId: string | null
   optionName: string | null
   childMarkets?: MarketResponse[] | null
+  outcomeCount?: number
+  outcomes?: string[]
+  handicap?: number | null
+  winningOutcomeIndex?: number | null
+  outcomeBalances?: number[]
+  outcomePrices?: number[]
   createdAt: string
   created_at: string
   updatedAt: string
@@ -257,6 +263,12 @@ export class PostsService {
         childMarkets && childMarkets.length > 0
           ? childMarkets.map((c) => this.serializeMarket(c))
           : null,
+      outcomeCount: market.outcomeCount ?? 2,
+      outcomes: market.outcomes ?? [],
+      handicap: market.handicap,
+      winningOutcomeIndex: market.winningOutcomeIndex,
+      outcomeBalances: market.outcomeBalances ?? [],
+      outcomePrices: market.outcomePrices ?? [],
       createdAt,
       created_at: createdAt,
       updatedAt,
@@ -299,7 +311,7 @@ export class PostsService {
     if (profileId) {
       const pId = new Types.ObjectId(profileId)
       if (tab === "posts") {
-        filter = { authorId: pId }
+        filter = { authorId: pId, type: "market" }
       } else if (tab === "markets") {
         filter = { authorId: pId, type: "market" }
       } else if (tab === "likes") {
@@ -307,13 +319,13 @@ export class PostsService {
           .find({ userId: pId })
           .select("postId")
         const postIds = likes.map((l) => l.postId)
-        filter = { _id: { $in: postIds } }
+        filter = { _id: { $in: postIds }, type: "market" }
       } else if (tab === "reshares") {
         const reshares = await this.reshareModel
           .find({ userId: pId })
           .select("postId")
         const postIds = reshares.map((r) => r.postId)
-        filter = { _id: { $in: postIds } }
+        filter = { _id: { $in: postIds }, type: "market" }
       } else if (tab === "comments") {
         const comments = await this.commentModel.aggregate([
           { $match: { authorId: new Types.ObjectId(pId) } },
@@ -487,9 +499,9 @@ export class PostsService {
           }
         })
       } else {
-        filter = { authorId: pId }
+        filter = { authorId: pId, type: "market" }
       }
-    } else if (onlyMarkets) {
+    } else {
       filter = { type: "market" }
     }
 
@@ -823,8 +835,8 @@ export class PostsService {
         category: input.category.trim(),
         deadline: new Date(input.deadline),
         resolutionSource: input.resolutionSource.trim(),
-        yesCondition: input.yesCondition.trim(),
-        noCondition: input.noCondition.trim(),
+        yesCondition: input.yesCondition?.trim() || "YES",
+        noCondition: input.noCondition?.trim() || "NO",
         marketCreationFeeUsdc: 1,
         creationFeeTxHash: input.creationFeeTxHash.trim(),
         feeCollectorAddress: input.feeCollectorAddress.trim(),
@@ -833,7 +845,12 @@ export class PostsService {
         targetPrice: isPythMarket ? input.targetPrice : null,
         resolveAbove: isPythMarket ? input.resolveAbove : null,
         isPythMarket,
-        marketType: "binary",
+        marketType: input.marketType || "binary",
+        outcomeCount: input.outcomeCount ?? 2,
+        outcomes: input.outcomes && input.outcomes.length > 0 ? input.outcomes : ["YES", "NO"],
+        handicap: input.handicap ?? null,
+        parentMarketId: input.parentMarketId ? new Types.ObjectId(input.parentMarketId) : null,
+        optionName: input.optionName || null,
       })
 
       // Automatically initialize liquidity pool in DB from the pre-deposit

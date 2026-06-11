@@ -1,37 +1,23 @@
 import { create } from "zustand"
 import { apiRequest } from "@/store/apiClient"
 import type { Profile } from "@/lib/verity"
-import { toast } from "react-hot-toast"
+
 import { queryClient } from "@/lib/queryClient"
 
-export interface TxCall {
-  contractAddress: string
-  abiFunctionSignature: string
-  abiParameters: any[]
-}
 
-export interface TxConfirmationState {
-  isOpen: boolean
-  calls: TxCall[]
-  description: string
-  estimatedCostUsdc: number
-  resolve: ((txHash: string) => void) | null
-  reject: ((err: Error) => void) | null
-}
 
 export interface AuthStore {
   authModalStep: "idle" | "email" | "otp" | "onboarding" | "success"
   email: string
   otpCode: string
   usernameInput: string
+  referrerInput: string
   isSubmittingOtp: boolean
   isRequestingOtp: boolean
   authError: string
   copied: boolean
 
-  txConfirmState: TxConfirmationState
-  isExecutingTx: boolean
-  txError: string
+
 
   setAuthModalStep: (
     step: "idle" | "email" | "otp" | "onboarding" | "success",
@@ -39,25 +25,19 @@ export interface AuthStore {
   setEmail: (email: string) => void
   setOtpCode: (otpCode: string) => void
   setUsernameInput: (username: string) => void
+  setReferrerInput: (referrer: string) => void
   setAuthError: (error: string) => void
   setCopied: (copied: boolean) => void
-  setTxConfirmState: (state: Partial<TxConfirmationState>) => void
-  setTxError: (error: string) => void
-  setIsExecutingTx: (isExecuting: boolean) => void
+
 
   login: () => void
   logout: () => void
-  executeTxBatch: (
-    calls: TxCall[],
-    description: string,
-    estimatedCostUsdc: number,
-  ) => Promise<string>
+
 
   handleRequestOtp: (e: React.FormEvent) => Promise<void>
   handleVerifyOtp: (e: React.FormEvent) => Promise<void>
   handleSaveOnboarding: (e: React.FormEvent) => Promise<void>
-  handleConfirmTx: () => Promise<void>
-  handleCancelTx: () => void
+
 }
 
 export const useAuthStore = create<AuthStore>((set, get) => ({
@@ -65,21 +45,13 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
   email: "",
   otpCode: "",
   usernameInput: "",
+  referrerInput: "",
   isSubmittingOtp: false,
   isRequestingOtp: false,
   authError: "",
   copied: false,
 
-  txConfirmState: {
-    isOpen: false,
-    calls: [],
-    description: "",
-    estimatedCostUsdc: 0,
-    resolve: null,
-    reject: null,
-  },
-  isExecutingTx: false,
-  txError: "",
+
 
   setAuthModalStep: (authModalStep) => {
     if (authModalStep === "idle" || authModalStep === "success") {
@@ -91,12 +63,10 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
   setEmail: (email) => set({ email }),
   setOtpCode: (otpCode) => set({ otpCode }),
   setUsernameInput: (usernameInput) => set({ usernameInput }),
+  setReferrerInput: (referrerInput) => set({ referrerInput }),
   setAuthError: (authError) => set({ authError }),
   setCopied: (copied) => set({ copied }),
-  setTxConfirmState: (state) =>
-    set((s) => ({ txConfirmState: { ...s.txConfirmState, ...state } })),
-  setTxError: (txError) => set({ txError }),
-  setIsExecutingTx: (isExecutingTx) => set({ isExecutingTx }),
+
 
   login: () => {
     set({ authModalStep: "email", authError: "", email: "", otpCode: "" })
@@ -108,29 +78,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
     queryClient.invalidateQueries()
   },
 
-  executeTxBatch: (calls, description, estimatedCostUsdc) => {
-    const user = queryClient.getQueryData<Profile>(["profile"])
-    if (!user) {
-      get().login()
-      return Promise.reject(
-        new Error("User must be signed in to execute transactions."),
-      )
-    }
 
-    return new Promise<string>((resolve, reject) => {
-      set({
-        txConfirmState: {
-          isOpen: true,
-          calls,
-          description,
-          estimatedCostUsdc,
-          resolve,
-          reject,
-        },
-        txError: "",
-      })
-    })
-  },
 
   handleRequestOtp: async (e) => {
     e.preventDefault()
@@ -199,7 +147,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
     const user = queryClient.getQueryData<Profile>(["profile"])
     if (!user) return
 
-    const { usernameInput } = get()
+    const { usernameInput, referrerInput } = get()
     const trimmed = usernameInput.trim().replace(/^@+/, "")
     if (trimmed.length < 3) {
       set({ authError: "Username must be at least 3 characters." })
@@ -222,6 +170,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
           username: trimmed,
           display_name: trimmed.charAt(0).toUpperCase() + trimmed.slice(1),
           isOnboarded: true,
+          referrerUsername: referrerInput.trim() || undefined,
         }),
       })
 
@@ -241,48 +190,5 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
     }
   },
 
-  handleConfirmTx: async () => {
-    const { txConfirmState } = get()
-    if (!txConfirmState.resolve || !txConfirmState.reject) return
 
-    set({ isExecutingTx: true, txError: "" })
-    try {
-      const res = await apiRequest<{ txHash: string }>(
-        "/circle-wallet/execute-batch",
-        {
-          method: "POST",
-          body: JSON.stringify(
-            {
-              calls: txConfirmState.calls,
-              estimatedCostUsdc: txConfirmState.estimatedCostUsdc,
-            },
-            (key, value) => {
-              if (typeof value === "bigint") {
-                return value.toString()
-              }
-              return value
-            },
-          ),
-        },
-      )
-
-      toast.success("Transaction executed successfully!")
-      txConfirmState.resolve(res.txHash)
-      set((s) => ({ txConfirmState: { ...s.txConfirmState, isOpen: false } }))
-      queryClient.invalidateQueries()
-    } catch (err: any) {
-      const parsedError = err.message || "Transaction execution failed."
-      set({ txError: parsedError })
-    } finally {
-      set({ isExecutingTx: false })
-    }
-  },
-
-  handleCancelTx: () => {
-    const { txConfirmState } = get()
-    if (txConfirmState.reject) {
-      txConfirmState.reject(new Error("Transaction rejected by user."))
-    }
-    set((s) => ({ txConfirmState: { ...s.txConfirmState, isOpen: false } }))
-  },
 }))

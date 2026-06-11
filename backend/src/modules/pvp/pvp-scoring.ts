@@ -1,0 +1,28 @@
+export type PvpResult = "win" | "loss" | "draw"
+
+const RESULT_XP: Record<PvpResult, number> = {
+  win: 100,
+  loss: 30,
+  draw: 50,
+}
+
+const PERFECT_SCORE_BONUS_XP = 20
+const XP_BOOST_MULTIPLIER = 1.2
+
+export function calculatePvpScore(
+  picks: Array<{ isCorrect: boolean | null }>,
+): number {
+  return picks.filter((pick) => pick.isCorrect === true).length
+}
+
+export function calculatePvpResultXp(
+  result: PvpResult,
+  score: number,
+  totalPicks: number,
+  boostActive: boolean,
+): number {
+  const perfectBonus = score === totalPicks ? PERFECT_SCORE_BONUS_XP : 0
+  const resultXp = RESULT_XP[result] + perfectBonus
+
+  return Math.round(resultXp * (boostActive ? XP_BOOST_MULTIPLIER : 1))
+}
