@@ -958,16 +958,11 @@ export class PvpService {
     const score1 = calculatePvpScore(ticket1.picks)
     const score2 = calculatePvpScore(ticket2.picks)
 
-    // 2. Equal accuracy is a draw.
-    const accuracy1 =
-      ticket1.picks.length > 0 ? score1 / ticket1.picks.length : 0
-    const accuracy2 =
-      ticket2.picks.length > 0 ? score2 / ticket2.picks.length : 0
-
+    // 2. The player with more correct predictions wins. Equal score is a draw.
     let winnerId: Types.ObjectId | null = null
-    if (accuracy1 > accuracy2) {
+    if (score1 > score2) {
       winnerId = match.user1Id
-    } else if (accuracy2 > accuracy1) {
+    } else if (score2 > score1) {
       winnerId = match.user2Id
     }
 
@@ -989,17 +984,23 @@ export class PvpService {
         : "loss"
       : "draw"
 
-    // 4. Award Result XP, a +20 perfect bonus, and an optional 1.2x boost.
+    // 4. Query total child markets for perfect score bonus check.
+    const childMarketCount = await this.marketModel.countDocuments({
+      parentMarketId: match.parentMarketId,
+      marketType: "child",
+    })
+
+    // 5. Award Result XP, a +20 perfect bonus (if they predicted all child markets correctly), and an optional 1.2x boost.
     const xp1 = calculatePvpResultXp(
       result1,
       score1,
-      ticket1.picks.length,
+      childMarketCount,
       ticket1.doubleBoostActive,
     )
     const xp2 = calculatePvpResultXp(
       result2,
       score2,
-      ticket2.picks.length,
+      childMarketCount,
       ticket2.doubleBoostActive,
     )
 
