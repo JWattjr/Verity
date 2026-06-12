@@ -63,7 +63,13 @@ export const useTxStore = create<TxStore>((set, get) => ({
   setTxError: (txError) => set({ txError }),
   setIsExecutingTx: (isExecutingTx) => set({ isExecutingTx }),
 
-  executeTxBatch: (calls, description, estimatedCostUsdc, claimAmountUsdc, deferClose) => {
+  executeTxBatch: (
+    calls,
+    description,
+    estimatedCostUsdc,
+    claimAmountUsdc,
+    deferClose,
+  ) => {
     const user = queryClient.getQueryData<Profile>(["profile"])
     if (!user) {
       useAuthStore.getState().login()
