@@ -753,6 +753,9 @@ export class MarketsService implements OnModuleInit {
     // Sync market balances and prices from chain
     await this.syncMarketPrices(marketId)
 
+    // Clear PvP position sync cache since the user just executed a trade
+    this.pvpService.clearSyncCache(dto.profileId)
+
     // Emit Socket events
     this.socketGateway.broadcastToRoom("feed", "feed-updated", {})
     this.socketGateway.broadcastToRoom(`market:${marketId}`, "market-updated", {

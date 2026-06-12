@@ -362,7 +362,7 @@ export default function PvpArenaTab({
       )
 
       // 4. Register trades on backend
-      const finalizeToastId = toast.loading(
+      const loadingToastId = toast.loading(
         "Finalizing on-chain trades on Verity...",
       )
       const tradePromises = picks.map((pick) => {
@@ -377,22 +377,24 @@ export default function PvpArenaTab({
         })
       })
       await Promise.all(tradePromises)
-      toast.dismiss(finalizeToastId)
 
       // 5. Submit the ticket to queue
-      const queueToastId = toast.loading("Queueing for PvP match...")
+      toast.loading("Queueing for PvP match...", { id: loadingToastId })
       await submitTicketMutation.mutateAsync({
         parentMarketId: selectedPvpEvent.id,
         picks,
       })
-      toast.dismiss(queueToastId)
 
+      // 6. Wait for status refresh to load the waiting screen state
+      toast.loading("Loading matchup status...", { id: loadingToastId })
+      await refetchPvpStatus()
+
+      toast.dismiss(loadingToastId)
       closeTxConfirm() // Close modal after everything finishes successfully
 
       toast.success(
         "Successfully purchased picks & submitted ticket! Queued for opponent...",
       )
-      void refetchPvpStatus()
       setShowBuilderOverride(false)
     } catch (err: any) {
       closeTxConfirm() // Close modal on error

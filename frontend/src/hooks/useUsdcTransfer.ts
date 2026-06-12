@@ -44,6 +44,7 @@ export function useUsdcTransfer() {
   async function createMarketPreDeposit(
     marketId: string,
     creatorLpAmount: number,
+    deferClose = false,
   ) {
     checkPreconditions()
 
@@ -95,6 +96,8 @@ export function useUsdcTransfer() {
       calls,
       `Create Market & Pre-Deposit ${creatorLpAmount} USDC Liquidity`,
       creatorLpAmount + 1, // + 1 USDC creation fee
+      undefined,
+      deferClose,
     )
 
     return { hash, factoryAddress: FACTORY_ADDRESS }
