@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { Input } from "@/components/ui/input"
 import { Info } from "lucide-react"
 import { MarketPost } from "@/lib/verity"
 
@@ -145,8 +146,8 @@ export default function PreMarketFundingPanel({
                 : "Fund the Launch Pool"}
             </h3>
             <div className="flex gap-2">
-              <input
-                className="h-11 w-24 rounded-[10px] bg-white-surface px-3 font-mono text-sm text-charcoal-primary shadow-subtle outline-none focus:ring-2 focus:ring-stone-surface"
+              <Input
+                className="h-11 w-24 rounded-[10px] bg-white-surface px-3 font-mono text-sm text-charcoal-primary shadow-subtle border-0 focus-visible:ring-2 focus-visible:ring-stone-surface focus-visible:ring-offset-0 focus-visible:border-transparent"
                 min="1"
                 onChange={(e) => setDepositAmount(e.target.value)}
                 step="1"

@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { Input } from "@/components/ui/input"
 import { MarketPost } from "@/lib/verity"
 
 interface ActiveMarketLPPanelProps {
@@ -81,8 +82,8 @@ export default function ActiveMarketLPPanel({
             Add Liquidity
           </h3>
           <div className="flex gap-2">
-            <input
-              className="h-10 w-20 rounded-[10px] bg-white-surface px-3 font-mono text-sm text-charcoal-primary shadow-subtle outline-none focus:ring-2 focus:ring-stone-surface"
+            <Input
+              className="h-10 w-20 rounded-[10px] bg-white-surface px-3 font-mono text-sm text-charcoal-primary shadow-subtle border-0 focus-visible:ring-2 focus-visible:ring-stone-surface focus-visible:ring-offset-0 focus-visible:border-transparent"
               min="1"
               onChange={(e) => setAddAmount(e.target.value)}
               step="1"
@@ -107,8 +108,8 @@ export default function ActiveMarketLPPanel({
             Remove Liquidity
           </h3>
           <div className="flex gap-2">
-            <input
-              className="h-10 w-20 rounded-[10px] bg-white-surface px-3 font-mono text-sm text-charcoal-primary shadow-subtle outline-none focus:ring-2 focus:ring-stone-surface"
+            <Input
+              className="h-10 w-20 rounded-[10px] bg-white-surface px-3 font-mono text-sm text-charcoal-primary shadow-subtle border-0 focus-visible:ring-2 focus-visible:ring-stone-surface focus-visible:ring-offset-0 focus-visible:border-transparent"
               max={myShares}
               min="0.0001"
               onChange={(e) => setRemoveShares(e.target.value)}

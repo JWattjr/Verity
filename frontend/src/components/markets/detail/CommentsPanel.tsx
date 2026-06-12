@@ -1,6 +1,7 @@
 "use client"
 
 import { useMemo } from "react"
+import { Input } from "@/components/ui/input"
 import { MessageCircle } from "lucide-react"
 import {
   MarketComment,
@@ -61,8 +62,8 @@ export default function CommentsPanel({
       </div>
 
       <div className="mb-4 flex gap-2">
-        <input
-          className="h-11 min-w-0 flex-1 rounded-[10px] bg-white-surface px-3 text-sm tracking-[-0.18px] text-charcoal-primary shadow-subtle outline-none placeholder:text-ash focus:ring-2 focus:ring-stone-surface"
+        <Input
+          className="h-11 min-w-0 flex-1 rounded-[10px] bg-white-surface px-3 text-sm tracking-[-0.18px] text-charcoal-primary shadow-subtle border-0 focus-visible:ring-2 focus-visible:ring-stone-surface focus-visible:ring-offset-0 focus-visible:border-transparent"
           id="market-comment-input"
           onChange={(event) => onChange(event.target.value)}
           placeholder="Add a comment..."

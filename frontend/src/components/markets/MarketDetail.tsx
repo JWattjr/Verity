@@ -747,12 +747,11 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
       <MarketHero
         category={market.category}
         creator={creatorHandle}
-        leadingPercent={leadingPercent}
-        leadingSide={leadingSide}
         market={market}
         question={market.question}
         time={relativeTime(item.created_at)}
-        totalVotes={market.free_yes_votes + market.free_no_votes}
+        yesPercent={yesPercent}
+        noPercent={noPercent}
         onDevQualify={handleDevQualify}
         devQualifyLoading={actionPending === "dev_qualify"}
       />

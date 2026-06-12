@@ -1,6 +1,7 @@
 "use client"
 
 import React, { useState } from "react"
+import { Input } from "@/components/ui/input"
 import { X, Loader2 } from "lucide-react"
 import { useUsdcTransfer } from "@/hooks/useUsdcTransfer"
 import toast from "@/lib/toast"
@@ -83,14 +84,14 @@ export default function SendUsdcModal({
             <label className="block font-mono text-[10px] font-semibold uppercase tracking-[0.12em] text-ash mb-1.5">
               Recipient Address
             </label>
-            <input
+            <Input
               type="text"
               required
               placeholder="0x..."
               disabled={isSending}
               value={recipient}
               onChange={(e) => setRecipient(e.target.value)}
-              className="w-full h-10 rounded-[8px] border border-border bg-stone-surface px-3 font-mono text-xs text-charcoal-primary focus:outline-none focus:border-border-strong"
+              className="w-full h-10 rounded-[8px] border border-border bg-stone-surface px-3 font-mono text-xs text-charcoal-primary focus-visible:ring-1 focus-visible:ring-border-strong focus-visible:border-border-strong focus-visible:ring-offset-0"
             />
           </div>
 
@@ -108,7 +109,7 @@ export default function SendUsdcModal({
                 Max ({usdcBalance.toFixed(2)})
               </button>
             </div>
-            <input
+            <Input
               type="number"
               step="any"
               min="0.0001"
@@ -117,7 +118,7 @@ export default function SendUsdcModal({
               placeholder="0.00"
               value={amountInput}
               onChange={(e) => setAmountInput(e.target.value)}
-              className="w-full h-10 rounded-[8px] border border-border bg-stone-surface px-3 font-mono text-sm text-charcoal-primary focus:outline-none focus:border-border-strong"
+              className="w-full h-10 rounded-[8px] border border-border bg-stone-surface px-3 font-mono text-sm text-charcoal-primary focus-visible:ring-1 focus-visible:ring-border-strong focus-visible:border-border-strong focus-visible:ring-offset-0"
             />
           </div>
 

@@ -2,6 +2,7 @@
 
 import Link from "next/link"
 import { useState, type MouseEvent } from "react"
+import { Input } from "@/components/ui/input"
 import { ArrowDown, ArrowUp, MessageCircle, Share } from "lucide-react"
 import UserHoverCard from "@/components/social/UserHoverCard"
 import type { Profile, VoteSide } from "@/lib/verity"
@@ -174,11 +175,13 @@ export default function MarketCard({
           </div>
         </div>
 
-        <span
-          className={`verity-pill w-fit shrink-0 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] ${statusTone}`}
-        >
-          {status.replaceAll("_", " ")}
-        </span>
+        {status !== "qualified" && status !== "tradable" && (
+          <span
+            className={`verity-pill w-fit shrink-0 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] ${statusTone}`}
+          >
+            {status.replaceAll("_", " ")}
+          </span>
+        )}
       </div>
 
       {postContent && postContent !== question && (
@@ -260,8 +263,8 @@ export default function MarketCard({
           ) : (
             <div className="flex gap-2">
               <div className="relative flex-1">
-                <input
-                  className="h-10 w-full rounded-[10px] bg-white-surface pl-3 pr-12 font-mono text-xs text-charcoal-primary shadow-subtle outline-none focus:ring-2 focus:ring-meadow-green/25"
+                <Input
+                  className="h-10 w-full rounded-[10px] bg-white-surface pl-3 pr-12 font-mono text-xs text-charcoal-primary shadow-subtle border-0 focus-visible:ring-2 focus-visible:ring-meadow-green/25 focus-visible:ring-offset-0 focus-visible:border-transparent"
                   min="1"
                   onChange={(e) => setLpAmount(e.target.value)}
                   placeholder="Amount"
@@ -288,8 +291,8 @@ export default function MarketCard({
         <div className="mb-3" onClick={stopClick}>
           <div className="flex gap-2 mb-2">
             <div className="relative flex-1">
-              <input
-                className="h-10 w-full rounded-[10px] bg-white-surface pl-3 pr-12 font-mono text-xs text-charcoal-primary shadow-subtle outline-none focus:ring-2 focus:ring-sky-blue/25"
+              <Input
+                className="h-10 w-full rounded-[10px] bg-white-surface pl-3 pr-12 font-mono text-xs text-charcoal-primary shadow-subtle border-0 focus-visible:ring-2 focus-visible:ring-sky-blue/25 focus-visible:ring-offset-0 focus-visible:border-transparent"
                 min="1"
                 onChange={(e) => setTradeAmount(e.target.value)}
                 placeholder="Trade amount"

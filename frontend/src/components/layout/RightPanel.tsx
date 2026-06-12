@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import { Input } from "@/components/ui/input"
 import { Search, TrendingUp, Trophy } from "lucide-react"
 import { useFeed } from "@/hooks/useFeed"
 import { useRightPanelSlot } from "@/hooks/useRightPanelSlot"
@@ -21,8 +22,8 @@ export default function RightPanel() {
         <div className="pointer-events-none absolute inset-y-0 left-4 flex items-center">
           <Search className="h-5 w-5 text-ash transition-colors group-focus-within:text-charcoal-primary" />
         </div>
-        <input
-          className="verity-card w-full rounded-[32px] py-3 pl-12 pr-4 text-[15px] tracking-[-0.2px] text-charcoal-primary outline-none placeholder:text-ash focus:ring-2 focus:ring-stone-surface"
+        <Input
+          className="verity-card w-full rounded-[32px] py-3 pl-12 pr-4 text-[15px] tracking-[-0.2px] text-charcoal-primary border-0 focus-visible:ring-2 focus-visible:ring-stone-surface focus-visible:ring-offset-0 focus-visible:border-transparent"
           placeholder="Search markets, users..."
           type="text"
         />

@@ -5,12 +5,11 @@ import { MarketPost, VoteSide } from "@/lib/verity"
 interface MarketHeroProps {
   category: string
   creator: string
-  leadingPercent: number
-  leadingSide: VoteSide
   market: MarketPost
   question: string
   time: string
-  totalVotes: number
+  yesPercent: number
+  noPercent: number
   onDevQualify?: () => Promise<void>
   devQualifyLoading?: boolean
 }
@@ -18,23 +17,14 @@ interface MarketHeroProps {
 export default function MarketHero({
   category,
   creator,
-  leadingPercent,
-  leadingSide,
   market,
   question,
   time,
-  totalVotes,
+  yesPercent,
+  noPercent,
   onDevQualify,
   devQualifyLoading = false,
 }: MarketHeroProps) {
-  const totalUsdc =
-    Number(market.usdc_yes_amount) + Number(market.usdc_no_amount)
-  const yesPercent =
-    totalUsdc > 0 ? (Number(market.usdc_yes_amount) / totalUsdc) * 100 : 50
-  const noPercent = 100 - yesPercent
-
-  const targetVotes = market.qualificationThreshold ?? 50
-  const votesProgress = Math.min(100, (totalVotes / targetVotes) * 100)
   const isDev = process.env.NEXT_PUBLIC_NODE_ENV !== "production"
 
   return (
@@ -54,29 +44,20 @@ export default function MarketHero({
             <span>{time}</span>
           </div>
         </div>
-        <span
-          className={`verity-pill relative px-3 py-1 font-mono text-[11px] font-semibold uppercase tracking-[0.12em] ${
-            market.status === "voided"
-              ? "bg-stone-surface text-ash"
-              : "bg-meadow-green/12 text-meadow-green"
-          }`}
-        >
-          {market.status.replaceAll("_", " ")}
-        </span>
+        {market.status !== "qualified" && market.status !== "tradable" && (
+          <span
+            className={`verity-pill relative px-3 py-1 font-mono text-[11px] font-semibold uppercase tracking-[0.12em] ${
+              market.status === "voided"
+                ? "bg-stone-surface text-ash"
+                : "bg-meadow-green/12 text-meadow-green"
+            }`}
+          >
+            {market.status.replaceAll("_", " ")}
+          </span>
+        )}
       </div>
 
       <div className="relative mt-4 flex flex-wrap gap-x-5 gap-y-2 border-t border-dashed border-stone-surface pt-3 font-mono text-xs text-ash items-center">
-        <span>
-          Leading outcome:{" "}
-          <strong
-            className={
-              leadingSide === "YES" ? "text-meadow-green" : "text-ember-orange"
-            }
-          >
-            {leadingSide} {leadingPercent.toFixed(1)}%
-          </strong>
-        </span>
-        <span>{totalVotes} Upvote/Downvote signals</span>
         <span>
           Sentiment:{" "}
           <strong className="text-meadow-green">

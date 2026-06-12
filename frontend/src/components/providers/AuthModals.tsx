@@ -1,6 +1,7 @@
 "use client"
 
 import { useQuery } from "@tanstack/react-query"
+import { Input } from "@/components/ui/input"
 import { apiRequest } from "@/store/apiClient"
 import type { Profile } from "@/lib/verity"
 import {
@@ -141,13 +142,13 @@ export default function AuthModals() {
                   </label>
                   <div className="flex h-11 items-center rounded-[10px] border border-border bg-white-surface px-4 focus-within:border-sky-blue/50 transition-colors">
                     <Mail className="h-4 w-4 text-ash mr-2" />
-                    <input
+                    <Input
                       type="email"
                       required
                       placeholder="you@example.com"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      className="w-full bg-transparent text-sm text-charcoal-primary outline-none placeholder:text-stone-surface"
+                      className="w-full bg-transparent text-sm text-charcoal-primary border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 px-0 h-full placeholder:text-stone-surface"
                       disabled={isRequestingOtp}
                     />
                   </div>
@@ -186,7 +187,7 @@ export default function AuthModals() {
                   </label>
                   <div className="flex h-11 items-center rounded-[10px] border border-border bg-white-surface px-4 focus-within:border-sky-blue/50 transition-colors">
                     <Key className="h-4 w-4 text-ash mr-2" />
-                    <input
+                    <Input
                       type="text"
                       required
                       maxLength={6}
@@ -194,7 +195,7 @@ export default function AuthModals() {
                       placeholder="000000"
                       value={otpCode}
                       onChange={(e) => setOtpCode(e.target.value)}
-                      className="w-full bg-transparent text-sm text-charcoal-primary font-mono tracking-widest outline-none placeholder:text-stone-surface"
+                      className="w-full bg-transparent text-sm text-charcoal-primary font-mono tracking-widest border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 px-0 h-full placeholder:text-stone-surface"
                       disabled={isSubmittingOtp}
                     />
                   </div>
@@ -239,13 +240,13 @@ export default function AuthModals() {
                   </label>
                   <div className="flex h-11 items-center rounded-[10px] border border-border bg-white-surface px-4 focus-within:border-sky-blue/50 transition-colors">
                     <span className="text-sm font-mono text-ash mr-1">@</span>
-                    <input
+                    <Input
                       type="text"
                       required
                       placeholder="username"
                       value={usernameInput}
                       onChange={(e) => setUsernameInput(e.target.value)}
-                      className="w-full bg-transparent text-sm text-charcoal-primary outline-none placeholder:text-stone-surface"
+                      className="w-full bg-transparent text-sm text-charcoal-primary border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 px-0 h-full placeholder:text-stone-surface"
                       disabled={isSubmittingOtp}
                     />
                   </div>
@@ -260,12 +261,12 @@ export default function AuthModals() {
                   </label>
                   <div className="flex h-11 items-center rounded-[10px] border border-border bg-white-surface px-4 focus-within:border-sky-blue/50 transition-colors">
                     <span className="text-sm font-mono text-ash mr-1">@</span>
-                    <input
+                    <Input
                       type="text"
                       placeholder="referrer"
                       value={referrerInput}
                       onChange={(e) => setReferrerInput(e.target.value)}
-                      className="w-full bg-transparent text-sm text-charcoal-primary outline-none placeholder:text-stone-surface"
+                      className="w-full bg-transparent text-sm text-charcoal-primary border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 px-0 h-full placeholder:text-stone-surface"
                       disabled={isSubmittingOtp}
                     />
                   </div>

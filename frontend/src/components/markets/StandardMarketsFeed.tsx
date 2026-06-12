@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useMemo } from "react"
+import { Input } from "@/components/ui/input"
 import Link from "next/link"
 import { Search, Swords, Timer, ChevronRight, MessageCircle, ArrowUp, ArrowDown, Share } from "lucide-react"
 import { toast } from "@/lib/toast"
@@ -138,12 +139,12 @@ export default function StandardMarketsFeed({
       <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
         <div className="flex items-center gap-2 bg-white-surface dark:bg-zinc-900 border border-border dark:border-zinc-800 rounded-[10px] px-3 py-1.5 flex-1 max-w-sm">
           <Search className="h-4 w-4 text-ash" />
-          <input
+          <Input
             type="text"
             placeholder="Search prediction markets..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="bg-transparent text-sm w-full outline-none text-charcoal-primary dark:text-white placeholder:text-ash"
+            className="bg-transparent text-sm w-full border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 px-0 h-full text-charcoal-primary dark:text-white placeholder:text-ash"
           />
         </div>
 
@@ -255,11 +256,13 @@ export default function StandardMarketsFeed({
                     <span className="px-2 py-0.5 rounded-full bg-parchment-card text-charcoal-primary shadow-subtle uppercase tracking-wider font-semibold">
                       {market.category}
                     </span>
-                    <span
-                      className={`px-2 py-0.5 rounded-full border text-[9px] uppercase tracking-wider font-bold ${phase.color}`}
-                    >
-                      {phase.label}
-                    </span>
+                    {market.status !== "qualified" && market.status !== "tradable" && (
+                      <span
+                        className={`px-2 py-0.5 rounded-full border text-[9px] uppercase tracking-wider font-bold ${phase.color}`}
+                      >
+                        {phase.label}
+                      </span>
+                    )}
                   </div>
                   <span className="text-ash uppercase">by {creatorLabel}</span>
                 </div>

@@ -1,5 +1,7 @@
 "use client"
 
+import { Input } from "@/components/ui/input"
+
 import { MarketTradeAction, VoteSide } from "@/lib/verity"
 
 interface OutcomeButtonProps {
@@ -209,9 +211,9 @@ export default function TradeTicket({
                 : `${maxSellShares.toFixed(4)} ${selectedSide}`}
             </p>
           </div>
-          <input
+          <Input
             aria-label={action === "BUY" ? "USDC amount" : "Shares to sell"}
-            className="h-14 w-32 bg-transparent text-right font-mono text-[34px] font-semibold leading-none tracking-[-1px] text-midnight outline-none placeholder:text-ash"
+            className="h-14 w-32 bg-transparent text-right font-mono text-[34px] font-semibold leading-none tracking-[-1px] text-midnight outline-none placeholder:text-ash border-none shadow-none focus-visible:ring-0"
             id="market-trade-amount"
             min="0"
             onChange={(event) => onAmountChange(event.target.value)}

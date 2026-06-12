@@ -1,4 +1,7 @@
+"use client"
+
 import { useMemo } from "react"
+import { Input } from "@/components/ui/input"
 import { HelpCircle, ChevronRight } from "lucide-react"
 import ArenaCategory, { getCategoryMeta } from "./PvpArenaCategory"
 import PvpClaimBanner from "./PvpClaimBanner"
@@ -215,7 +218,7 @@ export default function PvpTicketBuilder({
                 </span>
               </div>
               <div className="flex items-center gap-2">
-                <input
+                <Input
                   type="number"
                   min="1"
                   max="1000"
@@ -224,7 +227,7 @@ export default function PvpTicketBuilder({
                   onChange={(e) =>
                     onSetBetAmount(Math.max(1, Number(e.target.value)))
                   }
-                  className="w-20 h-9 px-2 border border-border dark:border-zinc-800 bg-white-surface dark:bg-zinc-900 text-xs font-bold font-mono rounded-md text-charcoal-primary dark:text-white outline-none focus:border-indigo-500 text-right disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-20 h-9 px-2 border border-border dark:border-zinc-800 bg-white-surface dark:bg-zinc-900 text-xs font-bold font-mono rounded-md text-charcoal-primary dark:text-white focus-visible:ring-1 focus-visible:ring-indigo-500 text-right disabled:opacity-50 disabled:cursor-not-allowed"
                 />
                 <span className="text-xs font-mono font-bold text-charcoal-primary dark:text-zinc-400">
                   USDC

@@ -1,4 +1,5 @@
 import { Search, Sparkles, TrendingUp } from "lucide-react"
+import { Input } from "@/components/ui/input"
 import PagePanel from "@/components/layout/PagePanel"
 import PeopleDiscovery from "@/components/profile/PeopleDiscovery"
 
@@ -39,8 +40,8 @@ export default function ExplorePage() {
       <section className="verity-card p-4">
         <div className="relative">
           <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-ash" />
-          <input
-            className="h-12 w-full rounded-[32px] bg-parchment-card pl-12 pr-4 text-[15px] tracking-[-0.2px] text-charcoal-primary shadow-subtle outline-none placeholder:text-ash focus:ring-2 focus:ring-stone-surface"
+          <Input
+            className="h-12 w-full rounded-[32px] bg-parchment-card pl-12 pr-4 text-[15px] tracking-[-0.2px] text-charcoal-primary shadow-subtle border-0 focus-visible:ring-2 focus-visible:ring-stone-surface focus-visible:ring-offset-0 focus-visible:border-transparent"
             placeholder="Search markets, users, topics..."
             type="text"
           />

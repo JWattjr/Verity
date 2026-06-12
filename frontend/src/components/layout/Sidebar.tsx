@@ -78,7 +78,9 @@ export default function Sidebar() {
       {/* Nav Links */}
       <nav className="flex-1 space-y-1.5">
         {NAV_ITEMS.map((item) => {
-          const isActive = pathname === item.href
+          const isActive =
+            pathname === item.href ||
+            (item.href !== "/" && pathname?.startsWith(item.href + "/"))
           const href = item.href === "/profile" ? `/profile` : item.href
           return (
             <Link

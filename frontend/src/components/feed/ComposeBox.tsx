@@ -11,6 +11,7 @@ import {
   X,
 } from "lucide-react"
 import { type MarketInput, type Profile } from "@/lib/verity"
+import { Input } from "@/components/ui/input"
 import { reviewPredictionPost, type VerityAgentReview } from "@/lib/verityAgent"
 import { useUsdcTransfer } from "@/hooks/useUsdcTransfer"
 import { useUsdcBalance } from "@/hooks/useUsdcBalance"
@@ -626,9 +627,9 @@ export default function ComposeBox({ onCreated }: ComposeBoxProps) {
                 <label className="text-[10px] font-mono font-bold uppercase tracking-wider text-ash">
                   Market Question
                 </label>
-                <input
+                <Input
                   ref={marketQuestionRef}
-                  className="w-full h-11 rounded-xl border border-border bg-surface-solid px-4 text-sm text-charcoal-primary outline-none placeholder:text-ash focus:border-meadow-green/50 focus:ring-1 focus:ring-meadow-green/20 transition-all"
+                  className="w-full h-11 rounded-xl border border-border bg-surface-solid px-4 text-sm text-charcoal-primary focus-visible:ring-1 focus-visible:ring-meadow-green/20 focus-visible:border-meadow-green/50 focus-visible:ring-offset-0 transition-all"
                   disabled={!user || saving || isValidating}
                   onChange={(event) =>
                     setMarket((current) => ({
@@ -676,8 +677,8 @@ export default function ComposeBox({ onCreated }: ComposeBoxProps) {
                   </label>
                   <div className="relative flex h-11 items-center rounded-xl border border-border bg-surface-solid px-4">
                     <Calendar className="h-4 w-4 text-ash mr-2" />
-                    <input
-                      className="w-full bg-transparent text-sm text-charcoal-primary outline-none"
+                    <Input
+                      className="w-full bg-transparent text-sm text-charcoal-primary border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 px-0 h-full"
                       disabled={!user || saving || isValidating}
                       onChange={(event) =>
                         setMarket((current) => ({
@@ -713,14 +714,14 @@ export default function ComposeBox({ onCreated }: ComposeBoxProps) {
                           <span className="text-[11px] font-mono text-ash mr-1.5">
                             #{i + 1}
                           </span>
-                          <input
+                          <Input
                             type="text"
                             value={opt}
                             onChange={(e) =>
                               handleOptionChange(i, e.target.value)
                             }
                             placeholder={`Option ${i + 1}`}
-                            className="w-full bg-transparent text-xs text-charcoal-primary outline-none placeholder:text-ash"
+                            className="w-full bg-transparent text-xs text-charcoal-primary border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 px-0 h-full"
                             disabled={saving}
                           />
                         </div>
@@ -747,8 +748,8 @@ export default function ComposeBox({ onCreated }: ComposeBoxProps) {
                     <label className="text-[10px] font-mono font-bold uppercase tracking-wider text-ash">
                       Resolution Source
                     </label>
-                    <input
-                      className="w-full h-10 rounded-xl border border-border bg-surface-solid px-4 text-xs text-charcoal-primary outline-none placeholder:text-ash focus:border-meadow-green/50 focus:ring-1 focus:ring-meadow-green/20 transition-all"
+                    <Input
+                      className="w-full h-10 rounded-xl border border-border bg-surface-solid px-4 text-xs text-charcoal-primary focus-visible:ring-1 focus-visible:ring-meadow-green/20 focus-visible:border-meadow-green/50 focus-visible:ring-offset-0 transition-all"
                       disabled={!user || saving || isValidating}
                       onChange={(event) =>
                         setMarket((current) => ({
@@ -795,8 +796,8 @@ export default function ComposeBox({ onCreated }: ComposeBoxProps) {
                   <label className="text-[10px] font-mono font-bold uppercase tracking-wider text-ash">
                     Resolution Criteria Details
                   </label>
-                  <input
-                    className="w-full h-10 rounded-xl border border-border bg-surface-solid px-4 text-xs text-charcoal-primary outline-none placeholder:text-ash focus:border-meadow-green/50 focus:ring-1 focus:ring-meadow-green/20 transition-all"
+                  <Input
+                    className="w-full h-10 rounded-xl border border-border bg-surface-solid px-4 text-xs text-charcoal-primary focus-visible:ring-1 focus-visible:ring-meadow-green/20 focus-visible:border-meadow-green/50 focus-visible:ring-offset-0 transition-all"
                     disabled={!user || saving || isValidating}
                     onChange={(event) =>
                       setMarket((current) => ({
@@ -808,8 +809,8 @@ export default function ComposeBox({ onCreated }: ComposeBoxProps) {
                     value={market.resolutionSource}
                   />
                   <div className="grid gap-2 sm:grid-cols-2">
-                    <input
-                      className="h-10 rounded-xl border border-border bg-surface-solid px-4 text-xs text-charcoal-primary outline-none placeholder:text-ash focus:border-meadow-green/50 focus:ring-1 focus:ring-meadow-green/20 transition-all"
+                    <Input
+                      className="h-10 rounded-xl border border-border bg-surface-solid px-4 text-xs text-charcoal-primary focus-visible:ring-1 focus-visible:ring-meadow-green/20 focus-visible:border-meadow-green/50 focus-visible:ring-offset-0 transition-all"
                       disabled={!user || saving || isValidating}
                       onChange={(event) =>
                         setMarket((current) => ({
@@ -820,8 +821,8 @@ export default function ComposeBox({ onCreated }: ComposeBoxProps) {
                       placeholder="YES condition details (min 12 chars)"
                       value={market.yesCondition}
                     />
-                    <input
-                      className="h-10 rounded-xl border border-border bg-surface-solid px-4 text-xs text-charcoal-primary outline-none placeholder:text-ash focus:border-meadow-green/50 focus:ring-1 focus:ring-meadow-green/20 transition-all"
+                    <Input
+                      className="h-10 rounded-xl border border-border bg-surface-solid px-4 text-xs text-charcoal-primary focus-visible:ring-1 focus-visible:ring-meadow-green/20 focus-visible:border-meadow-green/50 focus-visible:ring-offset-0 transition-all"
                       disabled={!user || saving || isValidating}
                       onChange={(event) =>
                         setMarket((current) => ({
