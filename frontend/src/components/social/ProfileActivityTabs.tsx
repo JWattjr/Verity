@@ -17,17 +17,9 @@ import {
   type MarketPosition,
 } from "@/lib/verity"
 import { useRouter } from "next/navigation"
-import {
-  ArrowUpRight,
-  Swords,
-  Timer,
-  ChevronRight,
-} from "lucide-react"
+import { ArrowUpRight, Swords, Timer, ChevronRight } from "lucide-react"
 
-export type ProfileActivityTab =
-  | "predictions"
-  | "markets"
-  | "activity"
+export type ProfileActivityTab = "predictions" | "markets" | "activity"
 
 interface ProfileActivityTabsProps {
   activeTab: ProfileActivityTab
@@ -74,7 +66,9 @@ export default function ProfileActivityTabs({
             const unrealizedPnL = currentValue - (pos.invested_usdc || 0)
 
             const isPvp = pos.category?.toLowerCase() === "pvp"
-            const href = isPvp ? "/markets?tab=pvp-arena" : `/markets/${pos.market_id}`
+            const href = isPvp
+              ? "/markets?tab=pvp-arena"
+              : `/markets/${pos.market_id}`
 
             return (
               <div
@@ -95,7 +89,8 @@ export default function ProfileActivityTabs({
                     className="mt-1.5 text-xs font-semibold leading-normal text-charcoal-primary truncate"
                     title={pos.market_question || ""}
                   >
-                    {pos.market_question || `Market ID: ${pos.market_id.slice(0, 10)}`}
+                    {pos.market_question ||
+                      `Market ID: ${pos.market_id.slice(0, 10)}`}
                   </h4>
                 </div>
                 <div className="flex items-center gap-4 font-mono text-xs text-right shrink-0">
@@ -337,7 +332,8 @@ function ActivityItem({
       return (
         <article
           onClick={() => {
-            const pId = market.parentMarketId || market.parent_market_id || market.id
+            const pId =
+              market.parentMarketId || market.parent_market_id || market.id
             router.push(`/markets?tab=pvp-arena&id=${pId}`)
           }}
           className="verity-card p-5 border border-indigo-200 dark:border-indigo-950 bg-indigo-50/20 hover:border-indigo-400 dark:hover:border-indigo-800 transition-all cursor-pointer group relative flex flex-col justify-between"
@@ -355,8 +351,8 @@ function ActivityItem({
               {market.question}
             </h3>
             <p className="text-xs text-graphite dark:text-zinc-400 mt-2 leading-relaxed font-sans">
-              Predict all propositions for the match. Battle head-to-head
-              for Arena XP, boosts, and bragging rights.
+              Predict all propositions for the match. Battle head-to-head for
+              Arena XP, boosts, and bragging rights.
             </p>
           </div>
 
@@ -367,7 +363,7 @@ function ActivityItem({
                 Closes: {new Date(market.deadline).toLocaleDateString()}
               </span>
             </div>
-            <span className="flex items-center gap-1 font-mono text-xs font-semibold text-indigo-600 dark:text-indigo-400 font-sans">
+            <span className="flex items-center gap-1 text-xs font-semibold text-indigo-600 dark:text-indigo-400 font-sans">
               Predict Now
               <ChevronRight className="h-4 w-4 group-hover:translate-x-0.5 transition-transform" />
             </span>
@@ -433,4 +429,3 @@ function ActivityItem({
     />
   )
 }
-
