@@ -104,6 +104,19 @@ export function determineOptionGroup(
 @Injectable()
 export class PvpService {
   private readonly logger = new Logger(PvpService.name)
+  private readonly lastSyncMap = new Map<string, number>()
+
+  clearSyncCache(userId: string, parentMarketId?: string) {
+    if (parentMarketId) {
+      this.lastSyncMap.delete(`${userId}:${parentMarketId}`)
+    } else {
+      for (const key of this.lastSyncMap.keys()) {
+        if (key.startsWith(`${userId}:`)) {
+          this.lastSyncMap.delete(key)
+        }
+      }
+    }
+  }
 
   constructor(
     @InjectModel(PvpTicket.name)
@@ -440,26 +453,49 @@ export class PvpService {
       })
       .sort({ deadline: 1 })
 
+    if (parents.length === 0) return []
+
+    const parentIds = parents.map((p) => p._id)
+
+    // 1. Fetch all children in one query
+    const allChildren = await this.marketModel.find({
+      parentMarketId: { $in: parentIds },
+      marketType: "child",
+    })
+
+    // Group children by parentMarketId
+    const childrenMap = new Map<string, any[]>()
+    for (const child of allChildren) {
+      if (child.parentMarketId) {
+        const pidStr = child.parentMarketId.toString()
+        if (!childrenMap.has(pidStr)) {
+          childrenMap.set(pidStr, [])
+        }
+        childrenMap.get(pidStr)!.push(child)
+      }
+    }
+
+    // 2. Fetch all trades on all children in one query
+    const allChildIds = allChildren.map((c) => c._id)
+    const allTrades = await this.marketTradeModel.find({
+      marketId: { $in: allChildIds },
+    })
+
+    // Calculate trade volume per child market
+    const volumeMap = new Map<string, number>()
+    for (const t of allTrades) {
+      const marketIdStr = t.marketId.toString()
+      volumeMap.set(marketIdStr, (volumeMap.get(marketIdStr) || 0) + Number(t.amountUsdc || 0))
+    }
+
+    // 3. Construct the response
     const result: any[] = []
     for (const parent of parents) {
-      const children = await this.marketModel.find({
-        parentMarketId: parent._id,
-        marketType: "child",
-      })
-
-      const childIds = children.map((c) => c._id)
-      const trades = await this.marketTradeModel.find({
-        marketId: { $in: childIds },
-      })
-
-      const volumeMap: Record<string, number> = {}
-      for (const t of trades) {
-        const idStr = t.marketId.toString()
-        volumeMap[idStr] = (volumeMap[idStr] || 0) + Number(t.amountUsdc || 0)
-      }
+      const pidStr = parent._id.toString()
+      const children = childrenMap.get(pidStr) || []
 
       result.push({
-        id: parent._id.toString(),
+        id: pidStr,
         question: parent.question,
         deadline: parent.deadline,
         lockTime: parent.lockTime,
@@ -477,7 +513,7 @@ export class PvpService {
           yesCondition: c.yesCondition,
           noCondition: c.noCondition,
           liquidity: c.liquidity,
-          volume: volumeMap[c._id.toString()] || 0,
+          volume: volumeMap.get(c._id.toString()) || 0,
           optionGroup: c.optionGroup,
           outcomeCount: c.outcomeCount,
           outcomes: c.outcomes,
@@ -535,29 +571,49 @@ export class PvpService {
       ...new Set(tickets.map((t) => t.parentMarketId.toString())),
     ]
 
-    const result: any[] = []
-    for (const pid of parentIds) {
-      const parent = await this.marketModel.findById(pid)
-      if (!parent) continue
+    // Fetch all parent markets in one query
+    const parents = await this.marketModel.find({
+      _id: { $in: parentIds.map((id) => new Types.ObjectId(id)) },
+    })
 
-      const children = await this.marketModel.find({
-        parentMarketId: parent._id,
-        marketType: "child",
-      })
+    // Fetch all child markets for these parents in one query
+    const allChildren = await this.marketModel.find({
+      parentMarketId: { $in: parents.map((p) => p._id) },
+      marketType: "child",
+    })
 
-      const childIds = children.map((c) => c._id)
-      const trades = await this.marketTradeModel.find({
-        marketId: { $in: childIds },
-      })
-
-      const volumeMap: Record<string, number> = {}
-      for (const t of trades) {
-        const idStr = t.marketId.toString()
-        volumeMap[idStr] = (volumeMap[idStr] || 0) + Number(t.amountUsdc || 0)
+    // Group children by parentMarketId
+    const childrenMap = new Map<string, any[]>()
+    for (const child of allChildren) {
+      if (child.parentMarketId) {
+        const pidStr = child.parentMarketId.toString()
+        if (!childrenMap.has(pidStr)) {
+          childrenMap.set(pidStr, [])
+        }
+        childrenMap.get(pidStr)!.push(child)
       }
+    }
+
+    // Fetch all trades on all child markets in one query
+    const allChildIds = allChildren.map((c) => c._id)
+    const allTrades = await this.marketTradeModel.find({
+      marketId: { $in: allChildIds },
+    })
+
+    // Calculate trade volume per child market
+    const volumeMap = new Map<string, number>()
+    for (const t of allTrades) {
+      const marketIdStr = t.marketId.toString()
+      volumeMap.set(marketIdStr, (volumeMap.get(marketIdStr) || 0) + Number(t.amountUsdc || 0))
+    }
+
+    const result: any[] = []
+    for (const parent of parents) {
+      const pidStr = parent._id.toString()
+      const children = childrenMap.get(pidStr) || []
 
       result.push({
-        id: parent._id.toString(),
+        id: pidStr,
         question: parent.question,
         deadline: parent.deadline,
         lockTime: parent.lockTime,
@@ -575,7 +631,7 @@ export class PvpService {
           yesCondition: c.yesCondition,
           noCondition: c.noCondition,
           liquidity: c.liquidity,
-          volume: volumeMap[c._id.toString()] || 0,
+          volume: volumeMap.get(c._id.toString()) || 0,
           optionGroup: c.optionGroup,
           outcomeCount: c.outcomeCount,
           outcomes: c.outcomes,
@@ -693,6 +749,9 @@ export class PvpService {
 
     // Perform matchmaking
     const match = await this.matchmake(ticket)
+
+    // Clear sync cache so the user's updated positions are fetched on status query
+    this.clearSyncCache(userId, dto.parentMarketId)
 
     return {
       ticketId: ticket._id.toString(),
@@ -1110,80 +1169,107 @@ export class PvpService {
 
     const user = await this.userModel.findById(userId)
     if (user && user.walletAddress) {
-      // Pre-fetch on-chain balances for all child markets in a single batch query
-      const batchQueries = children.map((child) => {
-        const outcomes =
-          child.outcomes && child.outcomes.length > 0
-            ? child.outcomes
-            : ["YES", "NO"]
-        return {
-          marketId: child._id.toString(),
-          outcomes,
-        }
-      })
+      const syncKey = `${userId}:${parentMarketId || ""}`
+      const lastSync = this.lastSyncMap.get(syncKey) || 0
+      const now = Date.now()
 
-      let balancesMap: Record<string, Record<string, number>> = {}
-      try {
-        balancesMap = await this.blockchainService.getUserOnChainBalancesBatch(
-          batchQueries,
-          user.walletAddress,
-        )
-      } catch (err) {
-        this.logger.error(
-          `Error syncing position batch in getPvpStatus: ${err.message}`,
-        )
-      }
+      if (now - lastSync > 10000) {
+        this.lastSyncMap.set(syncKey, now)
 
-      for (const child of children) {
-        try {
+        // Pre-fetch on-chain balances for all child markets in a single batch query
+        const batchQueries = children.map((child) => {
           const outcomes =
             child.outcomes && child.outcomes.length > 0
               ? child.outcomes
               : ["YES", "NO"]
-
-          const onChain = balancesMap[child._id.toString()] || {}
-
-          const isResolved =
-            child.status === "resolved" || child.resolvedOutcome
-          const winningOutcome = child.resolvedOutcome
-          const isMulti = child.outcomeCount && child.outcomeCount > 2
-
-          for (let idx = 0; idx < outcomes.length; idx++) {
-            const outcome = outcomes[idx]
-            const normalizedSide = isMulti ? outcome : idx === 0 ? "YES" : "NO"
-
-            const balance = onChain[outcome] ?? 0
-            const isLosing = isResolved && winningOutcome !== normalizedSide
-
-            if (!isLosing && balance > 0) {
-              await this.marketPositionModel.updateOne(
-                {
-                  marketId: child._id,
-                  userId: new Types.ObjectId(userId),
-                  side: normalizedSide,
-                },
-                {
-                  $set: { shares: balance },
-                  $setOnInsert: {
-                    avgPrice: 0.5,
-                    investedUsdc: balance * 0.5,
-                    realizedPnl: 0,
-                  },
-                },
-                { upsert: true },
-              )
-            } else {
-              await this.marketPositionModel.deleteOne({
-                marketId: child._id,
-                userId: new Types.ObjectId(userId),
-                side: normalizedSide,
-              })
-            }
+          return {
+            marketId: child._id.toString(),
+            outcomes,
           }
+        })
+
+        let balancesMap: Record<string, Record<string, number>> = {}
+        try {
+          balancesMap = await this.blockchainService.getUserOnChainBalancesBatch(
+            batchQueries,
+            user.walletAddress,
+          )
         } catch (err) {
           this.logger.error(
-            `Error syncing position in getPvpStatus for child ${child._id}: ${err.message}`,
+            `Error syncing position batch in getPvpStatus: ${err.message}`,
           )
+        }
+
+        // Fetch existing positions in db to avoid redundant database writes
+        const existingPositions = await this.marketPositionModel.find({
+          userId: new Types.ObjectId(userId),
+          marketId: { $in: children.map((c) => c._id) },
+        })
+
+        for (const child of children) {
+          try {
+            const outcomes =
+              child.outcomes && child.outcomes.length > 0
+                ? child.outcomes
+                : ["YES", "NO"]
+
+            const onChain = balancesMap[child._id.toString()] || {}
+
+            const isResolved =
+              child.status === "resolved" || child.resolvedOutcome
+            const winningOutcome = child.resolvedOutcome
+            const isMulti = child.outcomeCount && child.outcomeCount > 2
+
+            for (let idx = 0; idx < outcomes.length; idx++) {
+              const outcome = outcomes[idx]
+              const normalizedSide = isMulti ? outcome : idx === 0 ? "YES" : "NO"
+
+              const balance = onChain[outcome] ?? 0
+              const isLosing = isResolved && winningOutcome !== normalizedSide
+
+              // Find if we already have this position in DB matching normalizedSide
+              const dbPos = existingPositions.find(
+                (p) =>
+                  p.marketId.toString() === child._id.toString() &&
+                  p.side === normalizedSide,
+              )
+
+              if (!isLosing && balance > 0) {
+                // If there's no matching position, or the shares count differs, update/upsert
+                if (!dbPos || dbPos.shares !== balance) {
+                  await this.marketPositionModel.updateOne(
+                    {
+                      marketId: child._id,
+                      userId: new Types.ObjectId(userId),
+                      side: normalizedSide,
+                    },
+                    {
+                      $set: { shares: balance },
+                      $setOnInsert: {
+                        avgPrice: 0.5,
+                        investedUsdc: balance * 0.5,
+                        realizedPnl: 0,
+                      },
+                    },
+                    { upsert: true },
+                  )
+                }
+              } else {
+                // If there's a matching position, delete it
+                if (dbPos) {
+                  await this.marketPositionModel.deleteOne({
+                    marketId: child._id,
+                    userId: new Types.ObjectId(userId),
+                    side: normalizedSide,
+                  })
+                }
+              }
+            }
+          } catch (err) {
+            this.logger.error(
+              `Error syncing position in getPvpStatus for child ${child._id}: ${err.message}`,
+            )
+          }
         }
       }
     }
@@ -1377,55 +1463,105 @@ export class PvpService {
       .sort({ resolvedAt: -1 })
       .limit(30)
 
+    if (matches.length === 0) return []
+
+    const parentMarketIds = [...new Set(matches.map((m) => m.parentMarketId.toString()))].map((id) => new Types.ObjectId(id))
+    const ticketIds: Types.ObjectId[] = []
+    const opponentIds: Types.ObjectId[] = []
+
+    for (const match of matches) {
+      const isUser1 = match.user1Id.toString() === userId
+      const myTicketId = isUser1 ? match.ticket1Id : match.ticket2Id
+      const oppTicketId = isUser1 ? match.ticket2Id : match.ticket1Id
+      const oppId = isUser1 ? match.user2Id : match.user1Id
+
+      ticketIds.push(new Types.ObjectId(myTicketId))
+      ticketIds.push(new Types.ObjectId(oppTicketId))
+      opponentIds.push(new Types.ObjectId(oppId))
+    }
+
+    // Deduplicate ticketIds and opponentIds
+    const uniqueTicketIds = [...new Set(ticketIds.map((id) => id.toString()))].map((id) => new Types.ObjectId(id))
+    const uniqueOpponentIds = [...new Set(opponentIds.map((id) => id.toString()))].map((id) => new Types.ObjectId(id))
+
+    // Run batch queries in parallel
+    const [parents, allChildren, allTickets, opponents] = await Promise.all([
+      this.marketModel.find({ _id: { $in: parentMarketIds } }),
+      this.marketModel.find({ parentMarketId: { $in: parentMarketIds }, marketType: "child" }),
+      this.pvpTicketModel.find({ _id: { $in: uniqueTicketIds } }),
+      this.userModel.find({ _id: { $in: uniqueOpponentIds } }),
+    ])
+
+    const allChildIds = allChildren.map((c) => c._id)
+    const userIdsForTrades = [uId, ...uniqueOpponentIds]
+    const allTrades = await this.marketTradeModel.find({
+      userId: { $in: userIdsForTrades },
+      marketId: { $in: allChildIds },
+      action: "BUY",
+    })
+
+    // Construct Maps for quick O(1) lookup
+    const parentsMap = new Map<string, any>()
+    for (const p of parents) {
+      parentsMap.set(p._id.toString(), p)
+    }
+
+    const childrenMap = new Map<string, any[]>()
+    for (const child of allChildren) {
+      if (child.parentMarketId) {
+        const pidStr = child.parentMarketId.toString()
+        if (!childrenMap.has(pidStr)) {
+          childrenMap.set(pidStr, [])
+        }
+        childrenMap.get(pidStr)!.push(child)
+      }
+    }
+
+    const ticketsMap = new Map<string, any>()
+    for (const t of allTickets) {
+      ticketsMap.set(t._id.toString(), t)
+    }
+
+    const opponentsMap = new Map<string, any>()
+    for (const o of opponents) {
+      opponentsMap.set(o._id.toString(), o)
+    }
+
+    // Map trades by userId and marketId
+    const tradesMap = new Map<string, any>()
+    for (const t of allTrades) {
+      const key = `${t.userId.toString()}:${t.marketId.toString()}`
+      if (!tradesMap.has(key)) {
+        tradesMap.set(key, t)
+      }
+    }
+
     const result: any[] = []
     for (const match of matches) {
-      const parent = await this.marketModel.findById(match.parentMarketId)
+      const parent = parentsMap.get(match.parentMarketId.toString())
 
       const isUser1 = match.user1Id.toString() === userId
       const myTicketId = isUser1 ? match.ticket1Id : match.ticket2Id
       const oppTicketId = isUser1 ? match.ticket2Id : match.ticket1Id
       const oppId = isUser1 ? match.user2Id : match.user1Id
 
-      const [myTicket, oppTicket, oppUser] = await Promise.all([
-        this.pvpTicketModel.findById(myTicketId),
-        this.pvpTicketModel.findById(oppTicketId),
-        this.userModel.findById(oppId),
-      ])
+      const myTicket = ticketsMap.get(myTicketId.toString())
+      const oppTicket = ticketsMap.get(oppTicketId.toString())
+      const oppUser = opponentsMap.get(oppId.toString())
 
       let outcome: "WIN" | "LOSS" | "DRAW" = "DRAW"
       if (match.winnerId) {
         outcome = match.winnerId.toString() === userId ? "WIN" : "LOSS"
       }
 
-      // Fetch children child options for this parent event
-      const children = await this.marketModel.find({
-        parentMarketId: match.parentMarketId,
-        marketType: "child",
-      })
-
-      // Fetch user's and opponent's trades on these child markets to figure out how much they bet/earned
-      const childMarketIds = children.map((c) => c._id)
-      const [myTrades, oppTrades] = await Promise.all([
-        this.marketTradeModel.find({
-          userId: uId,
-          marketId: { $in: childMarketIds },
-          action: "BUY",
-        }),
-        this.marketTradeModel.find({
-          userId: oppId,
-          marketId: { $in: childMarketIds },
-          action: "BUY",
-        }),
-      ])
+      const children = childrenMap.get(match.parentMarketId.toString()) || []
 
       const myPicks = myTicket
-        ? myTicket.picks.map((p) => {
+        ? myTicket.picks.map((p: any) => {
             const child = children.find(
-              (c) => c._id.toString() === p.marketId.toString(),
+              (c: any) => c._id.toString() === p.marketId.toString(),
             )
-            const trade = myTrades.find(
-              (t) => t.marketId.toString() === p.marketId.toString(),
-            )
+            const trade = tradesMap.get(`${uId.toString()}:${p.marketId.toString()}`)
             const investedUsdc = trade ? trade.amountUsdc : 5
             let shares = trade ? trade.shares : 0
 
@@ -1459,13 +1595,11 @@ export class PvpService {
         : []
 
       const oppPicks = oppTicket
-        ? oppTicket.picks.map((p) => {
+        ? oppTicket.picks.map((p: any) => {
             const child = children.find(
-              (c) => c._id.toString() === p.marketId.toString(),
+              (c: any) => c._id.toString() === p.marketId.toString(),
             )
-            const trade = oppTrades.find(
-              (t) => t.marketId.toString() === p.marketId.toString(),
-            )
+            const trade = tradesMap.get(`${oppId.toString()}:${p.marketId.toString()}`)
             const investedUsdc = trade ? trade.amountUsdc : 5
             let shares = trade ? trade.shares : 0
 
