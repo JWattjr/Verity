@@ -715,8 +715,37 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
   if (itemLoading) {
     return (
       <div className="flex flex-col gap-4 animate-pulse mt-4">
-        <div className="verity-card p-5 h-36 bg-stone-surface/30 rounded-xl" />
-        <div className="verity-card p-5 h-48 bg-stone-surface/30 rounded-xl" />
+        {/* MarketHero Skeleton */}
+        <div className="verity-card p-5 flex flex-col gap-4">
+          <div className="h-4 w-20 bg-stone-200 dark:bg-zinc-700 rounded" />
+          <div className="space-y-2.5">
+            <div className="h-7 w-5/6 bg-stone-200 dark:bg-zinc-700 rounded" />
+            <div className="h-7 w-1/2 bg-stone-200 dark:bg-zinc-700 rounded" />
+          </div>
+          <div className="h-3.5 w-48 bg-stone-200 dark:bg-zinc-700 rounded" />
+          <div className="border-t border-dashed border-stone-200 dark:border-zinc-700/80 pt-3">
+            <div className="h-4.5 w-64 bg-stone-200 dark:bg-zinc-700 rounded" />
+          </div>
+        </div>
+
+        {/* OutcomesPanel Skeleton */}
+        <div className="verity-card p-5 flex flex-col gap-4">
+          <div className="h-5 w-40 bg-stone-200 dark:bg-zinc-700 rounded" />
+          <div className="grid gap-3 sm:grid-cols-2 mt-2">
+            {[1, 2].map((i) => (
+              <div key={i} className="border border-border dark:border-zinc-800 rounded-xl p-4 space-y-4">
+                <div className="flex items-center gap-3">
+                  <div className="h-4.5 w-4.5 rounded-full bg-stone-200 dark:bg-zinc-700" />
+                  <div className="h-4 w-32 bg-stone-200 dark:bg-zinc-700 rounded" />
+                </div>
+                <div className="flex gap-2">
+                  <div className="h-7 w-20 bg-stone-200 dark:bg-zinc-700 rounded" />
+                  <div className="h-7 w-20 bg-stone-200 dark:bg-zinc-700 rounded" />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     )
   }
@@ -747,12 +776,11 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
       <MarketHero
         category={market.category}
         creator={creatorHandle}
-        leadingPercent={leadingPercent}
-        leadingSide={leadingSide}
         market={market}
         question={market.question}
         time={relativeTime(item.created_at)}
-        totalVotes={market.free_yes_votes + market.free_no_votes}
+        yesPercent={yesPercent}
+        noPercent={noPercent}
         onDevQualify={handleDevQualify}
         devQualifyLoading={actionPending === "dev_qualify"}
       />

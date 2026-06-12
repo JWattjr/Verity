@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { Input } from "@/components/ui/input"
 import { Save } from "lucide-react"
 import { type Profile } from "@/lib/verity"
 import { useUpdateProfileMutation } from "@/store/verity/verityQueries"
@@ -142,8 +143,8 @@ export default function ProfileForm({
           <label className="block text-xs font-semibold text-ash uppercase tracking-wider mb-1">
             Username
           </label>
-          <input
-            className="h-11 w-full rounded-[10px] bg-white-surface px-3 text-sm tracking-[-0.18px] text-charcoal-primary shadow-subtle outline-none placeholder:text-ash focus:ring-2 focus:ring-stone-surface"
+          <Input
+            className="h-11 w-full rounded-[10px] bg-white-surface px-3 text-sm tracking-[-0.18px] text-charcoal-primary shadow-subtle border-0 focus-visible:ring-2 focus-visible:ring-stone-surface focus-visible:ring-offset-0 focus-visible:border-transparent"
             disabled={!profile || saving}
             onChange={(event) => setUsername(event.target.value)}
             placeholder="Username"
@@ -155,8 +156,8 @@ export default function ProfileForm({
           <label className="block text-xs font-semibold text-ash uppercase tracking-wider mb-1">
             Display Name
           </label>
-          <input
-            className="h-11 w-full rounded-[10px] bg-white-surface px-3 text-sm tracking-[-0.18px] text-charcoal-primary shadow-subtle outline-none placeholder:text-ash focus:ring-2 focus:ring-stone-surface"
+          <Input
+            className="h-11 w-full rounded-[10px] bg-white-surface px-3 text-sm tracking-[-0.18px] text-charcoal-primary shadow-subtle border-0 focus-visible:ring-2 focus-visible:ring-stone-surface focus-visible:ring-offset-0 focus-visible:border-transparent"
             disabled={!profile || saving}
             onChange={(event) => setDisplay(event.target.value)}
             placeholder="Display name"
@@ -195,8 +196,8 @@ export default function ProfileForm({
               </p>
             </div>
           </div>
-          <input
-            className="mt-2 h-11 w-full rounded-[10px] bg-white-surface px-3 text-sm tracking-[-0.18px] text-charcoal-primary shadow-subtle outline-none placeholder:text-ash focus:ring-2 focus:ring-stone-surface"
+          <Input
+            className="mt-2 h-11 w-full rounded-[10px] bg-white-surface px-3 text-sm tracking-[-0.18px] text-charcoal-primary shadow-subtle border-0 focus-visible:ring-2 focus-visible:ring-stone-surface focus-visible:ring-offset-0 focus-visible:border-transparent"
             disabled={!profile || saving}
             onChange={(event) => {
               setAvatar(event.target.value)

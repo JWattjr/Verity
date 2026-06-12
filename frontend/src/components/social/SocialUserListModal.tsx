@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import { Input } from "@/components/ui/input"
 import { Search, X } from "lucide-react"
 import { useMemo, useState } from "react"
 import FollowButton from "@/components/profile/FollowButton"
@@ -64,8 +65,8 @@ export default function SocialUserListModal({
         <div className="border-b border-dashed border-stone-surface p-4">
           <div className="relative">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ash" />
-            <input
-              className="h-11 w-full rounded-[32px] bg-parchment-card pl-10 pr-4 text-sm tracking-[-0.18px] text-charcoal-primary shadow-subtle outline-none placeholder:text-ash focus:ring-2 focus:ring-stone-surface"
+            <Input
+              className="h-11 w-full rounded-[32px] bg-parchment-card pl-10 pr-4 text-sm tracking-[-0.18px] text-charcoal-primary shadow-subtle border-0 focus-visible:ring-2 focus-visible:ring-stone-surface focus-visible:ring-offset-0 focus-visible:border-transparent"
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Search people"
               value={query}

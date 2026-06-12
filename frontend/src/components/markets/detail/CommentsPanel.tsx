@@ -1,6 +1,7 @@
 "use client"
 
 import { useMemo } from "react"
+import { Input } from "@/components/ui/input"
 import { MessageCircle } from "lucide-react"
 import {
   MarketComment,
@@ -61,8 +62,8 @@ export default function CommentsPanel({
       </div>
 
       <div className="mb-4 flex gap-2">
-        <input
-          className="h-11 min-w-0 flex-1 rounded-[10px] bg-white-surface px-3 text-sm tracking-[-0.18px] text-charcoal-primary shadow-subtle outline-none placeholder:text-ash focus:ring-2 focus:ring-stone-surface"
+        <Input
+          className="h-11 min-w-0 flex-1 rounded-[10px] bg-white-surface px-3 text-sm tracking-[-0.18px] text-charcoal-primary shadow-subtle border-0 focus-visible:ring-2 focus-visible:ring-stone-surface focus-visible:ring-offset-0 focus-visible:border-transparent"
           id="market-comment-input"
           onChange={(event) => onChange(event.target.value)}
           placeholder="Add a comment..."
@@ -79,73 +80,71 @@ export default function CommentsPanel({
       </div>
 
       <div className="grid gap-3 max-h-[350px] overflow-y-auto pr-1 scrollbar-thin">
-        {commentsTree.rootComments.length === 0 ? (
-          <p className="text-sm text-ash">No comments yet.</p>
-        ) : (
-          commentsTree.rootComments.map((comment) => {
-            const replies = commentsTree.childrenMap.get(comment.id) || []
-            const sortedReplies = replies.sort(
-              (a, b) =>
-                new Date(a.created_at).getTime() -
-                new Date(b.created_at).getTime(),
-            )
+        {commentsTree.rootComments.length === 0
+          ? null
+          : commentsTree.rootComments.map((comment) => {
+              const replies = commentsTree.childrenMap.get(comment.id) || []
+              const sortedReplies = replies.sort(
+                (a, b) =>
+                  new Date(a.created_at).getTime() -
+                  new Date(b.created_at).getTime(),
+              )
 
-            return (
-              <div key={comment.id} className="flex flex-col gap-2">
-                <article className="rounded-[10px] bg-parchment-card p-3 shadow-subtle">
-                  <div className="mb-1 flex flex-wrap items-center justify-between gap-2 font-mono text-[11px] text-ash">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-semibold text-charcoal-primary">
-                        {displayName(comment.author)}
-                      </span>
-                      <span>{displayHandle(comment.author)}</span>
-                      <span>{"\u00B7"}</span>
-                      <span>{relativeTime(comment.created_at)}</span>
-                    </div>
-                    <button
-                      onClick={() => onReplyClick(comment)}
-                      className="text-sky-blue hover:underline font-semibold font-sans text-xs"
-                      type="button"
-                    >
-                      Reply
-                    </button>
-                  </div>
-                  <p className="text-sm leading-relaxed tracking-[-0.18px] text-graphite whitespace-pre-wrap">
-                    {comment.content}
-                  </p>
-                </article>
-
-                {sortedReplies.map((reply) => (
-                  <article
-                    className="ml-6 rounded-[10px] bg-parchment-card/60 p-2.5 shadow-subtle border-l-2 border-sky-blue/35"
-                    key={reply.id}
-                  >
-                    <div className="mb-1 flex flex-wrap items-center justify-between gap-2 font-mono text-[10px] text-ash">
-                      <div className="flex flex-wrap items-center gap-1.5">
+              return (
+                <div key={comment.id} className="flex flex-col gap-2">
+                  <article className="rounded-[10px] bg-parchment-card p-3 shadow-subtle">
+                    <div className="mb-1 flex flex-wrap items-center justify-between gap-2 font-mono text-[11px] text-ash">
+                      <div className="flex flex-wrap items-center gap-2">
                         <span className="font-semibold text-charcoal-primary">
-                          {displayName(reply.author)}
+                          {displayName(comment.author)}
                         </span>
-                        <span>{displayHandle(reply.author)}</span>
+                        <span>{displayHandle(comment.author)}</span>
                         <span>{"\u00B7"}</span>
-                        <span>{relativeTime(reply.created_at)}</span>
+                        <span>{relativeTime(comment.created_at)}</span>
                       </div>
                       <button
-                        onClick={() => onReplyClick(reply)}
-                        className="text-sky-blue hover:underline font-semibold font-sans text-[11px]"
+                        onClick={() => onReplyClick(comment)}
+                        className="text-sky-blue hover:underline font-semibold font-sans text-xs"
                         type="button"
                       >
                         Reply
                       </button>
                     </div>
-                    <p className="text-xs leading-relaxed tracking-[-0.18px] text-graphite whitespace-pre-wrap">
-                      {reply.content}
+                    <p className="text-sm leading-relaxed tracking-[-0.18px] text-graphite whitespace-pre-wrap">
+                      {comment.content}
                     </p>
                   </article>
-                ))}
-              </div>
-            )
-          })
-        )}
+
+                  {sortedReplies.map((reply) => (
+                    <article
+                      className="ml-6 rounded-[10px] bg-parchment-card/60 p-2.5 shadow-subtle border-l-2 border-sky-blue/35"
+                      key={reply.id}
+                    >
+                      <div className="mb-1 flex flex-wrap items-center justify-between gap-2 font-mono text-[10px] text-ash">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span className="font-semibold text-charcoal-primary">
+                            {displayName(reply.author)}
+                          </span>
+                          <span>{displayHandle(reply.author)}</span>
+                          <span>{"\u00B7"}</span>
+                          <span>{relativeTime(reply.created_at)}</span>
+                        </div>
+                        <button
+                          onClick={() => onReplyClick(reply)}
+                          className="text-sky-blue hover:underline font-semibold font-sans text-[11px]"
+                          type="button"
+                        >
+                          Reply
+                        </button>
+                      </div>
+                      <p className="text-xs leading-relaxed tracking-[-0.18px] text-graphite whitespace-pre-wrap">
+                        {reply.content}
+                      </p>
+                    </article>
+                  ))}
+                </div>
+              )
+            })}
       </div>
     </section>
   )

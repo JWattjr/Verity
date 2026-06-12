@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { Input } from "@/components/ui/input"
 import { Award, Check, Copy } from "lucide-react"
 import { toast } from "@/lib/toast"
 
@@ -64,7 +65,7 @@ export default function PvpSidebarStats({
           </span>
         </div>
         <div className="flex h-9 items-center rounded-[8px] border border-border dark:border-zinc-800 bg-white-surface dark:bg-zinc-900 px-2.5 transition-colors">
-          <input
+          <Input
             type="text"
             readOnly
             value={
@@ -72,7 +73,7 @@ export default function PvpSidebarStats({
                 ? `${window.location.origin}/?ref=${referralsData.referralLink}`
                 : "Loading link..."
             }
-            className="w-full bg-transparent text-[11px] text-ash truncate outline-none select-all font-mono"
+            className="w-full bg-transparent text-[11px] text-ash truncate border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 px-0 h-full select-all font-mono"
           />
           <button
             onClick={handleCopyReferral}
