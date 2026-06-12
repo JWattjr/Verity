@@ -162,9 +162,9 @@ export class PostsService {
 
   validateMarketHeuristics(input: CreateMarketPostDto) {
     const question = input.question ? input.question.trim() : ""
-    if (!question.endsWith("?")) {
+    if (question.length === 0) {
       throw new BadRequestException(
-        "Market question must end with a question mark '?'.",
+        "Market question/title is required.",
       )
     }
 

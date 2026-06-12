@@ -149,7 +149,7 @@ export default function ComposeBox({ onCreated }: ComposeBoxProps) {
   const composerRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const marketQuestionRef = useRef<HTMLInputElement>(null)
-  const { user } = useAuth()
+  const { user, closeTxConfirm } = useAuth()
   const { createMarketPreDeposit } = useUsdcTransfer()
   const { rawBalance } = useUsdcBalance()
   const { mutateAsync: validateMarketPost } = useValidateMarketPostMutation()
@@ -458,7 +458,7 @@ export default function ComposeBox({ onCreated }: ComposeBoxProps) {
 
         if (isMultiOption) {
           const validOptions = options.filter((o) => o.trim().length > 0)
-          const payment = await createMarketPreDeposit(marketId, 10)
+          const payment = await createMarketPreDeposit(marketId, 10, true)
           txHash = payment.hash
 
           await createMarketPost({
@@ -475,7 +475,7 @@ export default function ComposeBox({ onCreated }: ComposeBoxProps) {
           })
         } else {
           // Binary Market Pre-Deposit
-          const payment = await createMarketPreDeposit(marketId, 10)
+          const payment = await createMarketPreDeposit(marketId, 10, true)
           txHash = payment.hash
 
           await createMarketPost({
@@ -506,11 +506,13 @@ export default function ComposeBox({ onCreated }: ComposeBoxProps) {
         setReviewedSignature("")
         setIsMarket(false)
         toast.success("Market successfully created!", { id: tid })
+        closeTxConfirm()
       }
 
       setContent("")
       onCreated()
     } catch (caught: any) {
+      closeTxConfirm()
       if (!caught.message?.includes("rejected")) {
         setError(caught.message || "Failed to submit post.")
         toast.error(caught.message || "Execution failed.", { id: tid })
