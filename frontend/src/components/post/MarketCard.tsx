@@ -292,12 +292,14 @@ export default function MarketCard({
           <div className="flex gap-2 mb-2">
             <div className="relative flex-1">
               <Input
-                className="h-10 w-full rounded-[10px] bg-white-surface pl-3 pr-12 font-mono text-xs text-charcoal-primary shadow-subtle border-0 focus-visible:ring-2 focus-visible:ring-sky-blue/25 focus-visible:ring-offset-0 focus-visible:border-transparent"
-                min="1"
-                onChange={(e) => setTradeAmount(e.target.value)}
+                className="h-10 w-full rounded-[10px] bg-white-surface pl-3 pr-12 font-mono text-xs text-charcoal-primary shadow-subtle border-0 cursor-pointer focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:border-transparent"
+                readOnly
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onOpenDetails?.()
+                }}
                 placeholder="Trade amount"
-                step="1"
-                type="number"
+                type="text"
                 value={tradeAmount}
               />
               <span className="absolute right-3 top-3 font-mono text-[9px] font-semibold uppercase text-ash">
@@ -305,69 +307,28 @@ export default function MarketCard({
               </span>
             </div>
           </div>
-          {isMulti ? (
-            <div
-              className={`grid gap-2 ${outcomeList.length === 3 ? "grid-cols-3" : "grid-cols-2 sm:grid-cols-4"}`}
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              className="clickable flex-1 text-center py-2 px-3 rounded-lg font-mono text-xs font-bold transition-all duration-150 bg-meadow-green/10 text-meadow-green border border-meadow-green/20 hover:bg-meadow-green/20"
+              onClick={(e) => {
+                e.stopPropagation()
+                onOpenDetails?.()
+              }}
+              type="button"
             >
-              {outcomeList.map((outcomeName, idx) => {
-                const price = outcomePrices?.[idx] ?? 1 / outcomeCount
-                const priceCents = Math.round(price * 100)
-                const isBuyingThis =
-                  actionLoadingStatus === `buy_${idx}` ||
-                  (actionLoadingStatus &&
-                    actionLoadingStatus.toLowerCase() ===
-                      `buy_${outcomeName.toLowerCase()}`)
-
-                return (
-                  <button
-                    key={outcomeName}
-                    className="clickable flex-1 text-center py-2 px-1.5 rounded-lg font-mono text-xs font-bold transition-all duration-150 bg-sky-blue/10 text-sky-blue border border-sky-blue/20 hover:bg-sky-blue/20 disabled:cursor-not-allowed disabled:opacity-40 flex flex-col items-center justify-center gap-0.5"
-                    disabled={
-                      actionLoading || !isConnected || Number(tradeAmount) <= 0
-                    }
-                    onClick={() =>
-                      onUsdcVote?.(outcomeName, Number(tradeAmount))
-                    }
-                    type="button"
-                  >
-                    <span className="truncate max-w-full px-1">
-                      {outcomeName}
-                    </span>
-                    <span className="text-[10px] opacity-80 font-normal">
-                      {isBuyingThis ? "Buying..." : `${priceCents}¢`}
-                    </span>
-                  </button>
-                )
-              })}
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                className="clickable flex-1 text-center py-2 px-3 rounded-lg font-mono text-xs font-bold transition-all duration-150 bg-meadow-green/10 text-meadow-green border border-meadow-green/20 hover:bg-meadow-green/20 disabled:cursor-not-allowed disabled:opacity-40"
-                disabled={
-                  actionLoading || !isConnected || Number(tradeAmount) <= 0
-                }
-                onClick={() => onUsdcVote?.("YES", Number(tradeAmount))}
-                type="button"
-              >
-                {actionLoadingStatus === "buy_yes"
-                  ? "Buying..."
-                  : `BUY ${yesLabel}`}
-              </button>
-              <button
-                className="clickable flex-1 text-center py-2 px-3 rounded-lg font-mono text-xs font-bold transition-all duration-150 bg-ember-orange/10 text-ember-orange border border-ember-orange/20 hover:bg-ember-orange/15 disabled:cursor-not-allowed disabled:opacity-40"
-                disabled={
-                  actionLoading || !isConnected || Number(tradeAmount) <= 0
-                }
-                onClick={() => onUsdcVote?.("NO", Number(tradeAmount))}
-                type="button"
-              >
-                {actionLoadingStatus === "buy_no"
-                  ? "Buying..."
-                  : `BUY ${noLabel}`}
-              </button>
-            </div>
-          )}
+              BUY
+            </button>
+            <button
+              className="clickable flex-1 text-center py-2 px-3 rounded-lg font-mono text-xs font-bold transition-all duration-150 bg-ember-orange/10 text-ember-orange border border-ember-orange/20 hover:bg-ember-orange/15"
+              onClick={(e) => {
+                e.stopPropagation()
+                onOpenDetails?.()
+              }}
+              type="button"
+            >
+              SELL
+            </button>
+          </div>
         </div>
       )}
 

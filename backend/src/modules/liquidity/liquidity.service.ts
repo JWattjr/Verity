@@ -399,11 +399,23 @@ export class LiquidityService {
     const oldPoolStatus = pool.status
 
     try {
+      const onChainVoided = await this.blockchainService.readOnChainMarketVoided(marketId)
+      const isVoided = onChainVoided || oldPoolStatus === "voided"
+
       const onChainState = await this.blockchainService.readPoolBalances(
         marketId as `0x${string}`,
       )
 
-      if (onChainState.active) {
+      if (isVoided) {
+        const escrowBalance = await this.blockchainService.readEscrowBalance(
+          marketId as `0x${string}`,
+        )
+        pool.yesBalance = 0
+        pool.noBalance = 0
+        pool.totalLPShares = 0
+        pool.currentPoolBalance = Number(escrowBalance) / 1e6
+        pool.status = "voided"
+      } else if (onChainState.active) {
         pool.yesBalance = Number(onChainState.yesBalance) / 1e6
         pool.noBalance = Number(onChainState.noBalance) / 1e6
         pool.totalLPShares = Number(onChainState.totalLPShares) / 1e6
@@ -450,7 +462,7 @@ export class LiquidityService {
         pool.status = "funding"
       }
 
-      if (onChainState.resolved) {
+      if (onChainState.resolved && !isVoided) {
         pool.status = "resolved"
       }
 
@@ -471,7 +483,12 @@ export class LiquidityService {
           market.liquidity = pool.currentPoolBalance
           changed = true
         }
-        if (onChainState.resolved) {
+        if (isVoided) {
+          if (market.status !== "voided") {
+            market.status = "voided"
+            changed = true
+          }
+        } else if (onChainState.resolved) {
           if (market.status !== "resolved") {
             const onChainMarket =
               await this.blockchainService.readOnChainMarketState(marketId)

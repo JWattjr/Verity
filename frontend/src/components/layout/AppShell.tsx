@@ -39,7 +39,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         </main>
 
         {!isFullWidthPage && (
-          <aside className="sticky top-0 hidden h-screen w-[312px] shrink-0 flex-col py-4 lg:flex">
+          <aside className="sticky top-0 hidden h-screen w-[340px] shrink-0 flex-col py-4 lg:flex">
             <RightPanel />
           </aside>
         )}

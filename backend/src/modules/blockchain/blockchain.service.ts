@@ -1082,6 +1082,24 @@ export class BlockchainService implements OnModuleInit {
     }
   }
 
+  async readOnChainMarketVoided(marketId: string): Promise<boolean> {
+    const formattedMarketId = this.formatMarketId(marketId)
+    try {
+      const result = await this.publicClient.readContract({
+        address: this.factoryAddress,
+        abi: this.factoryAbi,
+        functionName: "marketRegistry",
+        args: [formattedMarketId],
+      })
+      // Result returns [creator, deadline, fundingDeadline, registered, funded, resolved, voided, outcomeCount]
+      return Boolean(result && result[6])
+    } catch (error) {
+      throw new Error(
+        `Failed to read on-chain market registry for ${marketId}: ${error.message}`,
+      )
+    }
+  }
+
   async getUserOnChainBalances(
     marketId: string,
     userAddress: string,

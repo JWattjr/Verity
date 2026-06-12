@@ -1,4 +1,8 @@
-export default function PvpArenaSkeleton({ optionCount = 5 }: { optionCount?: number }) {
+export default function PvpArenaSkeleton({
+  optionCount = 5,
+}: {
+  optionCount?: number
+}) {
   return (
     <div className="lg:col-span-2 flex flex-col gap-4 animate-pulse">
       <div className="verity-card p-6 flex flex-col md:flex-row items-center justify-between gap-4">

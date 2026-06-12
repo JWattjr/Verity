@@ -48,7 +48,7 @@ export default function PreMarketFundingPanel({
           <p className="mt-1 text-sm tracking-[-0.18px] text-ash">
             {activeOptionName
               ? `Fund the launch pool for the option: ${activeOptionName}. Each outcome option has a separate liquidity pool and must be funded individually.`
-              : "Fund this market's launch pool. Contributions help open trading and may earn liquidity rewards."}
+              : `Fund this market's launch pool. Contributions convert to LP shares once the pool hits ${minPoolBalance} USDC.`}
           </p>
         </div>
         <span className="rounded-full bg-meadow-green/10 px-3 py-1 font-mono text-xs font-semibold text-charcoal-primary shadow-subtle">
@@ -167,10 +167,6 @@ export default function PreMarketFundingPanel({
                 {actionLoading === "add_lp" ? "Funding..." : "Fund Pool"}
               </button>
             </div>
-            <p className="mt-2 font-mono text-[10px] leading-relaxed text-ash">
-              Contributions convert to LP shares once the pool hits the{" "}
-              {minPoolBalance} USDC launch target.
-            </p>
           </div>
         )}
       </div>
