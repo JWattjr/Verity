@@ -32,6 +32,29 @@ import { calculatePvpResultXp, calculatePvpScore } from "./pvp-scoring"
 import type { PvpResult } from "./pvp-scoring"
 import { AgentService } from "../agent/agent.service"
 
+export const BOT_PROFILES = [
+  { username: "alex_g", displayName: "Alex Green" },
+  { username: "charlie_k", displayName: "Charlie King" },
+  { username: "sam_smith", displayName: "Sam Smith" },
+  { username: "jordan_d", displayName: "Jordan Davis" },
+  { username: "taylor_m", displayName: "Taylor Miller" },
+  { username: "morgan_p", displayName: "Morgan Perry" },
+  { username: "casey_r", displayName: "Casey Reed" },
+  { username: "jamie_b", displayName: "Jamie Bell" },
+  { username: "skyler_w", displayName: "Skyler White" },
+  { username: "riley_h", displayName: "Riley Hall" },
+  { username: "rowan_f", displayName: "Rowan Foster" },
+  { username: "harper_c", displayName: "Harper Cole" },
+  { username: "quinn_l", displayName: "Quinn Lane" },
+  { username: "finley_t", displayName: "Finley Taylor" },
+  { username: "avery_s", displayName: "Avery Stone" },
+  { username: "reese_v", displayName: "Reese Vance" },
+  { username: "hayden_p", displayName: "Hayden Pratt" },
+  { username: "dylan_y", displayName: "Dylan Yates" },
+  { username: "parker_n", displayName: "Parker Nash" },
+  { username: "logan_x", displayName: "Logan Cruz" }
+]
+
 export function determineOptionGroup(
   optionName: string,
   teamA: string,
@@ -443,12 +466,136 @@ export class PvpService {
       await child.save()
     }
 
+    await this.matchRemainingTicketsWithBot(parentMarketId)
+
     this.logger.log(
       `Admin ${adminId} successfully locked PvP Event: ${parentMarketId}`,
     )
 
     this.socketGateway.broadcastToRoom("feed", "feed-updated", {})
     return { success: true }
+  }
+
+  async matchRemainingTicketsWithBot(parentMarketId: string) {
+    const queuedTickets = await this.pvpTicketModel.find({
+      parentMarketId: new Types.ObjectId(parentMarketId),
+      status: "queued",
+    })
+
+    if (queuedTickets.length === 0) {
+      return
+    }
+
+    const childMarkets = await this.marketModel.find({
+      parentMarketId: new Types.ObjectId(parentMarketId),
+      marketType: "child",
+    })
+
+    for (const ticket of queuedTickets) {
+      const profile = BOT_PROFILES[Math.floor(Math.random() * BOT_PROFILES.length)]
+
+      let botUser = await this.userModel.findOne({ username: profile.username })
+      if (!botUser) {
+        botUser = await this.userModel.create({
+          username: profile.username,
+          displayName: profile.displayName,
+          role: "user",
+          isOnboarded: true,
+          avatarUrl: null,
+        })
+      }
+
+      const botPicks: any[] = []
+      for (const userPick of ticket.picks) {
+        const child = childMarkets.find(
+          (c) => c._id.toString() === userPick.marketId.toString(),
+        )
+        if (!child) continue
+
+        let selection = ""
+        if (child.outcomeCount && child.outcomeCount > 2) {
+          const outcomes =
+            child.outcomes && child.outcomes.length > 0
+              ? child.outcomes
+              : ["YES", "NO"]
+          selection = outcomes[Math.floor(Math.random() * outcomes.length)]
+        } else {
+          selection = Math.random() < 0.5 ? "YES" : "NO"
+        }
+
+        botPicks.push({
+          marketId: child._id,
+          selection,
+          isCorrect: null,
+        })
+      }
+
+      const botTicket = await this.pvpTicketModel.create({
+        userId: botUser._id,
+        parentMarketId: ticket.parentMarketId,
+        picks: botPicks,
+        status: "matched",
+        doubleBoostActive: false,
+      })
+
+      let divergence = 0
+      for (const pick of ticket.picks) {
+        const botPick = botPicks.find(
+          (p) => p.marketId.toString() === pick.marketId.toString(),
+        )
+        if (botPick && botPick.selection !== pick.selection) {
+          divergence += 1
+        }
+      }
+
+      const match = await this.pvpMatchModel.create({
+        parentMarketId: ticket.parentMarketId,
+        ticket1Id: ticket._id,
+        ticket2Id: botTicket._id,
+        user1Id: ticket.userId,
+        user2Id: botUser._id,
+        divergenceScore: divergence,
+        status: "matched",
+      })
+
+      ticket.status = "matched"
+      ticket.matchId = match._id
+      ticket.opponentTicketId = botTicket._id
+      await ticket.save()
+
+      botTicket.matchId = match._id
+      botTicket.opponentTicketId = ticket._id
+      await botTicket.save()
+
+      this.clearSyncCache(ticket.userId.toString(), parentMarketId)
+
+      this.socketGateway.broadcastToRoom(
+        `user:${ticket.userId.toString()}`,
+        "pvp-matched",
+        { matchId: match._id.toString() },
+      )
+
+      await this.notificationsService.createNotification(
+        ticket.userId.toString(),
+        botUser._id.toString(),
+        "pvp_matched",
+        "PvP Arena Opponent Found!",
+        `You've been matched against @${botUser.username} for the event with a selection divergence of ${divergence} picks.`,
+        match._id.toString(),
+      )
+
+      this.logger.log(
+        `Matched unmatched ticket ${ticket._id} with bot ticket ${botTicket._id} inside match: ${match._id}`,
+      )
+
+      // Cascade resolved states for already resolved child markets
+      for (const child of childMarkets) {
+        if (child.status === "resolved" || child.resolvedOutcome) {
+          const outcome = child.resolvedOutcome || (child.winningOutcomeIndex === 0 ? "YES" : "NO")
+          await this.resolvePvpMatchesForMarket(child._id.toString(), outcome)
+        }
+      }
+    }
   }
 
   async getActiveEvents() {
@@ -1034,43 +1181,51 @@ export class PvpService {
       ticket2.doubleBoostActive,
     )
 
+    const isBot1 = BOT_PROFILES.some((p) => p.username === user1.username)
+    const isBot2 = BOT_PROFILES.some((p) => p.username === user2.username)
+
     // 5. Update user stats
-    user1.arenaXp += xp1
-    user2.arenaXp += xp2
-
-    user1.pvpTicketsSubmittedCount += 1
-    user2.pvpTicketsSubmittedCount += 1
-
-    if (winnerId) {
-      if (winnerId.toString() === user1._id.toString()) {
-        user1.pvpMatchesWonCount += 1
-        user2.pvpMatchesLostCount += 1
-
-        // A referred player's first win grants two boosts to their referrer.
-        if (!user1.hasWonFirstPvpDuel) {
-          user1.hasWonFirstPvpDuel = true
-          if (user1.referredById) {
-            await this.awardReferrerFirstWinBoosts(user1)
+    if (!isBot1) {
+      user1.arenaXp += xp1
+      user1.pvpTicketsSubmittedCount += 1
+      if (winnerId) {
+        if (winnerId.toString() === user1._id.toString()) {
+          user1.pvpMatchesWonCount += 1
+          if (!user1.hasWonFirstPvpDuel) {
+            user1.hasWonFirstPvpDuel = true
+            if (user1.referredById) {
+              await this.awardReferrerFirstWinBoosts(user1)
+            }
           }
+        } else {
+          user1.pvpMatchesLostCount += 1
         }
       } else {
-        user2.pvpMatchesWonCount += 1
-        user1.pvpMatchesLostCount += 1
-
-        if (!user2.hasWonFirstPvpDuel) {
-          user2.hasWonFirstPvpDuel = true
-          if (user2.referredById) {
-            await this.awardReferrerFirstWinBoosts(user2)
-          }
-        }
+        user1.pvpMatchesDrawnCount += 1
       }
-    } else {
-      user1.pvpMatchesDrawnCount += 1
-      user2.pvpMatchesDrawnCount += 1
+      await user1.save()
     }
 
-    // Save users
-    await Promise.all([user1.save(), user2.save()])
+    if (!isBot2) {
+      user2.arenaXp += xp2
+      user2.pvpTicketsSubmittedCount += 1
+      if (winnerId) {
+        if (winnerId.toString() === user2._id.toString()) {
+          user2.pvpMatchesWonCount += 1
+          if (!user2.hasWonFirstPvpDuel) {
+            user2.hasWonFirstPvpDuel = true
+            if (user2.referredById) {
+              await this.awardReferrerFirstWinBoosts(user2)
+            }
+          }
+        } else {
+          user2.pvpMatchesLostCount += 1
+        }
+      } else {
+        user2.pvpMatchesDrawnCount += 1
+      }
+      await user2.save()
+    }
 
     // 6. Update Match and Ticket records
     match.status = "resolved"
@@ -1089,26 +1244,30 @@ export class PvpService {
     await ticket2.save()
 
     // Broadcast Socket events
-    this.socketGateway.broadcastToRoom(
-      `user:${user1._id.toString()}`,
-      "pvp-resolved",
-      { matchId: match._id.toString() },
-    )
-    this.socketGateway.broadcastToRoom(
-      `user:${user1._id.toString()}`,
-      "user-updated",
-      {},
-    )
-    this.socketGateway.broadcastToRoom(
-      `user:${user2._id.toString()}`,
-      "pvp-resolved",
-      { matchId: match._id.toString() },
-    )
-    this.socketGateway.broadcastToRoom(
-      `user:${user2._id.toString()}`,
-      "user-updated",
-      {},
-    )
+    if (!isBot1) {
+      this.socketGateway.broadcastToRoom(
+        `user:${user1._id.toString()}`,
+        "pvp-resolved",
+        { matchId: match._id.toString() },
+      )
+      this.socketGateway.broadcastToRoom(
+        `user:${user1._id.toString()}`,
+        "user-updated",
+        {},
+      )
+    }
+    if (!isBot2) {
+      this.socketGateway.broadcastToRoom(
+        `user:${user2._id.toString()}`,
+        "pvp-resolved",
+        { matchId: match._id.toString() },
+      )
+      this.socketGateway.broadcastToRoom(
+        `user:${user2._id.toString()}`,
+        "user-updated",
+        {},
+      )
+    }
 
     // In-app Notifications
     const u1 = user1.username
@@ -1124,22 +1283,26 @@ export class PvpService {
         : "LOST ❌"
       : "TIED 🤝"
 
-    await this.notificationsService.createNotification(
-      user1._id.toString(),
-      user2._id.toString(),
-      "pvp_resolved",
-      `PvP Duel Resolved: You ${res1}`,
-      `Your battle against @${u2} resolved. Score: ${score1}/${ticket1.picks.length} vs ${score2}/${ticket2.picks.length}. Arena XP earned: +${xp1}.`,
-      match._id.toString(),
-    )
-    await this.notificationsService.createNotification(
-      user2._id.toString(),
-      user1._id.toString(),
-      "pvp_resolved",
-      `PvP Duel Resolved: You ${res2}`,
-      `Your battle against @${u1} resolved. Score: ${score2}/${ticket2.picks.length} vs ${score1}/${ticket1.picks.length}. Arena XP earned: +${xp2}.`,
-      match._id.toString(),
-    )
+    if (!isBot1) {
+      await this.notificationsService.createNotification(
+        user1._id.toString(),
+        user2._id.toString(),
+        "pvp_resolved",
+        `PvP Duel Resolved: You ${res1}`,
+        `Your battle against @${u2} resolved. Score: ${score1}/${ticket1.picks.length} vs ${score2}/${ticket2.picks.length}. Arena XP earned: +${xp1}.`,
+        match._id.toString(),
+      )
+    }
+    if (!isBot2) {
+      await this.notificationsService.createNotification(
+        user2._id.toString(),
+        user1._id.toString(),
+        "pvp_resolved",
+        `PvP Duel Resolved: You ${res2}`,
+        `Your battle against @${u1} resolved. Score: ${score2}/${ticket2.picks.length} vs ${score1}/${ticket1.picks.length}. Arena XP earned: +${xp2}.`,
+        match._id.toString(),
+      )
+    }
   }
 
   private async awardReferrerFirstWinBoosts(referredPlayer: UserDocument) {
@@ -1174,11 +1337,25 @@ export class PvpService {
     }
 
     // Find the latest active ticket (either queued, matched, or resolved)
-    const ticket = await this.pvpTicketModel
+    let ticket = await this.pvpTicketModel
       .findOne(query)
       .sort({ createdAt: -1 })
 
     if (!ticket) return null
+
+    // Just-In-Time Bot Matchmaking if lockTime limit has passed
+    if (ticket.status === "queued") {
+      const parent = await this.marketModel.findById(ticket.parentMarketId)
+      if (parent) {
+        const lockTimeLimit = parent.lockTime || parent.deadline
+        if (new Date() >= lockTimeLimit) {
+          await this.matchRemainingTicketsWithBot(parent._id.toString())
+          // Re-fetch ticket to get updated matched status
+          ticket = await this.pvpTicketModel.findById(ticket._id)
+          if (!ticket) return null
+        }
+      }
+    }
 
     let match: PvpMatchDocument | null = null
     let opponent: UserDocument | null = null

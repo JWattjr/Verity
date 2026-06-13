@@ -922,6 +922,8 @@ export class MarketsService implements OnModuleInit {
 
     // If this is a PvP parent market, cascade resolution to all child markets
     if (market.marketType === "parent") {
+      await this.pvpService.matchRemainingTicketsWithBot(marketId)
+
       const childMarkets = await this.marketModel.find({
         parentMarketId: market._id,
         status: { $ne: "resolved" },

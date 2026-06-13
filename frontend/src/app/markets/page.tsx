@@ -25,7 +25,7 @@ function MarketsContent() {
   const searchParams = useSearchParams()
   const tabQuery = searchParams.get("tab") as MarketsTab | null
   const [activeTab, setActiveTab] = useState<MarketsTab>(
-    (tabQuery === "general" || tabQuery === "pvp-arena") ? tabQuery : "general"
+    tabQuery === "general" || tabQuery === "pvp-arena" ? tabQuery : "general",
   )
   const { profile } = useWalletProfile()
 
@@ -45,7 +45,8 @@ function MarketsContent() {
   // PvP API queries
   const { data: pvpEventsRaw = [], isLoading: pvpEventsLoading } =
     useActivePvpEventsQuery()
-  const { data: myActiveTicketEvents = [], isLoading: myTicketsLoading } = useMyActivePvpTicketsQuery()
+  const { data: myActiveTicketEvents = [], isLoading: myTicketsLoading } =
+    useMyActivePvpTicketsQuery()
 
   // Merge active events + events where user has active tickets (dedup by id)
   const pvpEvents = useMemo(() => {
@@ -71,7 +72,9 @@ function MarketsContent() {
     })
   }, [pvpEventsRaw, myActiveTicketEvents])
 
-  const [selectedPvpEventId, setSelectedPvpEventId] = useState<string | null>(null)
+  const [selectedPvpEventId, setSelectedPvpEventId] = useState<string | null>(
+    null,
+  )
   const [hasManuallySelected, setHasManuallySelected] = useState<boolean>(false)
 
   // Sync selected event to query param or the most recent one
@@ -185,7 +188,11 @@ function MarketsContent() {
 
 export default function MarketsPage() {
   return (
-    <Suspense fallback={<div className="w-full text-center py-12 text-ash">Loading...</div>}>
+    <Suspense
+      fallback={
+        <div className="w-full text-center py-12 text-ash">Loading...</div>
+      }
+    >
       <MarketsContent />
     </Suspense>
   )
