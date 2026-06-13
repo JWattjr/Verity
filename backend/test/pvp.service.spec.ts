@@ -187,11 +187,7 @@ describe("PvpService", () => {
       // User 2: 2 correct out of 3 picks (66.7% accuracy)
       const ticket2: any = {
         userId: mockUser2._id,
-        picks: [
-          { isCorrect: true },
-          { isCorrect: true },
-          { isCorrect: false },
-        ],
+        picks: [{ isCorrect: true }, { isCorrect: true }, { isCorrect: false }],
         doubleBoostActive: false,
         save: jest.fn(),
       }
@@ -230,11 +226,7 @@ describe("PvpService", () => {
       // User 2: 2 correct out of 3 picks (score = 2)
       const ticket2: any = {
         userId: mockUser2._id,
-        picks: [
-          { isCorrect: true },
-          { isCorrect: true },
-          { isCorrect: false },
-        ],
+        picks: [{ isCorrect: true }, { isCorrect: true }, { isCorrect: false }],
         doubleBoostActive: false,
         save: jest.fn(),
       }
@@ -257,11 +249,7 @@ describe("PvpService", () => {
       // User 1: 3 correct out of 3 picks, but total child markets is 5.
       const ticket1: any = {
         userId: mockUser1._id,
-        picks: [
-          { isCorrect: true },
-          { isCorrect: true },
-          { isCorrect: true },
-        ],
+        picks: [{ isCorrect: true }, { isCorrect: true }, { isCorrect: true }],
         doubleBoostActive: false,
         save: jest.fn(),
       }
@@ -285,7 +273,7 @@ describe("PvpService", () => {
 
       // User 2 wins (score 5 > 3)
       expect(mockMatch.winnerId.toString()).toBe(mockUser2._id.toString())
-      
+
       // User 1 (loss) got 3/3, score = 3, child markets = 5.
       // Loss XP = 30. No perfect bonus because 3 !== 5.
       expect(mockUser1.arenaXp).toBe(130) // 100 + 30
