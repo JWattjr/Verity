@@ -11,7 +11,10 @@ import {
 } from "@/store/verity/verityQueries"
 import { toast } from "@/lib/toast"
 import { Lock, ArrowRight } from "lucide-react"
-import PvpMatchupCarousel, { getCountryFlag, parseEventTeams } from "./PvpMatchupCarousel"
+import PvpMatchupCarousel, {
+  getCountryFlag,
+  parseEventTeams,
+} from "./PvpMatchupCarousel"
 
 // Sub-components
 import PvpArenaSkeleton from "./PvpArenaSkeleton"
@@ -86,17 +89,25 @@ export default function PvpArenaTab({
     if (!sortedPvpEvents || sortedPvpEvents.length === 0) return null
     if (selectedPvpEventId) {
       return (
-        sortedPvpEvents.find((e: any) => e.id === selectedPvpEventId) || sortedPvpEvents[0]
+        sortedPvpEvents.find((e: any) => e.id === selectedPvpEventId) ||
+        sortedPvpEvents[0]
       )
     }
     // Find the first open event, or default to the last closed one
-    const firstOpen = sortedPvpEvents.find(e => {
+    const firstOpen = sortedPvpEvents.find((e) => {
       const timeStr = e.lockTime || e.deadline
       if (!timeStr) return false
-      const isClosed = new Date(timeStr).getTime() <= Date.now() || e.status === "resolved" || e.status === "closed"
+      const isClosed =
+        new Date(timeStr).getTime() <= Date.now() ||
+        e.status === "resolved" ||
+        e.status === "closed"
       return !isClosed
     })
-    return firstOpen || sortedPvpEvents[sortedPvpEvents.length - 1] || sortedPvpEvents[0]
+    return (
+      firstOpen ||
+      sortedPvpEvents[sortedPvpEvents.length - 1] ||
+      sortedPvpEvents[0]
+    )
   }, [sortedPvpEvents, selectedPvpEventId])
 
   useEffect(() => {
@@ -431,9 +442,7 @@ export default function PvpArenaTab({
     pvpStatusLoading
 
   if (!mounted || pvpEventsLoading) {
-    return (
-      <PvpArenaSkeleton optionCount={5} />
-    )
+    return <PvpArenaSkeleton optionCount={5} />
   }
 
   // ─── Render ─────────────────────────────────────────────────
@@ -492,11 +501,12 @@ export default function PvpArenaTab({
                       🔒 Predictions Closed
                     </span>
                     <h3 className="text-2xl font-black font-family leading-tight text-charcoal-primary dark:text-white">
-                      Whistle's blown on {parsedTeams.teamA} vs {parsedTeams.teamB}
+                      Whistle's blown on {parsedTeams.teamA} vs{" "}
+                      {parsedTeams.teamB}
                     </h3>
                     <p className="text-xs text-ash leading-relaxed font-sans max-w-xl">
-                      Kickoff has passed — but the arena's still buzzing. Jump into
-                      one of these open matches and keep your streak alive.
+                      Kickoff has passed — but the arena's still buzzing. Jump
+                      into one of these open matches and keep your streak alive.
                     </p>
                   </div>
                 </div>
@@ -525,10 +535,12 @@ export default function PvpArenaTab({
                         {recommended.map((evt) => {
                           const { teamA: recTeamA, teamB: recTeamB } =
                             parseEventTeams(evt.question)
-                          const vol = evt.options?.reduce(
-                            (sum: number, opt: any) => sum + Number(opt.liquidity ?? 0),
-                            0,
-                          ) ?? 0
+                          const vol =
+                            evt.options?.reduce(
+                              (sum: number, opt: any) =>
+                                sum + Number(opt.liquidity ?? 0),
+                              0,
+                            ) ?? 0
 
                           // Calculate remaining time label
                           let timeLabel = ""
@@ -537,7 +549,9 @@ export default function PvpArenaTab({
                             const target = new Date(lockTimeStr)
                             const diff = target.getTime() - Date.now()
                             if (diff > 0) {
-                              const diffHrs = Math.floor(diff / (1000 * 60 * 60))
+                              const diffHrs = Math.floor(
+                                diff / (1000 * 60 * 60),
+                              )
                               const diffMins = Math.floor(
                                 (diff % (1000 * 60 * 60)) / (1000 * 60),
                               )
@@ -566,7 +580,8 @@ export default function PvpArenaTab({
                                   </span>
                                 </div>
                                 <span className="block text-[9px] font-mono text-ash font-medium">
-                                  {timeLabel ? `${timeLabel} · ` : ""}${vol.toLocaleString()}
+                                  {timeLabel ? `${timeLabel} · ` : ""}$
+                                  {vol.toLocaleString()}
                                 </span>
                               </div>
                               <div className="h-7 w-7 rounded-full bg-stone-100 dark:bg-zinc-850 flex items-center justify-center shrink-0 text-charcoal-primary dark:text-zinc-300 group-hover:bg-indigo-600 group-hover:text-white transition-all">
