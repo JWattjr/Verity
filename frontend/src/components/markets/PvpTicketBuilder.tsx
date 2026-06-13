@@ -2,11 +2,16 @@
 
 import { useMemo } from "react"
 import { Input } from "@/components/ui/input"
-import { HelpCircle, ChevronRight } from "lucide-react"
+import { HelpCircle, ChevronRight, Check } from "lucide-react"
 import ArenaCategory, { getCategoryMeta } from "./PvpArenaCategory"
 import PvpClaimBanner from "./PvpClaimBanner"
+import { getCountryFlag } from "./PvpMatchupCarousel"
 
-const cleanOutcomeName = (name: string, teamA: string, teamB: string) => {
+export const cleanOutcomeName = (
+  name: string,
+  teamA: string,
+  teamB: string,
+) => {
   const lowerName = name.toLowerCase().trim()
   const lowerA = teamA.toLowerCase().trim()
   const lowerB = teamB.toLowerCase().trim()
@@ -98,41 +103,62 @@ export default function PvpTicketBuilder({
 }: PvpTicketBuilderProps) {
   const selectionCount = Object.keys(pvpSelections).length
 
+  const totalVolume = useMemo(() => {
+    if (!selectedPvpEvent?.options) return 0
+    return selectedPvpEvent.options.reduce(
+      (sum: number, opt: any) => sum + Number(opt.liquidity ?? 0),
+      0,
+    )
+  }, [selectedPvpEvent])
+
+  const formattedDate = useMemo(() => {
+    const timeStr = selectedPvpEvent?.lockTime || selectedPvpEvent?.deadline
+    if (!timeStr) return ""
+    const date = new Date(timeStr)
+    const month = date.toLocaleDateString(undefined, {
+      month: "short",
+    })
+    const day = date.toLocaleDateString(undefined, {
+      day: "numeric",
+    })
+    const time = date.toLocaleTimeString(undefined, {
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    })
+    return `${month} ${day}, ${time}`
+  }, [selectedPvpEvent])
+
+  const progressPercent = Math.min((selectionCount / 3) * 100, 100)
+
   return (
-    <div className="verity-card p-5 flex flex-col gap-4">
-      {/* Header */}
-      <div className="border-b border-border dark:border-zinc-800 pb-3 flex items-start justify-between gap-4">
-        <div>
-          <h3 className="text-lg font-bold tracking-tight text-charcoal-primary dark:text-white flex items-center gap-2">
-            Arena ticket builder
-          </h3>
-          <p className="text-xs text-ash mt-0.5">
-            Submit selections to queue for head-to-head matchup.
-          </p>
+    <div className="flex flex-col gap-5 w-full pb-20 relative">
+      {/* 1. Match Header Details */}
+      {selectedPvpEvent && (
+        <div className="flex flex-col gap-1 pb-1">
+          <div className="flex items-center gap-2.5 text-2xl font-black text-charcoal-primary dark:text-white">
+            <span className="text-3xl select-none">
+              {getCountryFlag(parsedTeams.teamA)}
+            </span>
+            <span className="text-sm font-semibold opacity-40 font-mono">
+              vs
+            </span>
+            <span className="text-3xl select-none">
+              {getCountryFlag(parsedTeams.teamB)}
+            </span>
+            <h1 className="font-sans ml-1.5 leading-none">
+              {parsedTeams.teamA} vs {parsedTeams.teamB}
+            </h1>
+          </div>
+          <div className="flex items-center gap-2 text-[10px] font-mono text-ash font-bold uppercase mt-1.5 tracking-wider">
+            <span>{formattedDate}</span>
+            <span>·</span>
+            <span>Vol ${totalVolume.toLocaleString()}</span>
+            <span>·</span>
+            <span>Minimum 3 picks</span>
+          </div>
         </div>
-        <div className="relative">
-          <button
-            type="button"
-            onMouseEnter={() => onSetShowTooltip(true)}
-            onMouseLeave={() => onSetShowTooltip(false)}
-            className="p-1.5 rounded-full text-ash hover:text-charcoal-primary dark:hover:text-white hover:bg-stone-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer shrink-0"
-            aria-label="Rules Info"
-          >
-            <HelpCircle className="h-5 w-5" />
-          </button>
-          {showTooltip && (
-            <div className="absolute right-0 top-9 z-50 w-72 p-4 rounded-xl bg-white dark:bg-zinc-950 border border-border dark:border-zinc-800 shadow-xl text-xs leading-relaxed text-charcoal-secondary dark:text-zinc-300 font-sans font-medium">
-              Each correct pick scores 1 point. Win: 100 Result XP, draw: 50,
-              loss: 30. A perfect score adds 20 XP, and an active boost applies
-              1.2x to the total.{" "}
-              <strong className="text-amber-600 dark:text-amber-400">
-                Note: You can select at most one prediction per category group
-                to build your ticket.
-              </strong>
-            </div>
-          )}
-        </div>
-      </div>
+      )}
 
       {/* Empty state / claim fallback when no events */}
       {pvpEvents.length === 0 && (
@@ -222,7 +248,9 @@ export default function PvpTicketBuilder({
                   type="number"
                   min="1"
                   max="1000"
-                  value={betAmountPerSelection === 0 ? "" : betAmountPerSelection}
+                  value={
+                    betAmountPerSelection === 0 ? "" : betAmountPerSelection
+                  }
                   disabled={isSubmitting}
                   onChange={(e) => {
                     const val = e.target.value
@@ -284,6 +312,32 @@ export default function PvpTicketBuilder({
             onClaim={onClaim}
             className="mt-4"
           />
+        </div>
+      )}
+
+      {/* 3. Floating Submit Bar */}
+      {selectionCount > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-[calc(100%-2rem)] max-w-2xl bg-[#121212] dark:bg-zinc-950 text-white p-3.5 px-4 rounded-2xl flex items-center justify-between shadow-2xl border border-zinc-850 dark:border-zinc-800/80 animate-in slide-in-from-bottom duration-300">
+          <div className="flex items-center gap-3">
+            <div className="h-7 w-7 rounded-full bg-zinc-800 dark:bg-zinc-900 border border-zinc-700/30 flex items-center justify-center text-xs font-bold font-mono text-[#FF4D00]">
+              {selectionCount}
+            </div>
+            <span className="text-xs font-bold text-zinc-200 font-sans tracking-wide">
+              All set — queue for matchup
+            </span>
+          </div>
+          <button
+            onClick={onSubmitTicket}
+            disabled={isSubmitting || selectionCount < 3}
+            className="px-5 py-2 bg-[#FF3E00] hover:bg-[#E03500] text-white font-bold uppercase tracking-wider text-[10px] rounded-lg transition-all shadow-md flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isSubmitting
+              ? "Submitting..."
+              : selectionCount < 3
+                ? `Select ${3 - selectionCount} more`
+                : "Submit ticket"}
+            <ChevronRight className="h-3.5 w-3.5 stroke-[3]" />
+          </button>
         </div>
       )}
     </div>
@@ -415,10 +469,8 @@ function MultiWayOutcomes({
           displayName.toLowerCase().includes("no goal") ||
           displayName.toLowerCase().includes("equal")
         const btnColor = isSelected
-          ? isDrawOption
-            ? "bg-amber-500 text-white shadow-md ring-2 ring-amber-400/30"
-            : "bg-emerald-600 text-white shadow-md ring-2 ring-emerald-400/30"
-          : "bg-stone-50/50 dark:bg-zinc-900/20 text-stone-600 dark:text-zinc-400 border border-stone-200/80 dark:border-zinc-800/60 hover:bg-stone-100/60 dark:hover:bg-zinc-800/40"
+          ? "bg-[#121212] dark:bg-zinc-100 text-white dark:text-zinc-950 font-bold shadow-md relative"
+          : "bg-[#FAF9F6] dark:bg-zinc-900/40 hover:bg-[#F3F1EC] dark:hover:bg-zinc-800/50 text-charcoal-primary dark:text-zinc-300 font-medium"
 
         return (
           <button
@@ -426,14 +478,34 @@ function MultiWayOutcomes({
             type="button"
             disabled={isSubmitting}
             onClick={() => onToggleSelection(firstOpt.id, outcomeName)}
-            className={`flex flex-col items-center justify-center gap-1 p-3 rounded-xl cursor-pointer transition-all ${btnColor} disabled:opacity-50 disabled:cursor-not-allowed`}
+            className={`flex flex-col items-center justify-center gap-1 p-3.5 rounded-xl cursor-pointer transition-all ${btnColor} disabled:opacity-50 disabled:cursor-not-allowed`}
           >
-            <span className="text-sm font-bold text-center leading-tight">
+            <span className="text-xs font-bold text-center leading-tight">
               {displayName}
             </span>
-            <span className="text-[10px] font-mono mt-0.5 opacity-70">
+            <span
+              className={`text-[9px] font-mono mt-1 opacity-70 ${isSelected ? "text-zinc-400 dark:text-zinc-600" : "text-ash"}`}
+            >
               {priceCents}¢
             </span>
+
+            {/* Red Check Circle Badge */}
+            {isSelected && (
+              <div className="absolute -top-1 -right-1 bg-[#FF3E00] text-white h-4.5 w-4.5 rounded-full flex items-center justify-center shadow-md ring-2 ring-white dark:ring-zinc-900">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="3.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="h-2 w-2"
+                >
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+              </div>
+            )}
           </button>
         )
       })}
@@ -482,31 +554,71 @@ function BinaryOutcomes({
         type="button"
         onClick={() => onToggleSelection(opt.id, "YES")}
         disabled={isSubmitting}
-        className={`flex flex-col items-center justify-center gap-1 p-3 rounded-xl cursor-pointer transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+        className={`flex flex-col items-center justify-center gap-1 p-3.5 rounded-xl cursor-pointer transition-all disabled:opacity-50 disabled:cursor-not-allowed relative ${
           pvpSelections[opt.id] === "YES"
-            ? `${catMeta.selectedBg} text-white shadow-md ring-2 ${catMeta.ring}`
-            : `${catMeta.unselectedBg} hover:opacity-80`
+            ? "bg-[#121212] dark:bg-zinc-100 text-white dark:text-zinc-950 font-bold shadow-md"
+            : "bg-[#FAF9F6] dark:bg-zinc-900/40 hover:bg-[#F3F1EC] dark:hover:bg-zinc-800/50 text-charcoal-primary dark:text-zinc-300 font-medium"
         }`}
       >
-        <span className="text-sm font-bold">{yesLabel}</span>
-        <span className="text-[10px] font-mono opacity-70">
+        <span className="text-xs font-bold">{yesLabel}</span>
+        <span
+          className={`text-[9px] font-mono mt-1 opacity-70 ${pvpSelections[opt.id] === "YES" ? "text-zinc-400 dark:text-zinc-600" : "text-ash"}`}
+        >
           {yesProb.toFixed(1)}¢
         </span>
+
+        {/* Red Check Circle Badge */}
+        {pvpSelections[opt.id] === "YES" && (
+          <div className="absolute -top-1 -right-1 bg-[#FF3E00] text-white h-4.5 w-4.5 rounded-full flex items-center justify-center shadow-md ring-2 ring-white dark:ring-zinc-900">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="3.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="h-2 w-2"
+            >
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+          </div>
+        )}
       </button>
       <button
         type="button"
         onClick={() => onToggleSelection(opt.id, "NO")}
         disabled={isSubmitting}
-        className={`flex flex-col items-center justify-center gap-1 p-3 rounded-xl cursor-pointer transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+        className={`flex flex-col items-center justify-center gap-1 p-3.5 rounded-xl cursor-pointer transition-all disabled:opacity-50 disabled:cursor-not-allowed relative ${
           pvpSelections[opt.id] === "NO"
-            ? `${catMeta.selectedBg} text-white shadow-md ring-2 ${catMeta.ring}`
-            : `${catMeta.unselectedBg} hover:opacity-80`
+            ? "bg-[#121212] dark:bg-zinc-100 text-white dark:text-zinc-950 font-bold shadow-md"
+            : "bg-[#FAF9F6] dark:bg-zinc-900/40 hover:bg-[#F3F1EC] dark:hover:bg-zinc-800/50 text-charcoal-primary dark:text-zinc-300 font-medium"
         }`}
       >
-        <span className="text-sm font-bold">{noLabel}</span>
-        <span className="text-[10px] font-mono opacity-70">
+        <span className="text-xs font-bold">{noLabel}</span>
+        <span
+          className={`text-[9px] font-mono mt-1 opacity-70 ${pvpSelections[opt.id] === "NO" ? "text-zinc-400 dark:text-zinc-600" : "text-ash"}`}
+        >
           {noProb.toFixed(1)}¢
         </span>
+
+        {/* Red Check Circle Badge */}
+        {pvpSelections[opt.id] === "NO" && (
+          <div className="absolute -top-1 -right-1 bg-[#FF3E00] text-white h-4.5 w-4.5 rounded-full flex items-center justify-center shadow-md ring-2 ring-white dark:ring-zinc-900">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="3.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="h-2 w-2"
+            >
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+          </div>
+        )}
       </button>
     </div>
   )

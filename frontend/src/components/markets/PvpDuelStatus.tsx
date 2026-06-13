@@ -1,10 +1,53 @@
-import { Swords, User, Bot } from "lucide-react"
+import { Swords, Loader2 } from "lucide-react"
 
 interface PvpDuelStatusProps {
   status: "queued" | "matched" | "resolved"
   pvpStatus: any
   runningScoreUser: number
   runningScoreOpponent: number
+  profile?: any
+}
+
+const opponentColors = [
+  "bg-[#ffbb26]", // sunburst-yellow
+  "bg-meadow-green",
+  "bg-ember-orange",
+  "bg-coral-red",
+]
+
+function getAvatarColor(username: string): string {
+  if (!username || username.toLowerCase() === "you") return "bg-sky-blue"
+  let hash = 0
+  for (let i = 0; i < username.length; i++) {
+    hash = username.charCodeAt(i) + ((hash << 5) - hash)
+  }
+  const index = Math.abs(hash) % opponentColors.length
+  return opponentColors[index]
+}
+
+// Custom brand avatar component with blob fallback
+function DuelAvatar({
+  avatarUrl,
+  username,
+}: {
+  avatarUrl?: string
+  username: string
+}) {
+  if (avatarUrl) {
+    return (
+      <div
+        className="h-10 w-10 shrink-0 rounded-full bg-cover bg-center ring-2 ring-white dark:ring-zinc-900 shadow-sm"
+        style={{ backgroundImage: `url(${avatarUrl})` }}
+      />
+    )
+  }
+
+  const blobBg = getAvatarColor(username)
+  return (
+    <div className={`verity-blob h-10 w-10 shrink-0 ${blobBg} ring-2 ring-white dark:ring-zinc-900`}>
+      <span className="verity-blob-smile" />
+    </div>
+  )
 }
 
 export default function PvpDuelStatus({
@@ -12,34 +55,36 @@ export default function PvpDuelStatus({
   pvpStatus,
   runningScoreUser,
   runningScoreOpponent,
+  profile,
 }: PvpDuelStatusProps) {
   if (status === "queued") {
     return (
-      <div className="verity-card p-6 flex flex-col md:flex-row items-center justify-between gap-4 relative overflow-hidden bg-sky-blue/10">
-        <div className="absolute top-0 left-0 w-full h-1 bg-sky-blue animate-pulse" />
+      <div className="verity-card p-6 flex flex-col md:flex-row items-center justify-between gap-5 relative overflow-hidden bg-gradient-to-b from-stone-50/50 to-stone-100/30 dark:from-zinc-900/30 dark:to-zinc-900/10 border border-border dark:border-zinc-800">
+        <div className="absolute top-0 left-0 w-full h-1 bg-indigo-500 animate-pulse" />
 
-        <div className="flex items-center gap-4">
-          <div className="relative h-16 w-16 rounded-full border border-sky-blue/20 flex items-center justify-center overflow-hidden shrink-0">
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(0,144,255,0.06),transparent)]" />
-            <div className="absolute h-full w-0.5 bg-sky-blue top-0 left-1/2 origin-bottom rotate-animate" />
-            <Swords className="h-6 w-6 text-sky-blue relative z-10 animate-pulse" />
+        <div className="flex items-center gap-4 text-center md:text-left flex-col md:flex-row">
+          <div className="relative h-14 w-14 rounded-full border border-indigo-150 dark:border-zinc-800 bg-white dark:bg-zinc-950 flex items-center justify-center shrink-0 shadow-sm">
+            <Loader2 className="h-6 w-6 text-indigo-500 animate-spin absolute" />
+            <Swords className="h-4.5 w-4.5 text-indigo-500 relative z-10" />
           </div>
-          <div className="text-left">
-            <h3 className="text-base font-bold tracking-tight text-charcoal-primary dark:text-white">
+          <div className="space-y-1">
+            <h3 className="text-base font-extrabold tracking-tight text-charcoal-primary dark:text-white">
               Scanning for Opponent...
             </h3>
-            <p className="text-xs text-ash mt-0.5">
-              Searching for a predictor with high selection divergence.
+            <p className="text-xs text-ash mt-0.5 font-medium leading-normal max-w-sm">
+              Searching for a predictor with high selection divergence to pair.
             </p>
           </div>
         </div>
 
-        <div className="bg-parchment-card dark:bg-zinc-950/40 px-3 py-2 rounded-[8px] border border-border dark:border-zinc-800 text-[10px] font-mono text-ash text-left space-y-0.5">
-          <p className="flex items-center gap-1.5 font-semibold text-sky-blue">
-            <span className="w-1.5 h-1.5 rounded-full bg-sky-blue animate-ping" />
+        <div className="bg-[#FAF9F6] dark:bg-zinc-900/40 px-4 py-3 rounded-xl border border-stone-200/20 dark:border-zinc-850/10 text-[10px] font-mono text-ash text-left space-y-1 shrink-0 w-full md:w-auto shadow-xs">
+          <p className="flex items-center gap-1.5 font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">
+            <span className="w-1.5 h-1.5 rounded-full bg-indigo-600 dark:bg-indigo-400 animate-ping" />
             <span>Ticket Active</span>
           </p>
-          <p>• Matchup: {pvpStatus.event?.question}</p>
+          <p className="truncate max-w-[200px]">
+            • Matchup: {pvpStatus.event?.question}
+          </p>
         </div>
       </div>
     )
@@ -55,29 +100,27 @@ export default function PvpDuelStatus({
         : "DRAW 🤝"
   const resultColor =
     runningScoreUser > runningScoreOpponent
-      ? "text-meadow-green"
+      ? "text-emerald-600 dark:text-emerald-400"
       : runningScoreUser < runningScoreOpponent
-        ? "text-ember-orange"
+        ? "text-[#FF4D00]"
         : "text-ash"
 
+  const userAvatarUrl = profile?.avatar_url || profile?.avatarUrl
+  const opponentAvatarUrl = pvpStatus.opponent?.avatar_url || pvpStatus.opponent?.avatarUrl
+
   return (
-    <div className="verity-card p-5 border border-sky-blue/30 dark:border-sky-blue/20 bg-sky-blue/5">
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+    <div className="verity-card p-5 bg-white dark:bg-zinc-900/30 border border-border dark:border-zinc-800 flex flex-col gap-4">
+      <div className="flex flex-col md:flex-row items-center justify-between gap-4 w-full">
         {/* Left: You */}
-        <div className="flex items-center gap-3 w-full sm:w-auto">
-          <div className="h-10 w-10 rounded-full bg-sky-blue/10 dark:bg-sky-blue/20 flex items-center justify-center border border-sky-blue/20 shrink-0">
-            <User className="h-5 w-5 text-sky-blue" />
-          </div>
-          <div className="text-left">
-            <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-ash">
-              Player 1
-            </span>
-            <h4 className="text-sm font-bold text-charcoal-primary dark:text-white leading-tight">
+        <div className="w-full md:w-auto md:min-w-[180px] flex items-center gap-3.5 p-3.5 rounded-2xl bg-[#FAF9F6] dark:bg-zinc-900/40 border border-stone-200/20 dark:border-zinc-850/10 shadow-xs shrink-0">
+          <DuelAvatar avatarUrl={userAvatarUrl} username="You" />
+          <div className="text-left min-w-0 flex-1">
+            <h4 className="text-sm font-extrabold text-charcoal-primary dark:text-white leading-tight truncate">
               You
             </h4>
-            <span className="text-[10px] font-mono text-sky-blue mt-0.5 block">
+            <span className="text-[10px] font-mono text-ash font-medium mt-0.5 block">
               Score:{" "}
-              <strong className="text-sm font-bold">
+              <strong className="text-xs font-bold text-indigo-600 dark:text-indigo-400">
                 {runningScoreUser} pts
               </strong>
             </span>
@@ -85,49 +128,44 @@ export default function PvpDuelStatus({
         </div>
 
         {/* Middle: VS / Result */}
-        <div className="flex flex-col items-center shrink-0">
+        <div className="flex-1 flex flex-col items-center justify-center text-center py-2 px-4">
           {isResolved ? (
             <span
-              className={`text-base font-extrabold uppercase tracking-widest ${resultColor}`}
+              className={`text-sm font-black uppercase tracking-wider ${resultColor} whitespace-nowrap`}
             >
               {resultLabel}
             </span>
           ) : (
-            <div className="h-8 w-8 rounded-full border border-border dark:border-zinc-800 bg-white-surface dark:bg-zinc-950 flex items-center justify-center shadow-sm">
-              <Swords className="h-4 w-4 text-sky-blue" />
+            <div className="h-8 w-8 rounded-full border border-border dark:border-zinc-800 bg-[#FAF9F6] dark:bg-zinc-950 flex items-center justify-center shadow-xs">
+              <Swords className="h-3.5 w-3.5 text-indigo-500" />
             </div>
           )}
-          <span className="text-[9px] font-mono text-stone-400 dark:text-zinc-500 mt-1">
-            Divergence: {pvpStatus.match?.divergenceScore} picks
+          <span className="text-[9px] font-mono text-ash font-bold uppercase tracking-wider mt-1.5">
+            Div: {pvpStatus.match?.divergenceScore ?? 0}
           </span>
         </div>
 
         {/* Right: Opponent */}
-        <div className="flex items-center gap-3 w-full sm:w-auto justify-end text-right">
-          <div className="text-right">
-            <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-ash">
-              Player 2
-            </span>
-            <h4 className="text-sm font-bold text-charcoal-primary dark:text-white leading-tight">
+        <div className="w-full md:w-auto md:min-w-[180px] flex items-center gap-3.5 p-3.5 rounded-2xl bg-[#FAF9F6] dark:bg-zinc-900/40 border border-stone-200/20 dark:border-zinc-850/10 shadow-xs shrink-0">
+          <div className="text-left min-w-0 flex-1 pl-1 pr-2">
+            <h4 className="text-sm font-extrabold text-charcoal-primary dark:text-white leading-tight truncate">
               @{pvpStatus.opponent?.username || "Opponent"}
             </h4>
-            <span className="text-[10px] font-mono text-sky-blue mt-0.5 block">
+            <span className="text-[10px] font-mono text-ash font-medium mt-0.5 block">
               Score:{" "}
-              <strong className="text-sm font-bold">
+              <strong className="text-xs font-bold text-indigo-600 dark:text-indigo-400">
                 {runningScoreOpponent} pts
               </strong>
             </span>
           </div>
-          <div className="h-10 w-10 rounded-full bg-zinc-100 dark:bg-zinc-900 flex items-center justify-center border border-border dark:border-zinc-800 shrink-0">
-            <Bot className="h-5 w-5 text-ash" />
-          </div>
+          <DuelAvatar avatarUrl={opponentAvatarUrl} username={pvpStatus.opponent?.username || "Opponent"} />
         </div>
       </div>
 
       {isResolved && (
-        <div className="mt-4 pt-4 border-t border-border dark:border-zinc-800">
-          <p className="text-xs text-ash">
-            Duel is resolved. Arena XP has been awarded.
+        <div className="pt-3 border-t border-dashed border-border dark:border-zinc-800 text-center">
+          <p className="text-[10px] font-mono font-bold uppercase tracking-wider text-ash">
+            Duel is resolved. Arena XP has been distributed.
           </p>
         </div>
       )}

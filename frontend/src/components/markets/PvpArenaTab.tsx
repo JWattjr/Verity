@@ -10,14 +10,11 @@ import {
   useExecuteMarketTradeMutation,
 } from "@/store/verity/verityQueries"
 import { toast } from "@/lib/toast"
-import { Lock } from "lucide-react"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+import { Lock, ArrowRight } from "lucide-react"
+import PvpMatchupCarousel, {
+  getCountryFlag,
+  parseEventTeams,
+} from "./PvpMatchupCarousel"
 
 // Sub-components
 import PvpArenaSkeleton from "./PvpArenaSkeleton"
@@ -79,15 +76,45 @@ export default function PvpArenaTab({
   }, [])
 
   // ─── Derived data ───────────────────────────────────────────
+  const sortedPvpEvents = useMemo(() => {
+    if (!pvpEvents) return []
+    return [...pvpEvents].sort((a, b) => {
+      const timeA = new Date(a.lockTime || a.deadline || 0).getTime()
+      const timeB = new Date(b.lockTime || b.deadline || 0).getTime()
+      return timeA - timeB
+    })
+  }, [pvpEvents])
+
   const selectedPvpEvent = useMemo(() => {
-    if (!pvpEvents || pvpEvents.length === 0) return null
+    if (!sortedPvpEvents || sortedPvpEvents.length === 0) return null
     if (selectedPvpEventId) {
       return (
-        pvpEvents.find((e: any) => e.id === selectedPvpEventId) || pvpEvents[0]
+        sortedPvpEvents.find((e: any) => e.id === selectedPvpEventId) ||
+        sortedPvpEvents[0]
       )
     }
-    return pvpEvents[0]
-  }, [pvpEvents, selectedPvpEventId])
+    // Find the first open event, or default to the last closed one
+    const firstOpen = sortedPvpEvents.find((e) => {
+      const timeStr = e.lockTime || e.deadline
+      if (!timeStr) return false
+      const isClosed =
+        new Date(timeStr).getTime() <= Date.now() ||
+        e.status === "resolved" ||
+        e.status === "closed"
+      return !isClosed
+    })
+    return (
+      firstOpen ||
+      sortedPvpEvents[sortedPvpEvents.length - 1] ||
+      sortedPvpEvents[0]
+    )
+  }, [sortedPvpEvents, selectedPvpEventId])
+
+  useEffect(() => {
+    if (selectedPvpEvent && selectedPvpEvent.id !== selectedPvpEventId) {
+      setSelectedPvpEventId(selectedPvpEvent.id)
+    }
+  }, [selectedPvpEvent, selectedPvpEventId, setSelectedPvpEventId])
 
   const runningScoreUser = useMemo(() => {
     if (!pvpStatus?.ticket?.picks) return 0
@@ -414,129 +441,183 @@ export default function PvpArenaTab({
     (!pvpStatus || pvpStatus?.event?.id !== selectedPvpEventId) &&
     pvpStatusLoading
 
-  if (!mounted || pvpEventsLoading || pvpStatusLoading || isPvpStatusPending) {
-    return (
-      <PvpArenaSkeleton optionCount={selectedPvpEvent?.options?.length || 5} />
-    )
+  if (!mounted || pvpEventsLoading) {
+    return <PvpArenaSkeleton optionCount={5} />
   }
 
   // ─── Render ─────────────────────────────────────────────────
   return (
     <div className="lg:col-span-2 flex flex-col gap-4">
-      {/* Event Selector Header Card */}
-      {pvpEvents.length > 0 && selectedPvpEvent && (
-        <div className="verity-card p-5 flex flex-col gap-4">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div className="space-y-1 flex-1">
-              <label className="block text-xs font-mono font-bold uppercase tracking-wider text-ash">
-                Select Matchup Event
-              </label>
-              <Select
-                value={selectedPvpEventId || ""}
-                onValueChange={(val) => setSelectedPvpEventId(val)}
-              >
-                <SelectTrigger className="w-full h-11 px-3 border border-border dark:border-zinc-800 bg-white-surface dark:bg-zinc-900 text-sm rounded-[10px] text-charcoal-primary dark:text-white focus:border-indigo-500 transition-colors cursor-pointer justify-between">
-                  <SelectValue placeholder="Select Matchup Event" />
-                </SelectTrigger>
-                <SelectContent
-                  position="popper"
-                  className="bg-white dark:bg-zinc-900 border border-border dark:border-zinc-800"
-                >
-                  {pvpEvents.map((evt: any) => (
-                    <SelectItem
-                      key={evt.id}
-                      value={evt.id}
-                      className="cursor-pointer"
-                    >
-                      {evt.question}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="flex flex-col items-start md:items-end justify-center shrink-0">
-              <span className="text-[10px] font-mono text-ash uppercase font-bold tracking-wider">
-                Predict min. 3
-              </span>
-              <div className="flex items-center gap-3 text-xs font-mono text-ash font-medium mt-1.5">
-                <span
-                  className="flex items-center gap-1.5"
-                  title="Total Volume (USDC)"
-                >
-                  ${totalVolume.toLocaleString()} Vol
-                </span>
-                <span className="text-zinc-300 dark:text-zinc-700">|</span>
-                <span className="flex items-center gap-1.5">
-                  {formattedDeadline}
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
+      {/* Event Selector Header Card (Matchup Carousel) */}
+      {sortedPvpEvents.length > 0 && (
+        <PvpMatchupCarousel
+          pvpEvents={sortedPvpEvents}
+          selectedPvpEventId={selectedPvpEventId}
+          setSelectedPvpEventId={setSelectedPvpEventId}
+        />
       )}
 
-      {/* Active Duel View */}
-      {hasActiveDuel && !showBuilderOverride && (
-        <div className="flex flex-col gap-4">
-          <PvpDuelStatus
-            status={pvpStatus.status}
-            pvpStatus={pvpStatus}
-            runningScoreUser={runningScoreUser}
-            runningScoreOpponent={runningScoreOpponent}
-          />
-          <PvpDuelPicks
-            pvpStatus={pvpStatus}
-            claimedMarketIds={claimedMarketIds}
-            onClaim={handleClaim}
-          />
-        </div>
-      )}
+      {isPvpStatusPending ? (
+        <PvpArenaSkeleton
+          optionCount={selectedPvpEvent?.options?.length || 5}
+          hideCarouselHeader={true}
+        />
+      ) : (
+        <>
+          {/* Active Duel View */}
+          {hasActiveDuel && !showBuilderOverride && (
+            <div className="flex flex-col gap-4">
+              <PvpDuelStatus
+                status={pvpStatus.status}
+                pvpStatus={pvpStatus}
+                runningScoreUser={runningScoreUser}
+                runningScoreOpponent={runningScoreOpponent}
+                profile={profile}
+              />
+              <PvpDuelPicks
+                pvpStatus={pvpStatus}
+                claimedMarketIds={claimedMarketIds}
+                onClaim={handleClaim}
+              />
+            </div>
+          )}
 
-      {/* Ticket Builder Form */}
-      {(!hasActiveDuel || showBuilderOverride) &&
-        (isEventEnded ? (
-          <div className="verity-card p-10 text-center flex flex-col items-center justify-center gap-6 relative overflow-hidden bg-linear-to-b from-white to-stone-50/50 dark:from-zinc-950 dark:to-zinc-900/30 border border-border/60 dark:border-zinc-800/40 shadow-sm">
-            {/* Glowing Icon Container */}
-            <div className="relative flex items-center justify-center w-20 h-20 rounded-full bg-stone-100 dark:bg-zinc-900 border border-border/80 dark:border-zinc-800/80 shadow-sm my-2">
-              <div className="relative z-10 bg-white dark:bg-zinc-950 p-3.5 rounded-full border border-border/50 dark:border-zinc-800/50 shadow-inner text-black/70 dark:text-black/60">
-                <Lock className="h-6 w-6" strokeWidth={2.2} />
+          {/* Ticket Builder Form */}
+          {(!hasActiveDuel || showBuilderOverride) &&
+            (isEventEnded ? (
+              <div className="verity-card p-8 md:p-10 flex flex-col gap-6 relative overflow-hidden bg-gradient-to-b from-amber-50/40 to-stone-100/30 dark:from-amber-950/10 dark:to-zinc-900/10 border border-amber-200/40 dark:border-amber-900/20 shadow-sm">
+                {/* Locked Content */}
+                <div className="flex flex-col md:flex-row items-center md:items-start gap-5">
+                  {/* Circular Gold Icon Container */}
+                  <div className="relative flex items-center justify-center w-16 h-16 rounded-full bg-amber-100 dark:bg-amber-900/30 border border-amber-200/50 dark:border-amber-900/50 shadow-inner shrink-0">
+                    <div className="relative z-10 text-amber-600 dark:text-amber-400">
+                      <Lock className="h-6 w-6" strokeWidth={2.5} />
+                    </div>
+                  </div>
+
+                  {/* Text Area */}
+                  <div className="flex-1 text-center md:text-left space-y-2.5">
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-100 dark:bg-amber-950/40 text-[10px] font-bold text-amber-700 dark:text-amber-400 uppercase tracking-wider font-mono">
+                      🔒 Predictions Closed
+                    </span>
+                    <h3 className="text-2xl font-black font-family leading-tight text-charcoal-primary dark:text-white">
+                      Whistle's blown on {parsedTeams.teamA} vs{" "}
+                      {parsedTeams.teamB}
+                    </h3>
+                    <p className="text-xs text-ash leading-relaxed font-sans max-w-xl">
+                      Kickoff has passed — but the arena's still buzzing. Jump
+                      into one of these open matches and keep your streak alive.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Recommended Matches Area */}
+                {(() => {
+                  const recommended = sortedPvpEvents
+                    .filter((e) => {
+                      if (e.id === selectedPvpEvent.id) return false
+                      const isClosed =
+                        new Date() >= new Date(e.lockTime || e.deadline) ||
+                        e.status === "resolved" ||
+                        e.status === "closed"
+                      return !isClosed
+                    })
+                    .slice(0, 3)
+
+                  if (recommended.length === 0) return null
+
+                  return (
+                    <div className="border-t border-amber-200/20 dark:border-zinc-800/60 pt-6 mt-2">
+                      <span className="block text-[10px] font-bold uppercase text-ash tracking-wider mb-4 font-mono">
+                        Open now — pick one to play
+                      </span>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        {recommended.map((evt) => {
+                          const { teamA: recTeamA, teamB: recTeamB } =
+                            parseEventTeams(evt.question)
+                          const vol =
+                            evt.options?.reduce(
+                              (sum: number, opt: any) =>
+                                sum + Number(opt.liquidity ?? 0),
+                              0,
+                            ) ?? 0
+
+                          // Calculate remaining time label
+                          let timeLabel = ""
+                          const lockTimeStr = evt.lockTime || evt.deadline
+                          if (lockTimeStr) {
+                            const target = new Date(lockTimeStr)
+                            const diff = target.getTime() - Date.now()
+                            if (diff > 0) {
+                              const diffHrs = Math.floor(
+                                diff / (1000 * 60 * 60),
+                              )
+                              const diffMins = Math.floor(
+                                (diff % (1000 * 60 * 60)) / (1000 * 60),
+                              )
+                              const diffDays = Math.floor(diffHrs / 24)
+                              if (diffDays > 0) {
+                                timeLabel = `In ${diffDays}d ${diffHrs % 24}h`
+                              } else {
+                                timeLabel = `In ${diffHrs}h ${diffMins}m`
+                              }
+                            }
+                          }
+
+                          return (
+                            <div
+                              key={evt.id}
+                              onClick={() => setSelectedPvpEventId(evt.id)}
+                              className="flex items-center justify-between p-3.5 rounded-xl border border-border dark:border-zinc-800/80 bg-white dark:bg-zinc-900/30 hover:border-indigo-500 transition-all cursor-pointer group shadow-xs hover:shadow-sm"
+                            >
+                              <div className="text-left space-y-1 min-w-0 flex-1 pr-2">
+                                <div className="flex items-center gap-1.5 text-xs font-bold text-charcoal-primary dark:text-zinc-200 truncate">
+                                  <span>{getCountryFlag(recTeamA)}</span>
+                                  <span>vs</span>
+                                  <span>{getCountryFlag(recTeamB)}</span>
+                                  <span className="truncate ml-0.5">
+                                    {recTeamA} vs {recTeamB}
+                                  </span>
+                                </div>
+                                <span className="block text-[9px] font-mono text-ash font-medium">
+                                  {timeLabel ? `${timeLabel} · ` : ""}$
+                                  {vol.toLocaleString()}
+                                </span>
+                              </div>
+                              <div className="h-7 w-7 rounded-full bg-stone-100 dark:bg-zinc-850 flex items-center justify-center shrink-0 text-charcoal-primary dark:text-zinc-300 group-hover:bg-indigo-600 group-hover:text-white transition-all">
+                                <ArrowRight className="h-3.5 w-3.5" />
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )
+                })()}
               </div>
-            </div>
-
-            {/* Title & Description */}
-            <div className="space-y-2 max-w-sm">
-              <h3 className="text-lg font-bold tracking-tight text-charcoal-primary dark:text-white">
-                Predictions are Closed
-              </h3>
-              <p className="text-xs text-ash leading-relaxed">
-                The kickoff time for this match has passed or the event has been
-                resolved. Please select another event from the dropdown list
-                above to play.
-              </p>
-            </div>
-          </div>
-        ) : (
-          <PvpTicketBuilder
-            selectedPvpEvent={selectedPvpEvent}
-            pvpEvents={pvpEvents}
-            pvpStatus={pvpStatus}
-            pvpSelections={pvpSelections}
-            betAmountPerSelection={betAmountPerSelection}
-            isSubmitting={isSubmitting}
-            showTooltip={showTooltip}
-            claimedMarketIds={claimedMarketIds}
-            referralsData={referralsData}
-            parsedTeams={parsedTeams}
-            groupedOptions={groupedOptions}
-            onToggleSelection={handleToggleSelection}
-            onSetBetAmount={setBetAmountPerSelection}
-            onSetShowTooltip={setShowTooltip}
-            onSubmitTicket={handleSubmitPvpTicket}
-            onClaim={handleClaim}
-            onAddLiquidity={(id) => setLiquidityMarketId(id)}
-          />
-        ))}
+            ) : (
+              <PvpTicketBuilder
+                selectedPvpEvent={selectedPvpEvent}
+                pvpEvents={sortedPvpEvents}
+                pvpStatus={pvpStatus}
+                pvpSelections={pvpSelections}
+                betAmountPerSelection={betAmountPerSelection}
+                isSubmitting={isSubmitting}
+                showTooltip={showTooltip}
+                claimedMarketIds={claimedMarketIds}
+                referralsData={referralsData}
+                parsedTeams={parsedTeams}
+                groupedOptions={groupedOptions}
+                onToggleSelection={handleToggleSelection}
+                onSetBetAmount={setBetAmountPerSelection}
+                onSetShowTooltip={setShowTooltip}
+                onSubmitTicket={handleSubmitPvpTicket}
+                onClaim={handleClaim}
+                onAddLiquidity={(id) => setLiquidityMarketId(id)}
+              />
+            ))}
+        </>
+      )}
 
       {/* Liquidity Modal */}
       <PvpLiquidityModal
