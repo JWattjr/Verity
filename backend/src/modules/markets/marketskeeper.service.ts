@@ -55,7 +55,6 @@ export class MarketsKeeperService implements OnModuleInit, OnModuleDestroy {
       await this.promoteQualifiedMarkets()
       await this.processPythMarkets()
       await this.processSubjectiveMarkets()
-      await this.pvpService.syncUnresolvedPvpPicks()
     } catch (error) {
       this.logger.error(`Error in keeper loop: ${error.message}`)
     } finally {
