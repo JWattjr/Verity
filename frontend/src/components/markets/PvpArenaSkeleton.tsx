@@ -1,20 +1,24 @@
 export default function PvpArenaSkeleton({
   optionCount = 5,
+  hideCarouselHeader = false,
 }: {
   optionCount?: number
+  hideCarouselHeader?: boolean
 }) {
   return (
     <div className="lg:col-span-2 flex flex-col gap-4 animate-pulse">
-      <div className="verity-card p-6 flex flex-col md:flex-row items-center justify-between gap-4">
-        <div className="flex items-center gap-4">
-          <div className="h-16 w-16 rounded-full bg-stone-surface dark:bg-zinc-800" />
-          <div className="space-y-2">
-            <div className="h-4 w-48 bg-stone-surface dark:bg-zinc-800 rounded" />
-            <div className="h-3 w-64 bg-stone-surface dark:bg-zinc-800 rounded" />
+      {!hideCarouselHeader && (
+        <div className="verity-card p-6 flex flex-col md:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <div className="h-16 w-16 rounded-full bg-stone-surface dark:bg-zinc-800" />
+            <div className="space-y-2">
+              <div className="h-4 w-48 bg-stone-surface dark:bg-zinc-800 rounded" />
+              <div className="h-3 w-64 bg-stone-surface dark:bg-zinc-800 rounded" />
+            </div>
           </div>
+          <div className="h-10 w-32 bg-stone-surface dark:bg-zinc-800 rounded-lg" />
         </div>
-        <div className="h-10 w-32 bg-stone-surface dark:bg-zinc-800 rounded-lg" />
-      </div>
+      )}
 
       <div className="verity-card p-5 flex flex-col gap-4">
         <div className="border-b border-border dark:border-zinc-800 pb-3 space-y-2">

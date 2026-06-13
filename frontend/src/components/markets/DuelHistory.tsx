@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { History, X, Swords, Award } from "lucide-react"
+import { parseEventTeams } from "./PvpMatchupCarousel"
 
 interface DuelHistoryProps {
   matchHistory: any[]
@@ -11,11 +12,10 @@ export default function DuelHistory({ matchHistory }: DuelHistoryProps) {
   const [selectedMatch, setSelectedMatch] = useState<any | null>(null)
 
   return (
-    <div className="verity-card overflow-hidden">
-      <div className="p-4 border-b border-border dark:border-zinc-800 bg-white-surface/40 dark:bg-zinc-900/40 flex items-center gap-2">
-        <History className="h-4.5 w-4.5 text-indigo-500" />
-        <h3 className="font-mono text-xs font-bold uppercase tracking-wider text-charcoal-primary dark:text-white">
-          Duel History
+    <div className="verity-card overflow-hidden flex flex-col bg-white dark:bg-zinc-900/30">
+      <div className="p-4 border-b border-border dark:border-zinc-800 flex items-center gap-2">
+        <h3 className="font-sans text-xs font-black uppercase tracking-wider text-charcoal-primary dark:text-white">
+          DUEL HISTORY
         </h3>
       </div>
 
@@ -24,43 +24,51 @@ export default function DuelHistory({ matchHistory }: DuelHistoryProps) {
           No pvp matches resolved yet.
         </div>
       ) : (
-        <div className="divide-y divide-border dark:divide-zinc-800 max-h-[360px] overflow-y-auto">
-          {matchHistory.map((item: any) => (
-            <div
-              key={item.matchId}
-              onClick={() => setSelectedMatch(item)}
-              className="p-3.5 hover:bg-white-surface/20 dark:hover:bg-zinc-900/20 transition-colors cursor-pointer text-left"
-            >
-              <div className="flex justify-between items-start gap-2">
-                <h4 className="text-xs font-semibold tracking-tight text-charcoal-primary dark:text-white line-clamp-1 flex-1">
-                  {item.eventQuestion}
-                </h4>
-                <span
-                  className={`px-1.5 py-0.5 rounded text-[9px] font-bold font-mono uppercase tracking-wider shrink-0 ${
-                    item.outcome === "WIN"
-                      ? "bg-meadow-green/10 text-meadow-green border border-meadow-green/20"
-                      : item.outcome === "LOSS"
-                        ? "bg-ember-orange/10 text-ember-orange border border-ember-orange/20"
-                        : "bg-zinc-500/10 text-zinc-500"
-                  }`}
-                >
-                  {item.outcome}
-                </span>
-              </div>
+        <div className="flex flex-col gap-2.5 p-4 max-h-[360px] overflow-y-auto">
+          {matchHistory.map((item: any) => {
+            const { teamA, teamB } = parseEventTeams(item.eventQuestion)
+            return (
+              <div
+                key={item.matchId}
+                onClick={() => setSelectedMatch(item)}
+                className="flex items-center justify-between p-3.5 rounded-2xl bg-[#FAF9F6] dark:bg-zinc-900/40 border border-stone-200/20 dark:border-zinc-850/10 hover:bg-[#F3F1EC] dark:hover:bg-zinc-800/45 transition-all cursor-pointer text-left shadow-xs hover:shadow-sm"
+              >
+                {/* Left Column: Match Details */}
+                <div className="space-y-1 min-w-0 flex-1 pr-3">
+                  <h4 className="text-xs font-bold tracking-tight text-charcoal-primary dark:text-white truncate">
+                    {teamA} vs {teamB}
+                  </h4>
+                  <div className="flex items-center gap-1.5 text-[10px] font-medium text-ash">
+                    <span className="truncate max-w-[90px]">
+                      @{item.opponent?.username || "opponent"}
+                    </span>
+                    <span>·</span>
+                    <span className="font-mono">
+                      Score {item.myScore} – {item.oppScore}
+                    </span>
+                  </div>
+                </div>
 
-              <div className="flex items-center justify-between mt-2 text-[9px] font-mono text-ash">
-                <span className="truncate max-w-[80px]">
-                  @{item.opponent?.username || "Unknown"}
-                </span>
-                <span>
-                  Score: {item.myScore} - {item.oppScore}
-                </span>
-                <span className="font-semibold text-charcoal-primary dark:text-zinc-300">
-                  +{item.xpEarned} XP
-                </span>
+                {/* Right Column: Status & XP Pills */}
+                <div className="flex flex-col items-end gap-1 shrink-0">
+                  <span
+                    className={`px-2 py-0.5 rounded-md text-[9px] font-bold font-mono uppercase tracking-wider ${
+                      item.outcome === "WIN"
+                        ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/20 dark:text-emerald-400"
+                        : item.outcome === "LOSS"
+                          ? "bg-[#FFEBE5] text-[#FF4D00] dark:bg-[#FF4D00]/10 dark:text-[#FF6633]"
+                          : "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400"
+                    }`}
+                  >
+                    {item.outcome}
+                  </span>
+                  <span className="text-[10px] font-bold font-mono text-emerald-600 dark:text-emerald-400">
+                    +{item.xpEarned} XP
+                  </span>
+                </div>
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
 
