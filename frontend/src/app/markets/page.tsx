@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useMemo, Suspense } from "react"
-import { useSearchParams } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { useFeed } from "@/hooks/useFeed"
 import { useWalletProfile } from "@/hooks/useWalletProfile"
 import {
@@ -22,6 +22,7 @@ import DuelHistory from "@/components/markets/DuelHistory"
 type MarketsTab = "general" | "pvp-arena"
 
 function MarketsContent() {
+  const router = useRouter()
   const searchParams = useSearchParams()
   const tabQuery = searchParams.get("tab") as MarketsTab | null
   const [activeTab, setActiveTab] = useState<MarketsTab>(
@@ -82,6 +83,12 @@ function MarketsContent() {
     const queryId = searchParams.get("id")
     if (queryId && pvpEvents.some((e: any) => e.id === queryId)) {
       setSelectedPvpEventId(queryId)
+      setHasManuallySelected(true)
+
+      // Clear id from URL
+      const params = new URLSearchParams(window.location.search)
+      params.delete("id")
+      router.replace(`/markets?${params.toString()}`)
       return
     }
 
@@ -92,11 +99,21 @@ function MarketsContent() {
     } else {
       setSelectedPvpEventId(null)
     }
-  }, [pvpEvents, hasManuallySelected, searchParams])
+  }, [pvpEvents, hasManuallySelected, searchParams, router])
 
   const handleSelectPvpEvent = (id: string | null) => {
     setHasManuallySelected(true)
     setSelectedPvpEventId(id)
+    const params = new URLSearchParams(window.location.search)
+    params.set("tab", "pvp-arena")
+    router.push(`/markets?${params.toString()}`)
+  }
+
+  const handleTabChange = (tab: MarketsTab) => {
+    setActiveTab(tab)
+    const params = new URLSearchParams(window.location.search)
+    params.set("tab", tab)
+    router.push(`/markets?${params.toString()}`)
   }
 
   const {
@@ -113,11 +130,8 @@ function MarketsContent() {
       <div className="flex border-b border-border dark:border-zinc-800 gap-2 pb-px mb-4">
         <button
           onClick={() => {
-            setActiveTab("general")
             setHasManuallySelected(false)
-            if (pvpEvents && pvpEvents.length > 0) {
-              setSelectedPvpEventId(pvpEvents[0].id)
-            }
+            handleTabChange("general")
           }}
           className={`flex items-center gap-2 border-b-2 px-4 py-3 text-sm font-semibold tracking-tight whitespace-nowrap transition-colors ${
             activeTab === "general"
@@ -129,11 +143,8 @@ function MarketsContent() {
         </button>
         <button
           onClick={() => {
-            setActiveTab("pvp-arena")
             setHasManuallySelected(false)
-            if (pvpEvents && pvpEvents.length > 0) {
-              setSelectedPvpEventId(pvpEvents[0].id)
-            }
+            handleTabChange("pvp-arena")
           }}
           className={`flex items-center gap-2 border-b-2 px-4 py-3 text-sm font-semibold tracking-tight whitespace-nowrap transition-colors ${
             activeTab === "pvp-arena"
@@ -152,7 +163,7 @@ function MarketsContent() {
           feedLoading={feedLoading}
           reloadFeed={reloadFeed}
           profile={profile}
-          setActiveTab={setActiveTab}
+          setActiveTab={handleTabChange}
           pvpEvents={pvpEvents}
           pvpEventsLoading={pvpEventsLoading}
           setSelectedPvpEventId={handleSelectPvpEvent}

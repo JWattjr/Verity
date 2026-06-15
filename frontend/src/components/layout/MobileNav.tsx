@@ -5,6 +5,7 @@ import { Bell, Home, User, Wallet, TrendingUp } from "lucide-react"
 import { usePathname } from "next/navigation"
 import { useWalletProfile } from "@/hooks/useWalletProfile"
 import { useNotificationsQuery } from "@/store/verity/verityQueries"
+import { useAuth } from "@/components/providers/AuthModals"
 
 const MOBILE_NAV_ITEMS = [
   { icon: Home, label: "Home", href: "/" },
@@ -14,9 +15,9 @@ const MOBILE_NAV_ITEMS = [
   { icon: User, label: "Profile", href: "/profile" },
 ]
 
-
 export default function MobileNav() {
   const pathname = usePathname()
+  const { authenticated, login } = useAuth()
   const { profile } = useWalletProfile()
   const { data: notifications = [] } = useNotificationsQuery(profile?.id || "")
   const unreadCount = notifications.filter((n: any) => !n.read).length
@@ -29,6 +30,7 @@ export default function MobileNav() {
             item.href === "/"
               ? pathname === "/"
               : pathname === item.href.split("?")[0]
+          const isAuthRequired = item.href === "/profile" || item.href === "/portfolio"
           return (
             <Link
               className={`flex min-w-0 flex-col items-center justify-center gap-1 rounded-[10px] px-1 py-2 text-[10px] font-medium tracking-[-0.12px] ${
@@ -37,6 +39,12 @@ export default function MobileNav() {
                   : "clickable-surface text-muted"
               }`}
               href={item.href}
+              onClick={(e) => {
+                if (isAuthRequired && !authenticated) {
+                  e.preventDefault()
+                  login()
+                }
+              }}
               key={item.label}
             >
               <div className="relative flex items-center justify-center shrink-0">

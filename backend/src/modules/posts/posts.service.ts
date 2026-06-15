@@ -91,6 +91,8 @@ export interface MarketResponse {
   proposalDisputer?: string | null
   disputed?: boolean
   proposedOutcome?: boolean | null
+  proposedOutcomeIndex?: number | null
+  proposedOutcome_index?: number | null
   proposedAt?: string | null
   disputeWindowSeconds?: number
   marketType: "binary" | "parent" | "child"
@@ -271,6 +273,8 @@ export class PostsService {
       proposalDisputer: market.proposalDisputer,
       disputed: market.disputed,
       proposedOutcome: market.proposedOutcome,
+      proposedOutcomeIndex: market.proposedOutcomeIndex,
+      proposedOutcome_index: market.proposedOutcomeIndex,
       proposedAt: market.proposedAt ? new Date(market.proposedAt).toISOString() : null,
       disputeWindowSeconds: this.configService.get<number>("DISPUTE_WINDOW_SECONDS") || 120,
       marketType: market.marketType || "binary",

@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { usePvpLeaderboardQuery } from "@/store/verity/verityQueries"
+import { useWalletProfile } from "@/hooks/useWalletProfile"
 import { Zap, Users, Info, CircleHelp, Medal } from "lucide-react"
 import Link from "next/link"
 
@@ -9,7 +10,12 @@ type LeaderboardTab = "xp" | "referrers" | "points-system"
 
 export default function LeaderboardPage() {
   const [activeTab, setActiveTab] = useState<LeaderboardTab>("xp")
-  const { data: leaderboardData, isLoading, error } = usePvpLeaderboardQuery()
+  const { profile: loggedInProfile } = useWalletProfile()
+  const {
+    data: leaderboardData,
+    isLoading,
+    error,
+  } = usePvpLeaderboardQuery(loggedInProfile?.id)
 
   const pvpRules = [
     {
@@ -62,7 +68,7 @@ export default function LeaderboardPage() {
   return (
     <div className="flex flex-col gap-4 py-4 max-w-[672px] mx-auto">
       {/* Header Banner */}
-      <section className="verity-card relative overflow-hidden p-5 sm:p-6 bg-gradient-to-br from-indigo-50/40 via-purple-50/20 to-transparent dark:from-indigo-950/10 dark:via-purple-950/5">
+      <section className="verity-card relative overflow-hidden p-5 sm:p-6 bg-linear-to-br from-indigo-50/40 via-purple-50/20 to-transparent dark:from-indigo-950/10 dark:via-purple-950/5">
         <div className="absolute -right-3 -top-3 h-24 w-24 rounded-full bg-indigo-500/10" />
         <div className="relative max-w-[480px]">
           <p className="mb-2 font-mono text-[11px] font-semibold uppercase tracking-[0.16em] text-indigo-600 dark:text-indigo-400">
@@ -118,9 +124,41 @@ export default function LeaderboardPage() {
       {/* Content */}
       <div className="flex flex-col gap-3 min-h-[350px]">
         {isLoading && (
-          <div className="verity-card p-8 flex flex-col items-center justify-center text-center gap-3">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-charcoal-primary dark:border-white" />
-            <p className="text-sm text-ash font-mono">Loading rankings...</p>
+          <div className="verity-card overflow-hidden">
+            <div className="p-4 border-b border-border dark:border-zinc-800 bg-white-surface/40 dark:bg-zinc-900/40">
+              <div className="h-4 w-32 rounded bg-stone-surface dark:bg-zinc-800 animate-pulse" />
+              <div className="h-3 w-48 rounded bg-stone-surface dark:bg-zinc-800 animate-pulse mt-1.5" />
+            </div>
+            <div className="divide-y divide-border dark:divide-zinc-800">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="flex items-center justify-between p-4 animate-pulse">
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
+                    {/* Rank Number Skeleton */}
+                    <div className="h-6 w-6 shrink-0 rounded-full bg-stone-surface dark:bg-zinc-800/80" />
+
+                    {/* User Details Skeleton */}
+                    <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                      {/* Avatar Skeleton */}
+                      <div className="h-9 w-9 shrink-0 rounded-full bg-stone-surface dark:bg-zinc-800/80" />
+                      {/* Text Skeleton */}
+                      <div className="min-w-0 space-y-1.5 flex-1 max-w-[150px]">
+                        <div className="h-4 w-3/4 rounded bg-stone-surface dark:bg-zinc-800/80" />
+                        <div className="h-3 w-1/2 rounded bg-stone-surface dark:bg-zinc-800/80" />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Score / Grade Skeleton */}
+                  <div className="flex items-center gap-4 shrink-0 text-right">
+                    <div className="h-5 w-16 rounded bg-stone-surface/60 dark:bg-zinc-800/60 hidden sm:block" />
+                    <div className="space-y-1">
+                      <div className="h-4 w-10 rounded bg-stone-surface dark:bg-zinc-800/80 ml-auto" />
+                      <div className="h-3 w-14 rounded bg-stone-surface dark:bg-zinc-800/80 ml-auto" />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
@@ -155,8 +193,46 @@ export default function LeaderboardPage() {
                         rank={index + 1}
                         scoreLabel="XP"
                         scoreValue={user.arenaXp}
+                        isCurrentUser={user.id === loggedInProfile?.id}
                       />
                     ))}
+                    {(() => {
+                      const isUserInXpList = leaderboardData?.xp?.some(
+                        (u: any) => u.id === loggedInProfile?.id,
+                      )
+                      if (
+                        !isUserInXpList &&
+                        loggedInProfile &&
+                        leaderboardData?.currentUserXpRank != null &&
+                        leaderboardData.currentUserXpRank > 50
+                      ) {
+                        return (
+                          <>
+                            <div className="flex items-center justify-center py-2 bg-stone-50/50 dark:bg-zinc-950/20 border-t border-dashed border-border dark:border-zinc-800">
+                              <span className="text-[10px] font-bold uppercase tracking-wider text-ash font-mono">
+                                ••• You are ranked{" "}
+                                {leaderboardData.currentUserXpRank} •••
+                              </span>
+                            </div>
+                            <UserLeaderboardRow
+                              user={{
+                                id: loggedInProfile.id,
+                                username: loggedInProfile.username,
+                                displayName: loggedInProfile.displayName,
+                                avatarUrl: loggedInProfile.avatarUrl,
+                                pvpMatchesLostCount:
+                                  loggedInProfile.pvpMatchesLostCount ?? 0,
+                              }}
+                              rank={leaderboardData.currentUserXpRank}
+                              scoreLabel="XP"
+                              scoreValue={leaderboardData.currentUserXp ?? 0}
+                              isCurrentUser={true}
+                            />
+                          </>
+                        )
+                      }
+                      return null
+                    })()}
                   </div>
                 )}
               </div>
@@ -187,9 +263,49 @@ export default function LeaderboardPage() {
                           scoreLabel="Referrals"
                           scoreValue={user.referralCount}
                           extraInfo={`(${user.arenaXp} XP)`}
+                          isCurrentUser={user.id === loggedInProfile?.id}
                         />
                       ),
                     )}
+                    {(() => {
+                      const isUserInReferrersList =
+                        leaderboardData?.referrers?.some(
+                          (u: any) => u.id === loggedInProfile?.id,
+                        )
+                      if (
+                        !isUserInReferrersList &&
+                        loggedInProfile &&
+                        leaderboardData?.currentUserReferralRank != null &&
+                        leaderboardData.currentUserReferralRank > 50
+                      ) {
+                        return (
+                          <>
+                            <div className="flex items-center justify-center py-2 bg-stone-50/50 dark:bg-zinc-950/20 border-t border-dashed border-border dark:border-zinc-800">
+                              <span className="text-[10px] font-bold uppercase tracking-wider text-ash font-mono">
+                                ••• You are ranked{" "}
+                                {leaderboardData.currentUserReferralRank} •••
+                              </span>
+                            </div>
+                            <UserLeaderboardRow
+                              user={{
+                                id: loggedInProfile.id,
+                                username: loggedInProfile.username,
+                                displayName: loggedInProfile.displayName,
+                                avatarUrl: loggedInProfile.avatarUrl,
+                              }}
+                              rank={leaderboardData.currentUserReferralRank}
+                              scoreLabel="Referrals"
+                              scoreValue={
+                                leaderboardData.currentUserReferral ?? 0
+                              }
+                              extraInfo={`(${loggedInProfile.arenaXp ?? 0} XP)`}
+                              isCurrentUser={true}
+                            />
+                          </>
+                        )
+                      }
+                      return null
+                    })()}
                   </div>
                 )}
               </div>
@@ -197,7 +313,7 @@ export default function LeaderboardPage() {
 
             {activeTab === "points-system" && (
               <div className="flex flex-col gap-3">
-                <div className="verity-card p-5 bg-gradient-to-br from-indigo-50/20 to-transparent dark:from-indigo-950/5">
+                <div className="verity-card p-5 bg-linear-to-br from-indigo-50/20 to-transparent dark:from-indigo-950/5">
                   <div className="flex items-start gap-3">
                     <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] bg-indigo-500/10 text-indigo-600 dark:text-indigo-400">
                       <Medal className="h-5 w-5" />
@@ -256,12 +372,14 @@ function UserLeaderboardRow({
   scoreLabel,
   scoreValue,
   extraInfo,
+  isCurrentUser,
 }: {
   user: any
   rank: number
   scoreLabel: string
   scoreValue: number
   extraInfo?: string
+  isCurrentUser?: boolean
 }) {
   const isTopThree = rank <= 3
   const rankColors = [
@@ -276,7 +394,13 @@ function UserLeaderboardRow({
     Number(user.pvpMatchesLostCount ?? 0) === 0
 
   return (
-    <div className="flex items-center justify-between p-4 hover:bg-white-surface/20 dark:hover:bg-zinc-900/20 transition-colors">
+    <div
+      className={`flex items-center justify-between p-4 transition-colors ${
+        isCurrentUser
+          ? "bg-indigo-50/50 dark:bg-indigo-950/20 border-y border-indigo-150 dark:border-indigo-900/50"
+          : "hover:bg-white-surface/20 dark:hover:bg-zinc-900/20"
+      }`}
+    >
       <div className="flex items-center gap-3 min-w-0">
         {/* Rank Number */}
         <span

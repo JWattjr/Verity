@@ -320,4 +320,87 @@ describe("PvpService", () => {
       expect(mockTicket.save).toHaveBeenCalled()
     })
   })
+
+  describe("matchmake divergence constraint", () => {
+    it("should not match candidate if divergence is 0", async () => {
+      const parentMarketId = new Types.ObjectId()
+      const ticket: any = {
+        _id: new Types.ObjectId(),
+        userId: "user-1",
+        parentMarketId,
+        picks: [
+          { marketId: "market-1", selection: "YES" },
+          { marketId: "market-2", selection: "NO" },
+        ],
+        status: "queued",
+        save: jest.fn(),
+      }
+
+      const candidate: any = {
+        _id: new Types.ObjectId(),
+        userId: "user-2",
+        parentMarketId,
+        picks: [
+          { marketId: "market-1", selection: "YES" },
+          { marketId: "market-2", selection: "NO" },
+        ],
+        status: "queued",
+        save: jest.fn(),
+        createdAt: new Date(),
+      }
+
+      pvpTicketModel.find.mockResolvedValue([candidate])
+
+      const result = await service.matchmake(ticket)
+      expect(result).toBeNull()
+    })
+
+    it("should match candidate if divergence is >= 1", async () => {
+      const parentMarketId = new Types.ObjectId()
+      const ticket: any = {
+        _id: new Types.ObjectId(),
+        userId: "user-1",
+        parentMarketId,
+        picks: [
+          { marketId: "market-1", selection: "YES" },
+          { marketId: "market-2", selection: "NO" },
+        ],
+        status: "queued",
+        save: jest.fn(),
+      }
+
+      const candidate: any = {
+        _id: new Types.ObjectId(),
+        userId: "user-2",
+        parentMarketId,
+        picks: [
+          { marketId: "market-1", selection: "YES" },
+          { marketId: "market-2", selection: "YES" }, // Different pick -> divergence = 1
+        ],
+        status: "queued",
+        save: jest.fn(),
+        createdAt: new Date(),
+      }
+
+      const mockPvpMatch = {
+        _id: new Types.ObjectId(),
+        parentMarketId,
+        ticket1Id: ticket._id,
+        ticket2Id: candidate._id,
+        user1Id: ticket.userId,
+        user2Id: candidate.userId,
+        divergenceScore: 1,
+        status: "matched",
+      }
+
+      pvpTicketModel.find.mockResolvedValue([candidate])
+      const mockPvpMatchModel = (service as any).pvpMatchModel
+      jest.spyOn(mockPvpMatchModel, "create").mockResolvedValue(mockPvpMatch as any)
+
+      const result = await service.matchmake(ticket)
+      expect(result).toEqual(mockPvpMatch)
+      expect(ticket.status).toBe("matched")
+      expect(candidate.status).toBe("matched")
+    })
+  })
 })

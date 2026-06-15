@@ -110,7 +110,7 @@ export function determineOptionGroup(
     name.includes("card") ||
     name.includes("cards")
   ) {
-    return "cards"
+    return "yellow_cards"
   }
 
   if (name.includes("corner") || name.includes("corners")) {
@@ -119,6 +119,18 @@ export function determineOptionGroup(
 
   if (name.includes("goals") || name.includes("goal")) {
     return "goals"
+  }
+
+  if (
+    name.includes("both teams to score") ||
+    name.includes("both teams score") ||
+    name.includes("btts")
+  ) {
+    return "btts"
+  }
+
+  if (name.includes("offsides") || name.includes("offside")) {
+    return "offsides"
   }
 
   return `unique_${optionName.replace(/\s+/g, "_").toLowerCase()}`
@@ -282,6 +294,12 @@ export class PvpService {
         } else if (optionGroup === "totals") {
           questionSuffix = "Totals"
           optionName = "Totals"
+        } else if (optionGroup === "btts") {
+          questionSuffix = "BTTS"
+          optionName = "BTTS"
+        } else if (optionGroup === "offsides") {
+          questionSuffix = "Offsides"
+          optionName = "Offsides"
         } else {
           const capitalized = optionGroup
             .split("_")
@@ -293,7 +311,13 @@ export class PvpService {
 
         // Determine handicap if applicable
         let handicap: number | null = null
-        if (optionGroup === "spread" || optionGroup === "totals") {
+        if (
+          optionGroup === "spread" ||
+          optionGroup === "totals" ||
+          optionGroup === "offsides" ||
+          optionGroup === "yellow_cards" ||
+          optionGroup === "cards"
+        ) {
           // Try to extract from the first option containing a number
           for (const opt of groupOptions) {
             const numMatch = opt.match(/([+-]?\d+(?:\.\d+)?)/)
@@ -883,14 +907,17 @@ export class PvpService {
       await existing.save()
     }
 
-    // Consume an XP boost if remaining > 0.
+    // Consume an XP boost atomically if remaining > 0.
     let doubleBoostActive = false
-    if (user.doubleBoostRemaining > 0) {
-      user.doubleBoostRemaining -= 1
-      await user.save()
+    const updateResult = await this.userModel.findOneAndUpdate(
+      { _id: user._id, doubleBoostRemaining: { $gt: 0 } },
+      { $inc: { doubleBoostRemaining: -1 } },
+      { new: true },
+    )
+    if (updateResult) {
       doubleBoostActive = true
       this.logger.log(
-        `User ${userId} consumed an XP boost. remaining: ${user.doubleBoostRemaining}`,
+        `User ${userId} consumed an XP boost. remaining: ${updateResult.doubleBoostRemaining}`,
       )
     }
 
@@ -947,6 +974,10 @@ export class PvpService {
         }
       }
 
+      if (divergence < 1) {
+        continue // Skip exact same picks to avoid pre-determined draws!
+      }
+
       if (divergence > maxDivergence) {
         maxDivergence = divergence
         bestOpponent = candidate
@@ -958,7 +989,7 @@ export class PvpService {
       }
     }
 
-    if (!bestOpponent) return null
+    if (maxDivergence < 1 || !bestOpponent) return null
 
     // Match found! Create PvpMatch
     const match = await this.pvpMatchModel.create({
@@ -1593,7 +1624,7 @@ export class PvpService {
     }
   }
 
-  async getLeaderboards() {
+  async getLeaderboards(userId?: string) {
     // XP (Volume)
     const xpList = await this.userModel
       .find({
@@ -1620,6 +1651,48 @@ export class PvpService {
       { $unwind: "$referrerUser" },
     ])
 
+    let currentUserXp: number | null = null
+    let currentUserXpRank: number | null = null
+    let currentUserReferral: number | null = null
+    let currentUserReferralRank: number | null = null
+
+    if (userId) {
+      const targetUser = await this.userModel.findById(userId)
+      if (targetUser && targetUser.isOnboarded) {
+        currentUserXp = targetUser.arenaXp ?? 0
+        // Compute user XP Rank
+        currentUserXpRank = await this.userModel.countDocuments({
+          isOnboarded: true,
+          $or: [
+            { arenaXp: { $gt: currentUserXp } },
+            { arenaXp: currentUserXp, _id: { $lt: targetUser._id } },
+          ],
+        }) + 1
+
+        // Compute user Referrals count
+        currentUserReferral = await this.userModel.countDocuments({
+          referredById: targetUser._id,
+        })
+
+        // Compute user Referral Rank
+        const rankAggregation = await this.userModel.aggregate([
+          { $match: { referredById: { $ne: null } } },
+          { $group: { _id: "$referredById", count: { $sum: 1 } } },
+          {
+            $match: {
+              $or: [
+                { count: { $gt: currentUserReferral } },
+                { count: currentUserReferral, _id: { $lt: targetUser._id } },
+              ],
+            },
+          },
+          { $count: "count" },
+        ])
+        const higherCount = rankAggregation[0]?.count || 0
+        currentUserReferralRank = higherCount + 1
+      }
+    }
+
     return {
       xp: xpList.map((u) => ({
         id: u._id.toString(),
@@ -1637,6 +1710,10 @@ export class PvpService {
         referralCount: r.count,
         arenaXp: r.referrerUser.arenaXp ?? 0,
       })),
+      currentUserXp,
+      currentUserXpRank,
+      currentUserReferral,
+      currentUserReferralRank,
     }
   }
 
@@ -1899,4 +1976,131 @@ export class PvpService {
       creationFeeUsdc: 1,
     }
   }
+
+  async getAdminMetrics(adminId: string) {
+    const admin = await this.userModel.findById(adminId)
+    if (!admin || admin.role !== "admin") {
+      throw new ForbiddenException("Only admins can fetch admin metrics.")
+    }
+
+    const botUsernames = BOT_PROFILES.map((b) => b.username)
+
+    // 1. Users count
+    const totalUsers = await this.userModel.countDocuments()
+    const botsCount = await this.userModel.countDocuments({ username: { $in: botUsernames } })
+    const realUsersCount = Math.max(0, totalUsers - botsCount)
+
+    // 2. PvP User Stats
+    const tickets = await this.pvpTicketModel.find({}, { userId: 1, status: 1 }).lean()
+    const ticketUserIds = [...new Set(tickets.map((t) => t.userId.toString()))]
+    const ticketUsers = await this.userModel.find({ _id: { $in: ticketUserIds } }, { username: 1 }).lean()
+    
+    const botUserIdsSet = new Set(
+      ticketUsers.filter((u) => botUsernames.includes(u.username)).map((u) => u._id.toString())
+    )
+    
+    let realUsersSubmittedCount = 0
+    let botUsersSubmittedCount = 0
+    let realUsersPlayedCount = 0
+    let botUsersPlayedCount = 0
+
+    const uniqueUsersWithTicketsAll = new Set<string>()
+    const uniqueUsersWithMatchedTickets = new Set<string>()
+
+    for (const t of tickets) {
+      const uIdStr = t.userId.toString()
+      uniqueUsersWithTicketsAll.add(uIdStr)
+      if (["matched", "resolved"].includes(t.status)) {
+        uniqueUsersWithMatchedTickets.add(uIdStr)
+      }
+    }
+
+    for (const uid of uniqueUsersWithTicketsAll) {
+      if (botUserIdsSet.has(uid)) {
+        botUsersSubmittedCount++
+      } else {
+        realUsersSubmittedCount++
+      }
+    }
+
+    for (const uid of uniqueUsersWithMatchedTickets) {
+      if (botUserIdsSet.has(uid)) {
+        botUsersPlayedCount++
+      } else {
+        realUsersPlayedCount++
+      }
+    }
+
+    // 3. Count PvP Matches
+    const totalPvpMatches = await this.pvpMatchModel.countDocuments()
+
+    // 4. Sum USDC volume and fees from MarketTrades
+    const trades = await this.marketTradeModel.find({}, { amountUsdc: 1, feeUsdc: 1, marketId: 1 }).lean()
+    const marketsList = await this.marketModel.find({}, { category: 1, creationFeeTxHash: 1, marketCreationFeeUsdc: 1 }).lean()
+    const marketMap = new Map(marketsList.map((m) => [m._id.toString(), m]))
+
+    let totalVolume = 0
+    let totalFees = 0
+    let pvpVolume = 0
+    let pvpFees = 0
+    let standardVolume = 0
+    let standardFees = 0
+
+    for (const trade of trades) {
+      const amount = Number(trade.amountUsdc || 0)
+      const fee = Number(trade.feeUsdc || 0)
+
+      totalVolume += amount
+      totalFees += fee
+
+      const mId = trade.marketId.toString()
+      const market = marketMap.get(mId)
+      if (market && market.category === "pvp") {
+        pvpVolume += amount
+        pvpFees += fee
+      } else {
+        standardVolume += amount
+        standardFees += fee
+      }
+    }
+
+    let creationFeesCollected = 0
+    for (const market of marketsList) {
+      if (market.creationFeeTxHash) {
+        creationFeesCollected += Number(market.marketCreationFeeUsdc || 0)
+      }
+    }
+
+    return {
+      users: {
+        total: totalUsers,
+        real: realUsersCount,
+        bots: botsCount,
+      },
+      pvpUsers: {
+        submitted: {
+          total: uniqueUsersWithTicketsAll.size,
+          real: realUsersSubmittedCount,
+          bots: botUsersSubmittedCount,
+        },
+        played: {
+          total: uniqueUsersWithMatchedTickets.size,
+          real: realUsersPlayedCount,
+          bots: botUsersPlayedCount,
+        },
+      },
+      pvpMatchesCount: totalPvpMatches,
+      volumeAndFees: {
+        overallVolume: totalVolume,
+        overallFees: totalFees,
+        standardVolume,
+        standardFees,
+        pvpVolume,
+        pvpFees,
+        creationFeesCollected,
+        combinedFees: totalFees + creationFeesCollected,
+      },
+    }
+  }
 }
+

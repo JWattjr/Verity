@@ -15,22 +15,47 @@ import { displayHandle, displayName, type Profile } from "@/lib/verity"
 import {
   useProfileActivityQuery,
   useUserPortfolioQuery,
+  useReferralsQuery,
 } from "@/store/verity/verityQueries"
+import { toast } from "@/lib/toast"
 
 export default function ProfileEditor() {
   const router = useRouter()
   const { profile } = useWalletProfile()
   const { items } = useFeed()
+  const { data: referralsData } = useReferralsQuery()
   const [activeTab, setActiveTab] = useState<ProfileActivityTab>("markets")
   const [peopleModal, setPeopleModal] = useState<
     "followers" | "following" | null
   >(null)
   const isConnected = Boolean(profile)
 
-  const { logout } = useAuth()
+  const { login, logout } = useAuth()
   const { setTheme, resolvedTheme } = useTheme()
   const [optionsOpen, setOptionsOpen] = useState(false)
   const isDark = resolvedTheme === "dark"
+
+  if (!isConnected) {
+    return (
+      <div className="verity-card p-8 mt-6 text-center flex flex-col items-center justify-center border border-border bg-surface-solid py-12">
+        <h3 className="text-lg font-semibold text-charcoal-primary">
+          Access Your Profile
+        </h3>
+        <p className="mt-2 text-sm text-ash max-w-sm">
+          Log in or sign up to view and customize your profile, copy referral
+          links, and track your stats.
+        </p>
+        <div className="mt-6 w-full max-w-[240px]">
+          <button
+            onClick={login}
+            className="verity-pill flex h-11 w-full items-center justify-center gap-2 bg-inverse px-4 text-sm font-semibold tracking-[-0.18px] text-inverse-text transition-opacity hover:opacity-90 cursor-pointer"
+          >
+            Get Started
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   const { data: tabItems = [], isLoading: isActivityLoading } =
     useProfileActivityQuery(
@@ -132,6 +157,21 @@ export default function ProfileEditor() {
                     {isConnected && (
                       <>
                         <div className="my-1 h-px bg-border/60" />
+                        {referralsData?.referralLink && (
+                          <button
+                            className="flex w-full items-center gap-2 rounded-[8px] px-3 py-2 text-left text-xs font-semibold text-charcoal-primary hover:bg-stone-surface transition-colors cursor-pointer"
+                            onClick={() => {
+                              const link = `${window.location.origin}/?ref=${referralsData.referralLink}`
+                              void navigator.clipboard.writeText(link)
+                              toast.success("Referral link copied!")
+                              setOptionsOpen(false)
+                            }}
+                            type="button"
+                          >
+                            <Share className="h-4 w-4 text-ash" />
+                            Copy Referral Link
+                          </button>
+                        )}
                         <button
                           className="flex w-full items-center gap-2 rounded-[8px] px-3 py-2 text-left text-xs font-semibold text-coral-red hover:bg-red-500/10 transition-colors cursor-pointer"
                           onClick={() => {
@@ -155,11 +195,11 @@ export default function ProfileEditor() {
           <div className="mt-3">
             <div className="flex items-center gap-2">
               <h1 className="text-[28px] font-semibold leading-[1.1] tracking-[-0.7px] text-midnight">
-                {isConnected ? displayName(profile) : "Connect wallet"}
+                {displayName(profile)}
               </h1>
             </div>
             <p className="mt-1 font-mono text-sm text-ash">
-              {isConnected ? displayHandle(profile) : "@wallet"}
+              {displayHandle(profile)}
             </p>
             {profile?.bio ? (
               <p className="mt-3 max-w-[560px] text-[15px] leading-[1.47] tracking-[-0.2px] text-graphite">
@@ -193,11 +233,13 @@ export default function ProfileEditor() {
                 Followers
               </button>
               <span className="font-mono text-xs text-ash">
-                {localProfileItems.length} posts
-              </span>
-              <span className="font-mono text-xs text-ash">
                 {marketItems.length} markets
               </span>
+              {isConnected && profile && (
+                <span className="font-mono text-xs text-ash font-semibold dark:text-indigo-400">
+                  ⭐ {(profile.arenaXp ?? 0).toLocaleString()} XP
+                </span>
+              )}
             </div>
           </div>
         </div>

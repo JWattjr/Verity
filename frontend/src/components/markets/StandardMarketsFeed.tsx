@@ -202,8 +202,9 @@ export default function StandardMarketsFeed({
                 onClick={() => {
                   if (setSelectedPvpEventId) {
                     setSelectedPvpEventId(market.id)
+                  } else {
+                    setActiveTab("pvp-arena")
                   }
-                  setActiveTab("pvp-arena")
                 }}
                 className="verity-card p-5 border border-indigo-200 dark:border-indigo-950 bg-indigo-50/20 hover:border-indigo-400 dark:hover:border-indigo-800 transition-all cursor-pointer group relative flex flex-col justify-between"
               >

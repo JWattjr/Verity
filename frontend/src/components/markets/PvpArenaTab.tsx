@@ -15,6 +15,7 @@ import PvpMatchupCarousel, {
   getCountryFlag,
   parseEventTeams,
 } from "./PvpMatchupCarousel"
+import PvpClaimBanner from "./PvpClaimBanner"
 
 // Sub-components
 import PvpArenaSkeleton from "./PvpArenaSkeleton"
@@ -57,16 +58,18 @@ export default function PvpArenaTab({
   const submitTicketMutation = useSubmitPvpTicketMutation()
   const { mutateAsync: executeMarketTrade } = useExecuteMarketTradeMutation()
 
+
+
   // ─── Local state ────────────────────────────────────────────
   const [mounted, setMounted] = useState<boolean>(false)
+  const [claimedMarketIds, setClaimedMarketIds] = useState<Set<string>>(
+    new Set(),
+  )
   const [showBuilderOverride, setShowBuilderOverride] = useState<boolean>(false)
   const [betAmountPerSelection, setBetAmountPerSelection] = useState<number>(5)
   const [pvpSelections, setPvpSelections] = useState<Record<string, string>>({})
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false)
   const [showTooltip, setShowTooltip] = useState<boolean>(false)
-  const [claimedMarketIds, setClaimedMarketIds] = useState<Set<string>>(
-    new Set(),
-  )
   const [liquidityMarketId, setLiquidityMarketId] = useState<string | null>(
     null,
   )
@@ -249,6 +252,15 @@ export default function PvpArenaTab({
       return
     }
     if (!selectedPvpEvent) return
+
+    const lockTimeLimit = new Date(
+      selectedPvpEvent.lockTime || selectedPvpEvent.deadline,
+    )
+    const txBufferMs = 30000 // 30 seconds buffer for transaction processing
+    if (new Date().getTime() + txBufferMs >= lockTimeLimit.getTime()) {
+      toast.error("This matchup is too close to kickoff or has already started")
+      return
+    }
 
     const picks = Object.keys(pvpSelections).map((marketId) => {
       const selection = pvpSelections[marketId]
@@ -474,18 +486,20 @@ export default function PvpArenaTab({
                 runningScoreOpponent={runningScoreOpponent}
                 profile={profile}
               />
-              <PvpDuelPicks
-                pvpStatus={pvpStatus}
+              <PvpClaimBanner
+                picks={pvpStatus.ticket?.picks}
                 claimedMarketIds={claimedMarketIds}
                 onClaim={handleClaim}
+                showEmoji={true}
               />
+              <PvpDuelPicks pvpStatus={pvpStatus} />
             </div>
           )}
 
           {/* Ticket Builder Form */}
           {(!hasActiveDuel || showBuilderOverride) &&
             (isEventEnded ? (
-              <div className="verity-card p-8 md:p-10 flex flex-col gap-6 relative overflow-hidden bg-gradient-to-b from-amber-50/40 to-stone-100/30 dark:from-amber-950/10 dark:to-zinc-900/10 border border-amber-200/40 dark:border-amber-900/20 shadow-sm">
+              <div className="verity-card p-8 md:p-10 flex flex-col gap-6 relative overflow-hidden bg-linear-to-b from-amber-50/40 to-stone-100/30 dark:from-amber-950/10 dark:to-zinc-900/10 border border-amber-200/40 dark:border-amber-900/20 shadow-sm">
                 {/* Locked Content */}
                 <div className="flex flex-col md:flex-row items-center md:items-start gap-5">
                   {/* Circular Gold Icon Container */}
@@ -604,7 +618,6 @@ export default function PvpArenaTab({
                 betAmountPerSelection={betAmountPerSelection}
                 isSubmitting={isSubmitting}
                 showTooltip={showTooltip}
-                claimedMarketIds={claimedMarketIds}
                 referralsData={referralsData}
                 parsedTeams={parsedTeams}
                 groupedOptions={groupedOptions}
@@ -612,7 +625,6 @@ export default function PvpArenaTab({
                 onSetBetAmount={setBetAmountPerSelection}
                 onSetShowTooltip={setShowTooltip}
                 onSubmitTicket={handleSubmitPvpTicket}
-                onClaim={handleClaim}
                 onAddLiquidity={(id) => setLiquidityMarketId(id)}
               />
             ))}

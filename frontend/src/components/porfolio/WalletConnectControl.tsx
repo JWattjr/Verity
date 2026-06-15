@@ -27,7 +27,7 @@ export default function WalletConnectControl() {
         type="button"
       >
         <Wallet className="h-4 w-4" />
-        Connect
+        Get Started
       </button>
     )
   }

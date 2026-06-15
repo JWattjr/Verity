@@ -69,8 +69,8 @@ export class PvpController {
   @ApiOperation({
     summary: "Fetch PvP leaderboards (accumulative XP and top referrers)",
   })
-  async getLeaderboards() {
-    return this.pvpService.getLeaderboards()
+  async getLeaderboards(@Query("userId") userId?: string) {
+    return this.pvpService.getLeaderboards(userId)
   }
 
   @Get("referrals")
@@ -114,4 +114,15 @@ export class PvpController {
   async getAdminStatus(@Request() req: any) {
     return this.pvpService.getAdminStatus(req.user.id)
   }
+
+  @Get("admin-metrics")
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: "Admin-only: Get system database metrics and platform statistics",
+  })
+  async getAdminMetrics(@Request() req: any) {
+    return this.pvpService.getAdminMetrics(req.user.id)
+  }
 }
+

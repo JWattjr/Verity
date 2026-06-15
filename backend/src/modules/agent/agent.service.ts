@@ -190,12 +190,12 @@ export class AgentService {
     const searchContext = await this.searchWeb(searchQuery)
 
     const outcomesList =
-      outcomes && outcomes.length > 2
+      outcomes && outcomes.length >= 2
         ? `Possible Outcomes (choose exactly one of these strings): ${JSON.stringify(outcomes)}`
         : `Yes Condition: ${yesCondition}\nNo Condition: ${noCondition}`
 
     const outcomeSchema =
-      outcomes && outcomes.length > 2
+      outcomes && outcomes.length >= 2
         ? outcomes.map((o) => `"${o}"`).join(" | ")
         : `"YES" | "NO"`
 
@@ -595,7 +595,7 @@ Do not include any other markdown formatting, code block markers, or text outsid
         name.includes("card") ||
         name.includes("cards")
       ) {
-        mapping[opt] = "cards"
+        mapping[opt] = "yellow_cards"
       } else if (name.includes("corner") || name.includes("corners")) {
         mapping[opt] = "corners"
       } else {

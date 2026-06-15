@@ -199,6 +199,9 @@ export class Market {
   @Prop({ type: Boolean, default: null })
   proposedOutcome: boolean | null
 
+  @Prop({ type: Number, default: null })
+  proposedOutcomeIndex: number | null
+
   @Prop({ type: Date, default: null, index: true })
   proposedAt: Date | null
 

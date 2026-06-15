@@ -41,14 +41,16 @@ export default function PublicProfileView({ userId }: PublicProfileViewProps) {
   const { data: tabItems = [], isLoading: isActivityLoading } =
     useProfileActivityQuery(
       profile?.id || "",
-      activeTab === "markets" ? "markets" : activeTab === "activity" ? "comments" : "posts",
+      activeTab === "markets"
+        ? "markets"
+        : activeTab === "activity"
+          ? "comments"
+          : "posts",
       viewerProfile?.id,
     )
 
   const { data: positions = [], isLoading: isPositionsLoading } =
-    useUserPortfolioQuery(
-      activeTab === "predictions" ? (profile?.id || "") : "",
-    )
+    useUserPortfolioQuery(activeTab === "predictions" ? profile?.id || "" : "")
 
   const isTabLoading =
     activeTab === "markets"
@@ -180,13 +182,13 @@ export default function PublicProfileView({ userId }: PublicProfileViewProps) {
                 Followers
               </button>
               <span className="font-mono text-xs text-ash">
-                {localProfileItems.length} posts
-              </span>
-              <span className="font-mono text-xs text-ash">
                 {marketItems.length} markets
               </span>
               <span className="font-mono text-xs text-ash">
                 {accuracy}% accuracy
+              </span>
+              <span className="font-mono text-xs text-ash font-semibold dark:text-indigo-400">
+                ⭐ {(profile.arenaXp ?? 0).toLocaleString()} XP
               </span>
             </div>
           </div>

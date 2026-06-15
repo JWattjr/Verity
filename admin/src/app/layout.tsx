@@ -23,7 +23,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className={cn("font-sans", geist.variable)}>
-      <body className="min-h-screen antialiased bg-stone-50 dark:bg-stone-950 text-stone-900 dark:text-stone-100">
+      <body className="min-h-screen antialiased bg-stone-50 text-stone-900">
         <Toaster position="top-right" />
         {children}
       </body>

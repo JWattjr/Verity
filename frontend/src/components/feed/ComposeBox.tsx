@@ -545,11 +545,7 @@ export default function ComposeBox({ onCreated }: ComposeBoxProps) {
               disabled={!user || saving || isValidating}
               onChange={(event) => setContent(event.target.value)}
               onFocus={handleFocusTake}
-              placeholder={
-                user
-                  ? "What's your conviction? Create a Market..."
-                  : "Connect wallet to create a market"
-              }
+              placeholder="What's your conviction? Create a Market..."
               value={content}
               className="min-h-[60px] w-full resize-none border-none bg-transparent text-[19px] font-semibold leading-[1.3] tracking-[-0.25px] text-charcoal-primary outline-none placeholder:text-ash"
             />

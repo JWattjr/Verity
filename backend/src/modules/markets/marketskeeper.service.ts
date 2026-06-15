@@ -273,19 +273,34 @@ export class MarketsKeeperService implements OnModuleInit, OnModuleDestroy {
             }
 
             let proposedIndex: number
-            if (market.outcomeCount && market.outcomeCount > 2) {
+            if (market.outcomeCount && market.outcomeCount >= 2 && market.outcomes && market.outcomes.length > 0) {
               const idx = market.outcomes.findIndex(
                 (o) =>
                   o.toLowerCase().trim() ===
                   result.outcome.toLowerCase().trim(),
               )
               if (idx === -1) {
-                this.logger.warn(
-                  `AI returned invalid outcome name: ${result.outcome}. Skipping proposal.`,
-                )
-                continue
+                // If it's a binary market (outcomeCount === 2) and LLM returned YES/NO instead of the string, try mapping YES/NO
+                if (market.outcomeCount === 2) {
+                  if (result.outcome === "YES") {
+                    proposedIndex = 0
+                  } else if (result.outcome === "NO") {
+                    proposedIndex = 1
+                  } else {
+                    this.logger.warn(
+                      `AI returned invalid outcome for binary market: ${result.outcome}. Skipping proposal.`,
+                    )
+                    continue
+                  }
+                } else {
+                  this.logger.warn(
+                    `AI returned invalid outcome name: ${result.outcome}. Skipping proposal.`,
+                  )
+                  continue
+                }
+              } else {
+                proposedIndex = idx
               }
-              proposedIndex = idx
             } else {
               if (result.outcome === "YES") {
                 proposedIndex = 0
@@ -315,6 +330,7 @@ export class MarketsKeeperService implements OnModuleInit, OnModuleDestroy {
             market.proposalReasoning = result.reasoning
             market.proposalCitations = result.citations
             market.proposedOutcome = proposedIndex === 0
+            market.proposedOutcomeIndex = proposedIndex
             market.proposalProposer = "0xKeeper" // Mark keeper as proposer
             market.proposedAt = new Date()
             market.status = "resolving"

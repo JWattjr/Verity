@@ -4,7 +4,6 @@ import { useMemo } from "react"
 import { Input } from "@/components/ui/input"
 import { HelpCircle, ChevronRight, Check } from "lucide-react"
 import ArenaCategory, { getCategoryMeta } from "./PvpArenaCategory"
-import PvpClaimBanner from "./PvpClaimBanner"
 import { getCountryFlag } from "./PvpMatchupCarousel"
 
 export const cleanOutcomeName = (
@@ -74,7 +73,6 @@ interface PvpTicketBuilderProps {
   betAmountPerSelection: number
   isSubmitting: boolean
   showTooltip: boolean
-  claimedMarketIds: Set<string>
   referralsData: any
   parsedTeams: { teamA: string; teamB: string }
   groupedOptions: Record<string, any[]>
@@ -82,7 +80,6 @@ interface PvpTicketBuilderProps {
   onSetBetAmount: (amount: number) => void
   onSetShowTooltip: (show: boolean) => void
   onSubmitTicket: () => Promise<void>
-  onClaim: (marketIds: string[], totalWinnings: number) => Promise<void>
   onAddLiquidity: (marketId: string) => void
 }
 
@@ -94,7 +91,6 @@ export default function PvpTicketBuilder({
   betAmountPerSelection,
   isSubmitting,
   showTooltip,
-  claimedMarketIds,
   referralsData,
   parsedTeams,
   groupedOptions,
@@ -102,7 +98,6 @@ export default function PvpTicketBuilder({
   onSetBetAmount,
   onSetShowTooltip,
   onSubmitTicket,
-  onClaim,
   onAddLiquidity,
 }: PvpTicketBuilderProps) {
   const selectionCount = Object.keys(pvpSelections).length
@@ -164,14 +159,11 @@ export default function PvpTicketBuilder({
         </div>
       )}
 
-      {/* Empty state / claim fallback when no events */}
+      {/* Empty state when no events */}
       {pvpEvents.length === 0 && (
-        <PvpClaimBanner
-          picks={pvpStatus?.ticket?.picks}
-          claimedMarketIds={claimedMarketIds}
-          onClaim={onClaim}
-          showEmptyState
-        />
+        <div className="verity-card p-8 text-center text-sm text-ash font-medium">
+          No active PvP Matchups available at this time.
+        </div>
       )}
 
       {/* Category cards & form */}
@@ -316,14 +308,6 @@ export default function PvpTicketBuilder({
               <ChevronRight className="h-4 w-4" />
             </button>
           </div>
-
-          {/* Claim Winnings Banner at bottom */}
-          <PvpClaimBanner
-            picks={pvpStatus?.ticket?.picks}
-            claimedMarketIds={claimedMarketIds}
-            onClaim={onClaim}
-            className="mt-4"
-          />
         </div>
       )}
     </div>
@@ -379,8 +363,10 @@ function CategoryCard({
           selection.toLowerCase().includes("draw") ||
           selection.toLowerCase().includes("no goal") ||
           selection.toLowerCase().includes("equal")
-        const isMatchWinner = groupKey === "match_winner" || groupKey === "major"
-        selectedOptionColor = isDrawOption && !isMatchWinner ? "amber" : "emerald"
+        const isMatchWinner =
+          groupKey === "match_winner" || groupKey === "major"
+        selectedOptionColor =
+          isDrawOption && !isMatchWinner ? "amber" : "emerald"
       }
     } else {
       selectedOptionColor = "emerald"
@@ -524,7 +510,7 @@ function BinaryOutcomes({
   const totalPool = yesPool + noPool
   const yesProb = totalPool > 0 ? (yesPool / totalPool) * 100 : 50
   const noProb = 100 - yesProb
-  
+
   let yesLabel = cleanOutcomeName(
     opt.yesCondition || "Yes",
     parsedTeams.teamA,
@@ -549,7 +535,7 @@ function BinaryOutcomes({
         disabled={isSubmitting}
         className={`flex flex-col items-center justify-center gap-1 p-3.5 rounded-xl cursor-pointer transition-all disabled:opacity-50 disabled:cursor-not-allowed relative ${
           pvpSelections[opt.id] === "YES"
-            ? "bg-[#121212] dark:bg-white text-white dark:text-zinc-950 font-bold shadow-md"
+            ? "bg-brand-primary dark:bg-white text-white dark:text-zinc-950 font-bold shadow-md"
             : "bg-[#FAF9F6] dark:bg-zinc-900/40 hover:bg-[#F3F1EC] dark:hover:bg-zinc-800/50 text-charcoal-primary dark:text-zinc-300 font-medium"
         }`}
       >
@@ -584,7 +570,7 @@ function BinaryOutcomes({
         disabled={isSubmitting}
         className={`flex flex-col items-center justify-center gap-1 p-3.5 rounded-xl cursor-pointer transition-all disabled:opacity-50 disabled:cursor-not-allowed relative ${
           pvpSelections[opt.id] === "NO"
-            ? "bg-[#121212] dark:bg-white text-white dark:text-zinc-950 font-bold shadow-md"
+            ? "bg-brand-primary dark:bg-white text-white dark:text-zinc-950 font-bold shadow-md"
             : "bg-[#FAF9F6] dark:bg-zinc-900/40 hover:bg-[#F3F1EC] dark:hover:bg-zinc-800/50 text-charcoal-primary dark:text-zinc-300 font-medium"
         }`}
       >
