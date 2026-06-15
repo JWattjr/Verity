@@ -2,6 +2,7 @@
 
 import { MessageCircle, Send, Loader2 } from "lucide-react"
 import { useMemo, useState } from "react"
+import { Input } from "@/components/ui/input"
 import {
   displayHandle,
   displayName,
@@ -10,7 +11,7 @@ import {
 } from "@/lib/verity"
 import { useWalletProfile } from "@/hooks/useWalletProfile"
 import { useAddCommentMutation } from "@/store/verity/verityQueries"
-import { toast } from "react-hot-toast"
+import { toast } from "@/lib/toast"
 import CommentModal from "@/components/social/CommentModal"
 
 interface CommentsThreadProps {
@@ -113,8 +114,8 @@ export default function CommentsThread({
 
       <div className="border-b border-dashed border-stone-surface p-4">
         <div className="flex gap-3 rounded-[12px] bg-parchment-card p-3 shadow-subtle">
-          <input
-            className="min-w-0 flex-1 bg-transparent text-sm tracking-[-0.18px] text-charcoal-primary outline-none placeholder:text-ash"
+          <Input
+            className="min-w-0 flex-1 bg-transparent text-sm tracking-[-0.18px] text-charcoal-primary border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 px-0 h-full"
             onChange={(event) => setDraft(event.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter" && draft.trim() && !isSubmitting) {

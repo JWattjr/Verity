@@ -8,6 +8,8 @@ import {
   defineChain,
   decodeFunctionData,
   decodeEventLog,
+  keccak256,
+  encodePacked,
 } from "viem"
 import { privateKeyToAccount } from "viem/accounts"
 import fpmmAbi from "./abi/VerityFPMM.json"
@@ -19,6 +21,11 @@ export const arcTestnet = defineChain({
   nativeCurrency: { name: "Arc", symbol: "ARC", decimals: 18 },
   rpcUrls: {
     default: { http: ["https://rpc.testnet.arc.network"] },
+  },
+  contracts: {
+    multicall3: {
+      address: "0xcA11bde05977b3631167028862bE2a173976CA11",
+    },
   },
 })
 
@@ -309,7 +316,7 @@ export class BlockchainService implements OnModuleInit {
 
     this.publicClient = createPublicClient({
       chain: arcTestnet,
-      transport: http(rpcUrl),
+      transport: http(rpcUrl, { batch: true }),
     }) as PublicClient
 
     const rawPrivateKey =
@@ -395,6 +402,23 @@ export class BlockchainService implements OnModuleInit {
     }
   }
 
+  async readOutcomeBalances(marketId: string): Promise<bigint[]> {
+    const formattedMarketId = this.formatMarketId(marketId)
+    try {
+      const result = await this.publicClient.readContract({
+        address: this.fpmmAddress,
+        abi: this.fpmmAbi,
+        functionName: "getOutcomeBalances",
+        args: [formattedMarketId],
+      })
+      return result as bigint[]
+    } catch (error) {
+      throw new Error(
+        `Failed to read outcome balances for market ${marketId}: ${error.message}`,
+      )
+    }
+  }
+
   async readLPShares(marketId: string, userAddress: string) {
     const formattedMarketId = this.formatMarketId(marketId)
     const formattedUserAddress = this.formatAddress(userAddress)
@@ -410,6 +434,31 @@ export class BlockchainService implements OnModuleInit {
       throw new Error(
         `Failed to read LP shares for market ${marketId}, user ${userAddress}: ${error.message}`,
       )
+    }
+  }
+
+  async readLPSharesBatch(marketId: string, userAddresses: string[]): Promise<bigint[]> {
+    if (userAddresses.length === 0) return []
+    const formattedMarketId = this.formatMarketId(marketId)
+
+    try {
+      const promises = userAddresses.map(async (addr) => {
+        try {
+          const res = await this.publicClient.readContract({
+            address: this.fpmmAddress as `0x${string}`,
+            abi: this.fpmmAbi as any,
+            functionName: "lpShares",
+            args: [formattedMarketId, this.formatAddress(addr)],
+          })
+          return res as bigint
+        } catch (err) {
+          return 0n
+        }
+      })
+      return await Promise.all(promises)
+    } catch (error) {
+      this.logger.error(`Failed to batch read LP shares for market ${marketId}: ${error.message}`)
+      throw error
     }
   }
 
@@ -622,6 +671,9 @@ export class BlockchainService implements OnModuleInit {
         await new Promise((resolve) => setTimeout(resolve, 1000))
       }
     }
+    if (receipt && receipt.status === "reverted") {
+      throw new Error(`Transaction reverted on-chain: ${txHash}`)
+    }
     return receipt
   }
 
@@ -726,6 +778,7 @@ export class BlockchainService implements OnModuleInit {
     creator: string,
     deadline: number,
     fundingDeadline: number,
+    outcomeCount: number = 2,
   ): Promise<string> {
     if (!this.walletClient) {
       throw new Error(
@@ -745,9 +798,14 @@ export class BlockchainService implements OnModuleInit {
           creator as `0x${string}`,
           BigInt(deadline),
           BigInt(fundingDeadline),
+          BigInt(outcomeCount),
         ],
         chain: arcTestnet,
       })
+      const receipt = await this.publicClient.waitForTransactionReceipt({ hash: txHash })
+      if (receipt.status === "reverted") {
+        throw new Error("Transaction reverted on-chain: registerMarket")
+      }
       return txHash
     } catch (error) {
       throw new Error(`Failed to register market ${marketId}: ${error.message}`)
@@ -776,7 +834,10 @@ export class BlockchainService implements OnModuleInit {
         chain: arcTestnet,
       })
       // Wait for block confirmation
-      await this.publicClient.waitForTransactionReceipt({ hash: txHash })
+      const receipt = await this.publicClient.waitForTransactionReceipt({ hash: txHash })
+      if (receipt.status === "reverted") {
+        throw new Error("Transaction reverted on-chain: createMarketPreDeposit")
+      }
       return txHash
     } catch (error) {
       throw new Error(
@@ -785,9 +846,126 @@ export class BlockchainService implements OnModuleInit {
     }
   }
 
+  async adminDepositPreMarketLiquidity(
+    marketId: string,
+    amountUsdc: number,
+  ): Promise<string> {
+    if (!this.walletClient) {
+      throw new Error("Wallet client not initialized")
+    }
+
+    const rawAmount = BigInt(Math.round(amountUsdc * 1e6))
+    await this.approveUsdcIfNecessary(this.factoryAddress, rawAmount)
+
+    const formattedMarketId = this.formatMarketId(marketId)
+    try {
+      const txHash = await this.walletClient.writeContract({
+        address: this.factoryAddress,
+        abi: this.factoryAbi,
+        functionName: "depositPreMarketLiquidity",
+        args: [formattedMarketId, rawAmount],
+        chain: arcTestnet,
+      })
+      const receipt = await this.publicClient.waitForTransactionReceipt({ hash: txHash })
+      if (receipt.status === "reverted") {
+        throw new Error("Transaction reverted on-chain: depositPreMarketLiquidity")
+      }
+      return txHash
+    } catch (error) {
+      throw new Error(
+        `Failed to deposit pre-market liquidity for ${marketId}: ${error.message}`,
+      )
+    }
+  }
+
+  async resolveMarket(
+    marketId: string,
+    winningIsYes: boolean,
+  ): Promise<string> {
+    if (!this.walletClient) {
+      throw new Error("Wallet client not initialized")
+    }
+
+    const formattedMarketId = this.formatMarketId(marketId)
+    try {
+      const txHash = await this.walletClient.writeContract({
+        address: this.factoryAddress,
+        abi: this.factoryAbi,
+        functionName: "resolveMarket",
+        args: [formattedMarketId, winningIsYes],
+        chain: arcTestnet,
+      })
+      const receipt = await this.publicClient.waitForTransactionReceipt({ hash: txHash })
+      if (receipt.status === "reverted") {
+        throw new Error("Transaction reverted on-chain: resolveMarket")
+      }
+      return txHash
+    } catch (error) {
+      throw new Error(
+        `Failed to resolve market ${marketId} on-chain: ${error.message}`,
+      )
+    }
+  }
+
+  async resolveMarketOutcome(
+    marketId: string,
+    winningOutcomeIndex: number,
+  ): Promise<string> {
+    if (!this.walletClient) {
+      throw new Error("Wallet client not initialized")
+    }
+
+    const formattedMarketId = this.formatMarketId(marketId)
+    try {
+      const txHash = await this.walletClient.writeContract({
+        address: this.factoryAddress,
+        abi: this.factoryAbi,
+        functionName: "resolveMarketOutcome",
+        args: [formattedMarketId, BigInt(winningOutcomeIndex)],
+        chain: arcTestnet,
+      })
+      const receipt = await this.publicClient.waitForTransactionReceipt({ hash: txHash })
+      if (receipt.status === "reverted") {
+        throw new Error("Transaction reverted on-chain: resolveMarketOutcome")
+      }
+      return txHash
+    } catch (error) {
+      throw new Error(
+        `Failed to resolve market outcome ${marketId} on-chain: ${error.message}`,
+      )
+    }
+  }
+
+  async voidMarket(marketId: string): Promise<string> {
+    if (!this.walletClient) {
+      throw new Error("Wallet client not initialized")
+    }
+
+    const formattedMarketId = this.formatMarketId(marketId)
+    try {
+      const txHash = await this.walletClient.writeContract({
+        address: this.factoryAddress,
+        abi: this.factoryAbi,
+        functionName: "voidMarket",
+        args: [formattedMarketId],
+        chain: arcTestnet,
+      })
+      const receipt = await this.publicClient.waitForTransactionReceipt({ hash: txHash })
+      if (receipt.status === "reverted") {
+        throw new Error("Transaction reverted on-chain: voidMarket")
+      }
+      return txHash
+    } catch (error) {
+      throw new Error(
+        `Failed to void market ${marketId} on-chain: ${error.message}`,
+      )
+    }
+  }
+
   getAdminAddress(): string {
     return this.account?.address || ""
   }
+
 
   async getAdminBalances() {
     if (!this.account) {
@@ -856,6 +1034,10 @@ export class BlockchainService implements OnModuleInit {
         ],
         chain: arcTestnet,
       })
+      const receipt = await this.publicClient.waitForTransactionReceipt({ hash: txHash })
+      if (receipt.status === "reverted") {
+        throw new Error("Transaction reverted on-chain: registerPythMarket")
+      }
       return txHash
     } catch (error) {
       throw new Error(
@@ -878,8 +1060,9 @@ export class BlockchainService implements OnModuleInit {
             inputs: [{ name: "", type: "bytes32" }],
             outputs: [
               { name: "resolved", type: "bool" },
-              { name: "winningIsYes", type: "bool" },
+              { name: "winningOutcomeIndex", type: "uint256" },
               { name: "totalCollateral", type: "uint256" },
+              { name: "outcomeCount", type: "uint256" },
             ],
             stateMutability: "view",
           },
@@ -887,12 +1070,18 @@ export class BlockchainService implements OnModuleInit {
         functionName: "markets",
         args: [formattedMarketId],
       })
-      const [resolved, winningIsYes, totalCollateral] = result as [
-        boolean,
+      const [resolved, winningOutcomeIndex, totalCollateral, outcomeCount] = result as [
         boolean,
         bigint,
+        bigint,
+        bigint,
       ]
-      return { resolved, winningIsYes, totalCollateral }
+      return {
+        resolved,
+        winningOutcomeIndex: Number(winningOutcomeIndex),
+        totalCollateral,
+        outcomeCount: Number(outcomeCount),
+      }
     } catch (error) {
       throw new Error(
         `Failed to read on-chain market state for ${marketId}: ${error.message}`,
@@ -900,87 +1089,155 @@ export class BlockchainService implements OnModuleInit {
     }
   }
 
-  async getUserOnChainBalances(marketId: string, userAddress: string) {
+  async readOnChainMarketVoided(marketId: string): Promise<boolean> {
+    const formattedMarketId = this.formatMarketId(marketId)
+    try {
+      const result = await this.publicClient.readContract({
+        address: this.factoryAddress,
+        abi: this.factoryAbi,
+        functionName: "marketRegistry",
+        args: [formattedMarketId],
+      })
+      // Result returns [creator, deadline, fundingDeadline, registered, funded, resolved, voided, outcomeCount]
+      return Boolean(result && result[6])
+    } catch (error) {
+      throw new Error(
+        `Failed to read on-chain market registry for ${marketId}: ${error.message}`,
+      )
+    }
+  }
+
+  async getUserOnChainBalances(
+    marketId: string,
+    userAddress: string,
+    outcomes: string[] = ["YES", "NO"],
+  ): Promise<Record<string, number>> {
     const formattedMarketId = this.formatMarketId(marketId)
     const vaultAddress = this.configService.get<string>(
       "CONDITIONAL_TOKEN_VAULT_ADDRESS",
     ) as `0x${string}`
     try {
-      // 1. Get YES/NO token IDs
-      const yesId = await this.publicClient.readContract({
-        address: vaultAddress,
-        abi: [
-          {
-            type: "function",
-            name: "yesTokenId",
-            inputs: [{ name: "marketId", type: "bytes32" }],
-            outputs: [{ name: "", type: "uint256" }],
-            stateMutability: "pure",
-          },
-        ],
-        functionName: "yesTokenId",
-        args: [formattedMarketId],
+      const balances: Record<string, number> = {}
+      
+      const balancePromises = outcomes.map(async (outcome, idx) => {
+        const tokenId = BigInt(
+          keccak256(
+            encodePacked(
+              ["bytes32", "uint256"],
+              [formattedMarketId, BigInt(idx)]
+            )
+          )
+        )
+
+        const balance = await this.publicClient.readContract({
+          address: vaultAddress,
+          abi: [
+            {
+              type: "function",
+              name: "balanceOf",
+              inputs: [
+                { name: "account", type: "address" },
+                { name: "id", type: "uint256" },
+              ],
+              outputs: [{ name: "", type: "uint256" }],
+              stateMutability: "view",
+            },
+          ],
+          functionName: "balanceOf",
+          args: [this.formatAddress(userAddress), tokenId],
+        })
+
+        balances[outcome] = Number(balance) / 1e6
       })
 
-      const noId = await this.publicClient.readContract({
-        address: vaultAddress,
-        abi: [
-          {
-            type: "function",
-            name: "noTokenId",
-            inputs: [{ name: "marketId", type: "bytes32" }],
-            outputs: [{ name: "", type: "uint256" }],
-            stateMutability: "pure",
-          },
-        ],
-        functionName: "noTokenId",
-        args: [formattedMarketId],
-      })
-
-      // 2. Query balanceOf for both YES and NO token IDs
-      const yesBalance = await this.publicClient.readContract({
-        address: vaultAddress,
-        abi: [
-          {
-            type: "function",
-            name: "balanceOf",
-            inputs: [
-              { name: "account", type: "address" },
-              { name: "id", type: "uint256" },
-            ],
-            outputs: [{ name: "", type: "uint256" }],
-            stateMutability: "view",
-          },
-        ],
-        functionName: "balanceOf",
-        args: [userAddress as `0x${string}`, yesId],
-      })
-
-      const noBalance = await this.publicClient.readContract({
-        address: vaultAddress,
-        abi: [
-          {
-            type: "function",
-            name: "balanceOf",
-            inputs: [
-              { name: "account", type: "address" },
-              { name: "id", type: "uint256" },
-            ],
-            outputs: [{ name: "", type: "uint256" }],
-            stateMutability: "view",
-          },
-        ],
-        functionName: "balanceOf",
-        args: [userAddress as `0x${string}`, noId],
-      })
-
-      return {
-        yesBalance: Number(yesBalance) / 1e6,
-        noBalance: Number(noBalance) / 1e6,
-      }
+      await Promise.all(balancePromises)
+      return balances
     } catch (error) {
-      return { yesBalance: 0, noBalance: 0 }
+      const fallback: Record<string, number> = {}
+      for (const outcome of outcomes) {
+        fallback[outcome] = 0
+      }
+      return fallback
     }
+  }
+
+  async getUserOnChainBalancesBatch(
+    queries: { marketId: string; outcomes: string[] }[],
+    userAddress: string,
+  ): Promise<Record<string, Record<string, number>>> {
+    if (queries.length === 0) return {}
+
+    const vaultAddress = this.configService.get<string>(
+      "CONDITIONAL_TOKEN_VAULT_ADDRESS",
+    ) as `0x${string}`
+
+    const calls: any[] = []
+    const mapping: { marketId: string; outcome: string; callIndex: number }[] = []
+
+    let callIndex = 0
+    for (const query of queries) {
+      const formattedMarketId = this.formatMarketId(query.marketId)
+      query.outcomes.forEach((outcome, idx) => {
+        const tokenId = BigInt(
+          keccak256(
+            encodePacked(
+              ["bytes32", "uint256"],
+              [formattedMarketId, BigInt(idx)]
+            )
+          )
+        )
+
+        calls.push({
+          address: vaultAddress,
+          abi: [
+            {
+              type: "function",
+              name: "balanceOf",
+              inputs: [
+                { name: "account", type: "address" },
+                { name: "id", type: "uint256" },
+              ],
+              outputs: [{ name: "", type: "uint256" }],
+              stateMutability: "view",
+            },
+          ],
+          functionName: "balanceOf",
+          args: [this.formatAddress(userAddress), tokenId],
+        })
+
+        mapping.push({
+          marketId: query.marketId,
+          outcome,
+          callIndex,
+        })
+        callIndex++
+      })
+    }
+
+    const resultsMap: Record<string, Record<string, number>> = {}
+    for (const query of queries) {
+      resultsMap[query.marketId] = {}
+      for (const outcome of query.outcomes) {
+        resultsMap[query.marketId][outcome] = 0
+      }
+    }
+
+    try {
+      const response = await this.publicClient.multicall({
+        contracts: calls,
+      })
+
+      mapping.forEach((map) => {
+        const resp = response[map.callIndex]
+        if (resp && resp.status === "success") {
+          resultsMap[map.marketId][map.outcome] = Number(resp.result as bigint) / 1e6
+        }
+      })
+    } catch (error) {
+      this.logger.error(`Failed to batch read user balances via multicall: ${error.message}`)
+    }
+
+    return resultsMap
   }
 
   async approveUsdcIfNecessary(
@@ -1001,7 +1258,10 @@ export class BlockchainService implements OnModuleInit {
       return null
     }
 
-    // Approve
+    // Approve max uint256 to avoid future race conditions/approvals
+    const maxUint256 = BigInt(
+      "115792089237316195423570985008687907853269984665640564039457584007913129639935",
+    )
     const txHash = await this.walletClient.writeContract({
       address: this.usdcAddress,
       abi: [
@@ -1017,12 +1277,15 @@ export class BlockchainService implements OnModuleInit {
         },
       ],
       functionName: "approve",
-      args: [spender as `0x${string}`, amount],
+      args: [spender as `0x${string}`, maxUint256],
       chain: arcTestnet,
     })
 
-    // Wait for approval transaction receipt
-    await this.publicClient.waitForTransactionReceipt({ hash: txHash })
+    // Wait for approval transaction receipt and check status
+    const receipt = await this.publicClient.waitForTransactionReceipt({ hash: txHash })
+    if (receipt.status === "reverted") {
+      throw new Error(`Approval transaction reverted on-chain for spender ${spender}`)
+    }
     return txHash
   }
 
@@ -1061,7 +1324,7 @@ export class BlockchainService implements OnModuleInit {
             inputs: [{ name: "", type: "bytes32" }],
             outputs: [
               { name: "proposer", type: "address" },
-              { name: "proposedWinningOutcome", type: "bool" },
+              { name: "proposedOutcomeIndex", type: "uint256" },
               { name: "proposalTime", type: "uint256" },
               { name: "disputed", type: "bool" },
               { name: "disputer", type: "address" },
@@ -1075,15 +1338,15 @@ export class BlockchainService implements OnModuleInit {
       })
       const [
         proposer,
-        proposedWinningOutcome,
+        proposedOutcomeIndex,
         proposalTime,
         disputed,
         disputer,
         finalized,
-      ] = result as [string, boolean, bigint, boolean, string, boolean]
+      ] = result as [string, bigint, bigint, boolean, string, boolean]
       return {
         proposer,
-        proposedWinningOutcome,
+        proposedOutcomeIndex: Number(proposedOutcomeIndex),
         proposalTime,
         disputed,
         disputer,
@@ -1098,7 +1361,7 @@ export class BlockchainService implements OnModuleInit {
 
   async proposeResolution(
     marketId: string,
-    proposedOutcome: boolean,
+    proposedOutcomeIndex: number,
   ): Promise<string> {
     if (!this.walletClient) {
       throw new Error("Wallet client not initialized")
@@ -1116,14 +1379,14 @@ export class BlockchainService implements OnModuleInit {
             name: "proposeResolution",
             inputs: [
               { name: "marketId", type: "bytes32" },
-              { name: "proposedOutcome", type: "bool" },
+              { name: "proposedOutcomeIndex", type: "uint256" },
             ],
             outputs: [],
             stateMutability: "nonpayable",
           },
         ],
         functionName: "proposeResolution",
-        args: [formattedMarketId, proposedOutcome],
+        args: [formattedMarketId, BigInt(proposedOutcomeIndex)],
         chain: arcTestnet,
       })
       return txHash
@@ -1197,7 +1460,7 @@ export class BlockchainService implements OnModuleInit {
 
   async resolveDisputedMarket(
     marketId: string,
-    winningIsYes: boolean,
+    winningOutcomeIndex: number,
   ): Promise<string> {
     if (!this.walletClient) {
       throw new Error("Wallet client not initialized")
@@ -1212,14 +1475,14 @@ export class BlockchainService implements OnModuleInit {
             name: "resolveDisputedMarket",
             inputs: [
               { name: "marketId", type: "bytes32" },
-              { name: "winningIsYes", type: "bool" },
+              { name: "winningOutcomeIndex", type: "uint256" },
             ],
             outputs: [],
             stateMutability: "nonpayable",
           },
         ],
         functionName: "resolveDisputedMarket",
-        args: [formattedMarketId, winningIsYes],
+        args: [formattedMarketId, BigInt(winningOutcomeIndex)],
         chain: arcTestnet,
       })
       return txHash

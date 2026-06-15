@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { usePathname, useRouter } from "next/navigation"
+import { usePathname } from "next/navigation"
 import {
   Home,
   Search,
@@ -9,18 +9,14 @@ import {
   User,
   Wallet,
   CircleHelp,
-  CircleDollarSign,
-  PenSquare,
   TrendingUp,
-  MessageSquareText,
-  X,
   Trophy,
 } from "lucide-react"
-import { useState } from "react"
 import ThemeToggle from "@/components/layout/ThemeToggle"
 import SidebarProfile from "@/components/layout/SidebarProfile"
 import { useWalletProfile } from "@/hooks/useWalletProfile"
 import { useNotificationsQuery } from "@/store/verity/verityQueries"
+import { useAuth } from "@/components/providers/AuthModals"
 
 const NAV_ITEMS = [
   { icon: Home, label: "Home", href: "/" },
@@ -33,26 +29,13 @@ const NAV_ITEMS = [
   { icon: User, label: "Profile", href: "/profile" },
 ]
 
-
 export default function Sidebar() {
-  const router = useRouter()
   const pathname = usePathname()
-  const [composeOpen, setComposeOpen] = useState(false)
 
+  const { authenticated, login } = useAuth()
   const { profile } = useWalletProfile()
   const { data: notifications = [] } = useNotificationsQuery(profile?.id || "")
   const unreadCount = notifications.filter((n: any) => !n.read).length
-
-  function openComposer(intent: "take" | "market") {
-    if (typeof window !== "undefined") {
-      window.sessionStorage.setItem("verity-compose-intent", intent)
-      window.dispatchEvent(
-        new CustomEvent("verity-compose-intent", { detail: intent }),
-      )
-    }
-    setComposeOpen(false)
-    if (pathname !== "/") router.push("/")
-  }
 
   return (
     <div className="verity-card flex h-full flex-col p-4">
@@ -78,12 +61,22 @@ export default function Sidebar() {
       {/* Nav Links */}
       <nav className="flex-1 space-y-1.5">
         {NAV_ITEMS.map((item) => {
-          const isActive = pathname === item.href
+          const isActive =
+            pathname === item.href ||
+            (item.href !== "/" && pathname?.startsWith(item.href + "/"))
           const href = item.href === "/profile" ? `/profile` : item.href
+          const isAuthRequired =
+            item.href === "/profile" || item.href === "/portfolio"
           return (
             <Link
               key={item.label}
               href={href}
+              onClick={(e) => {
+                if (isAuthRequired && !authenticated) {
+                  e.preventDefault()
+                  login()
+                }
+              }}
               className="group flex w-fit items-center xl:w-full"
             >
               <div
@@ -109,77 +102,6 @@ export default function Sidebar() {
           )
         })}
       </nav>
-
-      {/* Action Buttons */}
-      <div className="mb-6 mt-auto flex flex-col items-center gap-4 xl:w-full xl:items-stretch">
-        <div className="relative">
-          {composeOpen && (
-            <div className="absolute bottom-[calc(100%+10px)] left-0 z-50 w-[228px] rounded-[14px] bg-surface-solid p-2 shadow-sm">
-              <div className="mb-2 flex items-center justify-between px-2 pt-1">
-                <span className="font-mono text-[11px] font-semibold uppercase tracking-[0.16em] text-ash">
-                  Create
-                </span>
-                <button
-                  aria-label="Close compose menu"
-                  className="clickable-icon flex h-7 w-7 items-center justify-center text-ash hover:text-foreground"
-                  onClick={() => setComposeOpen(false)}
-                  type="button"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-
-              <button
-                className="clickable-surface flex w-full items-center gap-3 rounded-[10px] p-3 text-left"
-                onClick={() => openComposer("market")}
-                type="button"
-              >
-                <span className="flex h-10 w-10 items-center justify-center rounded-[16px] bg-ember-orange/10 text-ember-orange">
-                  <TrendingUp className="h-5 w-5" />
-                </span>
-                <span className="min-w-0">
-                  <span className="block text-sm font-semibold tracking-[-0.18px] text-charcoal-primary">
-                    Market
-                  </span>
-                  <span className="mt-0.5 block text-xs tracking-[-0.14px] text-ash">
-                    Ask a tradable question
-                  </span>
-                </span>
-              </button>
-
-              <button
-                className="clickable-surface mt-1 flex w-full items-center gap-3 rounded-[10px] p-3 text-left"
-                onClick={() => openComposer("take")}
-                type="button"
-              >
-                <span className="flex h-10 w-10 items-center justify-center rounded-[16px] bg-sky-blue/10 text-sky-blue">
-                  <MessageSquareText className="h-5 w-5" />
-                </span>
-                <span className="min-w-0">
-                  <span className="block text-sm font-semibold tracking-[-0.18px] text-charcoal-primary">
-                    Take
-                  </span>
-                  <span className="mt-0.5 block text-xs tracking-[-0.14px] text-ash">
-                    Share a regular post
-                  </span>
-                </span>
-              </button>
-            </div>
-          )}
-
-          <button
-            aria-expanded={composeOpen}
-            className="clickable verity-pill flex h-12 w-12 items-center justify-center bg-inverse text-xl font-semibold text-inverse-text hover:opacity-90 xl:h-12 xl:w-full"
-            onClick={() => setComposeOpen((current) => !current)}
-            type="button"
-          >
-            <span className="hidden text-sm font-semibold tracking-[-0.18px] xl:block">
-              Post
-            </span>
-            <PenSquare className="h-6 w-6 xl:hidden" />
-          </button>
-        </div>
-      </div>
 
       {/* Sidebar Profile & Wallet info */}
       <div className="mt-2">

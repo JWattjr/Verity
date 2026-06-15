@@ -3,7 +3,8 @@
 import Sidebar from "@/components/layout/Sidebar"
 import RightPanel from "@/components/layout/RightPanel"
 import MobileNav from "@/components/layout/MobileNav"
-import MobileComposeButton from "@/components/layout/MobileComposeButton"
+import MobileLeaderboardButton from "@/components/layout/MobileLeaderboardButton"
+import MobileHeader from "@/components/layout/MobileHeader"
 import { useSocket } from "@/hooks/useSocket"
 import { useWalletProfile } from "@/hooks/useWalletProfile"
 import { useEffect } from "react"
@@ -13,8 +14,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const { profile } = useWalletProfile()
   const { joinRoom, leaveRoom } = useSocket()
   const pathname = usePathname()
-  
-  const isMarketsListingPage = pathname === "/markets"
+
+  const isFullWidthPage = pathname === "/markets" || pathname === "/portfolio"
 
   useEffect(() => {
     if (profile?.id) {
@@ -27,24 +28,26 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <>
-      <div className="mx-auto flex min-h-screen w-full max-w-[1300px] justify-center gap-3 px-2 sm:px-3 xl:gap-6 xl:px-5">
+      <div className="mx-auto flex min-h-screen w-full max-w-[1300px] justify-center gap-3 px-4 sm:px-3 xl:gap-6 xl:px-5">
         <div className="sticky top-0 hidden h-screen w-[76px] shrink-0 flex-col py-4 sm:flex xl:w-[280px]">
           <Sidebar />
         </div>
 
-        <main className={`min-w-0 flex-1 ${isMarketsListingPage ? "max-w-[1000px]" : "max-w-[672px]"} pb-24 sm:pb-0`}>
+        <main
+          className={`min-w-0 flex-1 ${isFullWidthPage ? "max-w-[1000px]" : "max-w-[672px]"} pb-24 sm:pb-0`}
+        >
+          <MobileHeader />
           {children}
         </main>
 
-        {!isMarketsListingPage && (
-          <aside className="sticky top-0 hidden h-screen w-[312px] shrink-0 flex-col py-4 lg:flex">
+        {!isFullWidthPage && (
+          <aside className="sticky top-0 hidden h-screen w-[340px] shrink-0 flex-col py-4 lg:flex">
             <RightPanel />
           </aside>
         )}
       </div>
-      <MobileComposeButton />
+      <MobileLeaderboardButton />
       <MobileNav />
     </>
   )
 }
-

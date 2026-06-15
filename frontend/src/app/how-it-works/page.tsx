@@ -5,7 +5,6 @@ import {
   CircleDollarSign,
   Flag,
   MessageCircle,
-  Repeat2,
   ShieldCheck,
   Sparkles,
   TrendingUp,
@@ -89,11 +88,6 @@ const SOCIAL = [
     body: "Discuss evidence, ask for clarification, and leave context below posts and markets.",
     icon: MessageCircle,
   },
-  {
-    title: "Reshares",
-    body: "Bring useful claims and markets back into the feed when they deserve attention.",
-    icon: Repeat2,
-  },
 ]
 
 export default function HowItWorksPage() {
@@ -110,7 +104,7 @@ export default function HowItWorksPage() {
           <h1 className="mt-2 text-[34px] font-semibold leading-[1.05] tracking-[-0.9px] text-midnight sm:text-[52px] sm:tracking-[-1.14px]">
             How Verity works
           </h1>
-          <p className="mt-4 text-[17px] leading-[1.5] tracking-[-0.22px] text-graphite">
+          <p className="mt-4 text-[17px] leading-normal tracking-[-0.22px] text-graphite">
             Verity is a social prediction network. Posts can gather free
             community signals, become USDC-backed markets, and resolve through
             clear outcome rules.

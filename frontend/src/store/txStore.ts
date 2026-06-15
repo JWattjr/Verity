@@ -1,7 +1,7 @@
 import { create } from "zustand"
 import { apiRequest } from "@/store/apiClient"
 import type { Profile } from "@/lib/verity"
-import { toast } from "react-hot-toast"
+import { toast } from "@/lib/toast"
 import { queryClient } from "@/lib/queryClient"
 import { useAuthStore } from "@/store/authStore"
 
@@ -19,6 +19,7 @@ export interface TxConfirmationState {
   claimAmountUsdc?: number
   resolve: ((txHash: string) => void) | null
   reject: ((err: Error) => void) | null
+  deferClose?: boolean
 }
 
 export interface TxStore {
@@ -35,7 +36,10 @@ export interface TxStore {
     description: string,
     estimatedCostUsdc: number,
     claimAmountUsdc?: number,
+    deferClose?: boolean,
   ) => Promise<string>
+
+  closeTxConfirm: () => void
 
   handleConfirmTx: () => Promise<void>
   handleCancelTx: () => void
@@ -49,6 +53,7 @@ export const useTxStore = create<TxStore>((set, get) => ({
     estimatedCostUsdc: 0,
     resolve: null,
     reject: null,
+    deferClose: false,
   },
   isExecutingTx: false,
   txError: "",
@@ -58,7 +63,13 @@ export const useTxStore = create<TxStore>((set, get) => ({
   setTxError: (txError) => set({ txError }),
   setIsExecutingTx: (isExecutingTx) => set({ isExecutingTx }),
 
-  executeTxBatch: (calls, description, estimatedCostUsdc, claimAmountUsdc) => {
+  executeTxBatch: (
+    calls,
+    description,
+    estimatedCostUsdc,
+    claimAmountUsdc,
+    deferClose,
+  ) => {
     const user = queryClient.getQueryData<Profile>(["profile"])
     if (!user) {
       useAuthStore.getState().login()
@@ -77,10 +88,25 @@ export const useTxStore = create<TxStore>((set, get) => ({
           claimAmountUsdc,
           resolve,
           reject,
+          deferClose,
         },
         txError: "",
       })
     })
+  },
+
+  closeTxConfirm: () => {
+    set((s) => ({
+      txConfirmState: {
+        ...s.txConfirmState,
+        isOpen: false,
+        resolve: null,
+        reject: null,
+        deferClose: false,
+      },
+      isExecutingTx: false,
+      txError: "",
+    }))
   },
 
   handleConfirmTx: async () => {
@@ -108,15 +134,15 @@ export const useTxStore = create<TxStore>((set, get) => ({
         },
       )
 
-      toast.success("Transaction executed successfully!")
       txConfirmState.resolve(res.txHash)
-      set((s) => ({ txConfirmState: { ...s.txConfirmState, isOpen: false } }))
+      if (!txConfirmState.deferClose) {
+        set((s) => ({ txConfirmState: { ...s.txConfirmState, isOpen: false } }))
+        set({ isExecutingTx: false })
+      }
       queryClient.invalidateQueries()
     } catch (err: any) {
       const parsedError = err.message || "Transaction execution failed."
-      set({ txError: parsedError })
-    } finally {
-      set({ isExecutingTx: false })
+      set({ txError: parsedError, isExecutingTx: false })
     }
   },
 

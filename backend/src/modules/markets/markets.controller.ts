@@ -226,6 +226,55 @@ export class MarketsController {
     )
   }
 
+  @Post(":marketId/dispute")
+  @UseGuards(JwtAuthGuard, AdminGuard)
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: "Admin: Dispute a proposed outcome on-chain",
+  })
+  @ApiParam({
+    name: "marketId",
+    description: "Market ID",
+    example: "60d0fe4f5311236168a109ca",
+  })
+  @ApiResponse({ status: 200, description: "Market disputed successfully." })
+  async disputeMarket(
+    @Param("marketId") marketId: string,
+    @Body("adminAddress") adminAddress: string,
+  ) {
+    return this.marketsService.disputeMarket(marketId, adminAddress)
+  }
+
+  @Post(":marketId/admin-deposit-liquidity")
+  @UseGuards(JwtAuthGuard, AdminGuard)
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: "Admin: Deposit pre-market liquidity for a registered market",
+  })
+  @ApiParam({
+    name: "marketId",
+    description: "Market ID",
+    example: "60d0fe4f5311236168a109ca",
+  })
+  @ApiBody({
+    schema: {
+      type: "object",
+      properties: {
+        amount: { type: "number", example: 40 }
+      },
+      required: ["amount"]
+    }
+  })
+  @ApiResponse({ status: 200, description: "Liquidity deposited successfully." })
+  async adminDepositLiquidity(
+    @Param("marketId") marketId: string,
+    @Body("amount") amount: number,
+  ) {
+    return this.marketsService.adminDepositLiquidity(marketId, amount)
+  }
+
   @Post(":marketId/dev-qualify")
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()

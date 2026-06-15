@@ -1,8 +1,9 @@
 "use client"
 
 import { useState } from "react"
+import { Input } from "@/components/ui/input"
 import { X } from "lucide-react"
-import { toast } from "react-hot-toast"
+import { toast } from "@/lib/toast"
 import { useMarketLiquidity } from "@/hooks/useMarketLiquidity"
 import { useUsdcBalance } from "@/hooks/useUsdcBalance"
 
@@ -70,12 +71,12 @@ export default function PvpLiquidityModal({
               </span>
             </div>
             <div className="flex h-11 items-center rounded-[10px] border border-border dark:border-zinc-800 bg-white-surface dark:bg-zinc-900 px-3">
-              <input
+              <Input
                 type="number"
                 min="1"
                 value={liquidityAmount}
                 onChange={(e) => setLiquidityAmount(e.target.value)}
-                className="w-full bg-transparent text-sm text-charcoal-primary dark:text-white outline-none"
+                className="w-full bg-transparent text-sm text-charcoal-primary dark:text-white border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 px-0 h-full"
               />
               <button
                 onClick={() =>
@@ -89,10 +90,9 @@ export default function PvpLiquidityModal({
           </div>
 
           <p className="text-[10px] font-mono text-ash leading-normal bg-stone-50 dark:bg-zinc-900/50 p-2.5 rounded-lg border border-border/40 dark:border-zinc-800/40">
-            • Deposits USDC liquidity into the child market pool to
-            facilitate trading.
-            <br />
-            • Earn LP shares and trading fees from all BUY/SELL token
+            • Deposits USDC liquidity into the child market pool to facilitate
+            trading.
+            <br />• Earn LP shares and trading fees from all BUY/SELL token
             trades in this market.
           </p>
 

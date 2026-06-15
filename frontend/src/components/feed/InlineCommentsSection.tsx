@@ -1,6 +1,7 @@
 "use client"
 
 import React, { useState } from "react"
+import { Input } from "@/components/ui/input"
 import Link from "next/link"
 import { Send, Loader2 } from "lucide-react"
 import {
@@ -13,7 +14,7 @@ import {
   relativeTime,
   type Profile,
 } from "@/lib/verity"
-import toast from "react-hot-toast"
+import toast from "@/lib/toast"
 
 interface InlineCommentsSectionProps {
   postId: string
@@ -111,13 +112,13 @@ export default function InlineCommentsSection({
             <span className="verity-blob-smile scale-75" />
           </div>
           <div className="relative flex-1">
-            <input
+            <Input
               type="text"
               value={commentText}
               onChange={(e) => setCommentText(e.target.value)}
               placeholder="Write an inline reply..."
               disabled={isSubmitting}
-              className="w-full bg-stone-surface text-charcoal-primary placeholder-ash text-xs rounded-full pl-4 pr-10 py-2 border border-transparent focus:border-stone-400 focus:outline-none transition-colors"
+              className="w-full bg-stone-surface text-charcoal-primary placeholder-ash text-xs rounded-full pl-4 pr-10 py-2 border border-transparent focus-visible:border-stone-400 focus-visible:ring-0 focus-visible:ring-offset-0 transition-colors"
             />
             <button
               type="submit"

@@ -7,14 +7,16 @@ import {
   FPMM_ADDRESS,
   VAULT_ADDRESS,
   publicClient,
+  erc20Abi,
 } from "@/lib/arc"
+import { conditionalTokenVaultAbi } from "@/lib/contracts-generated"
 import {
   useFundPoolMutation,
   useAddLiquidityMutation,
   useRemoveLiquidityMutation,
   useExecuteMarketTradeMutation,
 } from "@/store/verity/verityQueries"
-import { toast } from "react-hot-toast"
+import { toast } from "@/lib/toast"
 
 function formatMarketId(marketId: string): `0x${string}` {
   const clean = marketId.replace(/^0x/, "")
@@ -60,18 +62,7 @@ export function useMarketLiquidity() {
 
       // Check USDC allowance to Factory
       const allowance = await publicClient.readContract({
-        abi: [
-          {
-            name: "allowance",
-            type: "function",
-            stateMutability: "view",
-            inputs: [
-              { name: "owner", type: "address" },
-              { name: "spender", type: "address" },
-            ],
-            outputs: [{ name: "", type: "uint256" }],
-          },
-        ] as const,
+        abi: erc20Abi,
         address: arcUsdcAddress,
         functionName: "allowance",
         args: [user!.walletAddress as `0x${string}`, FACTORY_ADDRESS],
@@ -154,18 +145,7 @@ export function useMarketLiquidity() {
 
       // Check USDC allowance to FPMM
       const allowance = await publicClient.readContract({
-        abi: [
-          {
-            name: "allowance",
-            type: "function",
-            stateMutability: "view",
-            inputs: [
-              { name: "owner", type: "address" },
-              { name: "spender", type: "address" },
-            ],
-            outputs: [{ name: "", type: "uint256" }],
-          },
-        ] as const,
+        abi: erc20Abi,
         address: arcUsdcAddress,
         functionName: "allowance",
         args: [user!.walletAddress as `0x${string}`, FPMM_ADDRESS],
@@ -270,14 +250,16 @@ export function useMarketLiquidity() {
   async function buyTokens(
     marketId: string,
     profileId: string,
-    isYes: boolean,
+    isYesOrIndex: boolean | number,
     amount: number,
     feeAmount: number,
     grossAmount: number,
+    customSide?: string,
   ) {
     checkPreconditions()
 
-    const side = isYes ? "YES" : "NO"
+    const isMulti = typeof isYesOrIndex === "number"
+    const side = customSide || (isYesOrIndex === true ? "YES" : "NO")
     const toastId = toast.loading(`Preparing ${side} token purchase...`)
     try {
       const rawAmount = BigInt(Math.round(amount * 1e6))
@@ -290,18 +272,7 @@ export function useMarketLiquidity() {
 
       // Check USDC allowance to FPMM
       const allowance = await publicClient.readContract({
-        abi: [
-          {
-            name: "allowance",
-            type: "function",
-            stateMutability: "view",
-            inputs: [
-              { name: "owner", type: "address" },
-              { name: "spender", type: "address" },
-            ],
-            outputs: [{ name: "", type: "uint256" }],
-          },
-        ] as const,
+        abi: erc20Abi,
         address: arcUsdcAddress,
         functionName: "allowance",
         args: [user!.walletAddress as `0x${string}`, FPMM_ADDRESS],
@@ -315,11 +286,19 @@ export function useMarketLiquidity() {
         })
       }
 
-      calls.push({
-        contractAddress: FPMM_ADDRESS,
-        abiFunctionSignature: "buy(bytes32,bool,uint256)",
-        abiParameters: [formattedId, isYes, rawAmount],
-      })
+      if (isMulti) {
+        calls.push({
+          contractAddress: FPMM_ADDRESS,
+          abiFunctionSignature: "buyOutcome(bytes32,uint256,uint256)",
+          abiParameters: [formattedId, BigInt(isYesOrIndex), rawAmount],
+        })
+      } else {
+        calls.push({
+          contractAddress: FPMM_ADDRESS,
+          abiFunctionSignature: "buy(bytes32,bool,uint256)",
+          abiParameters: [formattedId, isYesOrIndex, rawAmount],
+        })
+      }
 
       toast.dismiss(toastId)
 
@@ -357,14 +336,16 @@ export function useMarketLiquidity() {
   async function sellTokens(
     marketId: string,
     profileId: string,
-    isYes: boolean,
+    isYesOrIndex: boolean | number,
     tokenAmount: number,
     netUsdcReceived: number,
     feeAmount: number,
+    customSide?: string,
   ) {
     checkPreconditions()
 
-    const side = isYes ? "YES" : "NO"
+    const isMulti = typeof isYesOrIndex === "number"
+    const side = customSide || (isYesOrIndex === true ? "YES" : "NO")
     const toastId = toast.loading(`Preparing ${side} token sale...`)
     try {
       const rawAmount = BigInt(Math.round(tokenAmount * 1e6))
@@ -377,18 +358,7 @@ export function useMarketLiquidity() {
 
       // Check if FPMM is approved as ERC1155 operator on the Vault
       const isApproved = await publicClient.readContract({
-        abi: [
-          {
-            name: "isApprovedForAll",
-            type: "function",
-            stateMutability: "view",
-            inputs: [
-              { name: "account", type: "address" },
-              { name: "operator", type: "address" },
-            ],
-            outputs: [{ name: "", type: "bool" }],
-          },
-        ] as const,
+        abi: conditionalTokenVaultAbi,
         address: VAULT_ADDRESS,
         functionName: "isApprovedForAll",
         args: [user!.walletAddress as `0x${string}`, FPMM_ADDRESS],
@@ -402,11 +372,19 @@ export function useMarketLiquidity() {
         })
       }
 
-      calls.push({
-        contractAddress: FPMM_ADDRESS,
-        abiFunctionSignature: "sell(bytes32,bool,uint256)",
-        abiParameters: [formattedId, isYes, rawAmount],
-      })
+      if (isMulti) {
+        calls.push({
+          contractAddress: FPMM_ADDRESS,
+          abiFunctionSignature: "sellOutcome(bytes32,uint256,uint256)",
+          abiParameters: [formattedId, BigInt(isYesOrIndex), rawAmount],
+        })
+      } else {
+        calls.push({
+          contractAddress: FPMM_ADDRESS,
+          abiFunctionSignature: "sell(bytes32,bool,uint256)",
+          abiParameters: [formattedId, isYesOrIndex, rawAmount],
+        })
+      }
 
       toast.dismiss(toastId)
 

@@ -1,21 +1,21 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import "forge-std/Script.sol";
-import "forge-std/console2.sol";
-import "../src/ConditionalTokenVault.sol";
-import "../src/VerityFPMM.sol";
-import "../src/VerityMarketFactory.sol";
-import "../src/VerityOptimisticResolver.sol";
-import "../test/helpers/MockUSDC.sol";
-import "../test/helpers/MockPyth.sol";
+import { Script } from "forge-std/Script.sol";
+import { console2 } from "forge-std/console2.sol";
+import { ConditionalTokenVault } from "../src/ConditionalTokenVault.sol";
+import { VerityFPMM } from "../src/VerityFPMM.sol";
+import { VerityMarketFactory } from "../src/VerityMarketFactory.sol";
+import { VerityOptimisticResolver } from "../src/VerityOptimisticResolver.sol";
+import { MockUSDC } from "../test/helpers/MockUSDC.sol";
+import { MockPyth } from "../test/helpers/MockPyth.sol";
 
 
 contract BroadcasterFinder {
-    address public immutable broadcaster;
+    address public immutable BROADCASTER;
 
     constructor() {
-        broadcaster = msg.sender;
+        BROADCASTER = msg.sender;
     }
 }
 
@@ -64,7 +64,7 @@ contract Deploy is Script {
         // Start broadcasting to find the CLI account address
         vm.startBroadcast();
         BroadcasterFinder finder = new BroadcasterFinder();
-        address deployer = finder.broadcaster();
+        address deployer = finder.BROADCASTER();
         vm.stopBroadcast();
 
         // Restart broadcast with the correct resolved deployer address
@@ -130,7 +130,7 @@ contract Deploy is Script {
 
         // 5. Wire up permissions
         console2.log("\nWiring up contract permissions...");
-        vault.setFPMM(address(fpmm));
+        vault.setFpmm(address(fpmm));
         vault.setFactory(address(factory));
         fpmm.setFactory(address(factory));
         factory.setOptimisticResolver(address(resolver));

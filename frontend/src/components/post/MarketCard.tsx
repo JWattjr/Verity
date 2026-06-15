@@ -2,7 +2,8 @@
 
 import Link from "next/link"
 import { useState, type MouseEvent } from "react"
-import { ArrowDown, ArrowUp, MessageCircle, Repeat2, Share } from "lucide-react"
+import { Input } from "@/components/ui/input"
+import { ArrowDown, ArrowUp, MessageCircle, Share } from "lucide-react"
 import UserHoverCard from "@/components/social/UserHoverCard"
 import type { Profile, VoteSide } from "@/lib/verity"
 
@@ -50,6 +51,9 @@ export interface MarketCardProps {
   onAddLP?: (amount: number) => Promise<void>
   profileHref?: string
   profile?: Profile
+  outcomeCount?: number
+  outcomes?: string[]
+  outcomePrices?: number[]
 }
 
 export default function MarketCard({
@@ -90,13 +94,19 @@ export default function MarketCard({
   onAddLP,
   profileHref,
   profile,
+  outcomeCount = 2,
+  outcomes = [],
+  outcomePrices = [],
 }: MarketCardProps) {
   const isPvp = category?.toLowerCase() === "pvp"
-  const yesLabel = isPvp ? (yesCondition || "YES") : "YES"
-  const noLabel = isPvp ? (noCondition || "NO") : "NO"
+  const yesLabel = isPvp ? yesCondition || "YES" : "YES"
+  const noLabel = isPvp ? noCondition || "NO" : "NO"
   const [lpAmount, setLpAmount] = useState("10")
   const [tradeAmount, setTradeAmount] = useState("10")
   const totalUsdc = usdcYes + usdcNo
+  const isMulti = outcomeCount > 2
+  const outcomeList = isMulti ? outcomes : [yesLabel, noLabel]
+  const displayLiquidity = isMulti ? liquidity : totalUsdc
   const totalVotes = totalFreeVotes ?? freeYesVotes + freeNoVotes
   const isOpenForVotes = status === "open_for_votes"
   const isQualified = status === "qualified"
@@ -104,7 +114,12 @@ export default function MarketCard({
   const isClosed = ["closed", "resolving", "resolved", "voided"].includes(
     status,
   )
-  const canFreeVote = isOpenForVotes || isQualified
+  const canFreeVote = [
+    "open_for_votes",
+    "qualified",
+    "funding_pool",
+    "tradable",
+  ].includes(status)
   const hasViewerVoted = Boolean(viewerVote)
   const voteDisabled =
     !canFreeVote || hasViewerVoted || dailyVotesRemaining <= 0
@@ -160,11 +175,7 @@ export default function MarketCard({
           </div>
         </div>
 
-        <span
-          className={`verity-pill w-fit shrink-0 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] ${statusTone}`}
-        >
-          {status.replaceAll("_", " ")}
-        </span>
+
       </div>
 
       {postContent && postContent !== question && (
@@ -175,7 +186,7 @@ export default function MarketCard({
 
       <div className="mb-2 flex flex-wrap gap-2">
         <span className="rounded-[6px] bg-parchment-card px-2.5 py-1 text-[12px] font-medium tracking-[-0.14px] text-graphite shadow-subtle">
-          {category}
+          {category?.toLowerCase() === "pvp" ? "PvP" : category}
         </span>
       </div>
 
@@ -246,8 +257,8 @@ export default function MarketCard({
           ) : (
             <div className="flex gap-2">
               <div className="relative flex-1">
-                <input
-                  className="h-10 w-full rounded-[10px] bg-white-surface pl-3 pr-12 font-mono text-xs text-charcoal-primary shadow-subtle outline-none focus:ring-2 focus:ring-meadow-green/25"
+                <Input
+                  className="h-10 w-full rounded-[10px] bg-white-surface pl-3 pr-12 font-mono text-xs text-charcoal-primary shadow-subtle border-0 focus-visible:ring-2 focus-visible:ring-meadow-green/25 focus-visible:ring-offset-0 focus-visible:border-transparent"
                   min="1"
                   onChange={(e) => setLpAmount(e.target.value)}
                   placeholder="Amount"
@@ -270,48 +281,19 @@ export default function MarketCard({
           ))}
       </div>
 
-      <div className="mb-4 rounded-[12px] bg-white-surface p-3 shadow-subtle">
-        <div className="mb-2 flex items-center justify-between text-[12px] font-semibold tracking-[-0.14px] text-charcoal-primary">
-          <span>Upvotes signal</span>
-          <span className="font-mono text-[11px] text-ash">
-            {freeYesVotes}/30
-          </span>
-        </div>
-        <div className="mb-2 flex flex-wrap justify-between gap-2">
-          <span className="font-mono text-[11px] text-ash">
-            {freeYesVotes} up / {freeNoVotes} down
-          </span>
-          <span className="font-mono text-[11px] text-ash">
-            {voteThresholdMet
-              ? "Review threshold met"
-              : `${votesToReview} to review`}
-          </span>
-        </div>
-        <div
-          aria-label={`Upvote progress ${freeYesVotes}/30`}
-          className="flex h-1.5 overflow-hidden rounded-full bg-stone-surface"
-        >
-          <div
-            className="h-full bg-meadow-green transition-all duration-500"
-            style={{ width: `${Math.min(100, (freeYesVotes / 30) * 100)}%` }}
-          />
-        </div>
-        <div className="mt-2 font-mono text-[11px] text-ash">
-          <span>Votes left today: {dailyVotesRemaining}</span>
-        </div>
-      </div>
-
-      {isTradable ? (
+      {isTradable && (
         <div className="mb-3" onClick={stopClick}>
           <div className="flex gap-2 mb-2">
             <div className="relative flex-1">
-              <input
-                className="h-10 w-full rounded-[10px] bg-white-surface pl-3 pr-12 font-mono text-xs text-charcoal-primary shadow-subtle outline-none focus:ring-2 focus:ring-sky-blue/25"
-                min="1"
-                onChange={(e) => setTradeAmount(e.target.value)}
+              <Input
+                className="h-10 w-full rounded-[10px] bg-white-surface pl-3 pr-12 font-mono text-xs text-charcoal-primary shadow-subtle border-0 cursor-pointer focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:border-transparent"
+                readOnly
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onOpenDetails?.()
+                }}
                 placeholder="Trade amount"
-                step="1"
-                type="number"
+                type="text"
                 value={tradeAmount}
               />
               <span className="absolute right-3 top-3 font-mono text-[9px] font-semibold uppercase text-ash">
@@ -321,66 +303,36 @@ export default function MarketCard({
           </div>
           <div className="grid grid-cols-2 gap-2">
             <button
-              className="clickable flex-1 text-center py-2 px-3 rounded-lg font-mono text-xs font-bold transition-all duration-150 bg-meadow-green/10 text-meadow-green border border-meadow-green/20 hover:bg-meadow-green/20 disabled:cursor-not-allowed disabled:opacity-40"
-              disabled={
-                actionLoading || !isConnected || Number(tradeAmount) <= 0
-              }
-              onClick={() => onUsdcVote?.("YES", Number(tradeAmount))}
+              className="clickable flex-1 text-center py-2 px-3 rounded-lg font-mono text-xs font-bold transition-all duration-150 bg-meadow-green/10 text-meadow-green border border-meadow-green/20 hover:bg-meadow-green/20"
+              onClick={(e) => {
+                e.stopPropagation()
+                onOpenDetails?.()
+              }}
               type="button"
             >
-              {actionLoadingStatus === "buy_yes" ? "Buying..." : `BUY ${yesLabel}`}
+              BUY
             </button>
             <button
-              className="clickable flex-1 text-center py-2 px-3 rounded-lg font-mono text-xs font-bold transition-all duration-150 bg-ember-orange/10 text-ember-orange border border-ember-orange/20 hover:bg-ember-orange/15 disabled:cursor-not-allowed disabled:opacity-40"
-              disabled={
-                actionLoading || !isConnected || Number(tradeAmount) <= 0
-              }
-              onClick={() => onUsdcVote?.("NO", Number(tradeAmount))}
+              className="clickable flex-1 text-center py-2 px-3 rounded-lg font-mono text-xs font-bold transition-all duration-150 bg-ember-orange/10 text-ember-orange border border-ember-orange/20 hover:bg-ember-orange/15"
+              onClick={(e) => {
+                e.stopPropagation()
+                onOpenDetails?.()
+              }}
               type="button"
             >
-              {actionLoadingStatus === "buy_no" ? "Buying..." : `BUY ${noLabel}`}
+              SELL
             </button>
           </div>
         </div>
-      ) : canFreeVote ? (
-        <div className="mb-3" onClick={stopClick}>
-          <div className="mb-2 grid grid-cols-2 gap-2">
-            <button
-              className="clickable flex-1 text-center py-2 px-3 rounded-lg font-mono text-xs font-bold transition-all duration-150 bg-meadow-green/10 text-meadow-green border border-meadow-green/20 hover:bg-meadow-green/20 disabled:cursor-not-allowed disabled:opacity-60"
-              disabled={voteDisabled}
-              onClick={() => onVote?.("YES")}
-              title={yesCondition}
-              type="button"
-            >
-              Upvote
-            </button>
-            <button
-              className="clickable flex-1 text-center py-2 px-3 rounded-lg font-mono text-xs font-bold transition-all duration-150 bg-ember-orange/10 text-ember-orange border border-ember-orange/20 hover:bg-ember-orange/15 disabled:cursor-not-allowed disabled:opacity-60"
-              disabled={voteDisabled}
-              onClick={() => onVote?.("NO")}
-              title={noCondition}
-              type="button"
-            >
-              Downvote
-            </button>
-          </div>
-          {votingDisabledMessage && (
-            <p className="font-mono text-[11px] text-ember-orange">
-              {votingDisabledMessage}
-            </p>
-          )}
-        </div>
-      ) : (
-        <p className="mb-3 rounded-[10px] bg-parchment-card p-3 text-sm font-medium text-ash shadow-subtle">
-          This market is not open for Upvote/Downvote signals.
-        </p>
       )}
 
       <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-1 font-mono text-[11px] text-ash">
         {isTradable && (
           <span>
             Liquidity $
-            {totalUsdc.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+            {displayLiquidity.toLocaleString(undefined, {
+              maximumFractionDigits: 2,
+            })}
           </span>
         )}
         <span>Closes {deadline}</span>
@@ -396,11 +348,33 @@ export default function MarketCard({
 
       {isDetail && (
         <div className="mb-3 grid gap-2 rounded-[10px] bg-parchment-card p-3 font-mono text-[11px] text-ash shadow-subtle">
-          {yesCondition && (
-            <span className="text-meadow-green">YES: {yesCondition}</span>
-          )}
-          {noCondition && (
-            <span className="text-ember-orange">NO: {noCondition}</span>
+          {isMulti ? (
+            outcomes?.map((outcomeName, idx) => {
+              const price = outcomePrices?.[idx] ?? 1 / outcomeCount
+              const priceCents = Math.round(price * 100)
+              return (
+                <div
+                  className="flex justify-between items-center"
+                  key={outcomeName}
+                >
+                  <span className="text-charcoal-primary font-semibold">
+                    {outcomeName}
+                  </span>
+                  <span className="text-sky-blue font-mono font-bold">
+                    {priceCents}¢
+                  </span>
+                </div>
+              )
+            })
+          ) : (
+            <>
+              {yesCondition && (
+                <span className="text-meadow-green">YES: {yesCondition}</span>
+              )}
+              {noCondition && (
+                <span className="text-ember-orange">NO: {noCondition}</span>
+              )}
+            </>
           )}
         </div>
       )}
@@ -419,19 +393,6 @@ export default function MarketCard({
             <MessageCircle className="h-4 w-4" />
           </span>
           <span className="text-xs">{comments}</span>
-        </button>
-
-        <button
-          aria-label={`Reshare ${question}`}
-          aria-pressed={reshared}
-          className={`clickable-icon group flex items-center gap-2 px-1 hover:text-foreground ${reshared ? "text-meadow-green" : "text-ash"}`}
-          onClick={onReshare}
-          type="button"
-        >
-          <span className="rounded-full p-2">
-            <Repeat2 className="h-4 w-4" />
-          </span>
-          <span className="text-xs">{reshares}</span>
         </button>
 
         <button

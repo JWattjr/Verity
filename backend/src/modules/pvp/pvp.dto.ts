@@ -1,4 +1,4 @@
-import { IsString, IsArray, ValidateNested, ArrayMinSize, ArrayMaxSize, IsEnum, IsNotEmpty } from "class-validator"
+import { IsString, IsArray, ValidateNested, ArrayMinSize, ArrayMaxSize, IsEnum, IsNotEmpty, IsOptional } from "class-validator"
 import { Type } from "class-transformer"
 import { ApiProperty } from "@nestjs/swagger"
 
@@ -13,16 +13,20 @@ export class CreatePvpEventDto {
   @IsNotEmpty()
   deadline: string
 
+  @ApiProperty({ description: "Optional lock date when kickoff starts and predictions/trading lock", example: "2026-06-20T18:00:00Z", required: false })
+  @IsString()
+  @IsOptional()
+  lockTime?: string
+
   @ApiProperty({ description: "Official resolution source details", example: "ESPN / FIFA Official site" })
   @IsString()
   @IsNotEmpty()
   resolutionSource: string
 
-  @ApiProperty({ description: "Exactly 7 proposition questions/options", type: [String] })
+  @ApiProperty({ description: "Proposition questions/options (minimum 3)", type: [String] })
   @IsArray()
   @IsString({ each: true })
-  @ArrayMinSize(7)
-  @ArrayMaxSize(7)
+  @ArrayMinSize(3)
   options: string[]
 }
 
@@ -32,9 +36,10 @@ export class PvpPickInput {
   @IsNotEmpty()
   marketId: string
 
-  @ApiProperty({ description: "User choice", enum: ["YES", "NO"] })
-  @IsEnum(["YES", "NO"])
-  selection: "YES" | "NO"
+  @ApiProperty({ description: "User choice (YES, NO, or custom outcome name)" })
+  @IsString()
+  @IsNotEmpty()
+  selection: string
 }
 
 export class SubmitTicketDto {
@@ -43,11 +48,10 @@ export class SubmitTicketDto {
   @IsNotEmpty()
   parentMarketId: string
 
-  @ApiProperty({ description: "Exactly 7 picks on options", type: [PvpPickInput] })
+  @ApiProperty({ description: "Picks on options (minimum 3)", type: [PvpPickInput] })
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => PvpPickInput)
-  @ArrayMinSize(7)
-  @ArrayMaxSize(7)
+  @ArrayMinSize(3)
   picks: PvpPickInput[]
 }

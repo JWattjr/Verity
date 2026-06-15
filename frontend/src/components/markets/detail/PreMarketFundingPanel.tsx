@@ -1,73 +1,9 @@
 "use client"
 
 import { useState } from "react"
+import { Input } from "@/components/ui/input"
 import { Info } from "lucide-react"
 import { MarketPost } from "@/lib/verity"
-
-interface VoteQualificationProgressPanelProps {
-  market: MarketPost
-  onDevQualify: () => Promise<void>
-  loading: boolean
-}
-
-export function VoteQualificationProgressPanel({
-  market,
-  onDevQualify,
-  loading,
-}: VoteQualificationProgressPanelProps) {
-  const currentUpvotes = market.free_yes_votes ?? 0
-  const targetUpvotes = 30
-  const votesProgress = Math.min(100, (currentUpvotes / targetUpvotes) * 100)
-  const isDev = process.env.NEXT_PUBLIC_NODE_ENV !== "production"
-
-  return (
-    <section className="verity-card p-4 sm:p-5">
-      <div className="mb-4 flex items-center justify-between">
-        <div>
-          <h2 className="text-[19px] font-semibold leading-[1.28] tracking-[-0.25px] text-charcoal-primary">
-            Social Signal Progress
-          </h2>
-          <p className="mt-1 text-sm tracking-[-0.18px] text-ash">
-            Markets need Upvote/Downvote signals to unlock USDC trading
-          </p>
-        </div>
-      </div>
-
-      <div className="grid gap-4 rounded-[12px] bg-parchment-card p-4 shadow-subtle">
-        <div>
-          <div className="mb-1 flex justify-between font-mono text-xs text-ash">
-            <span>Upvotes cast</span>
-            <span className="font-semibold text-charcoal-primary">
-              {currentUpvotes} / {targetUpvotes}
-            </span>
-          </div>
-          <div className="h-2.5 overflow-hidden rounded-full bg-white-surface shadow-subtle">
-            <div
-              className="h-full bg-meadow-green transition-all duration-500"
-              style={{ width: `${votesProgress}%` }}
-            />
-          </div>
-        </div>
-      </div>
-
-      {isDev && (
-        <div className="mt-4 border-t border-dashed border-stone-surface pt-4">
-          <p className="mb-2 font-mono text-[10px] font-semibold uppercase tracking-[0.12em] text-meadow-green">
-            Dev Mode Fast-Track
-          </p>
-          <button
-            className="verity-pill flex h-11 w-full items-center justify-center bg-meadow-green/10 font-mono text-xs font-semibold uppercase tracking-[0.12em] text-charcoal-primary shadow-subtle transition-colors hover:bg-meadow-green/20"
-            disabled={loading}
-            onClick={onDevQualify}
-            type="button"
-          >
-            {loading ? "Fast-tracking..." : "Skip signal review"}
-          </button>
-        </div>
-      )}
-    </section>
-  )
-}
 
 interface PreMarketFundingPanelProps {
   market: MarketPost
@@ -112,7 +48,7 @@ export default function PreMarketFundingPanel({
           <p className="mt-1 text-sm tracking-[-0.18px] text-ash">
             {activeOptionName
               ? `Fund the launch pool for the option: ${activeOptionName}. Each outcome option has a separate liquidity pool and must be funded individually.`
-              : "Fund this market's launch pool. Contributions help open trading and may earn liquidity rewards."}
+              : `Fund this market's launch pool. Contributions convert to LP shares once the pool hits ${minPoolBalance} USDC.`}
           </p>
         </div>
         <span className="rounded-full bg-meadow-green/10 px-3 py-1 font-mono text-xs font-semibold text-charcoal-primary shadow-subtle">
@@ -210,8 +146,8 @@ export default function PreMarketFundingPanel({
                 : "Fund the Launch Pool"}
             </h3>
             <div className="flex gap-2">
-              <input
-                className="h-11 w-24 rounded-[10px] bg-white-surface px-3 font-mono text-sm text-charcoal-primary shadow-subtle outline-none focus:ring-2 focus:ring-stone-surface"
+              <Input
+                className="h-11 w-24 rounded-[10px] bg-white-surface px-3 font-mono text-sm text-charcoal-primary shadow-subtle border-0 focus-visible:ring-2 focus-visible:ring-stone-surface focus-visible:ring-offset-0 focus-visible:border-transparent"
                 min="1"
                 onChange={(e) => setDepositAmount(e.target.value)}
                 step="1"
@@ -231,10 +167,6 @@ export default function PreMarketFundingPanel({
                 {actionLoading === "add_lp" ? "Funding..." : "Fund Pool"}
               </button>
             </div>
-            <p className="mt-2 font-mono text-[10px] leading-relaxed text-ash">
-              Contributions convert to LP shares once the pool hits the{" "}
-              {minPoolBalance} USDC launch target.
-            </p>
           </div>
         )}
       </div>

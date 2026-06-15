@@ -2,31 +2,26 @@
 
 import { useEffect, useMemo, useRef, useState } from "react"
 import {
-  BarChart2,
   ShieldCheck,
   Plus,
   Trash2,
   Calendar,
   Sparkles,
   HelpCircle,
+  X,
 } from "lucide-react"
 import { type MarketInput, type Profile } from "@/lib/verity"
+import { Input } from "@/components/ui/input"
 import { reviewPredictionPost, type VerityAgentReview } from "@/lib/verityAgent"
 import { useUsdcTransfer } from "@/hooks/useUsdcTransfer"
+import { useUsdcBalance } from "@/hooks/useUsdcBalance"
 import { useAuth } from "@/components/providers/AuthModals"
 import {
   useCreateMarketPostMutation,
-  useCreateNormalPostMutation,
   useValidateMarketPostMutation,
 } from "@/store/verity/verityQueries"
-import { toast } from "react-hot-toast"
-import {
-  FACTORY_ADDRESS,
-  arcUsdcAddress,
-  publicClient,
-  erc20Abi,
-} from "@/lib/arc"
-import type { Address } from "viem"
+import { toast } from "@/lib/toast"
+import { FACTORY_ADDRESS } from "@/lib/arc"
 
 interface ComposeBoxProps {
   profile: Profile | null
@@ -154,11 +149,11 @@ export default function ComposeBox({ onCreated }: ComposeBoxProps) {
   const composerRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const marketQuestionRef = useRef<HTMLInputElement>(null)
-  const { user, executeTxBatch } = useAuth()
+  const { user, closeTxConfirm } = useAuth()
   const { createMarketPreDeposit } = useUsdcTransfer()
+  const { rawBalance } = useUsdcBalance()
   const { mutateAsync: validateMarketPost } = useValidateMarketPostMutation()
   const { mutateAsync: createMarketPost } = useCreateMarketPostMutation()
-  const { mutateAsync: createNormalPost } = useCreateNormalPostMutation()
 
   const [content, setContent] = useState("")
   const [isMarket, setIsMarket] = useState(false)
@@ -181,19 +176,28 @@ export default function ComposeBox({ onCreated }: ComposeBoxProps) {
   const [isValidating, setIsValidating] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  const handleFocusTake = () => {
+    setIsMarket(true)
+    if (content.trim()) {
+      setMarket((current) => ({
+        ...current,
+        question: content,
+      }))
+    }
+    window.requestAnimationFrame(() => {
+      marketQuestionRef.current?.focus()
+    })
+  }
+
   useEffect(() => {
     function applyIntent(intent: ComposeIntent) {
-      setIsMarket(intent === "market")
+      setIsMarket(true)
       window.requestAnimationFrame(() => {
         composerRef.current?.scrollIntoView({
           behavior: "smooth",
           block: "center",
         })
-        if (intent === "market") {
-          marketQuestionRef.current?.focus()
-        } else {
-          textareaRef.current?.focus()
-        }
+        marketQuestionRef.current?.focus()
       })
     }
 
@@ -303,11 +307,32 @@ export default function ComposeBox({ onCreated }: ComposeBoxProps) {
   const visibleAgentReview =
     reviewIsCurrent && agentReview ? agentReview : liveAgentReview
 
+  const requiredMarketCost = useMemo(() => {
+    if (isMultiOption) {
+      return options.filter((o) => o.trim().length > 0).length * 11
+    }
+    return 11
+  }, [isMultiOption, options])
+
+  const isBalanceInsufficient = useMemo(() => {
+    if (!user || !isMarket) return false
+    const rawRequired = BigInt(requiredMarketCost * 1e6)
+    return rawBalance < rawRequired
+  }, [user, isMarket, requiredMarketCost, rawBalance])
+
   const canUsePrimaryAction = useMemo(() => {
     if (!user || saving || isValidating) return false
     if (!isMarket) return content.trim().length > 0
-    return hasMarketFields
-  }, [content, hasMarketFields, isMarket, user, saving, isValidating])
+    return hasMarketFields && !isBalanceInsufficient
+  }, [
+    content,
+    hasMarketFields,
+    isMarket,
+    user,
+    saving,
+    isValidating,
+    isBalanceInsufficient,
+  ])
 
   async function runAgentReview() {
     setIsValidating(true)
@@ -369,20 +394,22 @@ export default function ComposeBox({ onCreated }: ComposeBoxProps) {
     })
   }
 
-  const dynamicCost = useMemo(() => {
-    const optionCount = isMultiOption
-      ? options.filter((o) => o.trim().length > 0).length
-      : 1
-    return optionCount * 11
-  }, [isMultiOption, options])
+  const dynamicCost = 11
 
   const primaryLabel = useMemo(() => {
     if (saving) return "Posting..."
     if (isValidating) return "Reviewing..."
-    if (!isMarket) return "Take"
+    if (!isMarket) return "Post"
     if (!predictionApproved) return "Review"
     return `Pay ${dynamicCost} USDC & Create Market`
-  }, [isMarket, predictionApproved, saving, isValidating, dynamicCost])
+  }, [
+    isMarket,
+    predictionApproved,
+    saving,
+    isValidating,
+    dynamicCost,
+    isBalanceInsufficient,
+  ])
 
   async function submit() {
     if (!user || !canUsePrimaryAction) return
@@ -390,6 +417,15 @@ export default function ComposeBox({ onCreated }: ComposeBoxProps) {
     if (isMarket && !predictionApproved) {
       await runAgentReview()
       return
+    }
+
+    if (isMarket) {
+      if (isBalanceInsufficient) {
+        toast.error(
+          `Insufficient USDC balance. You need at least ${requiredMarketCost} USDC to create a market`,
+        )
+        return
+      }
     }
 
     setSaving(true)
@@ -422,45 +458,8 @@ export default function ComposeBox({ onCreated }: ComposeBoxProps) {
 
         if (isMultiOption) {
           const validOptions = options.filter((o) => o.trim().length > 0)
-          const optionMarketIds = validOptions.map(() => generateObjectId())
-          const totalCostRaw = BigInt(validOptions.length * 11 * 1e6)
-          const calls: Array<{
-            contractAddress: string
-            abiFunctionSignature: string
-            abiParameters: any[]
-          }> = []
-
-          // Check Factory allowance
-          const allowance = await publicClient.readContract({
-            address: arcUsdcAddress,
-            abi: erc20Abi,
-            functionName: "allowance",
-            args: [user.walletAddress as `0x${string}`, FACTORY_ADDRESS],
-          })
-
-          if (allowance < totalCostRaw) {
-            calls.push({
-              contractAddress: arcUsdcAddress,
-              abiFunctionSignature: "approve(address,uint256)",
-              abiParameters: [FACTORY_ADDRESS, totalCostRaw],
-            })
-          }
-
-          // Batch createMarketPreDeposit calls
-          optionMarketIds.forEach((childId) => {
-            const formattedChildId = ("0x" + childId.padEnd(64, "0")) as Address
-            calls.push({
-              contractAddress: FACTORY_ADDRESS,
-              abiFunctionSignature: "createMarketPreDeposit(bytes32,uint256)",
-              abiParameters: [formattedChildId, BigInt("10000000")],
-            })
-          })
-
-          txHash = await executeTxBatch(
-            calls,
-            `Deploy Multi-Option Market (${validOptions.length} Options) with ${validOptions.length * 10} USDC Pool Liquidity`,
-            validOptions.length * 11,
-          )
+          const payment = await createMarketPreDeposit(marketId, 10, true)
+          txHash = payment.hash
 
           await createMarketPost({
             authorId: user.id,
@@ -471,12 +470,12 @@ export default function ComposeBox({ onCreated }: ComposeBoxProps) {
             content: finalMarket.question.trim(),
             creationFeeTxHash: txHash,
             feeCollectorAddress: FACTORY_ADDRESS,
-            options: validOptions,
-            optionMarketIds,
+            outcomeCount: validOptions.length,
+            outcomes: validOptions,
           })
         } else {
           // Binary Market Pre-Deposit
-          const payment = await createMarketPreDeposit(marketId, 10)
+          const payment = await createMarketPreDeposit(marketId, 10, true)
           txHash = payment.hash
 
           await createMarketPost({
@@ -507,14 +506,13 @@ export default function ComposeBox({ onCreated }: ComposeBoxProps) {
         setReviewedSignature("")
         setIsMarket(false)
         toast.success("Market successfully created!", { id: tid })
-      } else {
-        await createNormalPost({ authorId: user.id, content })
-        toast.success("Post successfully published!", { id: tid })
+        closeTxConfirm()
       }
 
       setContent("")
       onCreated()
     } catch (caught: any) {
+      closeTxConfirm()
       if (!caught.message?.includes("rejected")) {
         setError(caught.message || "Failed to submit post.")
         toast.error(caught.message || "Execution failed.", { id: tid })
@@ -534,7 +532,7 @@ export default function ComposeBox({ onCreated }: ComposeBoxProps) {
       {/* Main Composer Row */}
       <div className="flex gap-3 sm:gap-4">
         {/* Avatar */}
-        <div className="shrink-0">
+        <div className={`shrink-0 ${isMarket ? "hidden sm:block" : ""}`}>
           <div className="verity-blob h-10 w-10 animate-pulse bg-ember-orange">
             <span className="verity-blob-smile" />
           </div>
@@ -546,11 +544,8 @@ export default function ComposeBox({ onCreated }: ComposeBoxProps) {
               ref={textareaRef}
               disabled={!user || saving || isValidating}
               onChange={(event) => setContent(event.target.value)}
-              placeholder={
-                user
-                  ? "What's your conviction? Post a Take..."
-                  : "Connect wallet to post a Take"
-              }
+              onFocus={handleFocusTake}
+              placeholder="What's your conviction? Create a Market..."
               value={content}
               className="min-h-[60px] w-full resize-none border-none bg-transparent text-[19px] font-semibold leading-[1.3] tracking-[-0.25px] text-charcoal-primary outline-none placeholder:text-ash"
             />
@@ -559,40 +554,68 @@ export default function ComposeBox({ onCreated }: ComposeBoxProps) {
           {isMarket && (
             <div className="grid gap-3 rounded-xl bg-surface-muted/50 dark:bg-surface-muted/30 p-4 border border-border">
               {/* Mode Selector (Binary vs Multi-Option) */}
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-charcoal-primary">
-                  Market Outcome Mode
-                </span>
-                <div className="flex rounded-lg bg-stone-surface/50 dark:bg-stone-surface/30 p-1 border border-border text-xs font-semibold">
+              <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between border-b border-border/40 pb-3 mb-1">
+                <div className="flex items-center justify-between w-full sm:w-auto">
+                  <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-ash">
+                    Market Outcome Mode
+                  </span>
                   <button
                     type="button"
                     onClick={() => {
-                      setIsMultiOption(false)
-                      setAgentReview(null)
-                      setReviewedSignature("")
+                      setIsMarket(false)
+                      setContent("")
                     }}
-                    className={`px-3 py-1.5 rounded-md transition-all ${
-                      !isMultiOption
-                        ? "bg-surface-solid text-charcoal-primary border border-border shadow-sm"
-                        : "text-ash hover:text-charcoal-primary"
-                    }`}
+                    className="flex h-7 w-7 sm:hidden items-center justify-center rounded-full bg-stone-100 hover:bg-stone-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-ash hover:text-charcoal-primary transition-all cursor-pointer"
+                    aria-label="Cancel"
                   >
-                    Binary YES/NO
+                    <X className="h-4 w-4" />
                   </button>
+                </div>
+
+                <div className="flex items-center justify-between sm:justify-end gap-2 w-full sm:w-auto">
+                  <div className="flex rounded-lg bg-stone-surface/50 dark:bg-stone-surface/30 p-0.5 border border-border text-xs font-semibold w-full sm:w-auto">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsMultiOption(false)
+                        setAgentReview(null)
+                        setReviewedSignature("")
+                      }}
+                      className={`flex-1 sm:flex-none text-center px-3 py-1.5 rounded-md transition-all cursor-pointer ${
+                        !isMultiOption
+                          ? "bg-white dark:bg-zinc-800 text-charcoal-primary border border-border/80 shadow-sm"
+                          : "text-ash hover:text-charcoal-primary"
+                      }`}
+                    >
+                      Binary YES/NO
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsMultiOption(true)
+                        setAgentReview(null)
+                        setReviewedSignature("")
+                      }}
+                      className={`flex-1 sm:flex-none text-center px-3 py-1.5 rounded-md transition-all cursor-pointer ${
+                        isMultiOption
+                          ? "bg-white dark:bg-zinc-800 text-charcoal-primary border border-border/80 shadow-sm"
+                          : "text-ash hover:text-charcoal-primary"
+                      }`}
+                    >
+                      Multi-Option List
+                    </button>
+                  </div>
+
                   <button
                     type="button"
                     onClick={() => {
-                      setIsMultiOption(true)
-                      setAgentReview(null)
-                      setReviewedSignature("")
+                      setIsMarket(false)
+                      setContent("")
                     }}
-                    className={`px-3 py-1.5 rounded-md transition-all ${
-                      isMultiOption
-                        ? "bg-surface-solid text-charcoal-primary border border-border shadow-sm"
-                        : "text-ash hover:text-charcoal-primary"
-                    }`}
+                    className="hidden sm:flex h-8 w-8 items-center justify-center rounded-full bg-stone-100 hover:bg-stone-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-ash hover:text-charcoal-primary transition-all cursor-pointer shrink-0"
+                    aria-label="Cancel"
                   >
-                    Multi-Option List
+                    <X className="h-4 w-4" />
                   </button>
                 </div>
               </div>
@@ -602,9 +625,9 @@ export default function ComposeBox({ onCreated }: ComposeBoxProps) {
                 <label className="text-[10px] font-mono font-bold uppercase tracking-wider text-ash">
                   Market Question
                 </label>
-                <input
+                <Input
                   ref={marketQuestionRef}
-                  className="w-full h-11 rounded-xl border border-border bg-surface-solid px-4 text-sm text-charcoal-primary outline-none placeholder:text-ash focus:border-meadow-green/50 focus:ring-1 focus:ring-meadow-green/20 transition-all"
+                  className="w-full h-11 rounded-xl border border-border bg-surface-solid px-4 text-sm text-charcoal-primary focus-visible:ring-1 focus-visible:ring-meadow-green/20 focus-visible:border-meadow-green/50 focus-visible:ring-offset-0 transition-all"
                   disabled={!user || saving || isValidating}
                   onChange={(event) =>
                     setMarket((current) => ({
@@ -652,8 +675,8 @@ export default function ComposeBox({ onCreated }: ComposeBoxProps) {
                   </label>
                   <div className="relative flex h-11 items-center rounded-xl border border-border bg-surface-solid px-4">
                     <Calendar className="h-4 w-4 text-ash mr-2" />
-                    <input
-                      className="w-full bg-transparent text-sm text-charcoal-primary outline-none"
+                    <Input
+                      className="w-full bg-transparent text-sm text-charcoal-primary border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 px-0 h-full"
                       disabled={!user || saving || isValidating}
                       onChange={(event) =>
                         setMarket((current) => ({
@@ -689,14 +712,14 @@ export default function ComposeBox({ onCreated }: ComposeBoxProps) {
                           <span className="text-[11px] font-mono text-ash mr-1.5">
                             #{i + 1}
                           </span>
-                          <input
+                          <Input
                             type="text"
                             value={opt}
                             onChange={(e) =>
                               handleOptionChange(i, e.target.value)
                             }
                             placeholder={`Option ${i + 1}`}
-                            className="w-full bg-transparent text-xs text-charcoal-primary outline-none placeholder:text-ash"
+                            className="w-full bg-transparent text-xs text-charcoal-primary border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 px-0 h-full"
                             disabled={saving}
                           />
                         </div>
@@ -723,8 +746,8 @@ export default function ComposeBox({ onCreated }: ComposeBoxProps) {
                     <label className="text-[10px] font-mono font-bold uppercase tracking-wider text-ash">
                       Resolution Source
                     </label>
-                    <input
-                      className="w-full h-10 rounded-xl border border-border bg-surface-solid px-4 text-xs text-charcoal-primary outline-none placeholder:text-ash focus:border-meadow-green/50 focus:ring-1 focus:ring-meadow-green/20 transition-all"
+                    <Input
+                      className="w-full h-10 rounded-xl border border-border bg-surface-solid px-4 text-xs text-charcoal-primary focus-visible:ring-1 focus-visible:ring-meadow-green/20 focus-visible:border-meadow-green/50 focus-visible:ring-offset-0 transition-all"
                       disabled={!user || saving || isValidating}
                       onChange={(event) =>
                         setMarket((current) => ({
@@ -771,8 +794,8 @@ export default function ComposeBox({ onCreated }: ComposeBoxProps) {
                   <label className="text-[10px] font-mono font-bold uppercase tracking-wider text-ash">
                     Resolution Criteria Details
                   </label>
-                  <input
-                    className="w-full h-10 rounded-xl border border-border bg-surface-solid px-4 text-xs text-charcoal-primary outline-none placeholder:text-ash focus:border-meadow-green/50 focus:ring-1 focus:ring-meadow-green/20 transition-all"
+                  <Input
+                    className="w-full h-10 rounded-xl border border-border bg-surface-solid px-4 text-xs text-charcoal-primary focus-visible:ring-1 focus-visible:ring-meadow-green/20 focus-visible:border-meadow-green/50 focus-visible:ring-offset-0 transition-all"
                     disabled={!user || saving || isValidating}
                     onChange={(event) =>
                       setMarket((current) => ({
@@ -784,8 +807,8 @@ export default function ComposeBox({ onCreated }: ComposeBoxProps) {
                     value={market.resolutionSource}
                   />
                   <div className="grid gap-2 sm:grid-cols-2">
-                    <input
-                      className="h-10 rounded-xl border border-border bg-surface-solid px-4 text-xs text-charcoal-primary outline-none placeholder:text-ash focus:border-meadow-green/50 focus:ring-1 focus:ring-meadow-green/20 transition-all"
+                    <Input
+                      className="h-10 rounded-xl border border-border bg-surface-solid px-4 text-xs text-charcoal-primary focus-visible:ring-1 focus-visible:ring-meadow-green/20 focus-visible:border-meadow-green/50 focus-visible:ring-offset-0 transition-all"
                       disabled={!user || saving || isValidating}
                       onChange={(event) =>
                         setMarket((current) => ({
@@ -796,8 +819,8 @@ export default function ComposeBox({ onCreated }: ComposeBoxProps) {
                       placeholder="YES condition details (min 12 chars)"
                       value={market.yesCondition}
                     />
-                    <input
-                      className="h-10 rounded-xl border border-border bg-surface-solid px-4 text-xs text-charcoal-primary outline-none placeholder:text-ash focus:border-meadow-green/50 focus:ring-1 focus:ring-meadow-green/20 transition-all"
+                    <Input
+                      className="h-10 rounded-xl border border-border bg-surface-solid px-4 text-xs text-charcoal-primary focus-visible:ring-1 focus-visible:ring-meadow-green/20 focus-visible:border-meadow-green/50 focus-visible:ring-offset-0 transition-all"
                       disabled={!user || saving || isValidating}
                       onChange={(event) =>
                         setMarket((current) => ({
@@ -858,23 +881,16 @@ export default function ComposeBox({ onCreated }: ComposeBoxProps) {
             <p className="text-xs text-coral-red font-semibold">{error}</p>
           )}
 
+          {isMarket && user && isBalanceInsufficient && (
+            <p className="text-xs text-red-500 font-semibold mt-1">
+              Insufficient USDC balance. You need at least {requiredMarketCost}{" "}
+              USDC
+            </p>
+          )}
+
           {/* Action Row */}
           <div className="flex items-center justify-between border-t border-border pt-3 mt-1">
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setIsMarket((current) => !current)}
-                disabled={saving || isValidating}
-                className={`flex h-9 w-9 items-center justify-center rounded-lg border border-border text-ash hover:text-charcoal-primary hover:bg-surface-hover transition-all cursor-pointer disabled:opacity-50 ${
-                  isMarket
-                    ? "bg-meadow-green/10 text-meadow-green border-meadow-green/30"
-                    : ""
-                }`}
-                title="Toggle prediction market fields"
-              >
-                <BarChart2 className="w-5 h-5" />
-              </button>
-            </div>
+            <div className="flex items-center gap-2"></div>
 
             <button
               className={`verity-pill px-5 py-2 text-sm font-semibold tracking-[-0.18px] transition-all border ${

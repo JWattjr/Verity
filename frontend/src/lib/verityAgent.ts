@@ -50,12 +50,7 @@ export function reviewPredictionPost(input: MarketInput): VerityAgentReview {
     })
   }
 
-  if (question && !question.endsWith("?")) {
-    findings.push({
-      severity: "warning",
-      message: "Phrase the prediction as a question so voters scan it quickly.",
-    })
-  }
+
 
   if (question && !hasNumber(`${question} ${yesCondition} ${noCondition}`)) {
     findings.push({

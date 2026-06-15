@@ -1,7 +1,7 @@
 import { create } from "zustand"
 import { apiRequest } from "@/store/apiClient"
 import type { Profile } from "@/lib/verity"
-import { toast } from "react-hot-toast"
+
 import { queryClient } from "@/lib/queryClient"
 
 

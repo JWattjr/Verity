@@ -8,6 +8,7 @@ import {
   BadRequestException,
   ForbiddenException,
   Logger,
+  OnModuleInit,
 } from "@nestjs/common"
 import { InjectModel } from "@nestjs/mongoose"
 import { Model, Types, SortOrder } from "mongoose"
@@ -32,6 +33,7 @@ import { BlockchainService } from "../blockchain/blockchain.service"
 import { SocketGateway } from "../socket/socket.gateway"
 import { NotificationsService } from "../notifications/notifications.service"
 import { PvpService } from "../pvp/pvp.service"
+import { LiquidityService } from "../liquidity/liquidity.service"
 
 export interface DailyVotesResponse {
   votesLimit: number
@@ -43,6 +45,15 @@ export interface DailyVotesResponse {
 export interface VoteResponse {
   market: MarketResponse
   dailyVotes: DailyVotesResponse
+}
+
+export interface MarketHistoryResponse {
+  id: string
+  marketId: string
+  marketQuestion: string
+  side: VoteSide
+  created_at: string
+  market_question?: string | null
 }
 
 export interface MarketPositionResponse {
@@ -61,6 +72,7 @@ export interface MarketPositionResponse {
   usdc_no_amount?: number
   status?: string
   resolved_outcome?: string | null
+  category?: string | null
 }
 
 export interface MarketTradeResponse {
@@ -80,8 +92,26 @@ export interface MarketTradeResponse {
 }
 
 @Injectable()
-export class MarketsService {
+export class MarketsService implements OnModuleInit {
   private readonly logger = new Logger(MarketsService.name)
+
+  async onModuleInit() {
+    try {
+      const result = await this.marketModel.updateMany(
+        { status: "open_for_votes" },
+        { $set: { status: "qualified" } },
+      )
+      if (result.modifiedCount > 0) {
+        this.logger.log(
+          `Successfully migrated ${result.modifiedCount} 'open_for_votes' markets to 'qualified' status.`,
+        )
+      }
+    } catch (err) {
+      this.logger.error(
+        `Failed to migrate legacy markets status: ${err.message}`,
+      )
+    }
+  }
 
   constructor(
     @InjectModel(Market.name) private marketModel: Model<MarketDocument>,
@@ -100,6 +130,7 @@ export class MarketsService {
     private readonly socketGateway: SocketGateway,
     private readonly notificationsService: NotificationsService,
     private readonly pvpService: PvpService,
+    private readonly liquidityService: LiquidityService,
   ) {}
 
   private todayKey(date = new Date()): string {
@@ -152,12 +183,17 @@ export class MarketsService {
         ? m.resolvedOutcome
         : null
 
+    const category =
+      m && typeof m === "object" && "category" in m ? m.category : null
+
     return {
       id: position.id || (position as any)._id?.toString(),
       market_id:
         m && typeof m === "object" && "_id" in m
           ? m._id.toString()
-          : position.marketId.toString(),
+          : position.marketId
+            ? position.marketId.toString()
+            : "",
       user_id: position.userId.toString(),
       side: position.side,
       shares: position.shares,
@@ -171,6 +207,7 @@ export class MarketsService {
       usdc_no_amount,
       status,
       resolved_outcome,
+      category,
     }
   }
 
@@ -329,34 +366,6 @@ export class MarketsService {
     ])
     const totalFreeVotes = freeYesVotes + freeNoVotes
 
-    let nextStatus = market.status
-    if (market.status === "open_for_votes") {
-      const hasMetThresholds = freeYesVotes >= 30
-      if (hasMetThresholds) {
-        nextStatus = "qualified"
-        if (
-          market.marketType === "parent" ||
-          (market as any).market_type === "parent"
-        ) {
-          await this.marketModel.updateMany(
-            { parentMarketId: market._id },
-            {
-              $set: {
-                status: "qualified",
-                totalFreeVotes: 30,
-                uniqueVotersCount: 30,
-                freeYesVotes: 30,
-                freeNoVotes: 0,
-              },
-            },
-          )
-          this.logger.log(
-            `Qualifying child markets for parent market ${marketId}`,
-          )
-        }
-      }
-    }
-
     const updatedMarket = await this.marketModel.findByIdAndUpdate(
       marketId,
       {
@@ -364,7 +373,6 @@ export class MarketsService {
         freeNoVotes,
         totalFreeVotes,
         uniqueVotersCount,
-        status: nextStatus,
       },
       { new: true, runValidators: true },
     )
@@ -372,11 +380,6 @@ export class MarketsService {
     this.logger.log(
       `Free vote casted on market ${marketId} by user ${userId}. Side: ${side}`,
     )
-    if (nextStatus !== market.status) {
-      this.logger.log(
-        `Market ${marketId} status transitioned from ${market.status} to ${nextStatus}`,
-      )
-    }
 
     // Emit Socket events
     this.socketGateway.broadcastToRoom("feed", "feed-updated", {})
@@ -424,11 +427,6 @@ export class MarketsService {
     } else {
       // We only want to show binary/parent markets, NOT child markets!
       query.marketType = { $ne: "child" }
-      
-      // Exclude PvP Arena markets from standard market queries
-      if (filters.category !== "pvp") {
-        query.category = { $ne: "pvp" }
-      }
     }
 
     const sort: Record<string, any> = filters.trending
@@ -562,6 +560,26 @@ export class MarketsService {
     return this.postsService.serializeMarket(updatedMarket!)
   }
 
+  async adminDepositLiquidity(marketId: string, amount: number) {
+    const market = await this.marketModel.findById(marketId)
+    if (!market) {
+      throw new NotFoundException("Market not found.")
+    }
+
+    const txHash = await this.blockchainService.adminDepositPreMarketLiquidity(
+      marketId,
+      amount,
+    )
+
+    // Sync database pool state from chain
+    await this.liquidityService.syncPoolFromChain(marketId)
+
+    return {
+      success: true,
+      txHash,
+    }
+  }
+
   async fetchMarketPositions(
     marketId: string,
     profileId: string,
@@ -573,60 +591,35 @@ export class MarketsService {
         const isResolved =
           market && (market.status === "resolved" || market.resolvedOutcome)
         const winningOutcome = market?.resolvedOutcome
+        const outcomes =
+          market && market.outcomes && market.outcomes.length > 0
+            ? market.outcomes
+            : ["YES", "NO"]
 
         const onChain = await this.blockchainService.getUserOnChainBalances(
           marketId,
           user.walletAddress,
+          outcomes,
         )
 
-        // Sync YES Position
-        const isYesLosing = isResolved && winningOutcome === "NO"
-        if (!isYesLosing) {
-          if (onChain.yesBalance > 0) {
-            await this.marketPositionModel.updateOne(
-              {
-                marketId: new Types.ObjectId(marketId),
-                userId: new Types.ObjectId(profileId),
-                side: "YES",
-              },
-              {
-                $set: {
-                  shares: onChain.yesBalance,
-                },
-                $setOnInsert: {
-                  avgPrice: 0.5,
-                  investedUsdc: onChain.yesBalance * 0.5,
-                  realizedPnl: 0,
-                },
-              },
-              { upsert: true },
-            )
-          } else {
-            await this.marketPositionModel.deleteOne({
-              marketId: new Types.ObjectId(marketId),
-              userId: new Types.ObjectId(profileId),
-              side: "YES",
-            })
-          }
-        }
+        for (const outcome of outcomes) {
+          const balance = onChain[outcome] ?? 0
+          const isLosing = isResolved && winningOutcome !== outcome
 
-        // Sync NO Position
-        const isNoLosing = isResolved && winningOutcome === "YES"
-        if (!isNoLosing) {
-          if (onChain.noBalance > 0) {
+          if (!isLosing && balance > 0) {
             await this.marketPositionModel.updateOne(
               {
                 marketId: new Types.ObjectId(marketId),
                 userId: new Types.ObjectId(profileId),
-                side: "NO",
+                side: outcome,
               },
               {
                 $set: {
-                  shares: onChain.noBalance,
+                  shares: balance,
                 },
                 $setOnInsert: {
                   avgPrice: 0.5,
-                  investedUsdc: onChain.noBalance * 0.5,
+                  investedUsdc: balance * 0.5,
                   realizedPnl: 0,
                 },
               },
@@ -636,7 +629,7 @@ export class MarketsService {
             await this.marketPositionModel.deleteOne({
               marketId: new Types.ObjectId(marketId),
               userId: new Types.ObjectId(profileId),
-              side: "NO",
+              side: outcome,
             })
           }
         }
@@ -675,6 +668,17 @@ export class MarketsService {
     const user = await this.userModel.findById(dto.profileId)
     if (!user) {
       throw new NotFoundException("User not found.")
+    }
+
+    if (market.status !== "tradable") {
+      throw new BadRequestException("Trading is not active for this market.")
+    }
+
+    const lockTimeLimit = market.lockTime || market.deadline
+    if (new Date() >= lockTimeLimit) {
+      throw new BadRequestException(
+        "Trading deadline/lock time has passed for this market.",
+      )
     }
 
     // Verify txHash if provided
@@ -756,6 +760,9 @@ export class MarketsService {
     // Sync market balances and prices from chain
     await this.syncMarketPrices(marketId)
 
+    // Clear PvP position sync cache since the user just executed a trade
+    this.pvpService.clearSyncCache(dto.profileId)
+
     // Emit Socket events
     this.socketGateway.broadcastToRoom("feed", "feed-updated", {})
     this.socketGateway.broadcastToRoom(`market:${marketId}`, "market-updated", {
@@ -775,14 +782,66 @@ export class MarketsService {
 
   async syncMarketPrices(marketId: string): Promise<void> {
     try {
+      const market = await this.marketModel.findById(marketId)
+      if (!market) return
+
       const balances = await this.blockchainService.readPoolBalances(
         marketId as `0x${string}`,
       )
-      await this.marketModel.findByIdAndUpdate(marketId, {
-        usdcYesAmount: Number(balances.yesBalance) / 1e6,
-        usdcNoAmount: Number(balances.noBalance) / 1e6,
+
+      const updateData: any = {
         liquidity: Number(balances.totalDeposited) / 1e6,
-      })
+      }
+
+      const outcomeCount = market.outcomeCount ?? 2
+      if (outcomeCount > 2) {
+        try {
+          const rawBalances =
+            await this.blockchainService.readOutcomeBalances(marketId)
+          const outcomeBalances = rawBalances.map((b) => Number(b) / 1e6)
+          updateData.outcomeBalances = outcomeBalances
+
+          // Calculate outcome prices: p_j = (1/x_j) / sum(1/x_i)
+          const hasZero = outcomeBalances.some((b) => b === 0)
+          if (hasZero) {
+            updateData.outcomePrices = new Array(outcomeCount).fill(
+              1 / outcomeCount,
+            )
+          } else {
+            const invSum = outcomeBalances.reduce((sum, b) => sum + 1 / b, 0)
+            updateData.outcomePrices = outcomeBalances.map(
+              (b) => 1 / b / invSum,
+            )
+          }
+
+          updateData.usdcYesAmount = outcomeBalances[0] || 0
+          updateData.usdcNoAmount = outcomeBalances[1] || 0
+        } catch (e) {
+          this.logger.warn(
+            `Failed to read multi-outcome balances for ${marketId}: ${e.message}`,
+          )
+          const yesBal = Number(balances.yesBalance) / 1e6
+          const noBal = Number(balances.noBalance) / 1e6
+          updateData.outcomeBalances = [yesBal, noBal]
+          updateData.outcomePrices = [0.5, 0.5]
+        }
+      } else {
+        const yesBal = Number(balances.yesBalance) / 1e6
+        const noBal = Number(balances.noBalance) / 1e6
+        updateData.usdcYesAmount = yesBal
+        updateData.usdcNoAmount = noBal
+        updateData.outcomeBalances = [yesBal, noBal]
+
+        const total = yesBal + noBal
+        if (total === 0) {
+          updateData.outcomePrices = [0.5, 0.5]
+        } else {
+          const yesPrice = noBal / total
+          updateData.outcomePrices = [yesPrice, 1 - yesPrice]
+        }
+      }
+
+      await this.marketModel.findByIdAndUpdate(marketId, updateData)
     } catch (e) {
       this.logger.warn(
         `Failed to sync market prices for ${marketId}: ${e.message}`,
@@ -792,8 +851,8 @@ export class MarketsService {
 
   async resolveMarket(
     marketId: string,
-    winningOutcome: "YES" | "NO",
-    txHash: string,
+    winningOutcome: string,
+    txHash: string | undefined,
     adminAddress: string,
   ): Promise<MarketResponse> {
     const market = await this.marketModel.findById(marketId)
@@ -801,17 +860,93 @@ export class MarketsService {
       throw new NotFoundException("Market not found.")
     }
 
-    // Verify transaction receipt
-    await this.blockchainService.getTransactionReceipt(txHash as `0x${string}`)
+    let finalTxHash = txHash?.trim() || null
+
+    const outcomeCount = market.outcomeCount ?? 2
+    let winningIndex = -1
+    if (outcomeCount > 2) {
+      if (/^\d+$/.test(winningOutcome)) {
+        winningIndex = parseInt(winningOutcome, 10)
+      } else if (market.outcomes && market.outcomes.length > 0) {
+        winningIndex = market.outcomes.findIndex(
+          (o) => o.toLowerCase().trim() === winningOutcome.toLowerCase().trim(),
+        )
+      }
+      if (winningIndex === -1) {
+        winningIndex = 0 // fallback
+      }
+    } else {
+      winningIndex =
+        winningOutcome === "YES" || winningOutcome.toLowerCase() === "yes"
+          ? 0
+          : 1
+    }
+
+    if (finalTxHash) {
+      // Verify transaction receipt if provided
+      await this.blockchainService.getTransactionReceipt(
+        finalTxHash as `0x${string}`,
+      )
+    } else {
+      // No txHash provided: Backend executes the transaction on-chain on behalf of the admin!
+      if (market.marketType !== "parent") {
+        try {
+          const isDisputed = market.disputed || false
+          if (isDisputed) {
+            finalTxHash = await this.blockchainService.resolveDisputedMarket(
+              marketId,
+              winningIndex,
+            )
+          } else {
+            if (outcomeCount > 2) {
+              finalTxHash = await this.blockchainService.resolveMarketOutcome(
+                marketId,
+                winningIndex,
+              )
+            } else {
+              const winningIsYes = winningIndex === 0
+              finalTxHash = await this.blockchainService.resolveMarket(
+                marketId,
+                winningIsYes,
+              )
+            }
+          }
+          if (finalTxHash) {
+            this.logger.log(
+              `On-chain resolution executed by backend for market ${marketId}: tx ${finalTxHash}`,
+            )
+          }
+        } catch (error) {
+          this.logger.warn(
+            `Failed to execute on-chain resolution directly: ${error.message}. Proceeding with database-only resolution.`,
+          )
+        }
+      }
+    }
 
     const oldStatus = market.status
     market.status = "resolved"
-    market.resolvedOutcome = winningOutcome
     market.resolvedByAdmin = adminAddress
+
+    if (outcomeCount > 2) {
+      if (winningIndex >= 0 && winningIndex < outcomeCount) {
+        market.winningOutcomeIndex = winningIndex
+        market.resolvedOutcome = market.outcomes[winningIndex] as any
+      } else {
+        market.winningOutcomeIndex = 0
+        market.resolvedOutcome = (market.outcomes[0] || winningOutcome) as any
+      }
+    } else {
+      market.resolvedOutcome = winningOutcome as any
+      market.winningOutcomeIndex = winningOutcome === "YES" ? 0 : 1
+    }
+
     await market.save()
 
     // If this is a PvP parent market, cascade resolution to all child markets
     if (market.marketType === "parent") {
+      await this.pvpService.matchRemainingTicketsWithBot(marketId)
+
       const childMarkets = await this.marketModel.find({
         parentMarketId: market._id,
         status: { $ne: "resolved" },
@@ -822,27 +957,102 @@ export class MarketsService {
       )
 
       for (const child of childMarkets) {
-        child.status = "resolved"
-        child.resolvedOutcome = winningOutcome
-        child.resolvedByAdmin = adminAddress
-        await child.save()
+        if (child.outcomeCount > 2) {
+          // Multi-outcome child market
+          const winningIndex = child.outcomes.findIndex(
+            (o) =>
+              o.toLowerCase().trim() === winningOutcome.toLowerCase().trim(),
+          )
+          if (winningIndex >= 0) {
+            child.status = "resolved"
+            child.resolvedOutcome = child.outcomes[winningIndex]
+            child.winningOutcomeIndex = winningIndex
+            child.resolvedByAdmin = adminAddress
+            await child.save()
 
-        // Trigger PvP match resolution for each child market
-        await this.pvpService.resolvePvpMatchesForMarket(
-          child._id.toString(),
-          winningOutcome,
-        )
+            // Resolve child market on-chain
+            try {
+              await this.blockchainService.resolveMarketOutcome(
+                child._id.toString(),
+                winningIndex,
+              )
+              this.logger.log(
+                `Successfully resolved multi-outcome child market ${child._id} on-chain to index ${winningIndex}`,
+              )
+            } catch (err) {
+              this.logger.error(
+                `Failed to resolve multi-outcome child market ${child._id} on-chain: ${err.message}`,
+              )
+            }
 
-        this.logger.log(
-          `Resolved child market ${child._id} (${child.optionName || child.question}) -> ${winningOutcome}`,
-        )
+            // Trigger PvP match resolution for each child market
+            await this.pvpService.resolvePvpMatchesForMarket(
+              child._id.toString(),
+              child.outcomes[winningIndex],
+            )
 
-        // Emit socket events for each child market
-        this.socketGateway.broadcastToRoom(
-          `market:${child._id.toString()}`,
-          "market-updated",
-          { marketId: child._id.toString() },
-        )
+            this.logger.log(
+              `Resolved multi-outcome child market ${child._id} (${child.optionName || child.question}) -> ${child.outcomes[winningIndex]}`,
+            )
+
+            // Emit socket events for each child market
+            this.socketGateway.broadcastToRoom(
+              `market:${child._id.toString()}`,
+              "market-updated",
+              { marketId: child._id.toString() },
+            )
+          }
+        } else {
+          // Binary child market
+          const isYesMatch =
+            child.outcomes[0]?.toLowerCase().trim() ===
+            winningOutcome.toLowerCase().trim()
+          const isNoMatch =
+            child.outcomes[1]?.toLowerCase().trim() ===
+            winningOutcome.toLowerCase().trim()
+
+          if (isYesMatch || isNoMatch) {
+            const childResolvedOutcome = isYesMatch ? "YES" : "NO"
+            child.status = "resolved"
+            child.resolvedOutcome = childResolvedOutcome
+            child.winningOutcomeIndex = isYesMatch ? 0 : 1
+            child.resolvedByAdmin = adminAddress
+            await child.save()
+
+            // Resolve child market on-chain
+            try {
+              const winningIsYes = isYesMatch
+              await this.blockchainService.resolveMarket(
+                child._id.toString(),
+                winningIsYes,
+              )
+              this.logger.log(
+                `Successfully resolved binary child market ${child._id} on-chain (winningIsYes: ${winningIsYes})`,
+              )
+            } catch (err) {
+              this.logger.error(
+                `Failed to resolve binary child market ${child._id} on-chain: ${err.message}`,
+              )
+            }
+
+            // Trigger PvP match resolution for each child market
+            await this.pvpService.resolvePvpMatchesForMarket(
+              child._id.toString(),
+              childResolvedOutcome,
+            )
+
+            this.logger.log(
+              `Resolved binary child market ${child._id} (${child.optionName || child.question}) -> ${childResolvedOutcome}`,
+            )
+
+            // Emit socket events for each child market
+            this.socketGateway.broadcastToRoom(
+              `market:${child._id.toString()}`,
+              "market-updated",
+              { marketId: child._id.toString() },
+            )
+          }
+        }
       }
     } else {
       // For non-parent markets, trigger PvP match resolution directly
@@ -892,6 +1102,49 @@ export class MarketsService {
       "post-updated",
       { postId: market.postId.toString() },
     )
+
+    return this.postsService.serializeMarket(market)
+  }
+
+  async disputeMarket(
+    marketId: string,
+    adminAddress: string,
+  ): Promise<MarketResponse> {
+    const market = await this.marketModel.findById(marketId)
+    if (!market) {
+      throw new NotFoundException("Market not found.")
+    }
+
+    try {
+      // Execute on-chain dispute
+      const txHash = await this.blockchainService.disputeResolution(marketId)
+      await this.blockchainService.getTransactionReceipt(
+        txHash as `0x${string}`,
+      )
+
+      // Update DB
+      market.disputed = true
+      market.proposalDisputer = adminAddress
+      market.status = "resolving"
+      await market.save()
+
+      this.logger.log(
+        `Market ${marketId} disputed on-chain by admin. tx: ${txHash}`,
+      )
+    } catch (error) {
+      this.logger.error(
+        `Failed to dispute market ${marketId}: ${error.message}`,
+      )
+      throw new BadRequestException(
+        `Failed to dispute market on-chain: ${error.message}`,
+      )
+    }
+
+    // Emit Socket events
+    this.socketGateway.broadcastToRoom("feed", "feed-updated", {})
+    this.socketGateway.broadcastToRoom(`market:${marketId}`, "market-updated", {
+      marketId,
+    })
 
     return this.postsService.serializeMarket(market)
   }

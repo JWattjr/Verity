@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react"
 import { io, Socket } from "socket.io-client"
 import { useQueryClient } from "@tanstack/react-query"
-import toast from "react-hot-toast"
+import toast from "@/lib/toast"
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:5050/api"
@@ -83,11 +83,26 @@ export function useSocket() {
       queryClient.invalidateQueries({ queryKey: ["user-positions"] })
     }
 
+    const handlePvpMatched = () => {
+      queryClient.invalidateQueries({ queryKey: ["pvp-status"] })
+      queryClient.invalidateQueries({ queryKey: ["pvp-my-active-tickets"] })
+    }
+
+    const handlePvpResolved = () => {
+      queryClient.invalidateQueries({ queryKey: ["pvp-status"] })
+      queryClient.invalidateQueries({ queryKey: ["pvp-my-active-tickets"] })
+      queryClient.invalidateQueries({ queryKey: ["pvp-history"] })
+      queryClient.invalidateQueries({ queryKey: ["pvp-active-events"] })
+      queryClient.invalidateQueries({ queryKey: ["wallet-profile"] })
+    }
+
     socket.on("feed-updated", handleFeedUpdated)
     socket.on("post-updated", handlePostUpdated)
     socket.on("market-updated", handleMarketUpdated)
     socket.on("notification-created", handleNotificationCreated)
     socket.on("user-updated", handleUserUpdated)
+    socket.on("pvp-matched", handlePvpMatched)
+    socket.on("pvp-resolved", handlePvpResolved)
 
     return () => {
       socket.off("feed-updated", handleFeedUpdated)
@@ -95,6 +110,8 @@ export function useSocket() {
       socket.off("market-updated", handleMarketUpdated)
       socket.off("notification-created", handleNotificationCreated)
       socket.off("user-updated", handleUserUpdated)
+      socket.off("pvp-matched", handlePvpMatched)
+      socket.off("pvp-resolved", handlePvpResolved)
     }
   }, [queryClient])
 

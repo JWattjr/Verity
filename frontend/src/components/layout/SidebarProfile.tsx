@@ -6,7 +6,7 @@ import { shortAddress } from "@/lib/arc"
 import { displayHandle, displayName as getDisplayName } from "@/lib/verity"
 import { LogOut, Copy, Check, Wallet } from "lucide-react"
 import { useState } from "react"
-import { toast } from "react-hot-toast"
+import { toast } from "@/lib/toast"
 import Link from "next/link"
 
 export default function SidebarProfile() {
@@ -35,9 +35,7 @@ export default function SidebarProfile() {
         onClick={login}
         type="button"
       >
-        <Wallet className="h-4 w-4" />
-        <span className="hidden xl:inline">Connect Wallet</span>
-        <span className="inline xl:hidden">Connect</span>
+        <span className="hidden xl:inline">Get Started</span>
       </button>
     )
   }

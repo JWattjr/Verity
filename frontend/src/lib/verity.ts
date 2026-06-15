@@ -1,7 +1,7 @@
 import { formatDistanceToNow } from "date-fns"
 
 export type PostType = "normal" | "market" | "comment"
-export type VoteSide = "YES" | "NO"
+export type VoteSide = string
 export type MarketTradeAction = "BUY" | "SELL"
 
 export interface Profile {
@@ -41,6 +41,8 @@ export interface MarketPost {
   question: string
   category: string
   deadline: string
+  lockTime?: string | null
+  lock_time?: string | null
   resolution_source: string
   resolutionSource?: string
   yes_condition: string
@@ -99,6 +101,20 @@ export interface MarketPost {
   option_market_ids?: string[]
   childMarkets?: MarketPost[]
   child_markets?: MarketPost[]
+  outcomeCount?: number
+  outcome_count?: number
+  outcomes?: string[]
+  handicap?: number | null
+  winningOutcomeIndex?: number | null
+  winning_outcome_index?: number | null
+  outcomeBalances?: number[]
+  outcome_balances?: number[]
+  outcomePrices?: number[]
+  outcome_prices?: number[]
+  teamName?: string | null
+  team_name?: string | null
+  optionGroup?: string | null
+  option_group?: string | null
 }
 
 export interface FeedPost {
@@ -149,6 +165,7 @@ export interface MarketPosition {
   usdc_no_amount?: number
   status?: string
   resolved_outcome?: string | null
+  category?: string | null
 }
 
 export interface MarketTrade {
@@ -186,6 +203,9 @@ export interface MarketInput {
   optionName?: string | null
   options?: string[]
   optionMarketIds?: string[]
+  outcomeCount?: number
+  outcomes?: string[]
+  handicap?: number | null
 }
 
 export function displayName(profile?: Profile | null) {
@@ -232,9 +252,16 @@ function clampMarketPrice(price: number) {
 }
 
 export function getMarketPrice(
-  market: Pick<MarketPost, "usdc_yes_amount" | "usdc_no_amount">,
+  market: Pick<MarketPost, "usdc_yes_amount" | "usdc_no_amount" | "outcomeCount" | "outcomes" | "outcomePrices">,
   side: VoteSide,
 ) {
+  if (market.outcomeCount && market.outcomeCount > 2) {
+    const idx = market.outcomes?.indexOf(side) ?? -1
+    if (idx >= 0 && market.outcomePrices && market.outcomePrices[idx] !== undefined) {
+      return clampMarketPrice(market.outcomePrices[idx])
+    }
+    return 1 / market.outcomeCount
+  }
   const yes = Number(market.usdc_yes_amount)
   const no = Number(market.usdc_no_amount)
   const total = yes + no

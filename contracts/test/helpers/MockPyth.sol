@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import "@pythnetwork/pyth-sdk-solidity/IPyth.sol";
-import "@pythnetwork/pyth-sdk-solidity/PythStructs.sol";
+import { IPyth } from "@pythnetwork/pyth-sdk-solidity/IPyth.sol";
+import { PythStructs } from "@pythnetwork/pyth-sdk-solidity/PythStructs.sol";
 
 contract MockPyth is IPyth {
     uint256 public feeAmount = 1 wei;

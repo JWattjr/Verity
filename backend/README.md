@@ -4,26 +4,27 @@ The NestJS 11 API server powering Verity's social prediction market platform. Ha
 
 ## Module Overview
 
-The backend is organized into 12 domain modules under `src/modules/`:
+The backend is organized into 13 domain modules under `src/modules/`:
 
 | Module            | Purpose                                                                                                  |
 | ----------------- | -------------------------------------------------------------------------------------------------------- |
-| **auth**          | Privy JWT token verification, session management                                                         |
+| **auth**          | Coordinates passwordless Email OTP verification and secure local JWT generation.                         |
 | **users**         | Wallet profiles, usernames, signal point tracking, follower counts                                       |
 | **posts**         | Social feed CRUD — normal posts and market-linked prediction posts                                       |
 | **markets**       | Market creation, free voting (10/day cap), USDC trading (buy/sell), position tracking                    |
 | **liquidity**     | LP pool initialization, deposits, withdrawals, 24h lock enforcement, on-chain state sync                 |
 | **blockchain**    | Viem-based on-chain reads/writes, Account Abstraction calldata decoder, transaction receipt verification |
-| **agent**         | AI resolution agent — web search via Tavily, outcome analysis via Claude/Gemini/OpenAI                   |
+| **agent**         | AI resolution agent — web search via DuckDuckGo, outcome analysis via Claude/Gemini/OpenAI/DeepSeek      |
 | **notifications** | Activity feed: likes, comments, reshares, market events                                                  |
 | **socket**        | Socket.IO WebSocket gateway for real-time feed/market/user broadcasts                                    |
 | **comments**      | Threaded comment system on posts                                                                         |
 | **interactions**  | Likes and reshares                                                                                       |
-| **circle-wallet** | Circle wallet integration utilities                                                                      |
+| **circle-wallet** | Circle WaaS smart wallet integration utilities                                                           |
+| **pvp**           | Player-vs-Player Matchups Arena: coordinates duels, queues tickets, matches opponents, and scores duels  |
 
 ### Cross-Cutting (`src/common/`)
 
-- **`JwtAuthGuard`**: Database-first authentication — looks up the user by Privy DID before hitting the Privy REST API. Users with an existing wallet address are authenticated instantly without external network calls.
+- **`JwtAuthGuard`**: Restricts endpoints to authenticated JWT holders. Database-first lookup resolves active user smart wallets instantly.
 - **`HttpExceptionFilter`**: Standardized error response formatting.
 - **`ResponseInterceptor`**: Wraps all successful responses in a consistent envelope.
 
@@ -66,23 +67,33 @@ JWT_SECRET=<secure-secret>
 # Arc Testnet contract addresses
 ARC_RPC_URL=https://rpc.testnet.arc.network
 USDC_ADDRESS=0x3600000000000000000000000000000000000000
-ROUTER_ADDRESS=0xfd5b97972669Dbd447560B4c7b0eEbe7BD58ff3d
-CONDITIONAL_TOKEN_VAULT_ADDRESS=0x53B2404b703B78e0dfca79ffA0BDf7eBCb17E563
-FPMM_ADDRESS=0x51203EF25B201A9138603d50711092698C350e24
-FACTORY_ADDRESS=0x47248BfD909337F78De56Aaa82d070Eb8964F30F
-RESOLVER_ADDRESS=0x8D387a1704E7efb92b315e97db54DA92a6212A1b
+ROUTER_ADDRESS=
+CONDITIONAL_TOKEN_VAULT_ADDRESS=
+FPMM_ADDRESS=
+FACTORY_ADDRESS=
+RESOLVER_ADDRESS=
 
-# Privy authentication
-PRIVY_APP_ID=<your-privy-app-id>
-PRIVY_APP_SECRET=<your-privy-app-secret>
+# Circle WaaS & Resend Configuration
+CIRCLE_API_KEY=
+CIRCLE_ENTITY_SECRET=
+CIRCLE_WALLET_SET_ID=
+CIRCLE_BLOCKCHAIN=ARC-TESTNET
+RESEND_API_KEY=
+RESEND_FROM_EMAIL=
 
 # AI Agent (optional — defaults to mock)
-LLM_PROVIDER=claude   # claude | gemini | openai | mock
-TAVILY_API_KEY=tvly-...
-CLAUDE_API_KEY=sk-ant-...
+LLM_PROVIDER=claude   # Options: claude | gemini | openai | deepseek | mock
+CLAUDE_API_KEY=
+CLAUDE_MODEL=
+GEMINI_API_KEY=
+OPENAI_API_KEY=
+DEEPSEEK_API_KEY=
+DEEPSEEK_MODEL=
 
-# E2E testing (requires gas + USDC)
-ADMIN_PRIVATE_KEY=0x...
+# Gas Escrow & Signer (Admin / Keeper / E2E testing)
+ADMIN_PRIVATE_KEY=
+KEEPER_PRIVATE_KEY=
+DISPUTE_WINDOW_SECONDS=
 ```
 
 ### Available Scripts

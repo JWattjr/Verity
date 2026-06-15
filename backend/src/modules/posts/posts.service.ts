@@ -8,6 +8,7 @@ import {
   Logger,
 } from "@nestjs/common"
 import { InjectModel } from "@nestjs/mongoose"
+import { ConfigService } from "@nestjs/config"
 import { BlockchainService } from "../blockchain/blockchain.service"
 import { LiquidityService } from "../liquidity/liquidity.service"
 import { Model, Types } from "mongoose"
@@ -44,6 +45,8 @@ export interface MarketResponse {
   question: string
   category: string
   deadline: string
+  lockTime?: string | null
+  lock_time?: string | null
   resolutionSource: string
   resolution_source: string
   yesCondition: string
@@ -88,10 +91,20 @@ export interface MarketResponse {
   proposalDisputer?: string | null
   disputed?: boolean
   proposedOutcome?: boolean | null
+  proposedOutcomeIndex?: number | null
+  proposedOutcome_index?: number | null
+  proposedAt?: string | null
+  disputeWindowSeconds?: number
   marketType: "binary" | "parent" | "child"
   parentMarketId: string | null
   optionName: string | null
   childMarkets?: MarketResponse[] | null
+  outcomeCount?: number
+  outcomes?: string[]
+  handicap?: number | null
+  winningOutcomeIndex?: number | null
+  outcomeBalances?: number[]
+  outcomePrices?: number[]
   createdAt: string
   created_at: string
   updatedAt: string
@@ -146,25 +159,32 @@ export class PostsService {
     private blockchainService: BlockchainService,
     private liquidityService: LiquidityService,
     private socketGateway: SocketGateway,
+    private readonly configService: ConfigService,
   ) {}
 
   validateMarketHeuristics(input: CreateMarketPostDto) {
-    const question = input.question.trim()
-    if (!question.endsWith("?")) {
+    const question = input.question ? input.question.trim() : ""
+    if (question.length === 0) {
       throw new BadRequestException(
-        "Market question must end with a question mark '?'.",
+        "Market question/title is required.",
       )
     }
 
-    const resolutionSource = input.resolutionSource.trim()
+    const resolutionSource = input.resolutionSource ? input.resolutionSource.trim() : ""
     if (resolutionSource.length < 5) {
       throw new BadRequestException(
         "Resolution source must specify a clear, verifiable platform or oracle.",
       )
     }
 
-    const yesCondition = input.yesCondition.trim()
-    const noCondition = input.noCondition.trim()
+    // Skip yes/no conditions check if this is a multi-option market
+    const isMultiOption = input.options && input.options.length > 0
+    if (isMultiOption) {
+      return
+    }
+
+    const yesCondition = input.yesCondition ? input.yesCondition.trim() : ""
+    const noCondition = input.noCondition ? input.noCondition.trim() : ""
     if (yesCondition.length < 12 || noCondition.length < 12) {
       throw new BadRequestException(
         "YES and NO resolution conditions must be detailed and clear (minimum 12 characters).",
@@ -194,6 +214,9 @@ export class PostsService {
     const deadline = market.deadline
       ? new Date(market.deadline).toISOString()
       : new Date().toISOString()
+    const lockTime = market.lockTime
+      ? new Date(market.lockTime).toISOString()
+      : null
 
     return {
       id: market.id || (market as any)._id?.toString(),
@@ -204,6 +227,8 @@ export class PostsService {
       question: market.question,
       category: market.category,
       deadline,
+      lockTime,
+      lock_time: lockTime,
       resolutionSource: market.resolutionSource,
       resolution_source: market.resolutionSource,
       yesCondition: market.yesCondition,
@@ -248,6 +273,10 @@ export class PostsService {
       proposalDisputer: market.proposalDisputer,
       disputed: market.disputed,
       proposedOutcome: market.proposedOutcome,
+      proposedOutcomeIndex: market.proposedOutcomeIndex,
+      proposedOutcome_index: market.proposedOutcomeIndex,
+      proposedAt: market.proposedAt ? new Date(market.proposedAt).toISOString() : null,
+      disputeWindowSeconds: this.configService.get<number>("DISPUTE_WINDOW_SECONDS") || 120,
       marketType: market.marketType || "binary",
       parentMarketId: market.parentMarketId
         ? market.parentMarketId.toString()
@@ -257,6 +286,12 @@ export class PostsService {
         childMarkets && childMarkets.length > 0
           ? childMarkets.map((c) => this.serializeMarket(c))
           : null,
+      outcomeCount: market.outcomeCount ?? 2,
+      outcomes: market.outcomes ?? [],
+      handicap: market.handicap,
+      winningOutcomeIndex: market.winningOutcomeIndex,
+      outcomeBalances: market.outcomeBalances ?? [],
+      outcomePrices: market.outcomePrices ?? [],
       createdAt,
       created_at: createdAt,
       updatedAt,
@@ -299,7 +334,7 @@ export class PostsService {
     if (profileId) {
       const pId = new Types.ObjectId(profileId)
       if (tab === "posts") {
-        filter = { authorId: pId }
+        filter = { authorId: pId, type: "market" }
       } else if (tab === "markets") {
         filter = { authorId: pId, type: "market" }
       } else if (tab === "likes") {
@@ -307,13 +342,13 @@ export class PostsService {
           .find({ userId: pId })
           .select("postId")
         const postIds = likes.map((l) => l.postId)
-        filter = { _id: { $in: postIds } }
+        filter = { _id: { $in: postIds }, type: "market" }
       } else if (tab === "reshares") {
         const reshares = await this.reshareModel
           .find({ userId: pId })
           .select("postId")
         const postIds = reshares.map((r) => r.postId)
-        filter = { _id: { $in: postIds } }
+        filter = { _id: { $in: postIds }, type: "market" }
       } else if (tab === "comments") {
         const comments = await this.commentModel.aggregate([
           { $match: { authorId: new Types.ObjectId(pId) } },
@@ -487,25 +522,10 @@ export class PostsService {
           }
         })
       } else {
-        filter = { authorId: pId }
+        filter = { authorId: pId, type: "market" }
       }
-    } else if (onlyMarkets) {
+    } else {
       filter = { type: "market" }
-    }
-
-    // Exclude PvP Arena posts from default feed
-    const pvpMarkets = await this.marketModel
-      .find({ category: "pvp" })
-      .select("postId")
-    const pvpPostIds = pvpMarkets.map((m) => m.postId)
-    if (pvpPostIds.length > 0) {
-      if (filter._id) {
-        filter = {
-          $and: [{ _id: filter._id }, { _id: { $nin: pvpPostIds } }],
-        }
-      } else {
-        filter._id = { $nin: pvpPostIds }
-      }
     }
 
     const posts = await this.postModel
@@ -760,7 +780,7 @@ export class PostsService {
         marketCreationFeeUsdc: 1,
         creationFeeTxHash: input.creationFeeTxHash.trim(),
         feeCollectorAddress: input.feeCollectorAddress.trim(),
-        status: "open_for_votes",
+        status: "qualified",
         isPythMarket: false,
         marketType: "parent",
         parentMarketId: null,
@@ -800,7 +820,7 @@ export class PostsService {
           marketCreationFeeUsdc: 1,
           creationFeeTxHash: input.creationFeeTxHash.trim(),
           feeCollectorAddress: input.feeCollectorAddress.trim(),
-          status: "open_for_votes",
+          status: "qualified",
           isPythMarket: false,
           marketType: "child",
           parentMarketId: parentMarketId,
@@ -838,17 +858,22 @@ export class PostsService {
         category: input.category.trim(),
         deadline: new Date(input.deadline),
         resolutionSource: input.resolutionSource.trim(),
-        yesCondition: input.yesCondition.trim(),
-        noCondition: input.noCondition.trim(),
+        yesCondition: input.yesCondition?.trim() || "YES",
+        noCondition: input.noCondition?.trim() || "NO",
         marketCreationFeeUsdc: 1,
         creationFeeTxHash: input.creationFeeTxHash.trim(),
         feeCollectorAddress: input.feeCollectorAddress.trim(),
-        status: "open_for_votes",
+        status: "qualified",
         priceFeedId: isPythMarket ? input.priceFeedId!.trim() : null,
         targetPrice: isPythMarket ? input.targetPrice : null,
         resolveAbove: isPythMarket ? input.resolveAbove : null,
         isPythMarket,
-        marketType: "binary",
+        marketType: input.marketType || "binary",
+        outcomeCount: input.outcomeCount ?? 2,
+        outcomes: input.outcomes && input.outcomes.length > 0 ? input.outcomes : ["YES", "NO"],
+        handicap: input.handicap ?? null,
+        parentMarketId: input.parentMarketId ? new Types.ObjectId(input.parentMarketId) : null,
+        optionName: input.optionName || null,
       })
 
       // Automatically initialize liquidity pool in DB from the pre-deposit

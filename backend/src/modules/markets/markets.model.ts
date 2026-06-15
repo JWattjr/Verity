@@ -1,7 +1,7 @@
 import { Prop, Schema, SchemaFactory } from "@nestjs/mongoose"
 import { HydratedDocument, Schema as MongooseSchema, Types } from "mongoose"
 
-export type VoteSide = "YES" | "NO"
+export type VoteSide = string
 export type VoteType = "free" | "usdc"
 export type MarketTradeAction = "BUY" | "SELL"
 export type MarketStatus =
@@ -70,7 +70,7 @@ export class Market {
       "resolved",
       "voided",
     ],
-    default: "open_for_votes",
+    default: "qualified",
     index: true,
   })
   status: MarketStatus
@@ -120,8 +120,8 @@ export class Market {
   @Prop({ type: Date, default: null })
   fundingDeadline: Date | null
 
-  @Prop({ type: String, enum: ["YES", "NO", null], default: null })
-  resolvedOutcome: "YES" | "NO" | null
+  @Prop({ type: String, default: null })
+  resolvedOutcome: string | null
 
   @Prop({ type: String, default: null, trim: true })
   resolvedByAdmin: string | null
@@ -137,6 +137,24 @@ export class Market {
 
   @Prop({ type: Boolean, default: false })
   isPythMarket: boolean
+
+  @Prop({ type: Number, default: 2 })
+  outcomeCount: number
+
+  @Prop({ type: [String], default: [] })
+  outcomes: string[]
+
+  @Prop({ type: Number, default: null })
+  handicap: number | null
+
+  @Prop({ type: Number, default: null })
+  winningOutcomeIndex: number | null
+
+  @Prop({ type: [Number], default: [] })
+  outcomeBalances: number[]
+
+  @Prop({ type: [Number], default: [] })
+  outcomePrices: number[]
 
   @Prop({
     type: String,
@@ -160,6 +178,9 @@ export class Market {
   @Prop({ type: String, default: null, trim: true })
   teamName: string | null
 
+  @Prop({ type: String, default: null, trim: true })
+  optionGroup: string | null
+
   @Prop({ type: String, default: null })
   proposalReasoning: string | null
 
@@ -177,6 +198,15 @@ export class Market {
 
   @Prop({ type: Boolean, default: null })
   proposedOutcome: boolean | null
+
+  @Prop({ type: Number, default: null })
+  proposedOutcomeIndex: number | null
+
+  @Prop({ type: Date, default: null, index: true })
+  proposedAt: Date | null
+
+  @Prop({ type: Date, default: null, index: true })
+  lockTime: Date | null
 
   createdAt?: Date
   updatedAt?: Date
@@ -263,7 +293,7 @@ export class MarketPosition {
   })
   userId: Types.ObjectId
 
-  @Prop({ type: String, enum: ["YES", "NO"], required: true })
+  @Prop({ type: String, required: true })
   side: VoteSide
 
   @Prop({ type: Number, default: 0 })
@@ -307,7 +337,7 @@ export class MarketTrade {
   })
   userId: Types.ObjectId
 
-  @Prop({ type: String, enum: ["YES", "NO"], required: true })
+  @Prop({ type: String, required: true })
   side: VoteSide
 
   @Prop({ type: String, enum: ["BUY", "SELL"], required: true })

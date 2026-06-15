@@ -5,7 +5,6 @@ import {
   ArrowDown,
   ArrowUp,
   MessageCircle,
-  Repeat2,
   Share,
   ShieldCheck,
 } from "lucide-react"
@@ -192,11 +191,8 @@ interface SocialActionsProps {
   freeYesVotes: number
   marketStatus: string
   onComment: () => void
-  onReshare: () => void
   onShare: () => void
   onVote: (side: VoteSide) => void
-  reshares: number
-  reshared: boolean
   viewerVote: VoteSide | null
 }
 
@@ -207,11 +203,8 @@ export function SocialActions({
   freeYesVotes,
   marketStatus,
   onComment,
-  onReshare,
   onShare,
   onVote,
-  reshares,
-  reshared,
   viewerVote,
 }: SocialActionsProps) {
   const votingDisabled =
@@ -228,12 +221,6 @@ export function SocialActions({
           icon={<MessageCircle className="h-4 w-4" />}
           label={comments}
           onClick={onComment}
-        />
-        <IconAction
-          active={reshared}
-          icon={<Repeat2 className="h-4 w-4" />}
-          label={reshares}
-          onClick={onReshare}
         />
         <IconAction
           active={viewerVote === "YES"}

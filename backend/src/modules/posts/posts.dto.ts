@@ -221,6 +221,35 @@ export class CreateMarketPostDto {
   })
   @IsOptional()
   optionMarketIds?: string[]
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsNumber()
+  outcomeCount?: number
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  outcomes?: string[]
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsNumber()
+  handicap?: number
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  marketType?: "binary" | "parent" | "child"
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsMongoId()
+  parentMarketId?: string
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  optionName?: string
 }
 
 export class CreatePostUnifiedDto {
@@ -273,6 +302,12 @@ export class CreatePostUnifiedDto {
   @ApiPropertyOptional() @IsOptional() @IsMongoId() marketId?: string
   @ApiPropertyOptional() @IsOptional() options?: string[]
   @ApiPropertyOptional() @IsOptional() optionMarketIds?: string[]
+  @ApiPropertyOptional() @IsOptional() @IsNumber() outcomeCount?: number
+  @ApiPropertyOptional() @IsOptional() outcomes?: string[]
+  @ApiPropertyOptional() @IsOptional() @IsNumber() handicap?: number
+  @ApiPropertyOptional() @IsOptional() @IsString() marketType?: "binary" | "parent" | "child"
+  @ApiPropertyOptional() @IsOptional() @IsMongoId() parentMarketId?: string
+  @ApiPropertyOptional() @IsOptional() @IsString() optionName?: string
 }
 
 export class AddCommentDto {

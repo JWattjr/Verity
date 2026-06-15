@@ -1,6 +1,7 @@
 "use client"
 
 import { useQuery } from "@tanstack/react-query"
+import { Input } from "@/components/ui/input"
 import { apiRequest } from "@/store/apiClient"
 import type { Profile } from "@/lib/verity"
 import {
@@ -45,6 +46,7 @@ export function useAuth() {
   const login = useAuthStore((s) => s.login)
   const logout = useAuthStore((s) => s.logout)
   const executeTxBatch = useTxStore((s) => s.executeTxBatch)
+  const closeTxConfirm = useTxStore((s) => s.closeTxConfirm)
 
   return {
     user: user ?? null,
@@ -53,6 +55,7 @@ export function useAuth() {
     login,
     logout,
     executeTxBatch,
+    closeTxConfirm,
   }
 }
 
@@ -66,8 +69,6 @@ export default function AuthModals() {
   const isRequestingOtp = useAuthStore((s) => s.isRequestingOtp)
   const copied = useAuthStore((s) => s.copied)
 
-
-
   const setAuthModalStep = useAuthStore((s) => s.setAuthModalStep)
   const setEmail = useAuthStore((s) => s.setEmail)
   const setOtpCode = useAuthStore((s) => s.setOtpCode)
@@ -78,7 +79,6 @@ export default function AuthModals() {
   const handleRequestOtp = useAuthStore((s) => s.handleRequestOtp)
   const handleVerifyOtp = useAuthStore((s) => s.handleVerifyOtp)
   const handleSaveOnboarding = useAuthStore((s) => s.handleSaveOnboarding)
-
 
   const { user } = useAuth()
   const walletAddr = user?.walletAddress || ""
@@ -107,7 +107,7 @@ export default function AuthModals() {
                     Verity Identity
                   </p>
                   <h3 className="text-lg font-bold text-charcoal-primary">
-                    {authModalStep === "email" && "Sign In / Sign Up"}
+                    {authModalStep === "email" && "Login or Signup"}
                     {authModalStep === "otp" && "Enter Verification Code"}
                     {authModalStep === "onboarding" && "Setup Profile"}
                     {authModalStep === "success" && "Welcome to Verity!"}
@@ -134,18 +134,18 @@ export default function AuthModals() {
                   create one for you.
                 </p>
                 <div className="space-y-2">
-                  <label className="block text-xs font-mono font-bold uppercase tracking-wider text-ash">
-                    Email Address
+                  <label className="block text-xs font-mono font-bold tracking-wider text-ash">
+                    Email address
                   </label>
                   <div className="flex h-11 items-center rounded-[10px] border border-border bg-white-surface px-4 focus-within:border-sky-blue/50 transition-colors">
                     <Mail className="h-4 w-4 text-ash mr-2" />
-                    <input
+                    <Input
                       type="email"
                       required
                       placeholder="you@example.com"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      className="w-full bg-transparent text-sm text-charcoal-primary outline-none placeholder:text-stone-surface"
+                      className="w-full bg-transparent text-sm text-charcoal-primary border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 px-0 h-full placeholder:text-stone-surface"
                       disabled={isRequestingOtp}
                     />
                   </div>
@@ -162,10 +162,7 @@ export default function AuthModals() {
                       Sending OTP...
                     </>
                   ) : (
-                    <>
-                      Send Access Code
-                      <ChevronRight className="h-4 w-4" />
-                    </>
+                    <>Send Access Code</>
                   )}
                 </button>
               </form>
@@ -184,7 +181,7 @@ export default function AuthModals() {
                   </label>
                   <div className="flex h-11 items-center rounded-[10px] border border-border bg-white-surface px-4 focus-within:border-sky-blue/50 transition-colors">
                     <Key className="h-4 w-4 text-ash mr-2" />
-                    <input
+                    <Input
                       type="text"
                       required
                       maxLength={6}
@@ -192,7 +189,7 @@ export default function AuthModals() {
                       placeholder="000000"
                       value={otpCode}
                       onChange={(e) => setOtpCode(e.target.value)}
-                      className="w-full bg-transparent text-sm text-charcoal-primary font-mono tracking-widest outline-none placeholder:text-stone-surface"
+                      className="w-full bg-transparent text-sm text-charcoal-primary font-mono tracking-widest border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 px-0 h-full placeholder:text-stone-surface"
                       disabled={isSubmittingOtp}
                     />
                   </div>
@@ -237,13 +234,13 @@ export default function AuthModals() {
                   </label>
                   <div className="flex h-11 items-center rounded-[10px] border border-border bg-white-surface px-4 focus-within:border-sky-blue/50 transition-colors">
                     <span className="text-sm font-mono text-ash mr-1">@</span>
-                    <input
+                    <Input
                       type="text"
                       required
                       placeholder="username"
                       value={usernameInput}
                       onChange={(e) => setUsernameInput(e.target.value)}
-                      className="w-full bg-transparent text-sm text-charcoal-primary outline-none placeholder:text-stone-surface"
+                      className="w-full bg-transparent text-sm text-charcoal-primary border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 px-0 h-full placeholder:text-stone-surface"
                       disabled={isSubmittingOtp}
                     />
                   </div>
@@ -258,17 +255,18 @@ export default function AuthModals() {
                   </label>
                   <div className="flex h-11 items-center rounded-[10px] border border-border bg-white-surface px-4 focus-within:border-sky-blue/50 transition-colors">
                     <span className="text-sm font-mono text-ash mr-1">@</span>
-                    <input
+                    <Input
                       type="text"
                       placeholder="referrer"
                       value={referrerInput}
                       onChange={(e) => setReferrerInput(e.target.value)}
-                      className="w-full bg-transparent text-sm text-charcoal-primary outline-none placeholder:text-stone-surface"
+                      className="w-full bg-transparent text-sm text-charcoal-primary border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 px-0 h-full placeholder:text-stone-surface"
                       disabled={isSubmittingOtp}
                     />
                   </div>
                   <p className="text-[10px] text-ash font-mono">
-                    Enter the username of the user who referred you to earn co-op boosts.
+                    Enter the username of the user who referred you to earn
+                    co-op boosts.
                   </p>
                 </div>
 
@@ -352,8 +350,6 @@ export default function AuthModals() {
           </div>
         </div>
       )}
-
-
     </>
   )
 }

@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import "./VerityMarketFactory.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { VerityMarketFactory } from "./VerityMarketFactory.sol";
 
 contract VerityOptimisticResolver {
     using SafeERC20 for IERC20;
@@ -11,7 +11,7 @@ contract VerityOptimisticResolver {
     // ─── Structs ──────────────────────────────────────────────────────────
     struct Proposal {
         address proposer;
-        bool proposedWinningOutcome;
+        uint256 proposedOutcomeIndex;
         uint256 proposalTime;
         bool disputed;
         address disputer;
@@ -19,8 +19,8 @@ contract VerityOptimisticResolver {
     }
 
     // ─── State ───────────────────────────────────────────────────────────
-    IERC20 public immutable usdc;
-    VerityMarketFactory public immutable factory;
+    IERC20 public immutable USDC;
+    VerityMarketFactory public immutable FACTORY;
     address public arbitrator;
 
     uint256 public disputeWindow = 2 minutes;
@@ -32,7 +32,7 @@ contract VerityOptimisticResolver {
     event ResolutionProposed(
         bytes32 indexed marketId,
         address indexed proposer,
-        bool proposedOutcome,
+        uint256 proposedOutcomeIndex,
         uint256 proposalTime
     );
     event ResolutionDisputed(
@@ -40,10 +40,10 @@ contract VerityOptimisticResolver {
         address indexed disputer,
         uint256 disputeTime
     );
-    event ResolutionFinalized(bytes32 indexed marketId, bool finalOutcome);
+    event ResolutionFinalized(bytes32 indexed marketId, uint256 finalOutcomeIndex);
     event DisputeResolved(
         bytes32 indexed marketId,
-        bool finalOutcome,
+        uint256 finalOutcomeIndex,
         address indexed winner,
         uint256 payoutAmount
     );
@@ -65,14 +65,18 @@ contract VerityOptimisticResolver {
 
     // ─── Modifiers ───────────────────────────────────────────────────────
     modifier onlyArbitrator() {
-        if (msg.sender != arbitrator) revert Unauthorized();
+        _onlyArbitrator();
         _;
+    }
+
+    function _onlyArbitrator() internal view {
+        if (msg.sender != arbitrator) revert Unauthorized();
     }
 
     // ─── Constructor ─────────────────────────────────────────────────────
     constructor(address _usdc, address _factory, address _arbitrator) {
-        usdc = IERC20(_usdc);
-        factory = VerityMarketFactory(_factory);
+        USDC = IERC20(_usdc);
+        FACTORY = VerityMarketFactory(_factory);
         arbitrator = _arbitrator;
     }
 
@@ -97,9 +101,9 @@ contract VerityOptimisticResolver {
     /// @notice Propose the resolution outcome of an expired market by posting a bond.
     function proposeResolution(
         bytes32 marketId,
-        bool proposedOutcome
+        uint256 proposedOutcomeIndex
     ) external {
-        // Retrieve market deadline
+        // Retrieve market deadline and outcomes info
         (
             ,
             uint256 deadline,
@@ -107,22 +111,29 @@ contract VerityOptimisticResolver {
             bool registered,
             ,
             bool resolved,
-            bool voided
-        ) = factory.marketRegistry(marketId);
+            bool voided,
+            uint256 outcomeCount
+        ) = FACTORY.marketRegistry(marketId);
 
         if (!registered) revert ProposalDoesNotExist(); // Or market not registered
         if (resolved || voided) revert MarketAlreadyResolved();
         if (block.timestamp <= deadline) revert MarketNotExpired();
 
+        if (outcomeCount > 0) {
+            require(proposedOutcomeIndex < outcomeCount, "Outcome index out of bounds");
+        } else {
+            require(proposedOutcomeIndex < 2, "Outcome index out of bounds");
+        }
+
         Proposal storage prop = proposals[marketId];
         if (prop.proposer != address(0)) revert ProposalAlreadyExists();
 
         // Lock proposer's bond
-        usdc.safeTransferFrom(msg.sender, address(this), resolutionBond);
+        USDC.safeTransferFrom(msg.sender, address(this), resolutionBond);
 
         proposals[marketId] = Proposal({
             proposer: msg.sender,
-            proposedWinningOutcome: proposedOutcome,
+            proposedOutcomeIndex: proposedOutcomeIndex,
             proposalTime: block.timestamp,
             disputed: false,
             disputer: address(0),
@@ -132,7 +143,7 @@ contract VerityOptimisticResolver {
         emit ResolutionProposed(
             marketId,
             msg.sender,
-            proposedOutcome,
+            proposedOutcomeIndex,
             block.timestamp
         );
     }
@@ -141,7 +152,7 @@ contract VerityOptimisticResolver {
     function proposeResolutionFor(
         bytes32 marketId,
         address beneficiary,
-        bool proposedOutcome
+        uint256 proposedOutcomeIndex
     ) external {
         (
             ,
@@ -150,22 +161,29 @@ contract VerityOptimisticResolver {
             bool registered,
             ,
             bool resolved,
-            bool voided
-        ) = factory.marketRegistry(marketId);
+            bool voided,
+            uint256 outcomeCount
+        ) = FACTORY.marketRegistry(marketId);
 
         if (!registered) revert ProposalDoesNotExist();
         if (resolved || voided) revert MarketAlreadyResolved();
         if (block.timestamp <= deadline) revert MarketNotExpired();
 
+        if (outcomeCount > 0) {
+            require(proposedOutcomeIndex < outcomeCount, "Outcome index out of bounds");
+        } else {
+            require(proposedOutcomeIndex < 2, "Outcome index out of bounds");
+        }
+
         Proposal storage prop = proposals[marketId];
         if (prop.proposer != address(0)) revert ProposalAlreadyExists();
 
         // Lock proposer's bond
-        usdc.safeTransferFrom(msg.sender, address(this), resolutionBond);
+        USDC.safeTransferFrom(msg.sender, address(this), resolutionBond);
 
         proposals[marketId] = Proposal({
             proposer: beneficiary,
-            proposedWinningOutcome: proposedOutcome,
+            proposedOutcomeIndex: proposedOutcomeIndex,
             proposalTime: block.timestamp,
             disputed: false,
             disputer: address(0),
@@ -175,7 +193,7 @@ contract VerityOptimisticResolver {
         emit ResolutionProposed(
             marketId,
             beneficiary,
-            proposedOutcome,
+            proposedOutcomeIndex,
             block.timestamp
         );
     }
@@ -190,7 +208,7 @@ contract VerityOptimisticResolver {
             revert DisputeWindowExpired();
 
         // Lock disputer's bond
-        usdc.safeTransferFrom(msg.sender, address(this), resolutionBond);
+        USDC.safeTransferFrom(msg.sender, address(this), resolutionBond);
 
         prop.disputed = true;
         prop.disputer = msg.sender;
@@ -211,7 +229,7 @@ contract VerityOptimisticResolver {
             revert DisputeWindowExpired();
 
         // Lock disputer's bond
-        usdc.safeTransferFrom(msg.sender, address(this), resolutionBond);
+        USDC.safeTransferFrom(msg.sender, address(this), resolutionBond);
 
         prop.disputed = true;
         prop.disputer = beneficiary;
@@ -231,21 +249,21 @@ contract VerityOptimisticResolver {
         prop.finalized = true;
 
         // Refund the proposer's bond
-        usdc.safeTransfer(prop.proposer, resolutionBond);
+        USDC.safeTransfer(prop.proposer, resolutionBond);
 
         // Callback to factory to execute resolution
-        factory.resolveMarketFromResolver(
+        FACTORY.resolveMarketFromResolver(
             marketId,
-            prop.proposedWinningOutcome
+            prop.proposedOutcomeIndex
         );
 
-        emit ResolutionFinalized(marketId, prop.proposedWinningOutcome);
+        emit ResolutionFinalized(marketId, prop.proposedOutcomeIndex);
     }
 
     /// @notice Arbitrator resolves a disputed proposal, determining final outcome and rewarding bonds.
     function resolveDisputedMarket(
         bytes32 marketId,
-        bool winningIsYes
+        uint256 winningOutcomeIndex
     ) external onlyArbitrator {
         Proposal storage prop = proposals[marketId];
         if (prop.proposer == address(0)) revert ProposalDoesNotExist();
@@ -257,7 +275,7 @@ contract VerityOptimisticResolver {
         address winner;
         uint256 payout = 2 * resolutionBond;
 
-        if (winningIsYes == prop.proposedWinningOutcome) {
+        if (winningOutcomeIndex == prop.proposedOutcomeIndex) {
             // Proposer was correct
             winner = prop.proposer;
         } else {
@@ -266,11 +284,11 @@ contract VerityOptimisticResolver {
         }
 
         // Transfer both bonds to the winner
-        usdc.safeTransfer(winner, payout);
+        USDC.safeTransfer(winner, payout);
 
         // Callback to factory to execute resolution
-        factory.resolveMarketFromResolver(marketId, winningIsYes);
+        FACTORY.resolveMarketFromResolver(marketId, winningOutcomeIndex);
 
-        emit DisputeResolved(marketId, winningIsYes, winner, payout);
+        emit DisputeResolved(marketId, winningOutcomeIndex, winner, payout);
     }
 }

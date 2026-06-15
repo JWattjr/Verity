@@ -1,7 +1,8 @@
-import { Controller, Get, Post, Body, UseGuards, Request } from "@nestjs/common"
+import { Controller, Get, Post, Body, UseGuards, Request, Query, Param } from "@nestjs/common"
 import { PvpService } from "./pvp.service"
 import { CreatePvpEventDto, SubmitTicketDto } from "./pvp.dto"
 import { JwtAuthGuard } from "../../common/guards/jwt-auth.guard"
+import { AdminGuard } from "../../common/guards/admin.guard"
 import {
   ApiTags,
   ApiOperation,
@@ -18,10 +19,20 @@ export class PvpController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({
-    summary: "Admin-only: Deploy a new PvP Parent + 7 Child Markets event",
+    summary: "Admin-only: Deploy a new PvP Parent + Child Markets event with dynamic options (min 3)",
   })
   async createPvpEvent(@Request() req: any, @Body() dto: CreatePvpEventDto) {
     return this.pvpService.createPvpEvent(req.user.id, dto)
+  }
+
+  @Post("events/:parentMarketId/lock")
+  @UseGuards(JwtAuthGuard, AdminGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: "Admin-only: Lock a PvP Parent and its Child Markets to prevent further entries/trades",
+  })
+  async lockPvpEvent(@Request() req: any, @Param("parentMarketId") parentMarketId: string) {
+    return this.pvpService.lockPvpEvent(req.user.id, parentMarketId)
   }
 
   @Get("active-events")
@@ -47,16 +58,19 @@ export class PvpController {
     summary:
       "Retrieve the current active queued or matched PvP ticket/duel for a user",
   })
-  async getPvpStatus(@Request() req: any) {
-    return this.pvpService.getPvpStatus(req.user.id)
+  async getPvpStatus(
+    @Request() req: any,
+    @Query("parentMarketId") parentMarketId?: string,
+  ) {
+    return this.pvpService.getPvpStatus(req.user.id, parentMarketId)
   }
 
   @Get("leaderboards")
   @ApiOperation({
     summary: "Fetch PvP leaderboards (accumulative XP and top referrers)",
   })
-  async getLeaderboards() {
-    return this.pvpService.getLeaderboards()
+  async getLeaderboards(@Query("userId") userId?: string) {
+    return this.pvpService.getLeaderboards(userId)
   }
 
   @Get("referrals")
@@ -68,6 +82,17 @@ export class PvpController {
   })
   async getReferrals(@Request() req: any) {
     return this.pvpService.getReferrals(req.user.id)
+  }
+
+  @Get("my-active-tickets")
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary:
+      "Retrieve all PvP events where the user has an active (queued/matched) ticket",
+  })
+  async getMyActiveTickets(@Request() req: any) {
+    return this.pvpService.getMyActiveTickets(req.user.id)
   }
 
   @Get("history")
@@ -89,4 +114,15 @@ export class PvpController {
   async getAdminStatus(@Request() req: any) {
     return this.pvpService.getAdminStatus(req.user.id)
   }
+
+  @Get("admin-metrics")
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: "Admin-only: Get system database metrics and platform statistics",
+  })
+  async getAdminMetrics(@Request() req: any) {
+    return this.pvpService.getAdminMetrics(req.user.id)
+  }
 }
+

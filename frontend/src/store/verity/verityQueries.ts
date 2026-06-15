@@ -363,6 +363,8 @@ export function useExecuteMarketTradeMutation() {
       void qc.invalidateQueries({ queryKey: ["feed"] })
       void qc.invalidateQueries({ queryKey: ["positions"] })
       void qc.invalidateQueries({ queryKey: ["trades"] })
+      void qc.invalidateQueries({ queryKey: ["pvp-active-events"] })
+      void qc.invalidateQueries({ queryKey: ["pvp-status"] })
     },
   })
 }
@@ -451,6 +453,8 @@ export function useAddLiquidityMutation() {
       void qc.invalidateQueries({ queryKey: ["feed"] })
       void qc.invalidateQueries({ queryKey: ["pool-state"] })
       void qc.invalidateQueries({ queryKey: ["lp-positions"] })
+      void qc.invalidateQueries({ queryKey: ["pvp-active-events"] })
+      void qc.invalidateQueries({ queryKey: ["pvp-status"] })
     },
   })
 }
@@ -477,6 +481,8 @@ export function useRemoveLiquidityMutation() {
       void qc.invalidateQueries({ queryKey: ["feed"] })
       void qc.invalidateQueries({ queryKey: ["pool-state"] })
       void qc.invalidateQueries({ queryKey: ["lp-positions"] })
+      void qc.invalidateQueries({ queryKey: ["pvp-active-events"] })
+      void qc.invalidateQueries({ queryKey: ["pvp-status"] })
     },
   })
 }
@@ -601,10 +607,21 @@ export function useActivePvpEventsQuery() {
   })
 }
 
-export function usePvpStatusQuery() {
+export function useMyActivePvpTicketsQuery() {
   return useQuery({
-    queryKey: ["pvp-status"] as const,
-    queryFn: () => apiRequest<any>("/pvp/status"),
+    queryKey: ["pvp-my-active-tickets"] as const,
+    queryFn: () => apiRequest<any[]>("/pvp/my-active-tickets"),
+  })
+}
+
+export function usePvpStatusQuery(parentMarketId?: string | null) {
+  return useQuery({
+    queryKey: ["pvp-status", parentMarketId] as const,
+    queryFn: () => {
+      const url = parentMarketId ? `/pvp/status?parentMarketId=${parentMarketId}` : "/pvp/status"
+      return apiRequest<any>(url)
+    },
+    enabled: Boolean(parentMarketId),
   })
 }
 
@@ -613,7 +630,7 @@ export function useSubmitPvpTicketMutation() {
   return useMutation({
     mutationFn: (body: {
       parentMarketId: string
-      picks: { marketId: string; selection: "YES" | "NO" }[]
+      picks: { marketId: string; selection: string }[]
     }) =>
       apiRequest<any>("/pvp/ticket", {
         method: "POST",
@@ -621,19 +638,25 @@ export function useSubmitPvpTicketMutation() {
       }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["pvp-status"] })
+      void qc.invalidateQueries({ queryKey: ["pvp-my-active-tickets"] })
       void qc.invalidateQueries({ queryKey: ["wallet-profile"] })
+      void qc.invalidateQueries({ queryKey: ["pvp-active-events"] })
     },
   })
 }
 
-export function usePvpLeaderboardQuery() {
+export function usePvpLeaderboardQuery(userId?: string) {
   return useQuery({
-    queryKey: ["pvp-leaderboards"] as const,
+    queryKey: ["pvp-leaderboards", userId] as const,
     queryFn: () =>
       apiRequest<{
         xp: any[]
         referrers: any[]
-      }>("/pvp/leaderboards"),
+        currentUserXp: number | null
+        currentUserXpRank: number | null
+        currentUserReferral: number | null
+        currentUserReferralRank: number | null
+      }>(`/pvp/leaderboards${userId ? `?userId=${encodeURIComponent(userId)}` : ""}`),
   })
 }
 
@@ -663,6 +686,7 @@ export function useCreatePvpEventMutation() {
     mutationFn: (body: {
       question: string
       deadline: string
+      lockTime?: string
       resolutionSource: string
       options: string[]
     }) =>
