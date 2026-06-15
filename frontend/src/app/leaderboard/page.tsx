@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { usePvpLeaderboardQuery } from "@/store/verity/verityQueries"
+import { useWalletProfile } from "@/hooks/useWalletProfile"
 import { Zap, Users, Info, CircleHelp, Medal } from "lucide-react"
 import Link from "next/link"
 
@@ -9,7 +10,8 @@ type LeaderboardTab = "xp" | "referrers" | "points-system"
 
 export default function LeaderboardPage() {
   const [activeTab, setActiveTab] = useState<LeaderboardTab>("xp")
-  const { data: leaderboardData, isLoading, error } = usePvpLeaderboardQuery()
+  const { profile: loggedInProfile } = useWalletProfile()
+  const { data: leaderboardData, isLoading, error } = usePvpLeaderboardQuery(loggedInProfile?.id)
 
   const pvpRules = [
     {
@@ -155,8 +157,37 @@ export default function LeaderboardPage() {
                         rank={index + 1}
                         scoreLabel="XP"
                         scoreValue={user.arenaXp}
+                        isCurrentUser={user.id === loggedInProfile?.id}
                       />
                     ))}
+                    {(() => {
+                      const isUserInXpList = leaderboardData?.xp?.some((u: any) => u.id === loggedInProfile?.id)
+                      if (!isUserInXpList && loggedInProfile && leaderboardData?.currentUserXpRank != null && leaderboardData.currentUserXpRank > 50) {
+                        return (
+                          <>
+                            <div className="flex items-center justify-center py-2 bg-stone-50/50 dark:bg-zinc-950/20 border-t border-dashed border-border dark:border-zinc-800">
+                              <span className="text-[10px] font-bold uppercase tracking-wider text-ash font-mono">
+                                ••• You are ranked {leaderboardData.currentUserXpRank} •••
+                              </span>
+                            </div>
+                            <UserLeaderboardRow
+                              user={{
+                                id: loggedInProfile.id,
+                                username: loggedInProfile.username,
+                                displayName: loggedInProfile.displayName,
+                                avatarUrl: loggedInProfile.avatarUrl,
+                                pvpMatchesLostCount: loggedInProfile.pvpMatchesLostCount ?? 0,
+                              }}
+                              rank={leaderboardData.currentUserXpRank}
+                              scoreLabel="XP"
+                              scoreValue={leaderboardData.currentUserXp ?? 0}
+                              isCurrentUser={true}
+                            />
+                          </>
+                        )
+                      }
+                      return null
+                    })()}
                   </div>
                 )}
               </div>
@@ -187,9 +218,38 @@ export default function LeaderboardPage() {
                           scoreLabel="Referrals"
                           scoreValue={user.referralCount}
                           extraInfo={`(${user.arenaXp} XP)`}
+                          isCurrentUser={user.id === loggedInProfile?.id}
                         />
                       ),
                     )}
+                    {(() => {
+                      const isUserInReferrersList = leaderboardData?.referrers?.some((u: any) => u.id === loggedInProfile?.id)
+                      if (!isUserInReferrersList && loggedInProfile && leaderboardData?.currentUserReferralRank != null && leaderboardData.currentUserReferralRank > 50) {
+                        return (
+                          <>
+                            <div className="flex items-center justify-center py-2 bg-stone-50/50 dark:bg-zinc-950/20 border-t border-dashed border-border dark:border-zinc-800">
+                              <span className="text-[10px] font-bold uppercase tracking-wider text-ash font-mono">
+                                ••• You are ranked {leaderboardData.currentUserReferralRank} •••
+                              </span>
+                            </div>
+                            <UserLeaderboardRow
+                              user={{
+                                id: loggedInProfile.id,
+                                username: loggedInProfile.username,
+                                displayName: loggedInProfile.displayName,
+                                avatarUrl: loggedInProfile.avatarUrl,
+                              }}
+                              rank={leaderboardData.currentUserReferralRank}
+                              scoreLabel="Referrals"
+                              scoreValue={leaderboardData.currentUserReferral ?? 0}
+                              extraInfo={`(${loggedInProfile.arenaXp ?? 0} XP)`}
+                              isCurrentUser={true}
+                            />
+                          </>
+                        )
+                      }
+                      return null
+                    })()}
                   </div>
                 )}
               </div>
@@ -256,12 +316,14 @@ function UserLeaderboardRow({
   scoreLabel,
   scoreValue,
   extraInfo,
+  isCurrentUser,
 }: {
   user: any
   rank: number
   scoreLabel: string
   scoreValue: number
   extraInfo?: string
+  isCurrentUser?: boolean
 }) {
   const isTopThree = rank <= 3
   const rankColors = [
@@ -276,7 +338,13 @@ function UserLeaderboardRow({
     Number(user.pvpMatchesLostCount ?? 0) === 0
 
   return (
-    <div className="flex items-center justify-between p-4 hover:bg-white-surface/20 dark:hover:bg-zinc-900/20 transition-colors">
+    <div
+      className={`flex items-center justify-between p-4 transition-colors ${
+        isCurrentUser
+          ? "bg-indigo-50/50 dark:bg-indigo-950/20 border-y border-indigo-150 dark:border-indigo-900/50"
+          : "hover:bg-white-surface/20 dark:hover:bg-zinc-900/20"
+      }`}
+    >
       <div className="flex items-center gap-3 min-w-0">
         {/* Rank Number */}
         <span

@@ -8,6 +8,7 @@ import { arcUsdcAddress, FPMM_ADDRESS, publicClient } from "@/lib/arc"
 import {
   useSubmitPvpTicketMutation,
   useExecuteMarketTradeMutation,
+  useUserPortfolioQuery,
 } from "@/store/verity/verityQueries"
 import { toast } from "@/lib/toast"
 import { Lock, ArrowRight } from "lucide-react"
@@ -57,6 +58,28 @@ export default function PvpArenaTab({
   const submitTicketMutation = useSubmitPvpTicketMutation()
   const { mutateAsync: executeMarketTrade } = useExecuteMarketTradeMutation()
 
+  const { data: userPortfolio, refetch: refetchPortfolio } = useUserPortfolioQuery(profile?.id || "")
+
+  const [claimedMarketIds, setClaimedMarketIds] = useState<Set<string>>(
+    new Set(),
+  )
+
+  const allClaimablePositions = useMemo(() => {
+    if (!userPortfolio) return []
+    return userPortfolio.filter(
+      (pos: any) =>
+        pos.category === "pvp" &&
+        pos.status === "resolved" &&
+        (pos.shares ?? 0) > 0 &&
+        pos.side?.toUpperCase().trim() === pos.resolved_outcome?.toUpperCase().trim() &&
+        !claimedMarketIds.has(pos.market_id),
+    )
+  }, [userPortfolio, claimedMarketIds])
+
+  const globalWinningsAmount = useMemo(() => {
+    return allClaimablePositions.reduce((acc: number, pos: any) => acc + (pos.shares ?? 0), 0)
+  }, [allClaimablePositions])
+
   // ─── Local state ────────────────────────────────────────────
   const [mounted, setMounted] = useState<boolean>(false)
   const [showBuilderOverride, setShowBuilderOverride] = useState<boolean>(false)
@@ -64,9 +87,6 @@ export default function PvpArenaTab({
   const [pvpSelections, setPvpSelections] = useState<Record<string, string>>({})
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false)
   const [showTooltip, setShowTooltip] = useState<boolean>(false)
-  const [claimedMarketIds, setClaimedMarketIds] = useState<Set<string>>(
-    new Set(),
-  )
   const [liquidityMarketId, setLiquidityMarketId] = useState<string | null>(
     null,
   )
@@ -236,11 +256,12 @@ export default function PvpArenaTab({
           return next
         })
         void refetchPvpStatus()
+        void refetchPortfolio()
       } catch (err) {
         console.error("Failed to claim all winnings", err)
       }
     },
-    [redeemMultipleWinnings, refetchPvpStatus],
+    [redeemMultipleWinnings, refetchPvpStatus, refetchPortfolio],
   )
 
   async function handleSubmitPvpTicket() {
@@ -455,6 +476,30 @@ export default function PvpArenaTab({
           selectedPvpEventId={selectedPvpEventId}
           setSelectedPvpEventId={setSelectedPvpEventId}
         />
+      )}
+
+      {/* Global Claim Banner */}
+      {allClaimablePositions.length > 0 && (
+        <div className="p-4 rounded-xl bg-meadow-green/10 border border-meadow-green/20 flex flex-col md:flex-row items-center justify-between gap-3 text-left">
+          <div className="flex items-center gap-2">
+            <span className="text-xl">🏆</span>
+            <div>
+              <h4 className="text-sm font-bold text-meadow-green font-sans">
+                You have unclaimed winnings across all Arena events!
+              </h4>
+              <p className="text-xs text-ash mt-0.5 font-medium font-sans">
+                Claim {globalWinningsAmount.toFixed(2)} USDC from {allClaimablePositions.length}{" "}
+                winning {allClaimablePositions.length === 1 ? "position" : "positions"}.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => handleClaim(allClaimablePositions.map((pos) => pos.market_id), globalWinningsAmount)}
+            className="px-4 py-2 rounded-[8px] bg-meadow-green hover:bg-meadow-green/90 text-white text-xs font-bold transition-all shadow-sm shrink-0 font-sans cursor-pointer"
+          >
+            Claim All Winnings
+          </button>
+        </div>
       )}
 
       {isPvpStatusPending ? (

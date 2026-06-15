@@ -189,7 +189,9 @@ export class MarketsService implements OnModuleInit {
       market_id:
         m && typeof m === "object" && "_id" in m
           ? m._id.toString()
-          : position.marketId.toString(),
+          : position.marketId
+            ? position.marketId.toString()
+            : "",
       user_id: position.userId.toString(),
       side: position.side,
       shares: position.shares,

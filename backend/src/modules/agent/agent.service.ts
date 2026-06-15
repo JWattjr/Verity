@@ -190,12 +190,12 @@ export class AgentService {
     const searchContext = await this.searchWeb(searchQuery)
 
     const outcomesList =
-      outcomes && outcomes.length > 2
+      outcomes && outcomes.length >= 2
         ? `Possible Outcomes (choose exactly one of these strings): ${JSON.stringify(outcomes)}`
         : `Yes Condition: ${yesCondition}\nNo Condition: ${noCondition}`
 
     const outcomeSchema =
-      outcomes && outcomes.length > 2
+      outcomes && outcomes.length >= 2
         ? outcomes.map((o) => `"${o}"`).join(" | ")
         : `"YES" | "NO"`
 

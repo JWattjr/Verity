@@ -645,14 +645,18 @@ export function useSubmitPvpTicketMutation() {
   })
 }
 
-export function usePvpLeaderboardQuery() {
+export function usePvpLeaderboardQuery(userId?: string) {
   return useQuery({
-    queryKey: ["pvp-leaderboards"] as const,
+    queryKey: ["pvp-leaderboards", userId] as const,
     queryFn: () =>
       apiRequest<{
         xp: any[]
         referrers: any[]
-      }>("/pvp/leaderboards"),
+        currentUserXp: number | null
+        currentUserXpRank: number | null
+        currentUserReferral: number | null
+        currentUserReferralRank: number | null
+      }>(`/pvp/leaderboards${userId ? `?userId=${encodeURIComponent(userId)}` : ""}`),
   })
 }
 
