@@ -1,13 +1,12 @@
 "use client"
 
-import React, { useState } from "react"
+import { useState } from "react"
 import {
   ArrowUpRight,
   Send,
   ArrowDownLeft,
   ExternalLink,
   Sparkles,
-  Loader2,
   ArrowRight,
   TrendingUp,
 } from "lucide-react"
@@ -16,11 +15,12 @@ import { useFeed } from "@/hooks/useFeed"
 import { useUserPortfolio } from "@/hooks/useUserPortfolio"
 import { useUserTradesQuery } from "@/store/verity/verityQueries"
 import Link from "next/link"
+import { useAuth } from "@/components/providers/AuthModals"
 import SendUsdcModal from "./SendUsdcModal"
 import ReceiveUsdcModal from "./ReceiveUsdcModal"
-import WalletConnectControl from "./WalletConnectControl"
 
 export default function PortfolioDashboard() {
+  const { login } = useAuth()
   const {
     positions,
     isLoading: isPortfolioLoading,
@@ -50,16 +50,21 @@ export default function PortfolioDashboard() {
 
   if (!isConnected) {
     return (
-      <div className="verity-card p-8 text-center flex flex-col items-center justify-center border border-border bg-surface-solid">
+      <div className="verity-card p-8 mt-6 text-center flex flex-col items-center justify-center border border-border bg-surface-solid">
         <h3 className="text-lg font-semibold text-charcoal-primary">
           Access Your Portfolio
         </h3>
         <p className="mt-2 text-sm text-ash max-w-sm">
-          Connect your wallet via email/SCA to view your positions, check your
-          P&L, and send or receive USDC.
+          Login or Signup to view your positions, check your P&L, and send or
+          receive USDC.
         </p>
         <div className="mt-6 w-full max-w-[240px]">
-          <WalletConnectControl />
+          <button
+            onClick={login}
+            className="verity-pill flex h-11 w-full items-center justify-center gap-2 bg-inverse px-4 text-sm font-semibold tracking-[-0.18px] text-inverse-text transition-opacity hover:opacity-90 cursor-pointer"
+          >
+            Get Started
+          </button>
         </div>
       </div>
     )

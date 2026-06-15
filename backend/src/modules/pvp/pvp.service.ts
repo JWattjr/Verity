@@ -110,7 +110,7 @@ export function determineOptionGroup(
     name.includes("card") ||
     name.includes("cards")
   ) {
-    return "cards"
+    return "yellow_cards"
   }
 
   if (name.includes("corner") || name.includes("corners")) {
@@ -314,7 +314,9 @@ export class PvpService {
         if (
           optionGroup === "spread" ||
           optionGroup === "totals" ||
-          optionGroup === "offsides"
+          optionGroup === "offsides" ||
+          optionGroup === "yellow_cards" ||
+          optionGroup === "cards"
         ) {
           // Try to extract from the first option containing a number
           for (const opt of groupOptions) {

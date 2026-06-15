@@ -595,7 +595,7 @@ Do not include any other markdown formatting, code block markers, or text outsid
         name.includes("card") ||
         name.includes("cards")
       ) {
-        mapping[opt] = "cards"
+        mapping[opt] = "yellow_cards"
       } else if (name.includes("corner") || name.includes("corners")) {
         mapping[opt] = "corners"
       } else {

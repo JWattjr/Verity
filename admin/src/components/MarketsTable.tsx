@@ -54,6 +54,48 @@ interface MarketsTableProps {
   handleOpenArbitrateResolve: (market: Market) => void
 }
 
+function formatResolvedOutcome(market: Market): string {
+  if (!market.resolvedOutcome) return "None"
+  const outcome = market.resolvedOutcome.trim()
+  if (outcome !== "YES" && outcome !== "NO") {
+    return outcome
+  }
+
+  const condition = outcome === "YES" ? market.yesCondition : market.noCondition
+  if (!condition) return outcome
+
+  const overMatch = condition.match(/over\s+(\d+(?:\.\d+)?)/i)
+  if (overMatch) {
+    return `Over ${overMatch[1]}`
+  }
+
+  const underMatch = condition.match(/under\s+(\d+(?:\.\d+)?)/i)
+  if (underMatch) {
+    return `Under ${underMatch[1]}`
+  }
+
+  const lowerCond = condition.toLowerCase()
+  if (lowerCond.includes("red card")) {
+    if (lowerCond.includes("at least one") || lowerCond.includes("yes")) {
+      return "Red card shown"
+    }
+    if (lowerCond.includes("no red card") || lowerCond.includes("no red cards")) {
+      return "No red card"
+    }
+  }
+
+  if (lowerCond.includes("both teams to score") || lowerCond.includes("btts")) {
+    if (lowerCond.endsWith("yes") || lowerCond.includes("- yes") || lowerCond.includes(" - yes")) {
+      return "BTTS - Yes"
+    }
+    if (lowerCond.endsWith("no") || lowerCond.includes("- no") || lowerCond.includes(" - no")) {
+      return "BTTS - No"
+    }
+  }
+
+  return condition
+}
+
 export default function MarketsTable({
   marketsLoading,
   markets,
@@ -354,7 +396,7 @@ export default function MarketsTable({
                       ].includes(market.status) && (
                         <span className="text-[10px] text-stone-400 font-mono uppercase pr-2">
                           {market.status === "resolved"
-                            ? `${market.resolvedOutcome}`
+                            ? `${formatResolvedOutcome(market)}`
                             : "No Actions"}
                         </span>
                       )}

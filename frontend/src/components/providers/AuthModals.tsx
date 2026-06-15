@@ -69,8 +69,6 @@ export default function AuthModals() {
   const isRequestingOtp = useAuthStore((s) => s.isRequestingOtp)
   const copied = useAuthStore((s) => s.copied)
 
-
-
   const setAuthModalStep = useAuthStore((s) => s.setAuthModalStep)
   const setEmail = useAuthStore((s) => s.setEmail)
   const setOtpCode = useAuthStore((s) => s.setOtpCode)
@@ -81,7 +79,6 @@ export default function AuthModals() {
   const handleRequestOtp = useAuthStore((s) => s.handleRequestOtp)
   const handleVerifyOtp = useAuthStore((s) => s.handleVerifyOtp)
   const handleSaveOnboarding = useAuthStore((s) => s.handleSaveOnboarding)
-
 
   const { user } = useAuth()
   const walletAddr = user?.walletAddress || ""
@@ -110,7 +107,7 @@ export default function AuthModals() {
                     Verity Identity
                   </p>
                   <h3 className="text-lg font-bold text-charcoal-primary">
-                    {authModalStep === "email" && "Sign In / Sign Up"}
+                    {authModalStep === "email" && "Login or Signup"}
                     {authModalStep === "otp" && "Enter Verification Code"}
                     {authModalStep === "onboarding" && "Setup Profile"}
                     {authModalStep === "success" && "Welcome to Verity!"}
@@ -137,8 +134,8 @@ export default function AuthModals() {
                   create one for you.
                 </p>
                 <div className="space-y-2">
-                  <label className="block text-xs font-mono font-bold uppercase tracking-wider text-ash">
-                    Email Address
+                  <label className="block text-xs font-mono font-bold tracking-wider text-ash">
+                    Email address
                   </label>
                   <div className="flex h-11 items-center rounded-[10px] border border-border bg-white-surface px-4 focus-within:border-sky-blue/50 transition-colors">
                     <Mail className="h-4 w-4 text-ash mr-2" />
@@ -165,10 +162,7 @@ export default function AuthModals() {
                       Sending OTP...
                     </>
                   ) : (
-                    <>
-                      Send Access Code
-                      <ChevronRight className="h-4 w-4" />
-                    </>
+                    <>Send Access Code</>
                   )}
                 </button>
               </form>
@@ -271,7 +265,8 @@ export default function AuthModals() {
                     />
                   </div>
                   <p className="text-[10px] text-ash font-mono">
-                    Enter the username of the user who referred you to earn co-op boosts.
+                    Enter the username of the user who referred you to earn
+                    co-op boosts.
                   </p>
                 </div>
 
@@ -355,8 +350,6 @@ export default function AuthModals() {
           </div>
         </div>
       )}
-
-
     </>
   )
 }

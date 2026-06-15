@@ -36,8 +36,7 @@ export default function SidebarProfile() {
         type="button"
       >
         <Wallet className="h-4 w-4" />
-        <span className="hidden xl:inline">Connect Wallet</span>
-        <span className="inline xl:hidden">Connect</span>
+        <span className="hidden xl:inline">Get Started</span>
       </button>
     )
   }

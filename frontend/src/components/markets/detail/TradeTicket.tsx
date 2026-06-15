@@ -306,7 +306,7 @@ export default function TradeTicket({
               ? action === "BUY" && isBalanceInsufficient
                 ? "Insufficient USDC Balance"
                 : `${action === "BUY" ? "Buy" : "Sell"} ${selectedSide}`
-              : "Connect Wallet"}
+              : "Get Started"}
         </button>
       </div>
     </section>

@@ -7,43 +7,70 @@ import { Search, Lock } from "lucide-react"
 export function getCountryFlag(name: string): string {
   const clean = name.toLowerCase().trim()
   const map: Record<string, string> = {
+    // 2026 FIFA World Cup Hosts & Qualified Teams
+    algeria: "🇩🇿",
+    argentina: "🇦🇷",
+    australia: "🇦🇺",
+    austria: "🇦🇹",
+    belgium: "🇧🇪",
+    "bosnia and herzegovina": "🇧🇦",
+    "bosnia & herzegovina": "🇧🇦",
+    bosnia: "🇧🇦",
+    brazil: "🇧🇷",
+    "cape verde": "🇨🇻",
+    canada: "🇨🇦",
+    colombia: "🇨🇴",
+    "congo dr": "🇨🇩",
+    "dr congo": "🇨🇩",
+    "ivory coast": "🇨🇮",
+    croatia: "🇭🇷",
+    curaçao: "🇨🇼",
+    curacao: "🇨🇼",
+    czechia: "🇨🇿",
+    ecuador: "🇪🇨",
+    egypt: "🇪🇬",
+    england: "🏴󠁧󠁢󠁥󠁮󠁧󠁿",
+    france: "🇫🇷",
+    germany: "🇩🇪",
+    ghana: "🇬🇭",
+    haiti: "🇭🇹",
+    iran: "🇮🇷",
+    iraq: "🇮🇶",
+    japan: "🇯🇵",
+    jordan: "🇯🇴",
     "south korea": "🇰🇷",
     "south-korea": "🇰🇷",
-    "korea": "🇰🇷",
-    "denmark": "🇩🇰",
-    "poland": "🇵🇱",
-    "netherlands": "🇳🇱",
-    "france": "🇫🇷",
-    "england": "🏴󠁧󠁢󠁥󠁮󠁧󠁿",
-    "wales": "🏴󠁧󠁢󠁷󠁬󠁳󠁿",
-    "ghana": "🇬🇭",
-    "tunisia": "🇹🇳",
+    mexico: "🇲🇽",
+    morocco: "🇲🇦",
+    netherlands: "🇳🇱",
+    "new zealand": "🇳🇿",
+    norway: "🇳🇴",
+    panama: "🇵🇦",
+    paraguay: "🇵🇾",
+    portugal: "🇵🇹",
+    qatar: "🇶🇦",
     "saudi arabia": "🇸🇦",
-    "ecuador": "🇪🇨",
-    "honduras": "🇭🇳",
-    "canada": "🇨🇦",
-    "usa": "🇺🇸",
-    "united states": "🇺🇸",
-    "iran": "🇮🇷",
-    "spain": "🇪🇸",
-    "germany": "🇩🇪",
-    "italy": "🇮🇹",
-    "argentina": "🇦🇷",
-    "brazil": "🇧🇷",
-    "portugal": "🇵🇹",
-    "belgium": "🇧🇪",
-    "croatia": "🇭🇷",
-    "uruguay": "🇺🇾",
-    "senegal": "🇸🇳",
-    "morocco": "🇲🇦",
-    "switzerland": "🇨🇭",
-    "cameroon": "🇨🇲",
-    "serbia": "🇷🇸",
-    "mexico": "🇲🇽",
-    "australia": "🇦🇺",
+    scotland: "🏴󠁧󠁢󠁳󠁣󠁴󠁿",
+    senegal: "🇸🇳",
+    "south africa": "🇿🇦",
+    spain: "🇪🇸",
+    sweden: "🇸🇪",
+    switzerland: "🇨🇭",
+    tunisia: "🇹🇳",
+    türkiye: "🇹🇷",
+    usa: "🇺🇸",
+    uruguay: "🇺🇾",
+    uzbekistan: "🇺🇿",
+
+    // Existing / non-2026 World Cup mappings for completeness
+    denmark: "🇩🇰",
+    poland: "🇵🇱",
+    wales: "🏴󠁧󠁢󠁷󠁬󠁳󠁿",
+    honduras: "🇭🇳",
+    italy: "🇮🇹",
+    cameroon: "🇨🇲",
+    serbia: "🇷🇸",
     "costa rica": "🇨🇷",
-    "japan": "🇯🇵",
-    "qatar": "🇶🇦",
   }
   return map[clean] || "🏳️"
 }
@@ -133,14 +160,54 @@ export default function PvpMatchupCarousel({
     }
   }, [selectedPvpEventId])
 
-  // Filter events
+  // Filter and limit events (max 4 past matchups)
   const filteredEvents = useMemo(() => {
     if (!pvpEvents) return []
-    return pvpEvents.filter((evt) => {
+
+    const queried = pvpEvents.filter((evt) => {
       const query = searchQuery.toLowerCase().trim()
       if (!query) return true
       return evt.question.toLowerCase().includes(query)
     })
+
+    const live: any[] = []
+    const closed: any[] = []
+
+    queried.forEach((evt) => {
+      const lockTimeStr = evt.lockTime || evt.deadline
+      let isClosed = true
+      if (lockTimeStr) {
+        const target = new Date(lockTimeStr)
+        if (!isNaN(target.getTime())) {
+          const diff = target.getTime() - Date.now()
+          isClosed =
+            diff <= 0 || evt.status === "resolved" || evt.status === "closed"
+        }
+      }
+
+      if (isClosed) {
+        closed.push(evt)
+      } else {
+        live.push(evt)
+      }
+    })
+
+    // Sort closed ascending (oldest first), then take the 4 most recent closed ones
+    closed.sort((a, b) => {
+      const timeA = new Date(a.lockTime || a.deadline || 0).getTime()
+      const timeB = new Date(b.lockTime || b.deadline || 0).getTime()
+      return timeA - timeB
+    })
+    const limitedClosed = closed.slice(-5)
+
+    // Sort live ascending
+    live.sort((a, b) => {
+      const timeA = new Date(a.lockTime || a.deadline || 0).getTime()
+      const timeB = new Date(b.lockTime || b.deadline || 0).getTime()
+      return timeA - timeB
+    })
+
+    return [...limitedClosed, ...live]
   }, [pvpEvents, searchQuery])
 
   return (
@@ -191,7 +258,7 @@ export default function PvpMatchupCarousel({
                 onClick={() => setSelectedPvpEventId(evt.id)}
                 className={`relative flex-none w-68 h-40 p-4 rounded-2xl border transition-all cursor-pointer select-none flex flex-col justify-between ${
                   isSelected
-                    ? "bg-[#121212] border-[#121212] dark:bg-white dark:border-white text-white dark:text-zinc-950 shadow-lg scale-[1.01]"
+                    ? "bg-brand-primary border-brand-primary dark:bg-white dark:border-white text-white dark:text-zinc-950 shadow-lg scale-[1.01]"
                     : "bg-white dark:bg-zinc-900/40 border-border dark:border-zinc-800 hover:border-indigo-500 hover:scale-[1.005]"
                 } ${isClosed && !isSelected ? "opacity-75" : ""}`}
               >
@@ -218,7 +285,9 @@ export default function PvpMatchupCarousel({
                       </>
                     )}
                   </div>
-                  <span className={`text-[10px] font-mono font-bold ${isSelected ? "text-zinc-400" : "text-ash"}`}>
+                  <span
+                    className={`text-[10px] font-mono font-bold ${isSelected ? "text-zinc-400" : "text-ash"}`}
+                  >
                     ${vol.toLocaleString()}
                   </span>
                 </div>

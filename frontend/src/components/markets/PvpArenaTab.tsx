@@ -11,7 +11,7 @@ import {
   useUserPortfolioQuery,
 } from "@/store/verity/verityQueries"
 import { toast } from "@/lib/toast"
-import { Lock, ArrowRight } from "lucide-react"
+import { Lock, ArrowRight, Trophy } from "lucide-react"
 import PvpMatchupCarousel, {
   getCountryFlag,
   parseEventTeams,
@@ -58,7 +58,8 @@ export default function PvpArenaTab({
   const submitTicketMutation = useSubmitPvpTicketMutation()
   const { mutateAsync: executeMarketTrade } = useExecuteMarketTradeMutation()
 
-  const { data: userPortfolio, refetch: refetchPortfolio } = useUserPortfolioQuery(profile?.id || "")
+  const { data: userPortfolio, refetch: refetchPortfolio } =
+    useUserPortfolioQuery(profile?.id || "")
 
   const [claimedMarketIds, setClaimedMarketIds] = useState<Set<string>>(
     new Set(),
@@ -71,13 +72,17 @@ export default function PvpArenaTab({
         pos.category === "pvp" &&
         pos.status === "resolved" &&
         (pos.shares ?? 0) > 0 &&
-        pos.side?.toUpperCase().trim() === pos.resolved_outcome?.toUpperCase().trim() &&
+        pos.side?.toUpperCase().trim() ===
+          pos.resolved_outcome?.toUpperCase().trim() &&
         !claimedMarketIds.has(pos.market_id),
     )
   }, [userPortfolio, claimedMarketIds])
 
   const globalWinningsAmount = useMemo(() => {
-    return allClaimablePositions.reduce((acc: number, pos: any) => acc + (pos.shares ?? 0), 0)
+    return allClaimablePositions.reduce(
+      (acc: number, pos: any) => acc + (pos.shares ?? 0),
+      0,
+    )
   }, [allClaimablePositions])
 
   // ─── Local state ────────────────────────────────────────────
@@ -480,24 +485,39 @@ export default function PvpArenaTab({
 
       {/* Global Claim Banner */}
       {allClaimablePositions.length > 0 && (
-        <div className="p-4 rounded-xl bg-meadow-green/10 border border-meadow-green/20 flex flex-col md:flex-row items-center justify-between gap-3 text-left">
-          <div className="flex items-center gap-2">
-            <span className="text-xl">🏆</span>
+        <div className="p-4.5 rounded-2xl bg-emerald-50 dark:bg-emerald-950/15 border border-emerald-500/20 dark:border-emerald-500/10 flex flex-col md:flex-row items-center justify-between gap-4 text-left shadow-sm shadow-emerald-500/5 transition-all">
+          <div className="flex items-center gap-3.5 w-full md:w-auto">
+            <div className="relative flex items-center justify-center w-11 h-11 rounded-xl bg-emerald-100 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 shrink-0 border border-emerald-200/50 dark:border-emerald-900/30 shadow-2xs">
+              <Trophy className="h-5 w-5 animate-pulse" />
+            </div>
             <div>
-              <h4 className="text-sm font-bold text-meadow-green font-sans">
-                You have unclaimed winnings across all Arena events!
+              <h4 className="text-sm font-bold text-emerald-800 dark:text-emerald-400 font-sans leading-snug">
+                You have unclaimed winnings!
               </h4>
-              <p className="text-xs text-ash mt-0.5 font-medium font-sans">
-                Claim {globalWinningsAmount.toFixed(2)} USDC from {allClaimablePositions.length}{" "}
-                winning {allClaimablePositions.length === 1 ? "position" : "positions"}.
+              <p className="text-xs text-stone-500 dark:text-zinc-400 mt-1.5 font-medium font-sans">
+                Claim{" "}
+                <span className="font-bold text-emerald-700 dark:text-emerald-400 font-mono">
+                  {globalWinningsAmount.toFixed(2)} USDC
+                </span>{" "}
+                from{" "}
+                <span className="font-semibold text-stone-700 dark:text-zinc-300">
+                  {allClaimablePositions.length}
+                </span>{" "}
+                winning{" "}
+                {allClaimablePositions.length === 1 ? "position" : "positions"}.
               </p>
             </div>
           </div>
           <button
-            onClick={() => handleClaim(allClaimablePositions.map((pos) => pos.market_id), globalWinningsAmount)}
-            className="px-4 py-2 rounded-[8px] bg-meadow-green hover:bg-meadow-green/90 text-white text-xs font-bold transition-all shadow-sm shrink-0 font-sans cursor-pointer"
+            onClick={() =>
+              handleClaim(
+                allClaimablePositions.map((pos) => pos.market_id),
+                globalWinningsAmount,
+              )
+            }
+            className="w-full md:w-auto px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all shadow-md shadow-emerald-600/15 shrink-0 font-sans cursor-pointer flex items-center justify-center gap-1.5 active:scale-98"
           >
-            Claim All Winnings
+            <span>Claim All Winnings</span>
           </button>
         </div>
       )}
@@ -519,18 +539,14 @@ export default function PvpArenaTab({
                 runningScoreOpponent={runningScoreOpponent}
                 profile={profile}
               />
-              <PvpDuelPicks
-                pvpStatus={pvpStatus}
-                claimedMarketIds={claimedMarketIds}
-                onClaim={handleClaim}
-              />
+              <PvpDuelPicks pvpStatus={pvpStatus} />
             </div>
           )}
 
           {/* Ticket Builder Form */}
           {(!hasActiveDuel || showBuilderOverride) &&
             (isEventEnded ? (
-              <div className="verity-card p-8 md:p-10 flex flex-col gap-6 relative overflow-hidden bg-gradient-to-b from-amber-50/40 to-stone-100/30 dark:from-amber-950/10 dark:to-zinc-900/10 border border-amber-200/40 dark:border-amber-900/20 shadow-sm">
+              <div className="verity-card p-8 md:p-10 flex flex-col gap-6 relative overflow-hidden bg-linear-to-b from-amber-50/40 to-stone-100/30 dark:from-amber-950/10 dark:to-zinc-900/10 border border-amber-200/40 dark:border-amber-900/20 shadow-sm">
                 {/* Locked Content */}
                 <div className="flex flex-col md:flex-row items-center md:items-start gap-5">
                   {/* Circular Gold Icon Container */}
@@ -649,7 +665,6 @@ export default function PvpArenaTab({
                 betAmountPerSelection={betAmountPerSelection}
                 isSubmitting={isSubmitting}
                 showTooltip={showTooltip}
-                claimedMarketIds={claimedMarketIds}
                 referralsData={referralsData}
                 parsedTeams={parsedTeams}
                 groupedOptions={groupedOptions}
@@ -657,7 +672,6 @@ export default function PvpArenaTab({
                 onSetBetAmount={setBetAmountPerSelection}
                 onSetShowTooltip={setShowTooltip}
                 onSubmitTicket={handleSubmitPvpTicket}
-                onClaim={handleClaim}
                 onAddLiquidity={(id) => setLiquidityMarketId(id)}
               />
             ))}

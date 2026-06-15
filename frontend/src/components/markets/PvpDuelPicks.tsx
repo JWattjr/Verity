@@ -1,16 +1,11 @@
-import PvpClaimBanner from "./PvpClaimBanner"
 import { cleanOutcomeName } from "./PvpTicketBuilder"
 
 interface PvpDuelPicksProps {
   pvpStatus: any
-  claimedMarketIds: Set<string>
-  onClaim: (marketIds: string[], totalWinnings: number) => Promise<void>
 }
 
 export default function PvpDuelPicks({
   pvpStatus,
-  claimedMarketIds,
-  onClaim,
 }: PvpDuelPicksProps) {
   const picks = pvpStatus.ticket?.picks || []
 
@@ -55,14 +50,6 @@ export default function PvpDuelPicks({
         </div>
       </div>
 
-      {/* Claim Banner */}
-      <PvpClaimBanner
-        picks={pvpStatus.ticket?.picks}
-        claimedMarketIds={claimedMarketIds}
-        onClaim={onClaim}
-        showEmoji
-        className="mb-4"
-      />
 
       {/* Per-pick rows */}
       <div className="space-y-3">
