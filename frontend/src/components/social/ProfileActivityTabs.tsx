@@ -40,7 +40,7 @@ export default function ProfileActivityTabs({
   onOpenPost,
   loading = false,
 }: ProfileActivityTabsProps) {
-  const [predictionFilter, setPredictionFilter] = useState<"all" | "unresolved" | "resolved">("all")
+  const [predictionFilter, setPredictionFilter] = useState<"all" | "unresolved" | "resolved" | "won" | "lost">("all")
 
   if (loading) {
     return <FeedSkeleton />
@@ -50,13 +50,15 @@ export default function ProfileActivityTabs({
     const filteredPositions = positions.filter((pos) => {
       if (predictionFilter === "resolved") return pos.status === "resolved"
       if (predictionFilter === "unresolved") return pos.status !== "resolved"
+      if (predictionFilter === "won") return pos.status === "resolved" && pos.resolved_outcome === pos.side
+      if (predictionFilter === "lost") return pos.status === "resolved" && pos.resolved_outcome !== pos.side && pos.resolved_outcome !== null
       return true
     })
 
     return (
       <section className="flex flex-col gap-3">
-        <div className="flex gap-2">
-          {(["all", "unresolved", "resolved"] as const).map((filter) => (
+        <div className="flex gap-2 flex-wrap">
+          {(["all", "unresolved", "resolved", "won", "lost"] as const).map((filter) => (
             <button
               key={filter}
               onClick={() => setPredictionFilter(filter)}
