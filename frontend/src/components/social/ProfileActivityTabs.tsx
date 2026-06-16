@@ -1,6 +1,6 @@
 "use client"
 
-import React from "react"
+import React, { useState } from "react"
 import Link from "next/link"
 import UserHoverCard from "@/components/social/UserHoverCard"
 import MarketCard from "@/components/post/MarketCard"
@@ -40,15 +40,38 @@ export default function ProfileActivityTabs({
   onOpenPost,
   loading = false,
 }: ProfileActivityTabsProps) {
+  const [predictionFilter, setPredictionFilter] = useState<"all" | "unresolved" | "resolved">("all")
+
   if (loading) {
     return <FeedSkeleton />
   }
 
   if (activeTab === "predictions") {
+    const filteredPositions = positions.filter((pos) => {
+      if (predictionFilter === "resolved") return pos.status === "resolved"
+      if (predictionFilter === "unresolved") return pos.status !== "resolved"
+      return true
+    })
+
     return (
       <section className="flex flex-col gap-3">
-        {positions.length > 0 ? (
-          positions.map((pos) => {
+        <div className="flex gap-2">
+          {(["all", "unresolved", "resolved"] as const).map((filter) => (
+            <button
+              key={filter}
+              onClick={() => setPredictionFilter(filter)}
+              className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${
+                predictionFilter === filter
+                  ? "bg-black/10 dark:bg-white/10 text-charcoal-primary dark:text-white font-bold"
+                  : "bg-stone-surface dark:bg-stone-800/50 text-ash dark:text-stone-400 font-bold hover:text-charcoal-primary dark:hover:text-white"
+              }`}
+            >
+              {filter.charAt(0).toUpperCase() + filter.slice(1)}
+            </button>
+          ))}
+        </div>
+        {filteredPositions.length > 0 ? (
+          filteredPositions.map((pos) => {
             const isYes = pos.side === "YES"
             const currentPrice =
               pos.status === "resolved"
@@ -133,7 +156,7 @@ export default function ProfileActivityTabs({
           })
         ) : (
           <div className="verity-card p-8 text-center text-sm tracking-[-0.18px] text-ash">
-            No active or resolved outcome predictions yet.
+            No {predictionFilter !== "all" ? predictionFilter : ""} predictions found.
           </div>
         )}
       </section>
