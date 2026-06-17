@@ -11,7 +11,7 @@
     "start": "nest start",
     "dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
-    "start:prod": "node dist/main",
+    "start:prod": "node --max-old-space-size=380 dist/main",
     "seed": "ts-node src/seed.ts",
     "seed:admin": "ts-node src/scripts/seed-admin.ts",
     "test:backend-e2e": "ts-node src/scripts/test-backend-e2e.ts",
