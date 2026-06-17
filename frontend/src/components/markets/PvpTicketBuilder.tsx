@@ -75,6 +75,7 @@ export const cleanOutcomeName = (
     .replace(/\s+wins\s+the\s+match/i, "")
     .replace(/\s+wins/i, "")
     .replace(/\s+scores\s+first\s+goal/i, "")
+    .replace(/\s+scores\s+first/i, "")
     .replace(/\s+leads\s+at\s+halftime/i, "")
     .replace(/\s+keeps\s+a\s+clean\s+sheet/i, "")
     .replace(/\s+commits\s+more\s+fouls/i, "")

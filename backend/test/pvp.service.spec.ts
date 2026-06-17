@@ -80,7 +80,8 @@ describe("PvpService", () => {
           provide: ConfigService,
           useValue: {
             get: jest.fn((key: string) => {
-              if (key === "NEW_USER_CUTOFF_DATE") return "2026-06-16T00:00:00.000Z"
+              if (key === "NEW_USER_CUTOFF_DATE")
+                return "2026-06-16T00:00:00.000Z"
               return null
             }),
           },
@@ -405,7 +406,9 @@ describe("PvpService", () => {
 
       pvpTicketModel.find.mockResolvedValue([candidate])
       const mockPvpMatchModel = (service as any).pvpMatchModel
-      jest.spyOn(mockPvpMatchModel, "create").mockResolvedValue(mockPvpMatch as any)
+      jest
+        .spyOn(mockPvpMatchModel, "create")
+        .mockResolvedValue(mockPvpMatch as any)
 
       const result = await service.matchmake(ticket)
       expect(result).toEqual(mockPvpMatch)
@@ -440,8 +443,12 @@ describe("PvpService", () => {
       const child2Id = new Types.ObjectId()
       const child3Id = new Types.ObjectId()
 
-      userModel.findById.mockImplementation(() => Promise.resolve(mockUser))
-      marketModel.findById.mockImplementation(() => Promise.resolve(mockParentMarket))
+      userModel.findById.mockImplementation((id: any) => {
+        if (id && id.toString() === mockUser._id.toString()) {
+          return Promise.resolve(mockUser)
+        }
+        return Promise.resolve(mockParentMarket)
+      })
       marketModel.find.mockResolvedValue([
         { _id: child1Id, optionGroup: "group-1" },
         { _id: child2Id, optionGroup: "group-2" },
@@ -502,8 +509,12 @@ describe("PvpService", () => {
       const child2Id = new Types.ObjectId()
       const child3Id = new Types.ObjectId()
 
-      userModel.findById.mockImplementation(() => Promise.resolve(mockUser))
-      marketModel.findById.mockImplementation(() => Promise.resolve(mockParentMarket))
+      userModel.findById.mockImplementation((id: any) => {
+        if (id && id.toString() === mockUser._id.toString()) {
+          return Promise.resolve(mockUser)
+        }
+        return Promise.resolve(mockParentMarket)
+      })
       marketModel.find.mockResolvedValue([
         { _id: child1Id, optionGroup: "group-1" },
         { _id: child2Id, optionGroup: "group-2" },
@@ -545,6 +556,76 @@ describe("PvpService", () => {
           doubleBoostActive: true,
         }),
       )
+    })
+  })
+
+  describe("awardReferrerFirstWinBoosts", () => {
+    it("should retroactively apply boosts to active tickets and add remainder to doubleBoostRemaining", async () => {
+      const mockReferredPlayer = {
+        _id: new Types.ObjectId(),
+        username: "referee",
+        referredById: new Types.ObjectId(),
+      }
+      const mockReferrer = {
+        _id: mockReferredPlayer.referredById,
+        username: "referrer",
+        doubleBoostRemaining: 0,
+        save: jest.fn().mockResolvedValue(true),
+      }
+
+      const mockTicket1 = {
+        _id: new Types.ObjectId(),
+        doubleBoostActive: false,
+        xpBoostMultiplier: 1.0,
+        save: jest.fn().mockResolvedValue(true),
+      }
+
+      userModel.findById.mockResolvedValue(mockReferrer)
+
+      const mockFindChain = {
+        sort: jest.fn().mockReturnThis(),
+        limit: jest.fn().mockResolvedValue([mockTicket1]),
+      }
+      pvpTicketModel.find.mockReturnValue(mockFindChain)
+
+      await (service as any).awardReferrerFirstWinBoosts(mockReferredPlayer)
+
+      // Ticket 1 should be boosted
+      expect(mockTicket1.doubleBoostActive).toBe(true)
+      expect(mockTicket1.xpBoostMultiplier).toBe(1.2)
+      expect(mockTicket1.save).toHaveBeenCalled()
+
+      // Remaining boost should be added to referrer (2 earned - 1 applied = 1 remaining)
+      expect(mockReferrer.doubleBoostRemaining).toBe(1)
+      expect(mockReferrer.save).toHaveBeenCalled()
+    })
+
+    it("should add both boosts to doubleBoostRemaining if there are no active, unboosted tickets", async () => {
+      const mockReferredPlayer = {
+        _id: new Types.ObjectId(),
+        username: "referee",
+        referredById: new Types.ObjectId(),
+      }
+      const mockReferrer = {
+        _id: mockReferredPlayer.referredById,
+        username: "referrer",
+        doubleBoostRemaining: 1,
+        save: jest.fn().mockResolvedValue(true),
+      }
+
+      userModel.findById.mockResolvedValue(mockReferrer)
+
+      const mockFindChain = {
+        sort: jest.fn().mockReturnThis(),
+        limit: jest.fn().mockResolvedValue([]),
+      }
+      pvpTicketModel.find.mockReturnValue(mockFindChain)
+
+      await (service as any).awardReferrerFirstWinBoosts(mockReferredPlayer)
+
+      // Referral boosts added to referrer (1 + 2 = 3)
+      expect(mockReferrer.doubleBoostRemaining).toBe(3)
+      expect(mockReferrer.save).toHaveBeenCalled()
     })
   })
 })

@@ -1375,9 +1375,42 @@ export class PvpService {
     const referrer = await this.userModel.findById(referredPlayer.referredById)
     if (!referrer) return
 
-    // Keep the existing field name for database compatibility.
-    referrer.doubleBoostRemaining = (referrer.doubleBoostRemaining ?? 0) + 2
-    await referrer.save()
+    // Find up to 2 active (queued/matched) tickets for the referrer that do not have any boosts active.
+    const activeUnboostedTickets = await this.pvpTicketModel
+      .find({
+        userId: referrer._id,
+        status: { $in: ["queued", "matched"] },
+        doubleBoostActive: false,
+      })
+      .sort({ createdAt: 1 })
+      .limit(2)
+
+    let appliedBoostsCount = 0
+    for (const ticket of activeUnboostedTickets) {
+      ticket.doubleBoostActive = true
+      ticket.xpBoostMultiplier = 1.2
+      await ticket.save()
+      appliedBoostsCount++
+      this.logger.log(
+        `Retroactively applied 1.2x boost to referrer ${referrer._id}'s active ticket ${ticket._id}`,
+      )
+    }
+
+    const boostsToAdd = 2 - appliedBoostsCount
+    if (boostsToAdd > 0) {
+      referrer.doubleBoostRemaining = (referrer.doubleBoostRemaining ?? 0) + boostsToAdd
+      await referrer.save()
+      this.logger.log(
+        `Added ${boostsToAdd} boosts to referrer ${referrer._id}'s doubleBoostRemaining (applied ${appliedBoostsCount} retroactively)`,
+      )
+    } else {
+      this.logger.log(
+        `Applied all 2 boosts retroactively to referrer ${referrer._id}'s active tickets`,
+      )
+    }
+
+    // Clear referrer's sync cache so updated ticket boosts are immediately visible
+    this.clearSyncCache(referrer._id.toString())
 
     await this.notificationsService.createNotification(
       referrer._id.toString(),
