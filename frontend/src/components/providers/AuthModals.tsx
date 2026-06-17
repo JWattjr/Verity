@@ -2,7 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query"
 import { Input } from "@/components/ui/input"
-import { apiRequest } from "@/store/apiClient"
+import { apiRequest, ApiError } from "@/store/apiClient"
 import type { Profile } from "@/lib/verity"
 import {
   X,
@@ -31,8 +31,11 @@ export function useProfileQuery() {
       try {
         return await apiRequest<Profile>("/auth/me")
       } catch (err) {
-        localStorage.removeItem("verity_auth_token")
-        return null
+        if (err instanceof ApiError && err.status === 401) {
+          localStorage.removeItem("verity_auth_token")
+          return null
+        }
+        throw err
       }
     },
     staleTime: 60 * 1000,
@@ -67,6 +70,7 @@ export default function AuthModals() {
   const referrerInput = useAuthStore((s) => s.referrerInput)
   const isSubmittingOtp = useAuthStore((s) => s.isSubmittingOtp)
   const isRequestingOtp = useAuthStore((s) => s.isRequestingOtp)
+  const authError = useAuthStore((s) => s.authError)
   const copied = useAuthStore((s) => s.copied)
 
   const setAuthModalStep = useAuthStore((s) => s.setAuthModalStep)
@@ -133,6 +137,11 @@ export default function AuthModals() {
                   authentication code. If you don't have an account, we will
                   create one for you.
                 </p>
+                {authError && (
+                  <div className="rounded-md bg-red-500/10 p-2.5 text-xs font-semibold text-red-500 border border-red-500/20">
+                    {authError}
+                  </div>
+                )}
                 <div className="space-y-2">
                   <label className="block text-xs font-mono font-bold tracking-wider text-ash">
                     Email address
@@ -175,6 +184,11 @@ export default function AuthModals() {
                   We've sent a 6-digit verification code to your email. Enter it
                   below to authorize.
                 </p>
+                {authError && (
+                  <div className="rounded-md bg-red-500/10 p-2.5 text-xs font-semibold text-red-500 border border-red-500/20">
+                    {authError}
+                  </div>
+                )}
                 <div className="space-y-2">
                   <label className="block text-xs font-mono font-bold uppercase tracking-wider text-ash">
                     Verification Code
@@ -228,6 +242,11 @@ export default function AuthModals() {
                   Choose a unique username to represent your predictions and
                   Takes on Verity.
                 </p>
+                {authError && (
+                  <div className="rounded-md bg-red-500/10 p-2.5 text-xs font-semibold text-red-500 border border-red-500/20">
+                    {authError}
+                  </div>
+                )}
                 <div className="space-y-2">
                   <label className="block text-xs font-mono font-bold uppercase tracking-wider text-ash">
                     Choose Username

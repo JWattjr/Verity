@@ -2,7 +2,7 @@ import {
   Injectable,
   NotFoundException,
   ConflictException,
-  NotImplementedException,
+  // NotImplementedException,
   Inject,
   forwardRef,
   BadRequestException,
@@ -11,7 +11,7 @@ import {
   OnModuleInit,
 } from "@nestjs/common"
 import { InjectModel } from "@nestjs/mongoose"
-import { Model, Types, SortOrder } from "mongoose"
+import { Model, Types, /*SortOrder*/ } from "mongoose"
 import {
   Market,
   MarketDocument,
@@ -131,7 +131,7 @@ export class MarketsService implements OnModuleInit {
     private readonly notificationsService: NotificationsService,
     private readonly pvpService: PvpService,
     private readonly liquidityService: LiquidityService,
-  ) {}
+  ) { }
 
   private todayKey(date = new Date()): string {
     return date.toISOString().slice(0, 10)
@@ -443,8 +443,8 @@ export class MarketsService implements OnModuleInit {
     const allChildMarkets =
       parentMarketIds.length > 0
         ? await this.marketModel.find({
-            parentMarketId: { $in: parentMarketIds },
-          })
+          parentMarketId: { $in: parentMarketIds },
+        })
         : []
 
     const childMarketsMap = new Map<string, MarketDocument[]>()
@@ -602,20 +602,43 @@ export class MarketsService implements OnModuleInit {
           outcomes,
         )
 
-        for (const outcome of outcomes) {
+        const outcomeCount = market?.outcomeCount ?? 2
+        const isMulti = outcomeCount > 2
+
+        let normalizedWinningOutcome = winningOutcome
+        if (!isMulti && winningOutcome && outcomes.length >= 2) {
+          if (
+            winningOutcome.toUpperCase() === outcomes[0].toUpperCase() ||
+            winningOutcome.toUpperCase() === "YES"
+          ) {
+            normalizedWinningOutcome = "YES"
+          } else if (
+            winningOutcome.toUpperCase() === outcomes[1].toUpperCase() ||
+            winningOutcome.toUpperCase() === "NO"
+          ) {
+            normalizedWinningOutcome = "NO"
+          }
+        }
+
+        for (let idx = 0; idx < outcomes.length; idx++) {
+          const outcome = outcomes[idx]
+          const normalizedSide = isMulti ? outcome : idx === 0 ? "YES" : "NO"
+
           const balance = onChain[outcome] ?? 0
-          const isLosing = isResolved && winningOutcome !== outcome
+          const isLosing =
+            isResolved && normalizedWinningOutcome !== normalizedSide
 
           if (!isLosing && balance > 0) {
             await this.marketPositionModel.updateOne(
               {
                 marketId: new Types.ObjectId(marketId),
                 userId: new Types.ObjectId(profileId),
-                side: outcome,
+                side: normalizedSide,
               },
               {
                 $set: {
                   shares: balance,
+                  isArchived: false,
                 },
                 $setOnInsert: {
                   avgPrice: 0.5,
@@ -626,11 +649,19 @@ export class MarketsService implements OnModuleInit {
               { upsert: true },
             )
           } else {
-            await this.marketPositionModel.deleteOne({
-              marketId: new Types.ObjectId(marketId),
-              userId: new Types.ObjectId(profileId),
-              side: outcome,
-            })
+            await this.marketPositionModel.updateOne(
+              {
+                marketId: new Types.ObjectId(marketId),
+                userId: new Types.ObjectId(profileId),
+                side: normalizedSide,
+              },
+              {
+                $set: {
+                  shares: 0,
+                  isArchived: true,
+                },
+              },
+            )
           }
         }
       } catch (err) {
@@ -642,7 +673,7 @@ export class MarketsService implements OnModuleInit {
       .find({
         marketId: new Types.ObjectId(marketId),
         userId: new Types.ObjectId(profileId),
-        shares: { $gt: 0 },
+        $or: [{ shares: { $gt: 0 } }, { isArchived: true }],
       })
       .sort({ updatedAt: -1 })
 
@@ -721,6 +752,7 @@ export class MarketsService implements OnModuleInit {
         position.shares += shares
         position.investedUsdc += amountUsdc
         position.avgPrice = position.investedUsdc / (position.shares || 1)
+        position.isArchived = false
         await position.save()
       } else {
         await this.marketPositionModel.create({
@@ -751,10 +783,9 @@ export class MarketsService implements OnModuleInit {
       )
 
       if (position.shares === 0) {
-        await this.marketPositionModel.deleteOne({ _id: position._id })
-      } else {
-        await position.save()
+        position.isArchived = true
       }
+      await position.save()
     }
 
     // Sync market balances and prices from chain
@@ -864,22 +895,29 @@ export class MarketsService implements OnModuleInit {
 
     const outcomeCount = market.outcomeCount ?? 2
     let winningIndex = -1
+
+    // Attempt to match by index from the outcomes list first (for both binary and multi-outcome)
+    if (market.outcomes && market.outcomes.length > 0) {
+      winningIndex = market.outcomes.findIndex(
+        (o) => o.toLowerCase().trim() === winningOutcome.toLowerCase().trim(),
+      )
+    }
+
     if (outcomeCount > 2) {
-      if (/^\d+$/.test(winningOutcome)) {
+      if (winningIndex === -1 && /^\d+$/.test(winningOutcome)) {
         winningIndex = parseInt(winningOutcome, 10)
-      } else if (market.outcomes && market.outcomes.length > 0) {
-        winningIndex = market.outcomes.findIndex(
-          (o) => o.toLowerCase().trim() === winningOutcome.toLowerCase().trim(),
-        )
       }
       if (winningIndex === -1) {
         winningIndex = 0 // fallback
       }
     } else {
-      winningIndex =
-        winningOutcome === "YES" || winningOutcome.toLowerCase() === "yes"
-          ? 0
-          : 1
+      if (winningIndex === -1) {
+        // Fallback: Check if winningOutcome is YES/yes (index 0) or NO/no (index 1)
+        winningIndex =
+          winningOutcome === "YES" || winningOutcome.toLowerCase() === "yes"
+            ? 0
+            : 1
+      }
     }
 
     if (finalTxHash) {
@@ -917,8 +955,11 @@ export class MarketsService implements OnModuleInit {
             )
           }
         } catch (error) {
-          this.logger.warn(
-            `Failed to execute on-chain resolution directly: ${error.message}. Proceeding with database-only resolution.`,
+          this.logger.error(
+            `Failed to execute on-chain resolution directly for market ${marketId}: ${error.message}`,
+          )
+          throw new BadRequestException(
+            `Failed to resolve market on-chain: ${error.message}`,
           )
         }
       }
@@ -938,7 +979,7 @@ export class MarketsService implements OnModuleInit {
       }
     } else {
       market.resolvedOutcome = winningOutcome as any
-      market.winningOutcomeIndex = winningOutcome === "YES" ? 0 : 1
+      market.winningOutcomeIndex = winningIndex
     }
 
     await market.save()
@@ -964,13 +1005,7 @@ export class MarketsService implements OnModuleInit {
               o.toLowerCase().trim() === winningOutcome.toLowerCase().trim(),
           )
           if (winningIndex >= 0) {
-            child.status = "resolved"
-            child.resolvedOutcome = child.outcomes[winningIndex]
-            child.winningOutcomeIndex = winningIndex
-            child.resolvedByAdmin = adminAddress
-            await child.save()
-
-            // Resolve child market on-chain
+            // Resolve child market on-chain FIRST
             try {
               await this.blockchainService.resolveMarketOutcome(
                 child._id.toString(),
@@ -979,28 +1014,38 @@ export class MarketsService implements OnModuleInit {
               this.logger.log(
                 `Successfully resolved multi-outcome child market ${child._id} on-chain to index ${winningIndex}`,
               )
+
+              // Only save to DB if on-chain succeeded!
+              child.status = "resolved"
+              child.resolvedOutcome = child.outcomes[winningIndex]
+              child.winningOutcomeIndex = winningIndex
+              child.resolvedByAdmin = adminAddress
+              await child.save()
+
+              // Trigger PvP match resolution for each child market
+              await this.pvpService.resolvePvpMatchesForMarket(
+                child._id.toString(),
+                child.outcomes[winningIndex],
+              )
+
+              this.logger.log(
+                `Resolved multi-outcome child market ${child._id} (${child.optionName || child.question}) -> ${child.outcomes[winningIndex]}`,
+              )
+
+              // Emit socket events for each child market
+              this.socketGateway.broadcastToRoom(
+                `market:${child._id.toString()}`,
+                "market-updated",
+                { marketId: child._id.toString() },
+              )
             } catch (err) {
               this.logger.error(
                 `Failed to resolve multi-outcome child market ${child._id} on-chain: ${err.message}`,
               )
+              throw new BadRequestException(
+                `Failed to resolve child market ${child.optionName || child.question} on-chain: ${err.message}`,
+              )
             }
-
-            // Trigger PvP match resolution for each child market
-            await this.pvpService.resolvePvpMatchesForMarket(
-              child._id.toString(),
-              child.outcomes[winningIndex],
-            )
-
-            this.logger.log(
-              `Resolved multi-outcome child market ${child._id} (${child.optionName || child.question}) -> ${child.outcomes[winningIndex]}`,
-            )
-
-            // Emit socket events for each child market
-            this.socketGateway.broadcastToRoom(
-              `market:${child._id.toString()}`,
-              "market-updated",
-              { marketId: child._id.toString() },
-            )
           }
         } else {
           // Binary child market
@@ -1013,13 +1058,8 @@ export class MarketsService implements OnModuleInit {
 
           if (isYesMatch || isNoMatch) {
             const childResolvedOutcome = isYesMatch ? "YES" : "NO"
-            child.status = "resolved"
-            child.resolvedOutcome = childResolvedOutcome
-            child.winningOutcomeIndex = isYesMatch ? 0 : 1
-            child.resolvedByAdmin = adminAddress
-            await child.save()
 
-            // Resolve child market on-chain
+            // Resolve child market on-chain FIRST
             try {
               const winningIsYes = isYesMatch
               await this.blockchainService.resolveMarket(
@@ -1029,28 +1069,38 @@ export class MarketsService implements OnModuleInit {
               this.logger.log(
                 `Successfully resolved binary child market ${child._id} on-chain (winningIsYes: ${winningIsYes})`,
               )
+
+              // Only save to DB if on-chain succeeded!
+              child.status = "resolved"
+              child.resolvedOutcome = childResolvedOutcome
+              child.winningOutcomeIndex = isYesMatch ? 0 : 1
+              child.resolvedByAdmin = adminAddress
+              await child.save()
+
+              // Trigger PvP match resolution for each child market
+              await this.pvpService.resolvePvpMatchesForMarket(
+                child._id.toString(),
+                childResolvedOutcome,
+              )
+
+              this.logger.log(
+                `Resolved binary child market ${child._id} (${child.optionName || child.question}) -> ${childResolvedOutcome}`,
+              )
+
+              // Emit socket events for each child market
+              this.socketGateway.broadcastToRoom(
+                `market:${child._id.toString()}`,
+                "market-updated",
+                { marketId: child._id.toString() },
+              )
             } catch (err) {
               this.logger.error(
                 `Failed to resolve binary child market ${child._id} on-chain: ${err.message}`,
               )
+              throw new BadRequestException(
+                `Failed to resolve child market ${child.optionName || child.question} on-chain: ${err.message}`,
+              )
             }
-
-            // Trigger PvP match resolution for each child market
-            await this.pvpService.resolvePvpMatchesForMarket(
-              child._id.toString(),
-              childResolvedOutcome,
-            )
-
-            this.logger.log(
-              `Resolved binary child market ${child._id} (${child.optionName || child.question}) -> ${childResolvedOutcome}`,
-            )
-
-            // Emit socket events for each child market
-            this.socketGateway.broadcastToRoom(
-              `market:${child._id.toString()}`,
-              "market-updated",
-              { marketId: child._id.toString() },
-            )
           }
         }
       }
@@ -1207,12 +1257,108 @@ export class MarketsService implements OnModuleInit {
     const positions = await this.marketPositionModel
       .find({
         userId: new Types.ObjectId(userId),
-        shares: { $gt: 0 },
+        $or: [{ shares: { $gt: 0 } }, { isArchived: true }],
       })
       .populate("marketId")
       .sort({ updatedAt: -1 })
 
     return positions.map((p) => this.serializePosition(p))
+  }
+
+  async getTopPredictors(limit = 10): Promise<any[]> {
+    const pipeline: any[] = [
+      {
+        $lookup: {
+          from: "markets",
+          localField: "marketId",
+          foreignField: "_id",
+          as: "market",
+        },
+      },
+      { $unwind: "$market" },
+      {
+        $match: {
+          "market.status": "resolved",
+          "market.resolvedOutcome": { $ne: null },
+        },
+      },
+      {
+        $group: {
+          _id: "$userId",
+          totalPredictions: { $sum: 1 },
+          wonPredictions: {
+            $sum: {
+              $cond: [{ $eq: ["$side", "$market.resolvedOutcome"] }, 1, 0],
+            },
+          },
+        },
+      },
+      {
+        $addFields: {
+          accuracy: {
+            $cond: [
+              { $gt: ["$totalPredictions", 0] },
+              {
+                $multiply: [
+                  { $divide: ["$wonPredictions", "$totalPredictions"] },
+                  100,
+                ],
+              },
+              0,
+            ],
+          },
+        },
+      },
+      {
+        $sort: {
+          accuracy: -1,
+          totalPredictions: -1,
+        },
+      },
+      { $limit: limit },
+      {
+        $lookup: {
+          from: "users",
+          localField: "_id",
+          foreignField: "_id",
+          as: "user",
+        },
+      },
+      { $unwind: "$user" },
+    ]
+
+    const result = await this.marketPositionModel.aggregate(pipeline)
+
+    return result.map((r) => {
+      const user = r.user
+      return {
+        id: user._id.toString(),
+        wallet_address: user.walletAddress,
+        walletAddress: user.walletAddress,
+        username: user.username,
+        display_name: user.displayName,
+        displayName: user.displayName,
+        avatar_url: user.avatarUrl,
+        avatarUrl: user.avatarUrl,
+        bio: user.bio,
+        followersCount: user.followersCount,
+        followingCount: user.followingCount,
+        signalPoints: user.signalPoints,
+        arenaXp: user.arenaXp,
+        doubleBoostRemaining: user.doubleBoostRemaining,
+        hasWonFirstPvpDuel: user.hasWonFirstPvpDuel,
+        pvpMatchesWonCount: user.pvpMatchesWonCount,
+        pvpMatchesLostCount: user.pvpMatchesLostCount,
+        pvpMatchesDrawnCount: user.pvpMatchesDrawnCount,
+        created_at: user.createdAt?.toISOString(),
+        createdAt: user.createdAt?.toISOString(),
+        updatedAt: user.updatedAt?.toISOString(),
+        isOnboarded: user.isOnboarded,
+        referredById: user.referredById?.toString(),
+        accuracy: Math.round(r.accuracy),
+        totalPredictions: r.totalPredictions,
+      }
+    })
   }
 
   async fetchAllUserTrades(userId: string): Promise<MarketTradeResponse[]> {
