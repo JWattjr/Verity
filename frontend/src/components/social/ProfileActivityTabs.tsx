@@ -17,7 +17,7 @@ import {
   type MarketPosition,
 } from "@/lib/verity"
 import { useRouter } from "next/navigation"
-import { ArrowUpRight, Swords, Timer, ChevronRight } from "lucide-react"
+import { ArrowUpRight, Swords, Timer, ChevronRight, ChevronLeft } from "lucide-react"
 
 export type ProfileActivityTab = "predictions" | "markets" | "activity"
 
@@ -173,9 +173,10 @@ export default function ProfileActivityTabs({
               <button
                 onClick={() => setPredictionPage((p) => Math.max(1, p - 1))}
                 disabled={predictionPage === 1}
-                className="px-4 py-2 text-sm font-bold rounded-lg border border-border bg-white dark:bg-stone-900 text-charcoal-primary dark:text-white shadow-sm disabled:opacity-50 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors"
+                aria-label="Previous page"
+                className="p-2 rounded-lg border border-border bg-white dark:bg-stone-900 text-charcoal-primary dark:text-white shadow-sm disabled:opacity-50 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors"
               >
-                Previous
+                <ChevronLeft className="h-5 w-5" />
               </button>
               <span className="text-sm font-semibold text-charcoal-primary dark:text-white">
                 Page {predictionPage} of {totalPages}
@@ -183,9 +184,10 @@ export default function ProfileActivityTabs({
               <button
                 onClick={() => setPredictionPage((p) => Math.min(totalPages, p + 1))}
                 disabled={predictionPage === totalPages}
-                className="px-4 py-2 text-sm font-bold rounded-lg border border-border bg-white dark:bg-stone-900 text-charcoal-primary dark:text-white shadow-sm disabled:opacity-50 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors"
+                aria-label="Next page"
+                className="p-2 rounded-lg border border-border bg-white dark:bg-stone-900 text-charcoal-primary dark:text-white shadow-sm disabled:opacity-50 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors"
               >
-                Next
+                <ChevronRight className="h-5 w-5" />
               </button>
             </div>
           )}
