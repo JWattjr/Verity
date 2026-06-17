@@ -41,6 +41,8 @@ export default function ProfileActivityTabs({
   loading = false,
 }: ProfileActivityTabsProps) {
   const [predictionFilter, setPredictionFilter] = useState<"all" | "unresolved" | "resolved" | "won" | "lost">("all")
+  const [predictionPage, setPredictionPage] = useState(1)
+  const PREDICTIONS_PER_PAGE = 5
 
   if (loading) {
     return <FeedSkeleton />
@@ -55,13 +57,22 @@ export default function ProfileActivityTabs({
       return true
     })
 
+    const totalPages = Math.ceil(filteredPositions.length / PREDICTIONS_PER_PAGE)
+    const paginatedPositions = filteredPositions.slice(
+      (predictionPage - 1) * PREDICTIONS_PER_PAGE,
+      predictionPage * PREDICTIONS_PER_PAGE
+    )
+
     return (
       <section className="flex flex-col gap-3">
         <div className="flex gap-2 flex-wrap">
           {(["all", "unresolved", "resolved", "won", "lost"] as const).map((filter) => (
             <button
               key={filter}
-              onClick={() => setPredictionFilter(filter)}
+              onClick={() => {
+                setPredictionFilter(filter)
+                setPredictionPage(1)
+              }}
               className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${
                 predictionFilter === filter
                   ? "bg-black/10 dark:bg-white/10 text-charcoal-primary dark:text-white font-bold"
@@ -72,9 +83,10 @@ export default function ProfileActivityTabs({
             </button>
           ))}
         </div>
-        {filteredPositions.length > 0 ? (
-          filteredPositions.map((pos) => {
-            const isYes = pos.side === "YES"
+        {paginatedPositions.length > 0 ? (
+          <>
+            {paginatedPositions.map((pos) => {
+              const isYes = pos.side === "YES"
             const currentPrice =
               pos.status === "resolved"
                 ? pos.resolved_outcome === pos.side
@@ -155,7 +167,29 @@ export default function ProfileActivityTabs({
                 </div>
               </div>
             )
-          })
+          })}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between mt-4 pt-4 border-t border-border">
+              <button
+                onClick={() => setPredictionPage((p) => Math.max(1, p - 1))}
+                disabled={predictionPage === 1}
+                className="px-4 py-2 text-sm font-bold rounded-lg border border-border bg-white dark:bg-stone-900 text-charcoal-primary dark:text-white shadow-sm disabled:opacity-50 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors"
+              >
+                Previous
+              </button>
+              <span className="text-sm font-semibold text-charcoal-primary dark:text-white">
+                Page {predictionPage} of {totalPages}
+              </span>
+              <button
+                onClick={() => setPredictionPage((p) => Math.min(totalPages, p + 1))}
+                disabled={predictionPage === totalPages}
+                className="px-4 py-2 text-sm font-bold rounded-lg border border-border bg-white dark:bg-stone-900 text-charcoal-primary dark:text-white shadow-sm disabled:opacity-50 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors"
+              >
+                Next
+              </button>
+            </div>
+          )}
+          </>
         ) : (
           <div className="verity-card p-8 text-center text-sm tracking-[-0.18px] text-ash">
             No {predictionFilter !== "all" ? predictionFilter : ""} predictions found.

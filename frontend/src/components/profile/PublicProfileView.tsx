@@ -187,6 +187,9 @@ export default function PublicProfileView({ userId }: PublicProfileViewProps) {
                 {marketItems.length} markets
               </span>
               <span className="font-mono text-xs text-ash">
+                {positions.length} predictions
+              </span>
+              <span className="font-mono text-xs text-ash">
                 {accuracy}% accuracy
               </span>
               <span className="font-mono text-xs text-ash font-semibold dark:text-indigo-400">
