@@ -102,6 +102,8 @@ UserSchema.index(
 )
 // Compound index for PvP leaderboard queries (sort by arenaXp descending, filter by isOnboarded)
 UserSchema.index({ isOnboarded: 1, arenaXp: -1 })
+// Compound index for referee list sorting by XP
+UserSchema.index({ referredById: 1, arenaXp: -1 })
 
 @Schema({ timestamps: true, versionKey: false })
 export class Follow {

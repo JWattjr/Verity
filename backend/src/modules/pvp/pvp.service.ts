@@ -752,16 +752,17 @@ export class PvpService {
       ...new Set(tickets.map((t) => t.parentMarketId.toString())),
     ]
 
-    // Fetch all parent markets in one query
-    const parents = await this.marketModel.find({
-      _id: { $in: parentIds.map((id) => new Types.ObjectId(id)) },
-    })
-
-    // Fetch all child markets for these parents in one query
-    const allChildren = await this.marketModel.find({
-      parentMarketId: { $in: parents.map((p) => p._id) },
-      marketType: "child",
-    })
+    // Fetch all parent markets and child markets in parallel
+    const parentObjectIds = parentIds.map((id) => new Types.ObjectId(id))
+    const [parents, allChildren] = await Promise.all([
+      this.marketModel.find({
+        _id: { $in: parentObjectIds },
+      }),
+      this.marketModel.find({
+        parentMarketId: { $in: parentObjectIds },
+        marketType: "child",
+      }),
+    ])
 
     // Group children by parentMarketId
     const childrenMap = new Map<string, any[]>()
@@ -1574,26 +1575,25 @@ export class PvpService {
       }
     }
 
-    // Parallelize independent lookups: match+opponent, parent+children, user
-    const [match, parent, children, user] = await Promise.all([
+    const parentId = ticket.parentMarketId
+    // Parallelize independent lookups: match, parent + children, user, opponentTicket
+    const [match, allMarkets, user, opponentTicket] = await Promise.all([
       ticket.matchId
         ? this.pvpMatchModel.findById(ticket.matchId)
         : Promise.resolve(null),
-      this.marketModel.findById(ticket.parentMarketId),
-      this.marketModel.find({ parentMarketId: ticket.parentMarketId }),
+      this.marketModel.find({
+        $or: [{ _id: parentId }, { parentMarketId: parentId }],
+      }),
       this.userModel.findById(userId),
+      ticket.opponentTicketId
+        ? this.pvpTicketModel.findById(ticket.opponentTicketId)
+        : Promise.resolve(null),
     ])
 
-    let opponent: UserDocument | null = null
-    let opponentTicket: PvpTicketDocument | null = null
-    if (match && ticket.opponentTicketId) {
-      opponentTicket = await this.pvpTicketModel.findById(
-        ticket.opponentTicketId,
-      )
-      if (opponentTicket) {
-        opponent = await this.userModel.findById(opponentTicket.userId)
-      }
-    }
+    const parent = allMarkets.find((m) => m._id.toString() === parentId.toString())
+    const children = allMarkets.filter(
+      (m) => m.parentMarketId?.toString() === parentId.toString(),
+    )
 
     // Fire-and-forget on-chain balance sync (non-blocking)
     if (user && user.walletAddress) {
@@ -1613,9 +1613,9 @@ export class PvpService {
       }
     }
 
-    // Fetch user positions and trade volume in parallel (aggregation for volume)
+    // Fetch user positions, trade volume, and opponent in parallel (aggregation for volume)
     const childMarketIds = children.map((c) => c._id)
-    const [userPositions, volumeAgg] = await Promise.all([
+    const [userPositions, volumeAgg, opponent] = await Promise.all([
       this.marketPositionModel.find({
         userId: new Types.ObjectId(userId),
         marketId: { $in: childMarketIds },
@@ -1625,6 +1625,9 @@ export class PvpService {
         { $match: { marketId: { $in: childMarketIds } } },
         { $group: { _id: "$marketId", totalVolume: { $sum: "$amountUsdc" } } },
       ]),
+      opponentTicket
+        ? this.userModel.findById(opponentTicket.userId)
+        : Promise.resolve(null),
     ])
 
     const volumeMap: Record<string, number> = {}
@@ -1721,30 +1724,30 @@ export class PvpService {
   }
 
   async getLeaderboards(userId?: string) {
-    // XP (Volume)
-    const xpList = await this.userModel
-      .find({
-        isOnboarded: true,
-      })
-      .sort({ arenaXp: -1 })
-      .limit(50)
-
-    // Referrers (Total Referrals Count)
-    // We can run an aggregation to find referrers ranked by number of referee users
-    const referrerRankings = await this.userModel.aggregate([
-      { $match: { referredById: { $ne: null } } },
-      { $group: { _id: "$referredById", count: { $sum: 1 } } },
-      { $sort: { count: -1 } },
-      { $limit: 50 },
-      {
-        $lookup: {
-          from: "users",
-          localField: "_id",
-          foreignField: "_id",
-          as: "referrerUser",
+    // Fetch top 50 rankings and current target user in parallel
+    const [xpList, referrerRankings, targetUser] = await Promise.all([
+      this.userModel
+        .find({
+          isOnboarded: true,
+        })
+        .sort({ arenaXp: -1 })
+        .limit(50),
+      this.userModel.aggregate([
+        { $match: { referredById: { $ne: null } } },
+        { $group: { _id: "$referredById", count: { $sum: 1 } } },
+        { $sort: { count: -1 } },
+        { $limit: 50 },
+        {
+          $lookup: {
+            from: "users",
+            localField: "_id",
+            foreignField: "_id",
+            as: "referrerUser",
+          },
         },
-      },
-      { $unwind: "$referrerUser" },
+        { $unwind: "$referrerUser" },
+      ]),
+      userId ? this.userModel.findById(userId) : Promise.resolve(null),
     ])
 
     let currentUserXp: number | null = null
@@ -1752,42 +1755,42 @@ export class PvpService {
     let currentUserReferral: number | null = null
     let currentUserReferralRank: number | null = null
 
-    if (userId) {
-      const targetUser = await this.userModel.findById(userId)
-      if (targetUser && targetUser.isOnboarded) {
-        currentUserXp = targetUser.arenaXp ?? 0
-        // Compute user XP Rank
-        currentUserXpRank =
-          (await this.userModel.countDocuments({
-            isOnboarded: true,
-            $or: [
-              { arenaXp: { $gt: currentUserXp } },
-              { arenaXp: currentUserXp, _id: { $lt: targetUser._id } },
-            ],
-          })) + 1
+    if (targetUser && targetUser.isOnboarded) {
+      currentUserXp = targetUser.arenaXp ?? 0
 
-        // Compute user Referrals count
-        currentUserReferral = await this.userModel.countDocuments({
+      // Compute user XP Rank and Referrals count in parallel
+      const [xpRankCount, referralCount] = await Promise.all([
+        this.userModel.countDocuments({
+          isOnboarded: true,
+          $or: [
+            { arenaXp: { $gt: currentUserXp } },
+            { arenaXp: currentUserXp, _id: { $lt: targetUser._id } },
+          ],
+        }),
+        this.userModel.countDocuments({
           referredById: targetUser._id,
-        })
+        }),
+      ])
 
-        // Compute user Referral Rank
-        const rankAggregation = await this.userModel.aggregate([
-          { $match: { referredById: { $ne: null } } },
-          { $group: { _id: "$referredById", count: { $sum: 1 } } },
-          {
-            $match: {
-              $or: [
-                { count: { $gt: currentUserReferral } },
-                { count: currentUserReferral, _id: { $lt: targetUser._id } },
-              ],
-            },
+      currentUserXpRank = xpRankCount + 1
+      currentUserReferral = referralCount
+
+      // Compute user Referral Rank using the retrieved referralCount
+      const rankAggregation = await this.userModel.aggregate([
+        { $match: { referredById: { $ne: null } } },
+        { $group: { _id: "$referredById", count: { $sum: 1 } } },
+        {
+          $match: {
+            $or: [
+              { count: { $gt: currentUserReferral } },
+              { count: currentUserReferral, _id: { $lt: targetUser._id } },
+            ],
           },
-          { $count: "count" },
-        ])
-        const higherCount = rankAggregation[0]?.count || 0
-        currentUserReferralRank = higherCount + 1
-      }
+        },
+        { $count: "count" },
+      ])
+      const higherCount = rankAggregation[0]?.count || 0
+      currentUserReferralRank = higherCount + 1
     }
 
     return {
@@ -1815,14 +1818,16 @@ export class PvpService {
   }
 
   async getReferrals(userId: string) {
-    const user = await this.userModel.findById(userId)
-    if (!user) throw new NotFoundException("User not found.")
+    const [user, referees] = await Promise.all([
+      this.userModel.findById(userId),
+      this.userModel
+        .find({
+          referredById: new Types.ObjectId(userId),
+        })
+        .sort({ arenaXp: -1 }),
+    ])
 
-    const referees = await this.userModel
-      .find({
-        referredById: new Types.ObjectId(userId),
-      })
-      .sort({ arenaXp: -1 })
+    if (!user) throw new NotFoundException("User not found.")
 
     // Check welcome boosts eligibility
     const cutoffStr = this.configService.get<string>("NEW_USER_CUTOFF_DATE")
