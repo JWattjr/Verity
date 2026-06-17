@@ -100,6 +100,8 @@ UserSchema.index(
   { email: 1 },
   { unique: true, partialFilterExpression: { email: { $type: "string" } } },
 )
+// Compound index for PvP leaderboard queries (sort by arenaXp descending, filter by isOnboarded)
+UserSchema.index({ isOnboarded: 1, arenaXp: -1 })
 
 @Schema({ timestamps: true, versionKey: false })
 export class Follow {

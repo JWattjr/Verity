@@ -658,20 +658,15 @@ export class PvpService {
       }
     }
 
-    // 2. Fetch all trades on all children in one query
+    // 2. Compute trade volume per child market via aggregation (avoids loading all trade docs)
     const allChildIds = allChildren.map((c) => c._id)
-    const allTrades = await this.marketTradeModel.find({
-      marketId: { $in: allChildIds },
-    })
-
-    // Calculate trade volume per child market
+    const volumeAgg = await this.marketTradeModel.aggregate([
+      { $match: { marketId: { $in: allChildIds } } },
+      { $group: { _id: "$marketId", totalVolume: { $sum: "$amountUsdc" } } },
+    ])
     const volumeMap = new Map<string, number>()
-    for (const t of allTrades) {
-      const marketIdStr = t.marketId.toString()
-      volumeMap.set(
-        marketIdStr,
-        (volumeMap.get(marketIdStr) || 0) + Number(t.amountUsdc || 0),
-      )
+    for (const v of volumeAgg) {
+      volumeMap.set(v._id.toString(), v.totalVolume)
     }
 
     // 3. Construct the response
@@ -718,17 +713,17 @@ export class PvpService {
    * users can view their unresolved duels even after the event deadline.
    */
   async getMyActiveTickets(userId: string) {
-    // 1. Find queued or matched tickets
-    const activeTickets = await this.pvpTicketModel.find({
-      userId: new Types.ObjectId(userId),
-      status: { $in: ["queued", "matched"] },
-    })
-
-    // 2. Find user positions with shares > 0
-    const activePositions = await this.marketPositionModel.find({
-      userId: new Types.ObjectId(userId),
-      shares: { $gt: 0 },
-    })
+    // 1. Find queued or matched tickets AND user positions with shares > 0 in parallel
+    const [activeTickets, activePositions] = await Promise.all([
+      this.pvpTicketModel.find({
+        userId: new Types.ObjectId(userId),
+        status: { $in: ["queued", "matched"] },
+      }),
+      this.marketPositionModel.find({
+        userId: new Types.ObjectId(userId),
+        shares: { $gt: 0 },
+      }),
+    ])
 
     const childMarketIds = activePositions.map((p) => p.marketId)
     const childMarkets = await this.marketModel.find({
@@ -780,20 +775,15 @@ export class PvpService {
       }
     }
 
-    // Fetch all trades on all child markets in one query
+    // Compute trade volume per child market via aggregation (avoids loading all trade docs)
     const allChildIds = allChildren.map((c) => c._id)
-    const allTrades = await this.marketTradeModel.find({
-      marketId: { $in: allChildIds },
-    })
-
-    // Calculate trade volume per child market
+    const volumeAgg = await this.marketTradeModel.aggregate([
+      { $match: { marketId: { $in: allChildIds } } },
+      { $group: { _id: "$marketId", totalVolume: { $sum: "$amountUsdc" } } },
+    ])
     const volumeMap = new Map<string, number>()
-    for (const t of allTrades) {
-      const marketIdStr = t.marketId.toString()
-      volumeMap.set(
-        marketIdStr,
-        (volumeMap.get(marketIdStr) || 0) + Number(t.amountUsdc || 0),
-      )
+    for (const v of volumeAgg) {
+      volumeMap.set(v._id.toString(), v.totalVolume)
     }
 
     const result: any[] = []
@@ -1371,6 +1361,134 @@ export class PvpService {
     }
   }
 
+  /**
+   * Syncs on-chain balances for a user's child markets in the background.
+   * This is intentionally called as fire-and-forget from getPvpStatus().
+   */
+  private async syncOnChainBalances(
+    userId: string,
+    walletAddress: string,
+    children: any[],
+  ) {
+    // Pre-fetch on-chain balances for all child markets in a single batch query
+    const batchQueries = children.map((child) => {
+      const outcomes =
+        child.outcomes && child.outcomes.length > 0
+          ? child.outcomes
+          : ["YES", "NO"]
+      return {
+        marketId: child._id.toString(),
+        outcomes,
+      }
+    })
+
+    let balancesMap: Record<string, Record<string, number>> = {}
+    try {
+      balancesMap =
+        await this.blockchainService.getUserOnChainBalancesBatch(
+          batchQueries,
+          walletAddress,
+        )
+    } catch (err) {
+      this.logger.error(
+        `Error syncing position batch in syncOnChainBalances: ${err.message}`,
+      )
+      return
+    }
+
+    // Fetch existing positions in db to avoid redundant database writes
+    const existingPositions = await this.marketPositionModel.find({
+      userId: new Types.ObjectId(userId),
+      marketId: { $in: children.map((c) => c._id) },
+    })
+
+    for (const child of children) {
+      try {
+        const outcomes =
+          child.outcomes && child.outcomes.length > 0
+            ? child.outcomes
+            : ["YES", "NO"]
+
+        const onChain = balancesMap[child._id.toString()] || {}
+
+        const isResolved =
+          child.status === "resolved" || child.resolvedOutcome
+        const winningOutcome = child.resolvedOutcome
+        const isMulti = child.outcomeCount && child.outcomeCount > 2
+
+        let normalizedWinningOutcome = winningOutcome
+        if (!isMulti && winningOutcome && outcomes.length >= 2) {
+          if (
+            winningOutcome.toUpperCase() === outcomes[0].toUpperCase() ||
+            winningOutcome.toUpperCase() === "YES"
+          ) {
+            normalizedWinningOutcome = "YES"
+          } else if (
+            winningOutcome.toUpperCase() === outcomes[1].toUpperCase() ||
+            winningOutcome.toUpperCase() === "NO"
+          ) {
+            normalizedWinningOutcome = "NO"
+          }
+        }
+
+        for (let idx = 0; idx < outcomes.length; idx++) {
+          const outcome = outcomes[idx]
+          const normalizedSide = isMulti
+            ? outcome
+            : idx === 0
+              ? "YES"
+              : "NO"
+
+          const balance = onChain[outcome] ?? 0
+          const isLosing =
+            isResolved && normalizedWinningOutcome !== normalizedSide
+
+          // Find if we already have this position in DB matching normalizedSide
+          const dbPos = existingPositions.find(
+            (p) =>
+              p.marketId.toString() === child._id.toString() &&
+              p.side === normalizedSide,
+          )
+
+          if (!isLosing && balance > 0) {
+            // If there's no matching position, or the shares count differs, update/upsert
+            if (!dbPos || dbPos.shares !== balance) {
+              await this.marketPositionModel.updateOne(
+                {
+                  marketId: child._id,
+                  userId: new Types.ObjectId(userId),
+                  side: normalizedSide,
+                },
+                {
+                  $set: { shares: balance },
+                  $setOnInsert: {
+                    avgPrice: 0.5,
+                    investedUsdc: balance * 0.5,
+                    realizedPnl: 0,
+                  },
+                },
+                { upsert: true },
+              )
+            }
+          } else {
+            // If there's a matching position, delete it
+            if (dbPos) {
+              await this.marketPositionModel.deleteOne({
+                marketId: child._id,
+                userId: new Types.ObjectId(userId),
+                side: normalizedSide,
+              })
+            }
+          }
+        }
+      } catch (err) {
+        this.logger.error(
+          `Error syncing position in syncOnChainBalances for child ${child._id}: ${err.message}`,
+        )
+      }
+    }
+  }
+
   private async awardReferrerFirstWinBoosts(referredPlayer: UserDocument) {
     const referrer = await this.userModel.findById(referredPlayer.referredById)
     if (!referrer) return
@@ -1456,169 +1574,62 @@ export class PvpService {
       }
     }
 
-    let match: PvpMatchDocument | null = null
+    // Parallelize independent lookups: match+opponent, parent+children, user
+    const [match, parent, children, user] = await Promise.all([
+      ticket.matchId
+        ? this.pvpMatchModel.findById(ticket.matchId)
+        : Promise.resolve(null),
+      this.marketModel.findById(ticket.parentMarketId),
+      this.marketModel.find({ parentMarketId: ticket.parentMarketId }),
+      this.userModel.findById(userId),
+    ])
+
     let opponent: UserDocument | null = null
     let opponentTicket: PvpTicketDocument | null = null
-    if (ticket.matchId) {
-      match = await this.pvpMatchModel.findById(ticket.matchId)
-      if (match) {
-        opponentTicket = await this.pvpTicketModel.findById(
-          ticket.opponentTicketId,
-        )
-        opponent = await this.userModel.findById(opponentTicket?.userId)
+    if (match && ticket.opponentTicketId) {
+      opponentTicket = await this.pvpTicketModel.findById(
+        ticket.opponentTicketId,
+      )
+      if (opponentTicket) {
+        opponent = await this.userModel.findById(opponentTicket.userId)
       }
     }
 
-    const parent = await this.marketModel.findById(ticket.parentMarketId)
-    const children = await this.marketModel.find({
-      parentMarketId: ticket.parentMarketId,
-    })
-
-    const user = await this.userModel.findById(userId)
+    // Fire-and-forget on-chain balance sync (non-blocking)
     if (user && user.walletAddress) {
       const syncKey = `${userId}:${parentMarketId || ""}`
       const lastSync = this.lastSyncMap.get(syncKey) || 0
-      const now = Date.now()
-
-      if (now - lastSync > 10000) {
-        this.lastSyncMap.set(syncKey, now)
-
-        // Pre-fetch on-chain balances for all child markets in a single batch query
-        const batchQueries = children.map((child) => {
-          const outcomes =
-            child.outcomes && child.outcomes.length > 0
-              ? child.outcomes
-              : ["YES", "NO"]
-          return {
-            marketId: child._id.toString(),
-            outcomes,
-          }
-        })
-
-        let balancesMap: Record<string, Record<string, number>> = {}
-        try {
-          balancesMap =
-            await this.blockchainService.getUserOnChainBalancesBatch(
-              batchQueries,
-              user.walletAddress,
-            )
-        } catch (err) {
+      if (Date.now() - lastSync > 10000) {
+        this.lastSyncMap.set(syncKey, Date.now())
+        this.syncOnChainBalances(
+          userId,
+          user.walletAddress,
+          children,
+        ).catch((err) =>
           this.logger.error(
-            `Error syncing position batch in getPvpStatus: ${err.message}`,
-          )
-        }
-
-        // Fetch existing positions in db to avoid redundant database writes
-        const existingPositions = await this.marketPositionModel.find({
-          userId: new Types.ObjectId(userId),
-          marketId: { $in: children.map((c) => c._id) },
-        })
-
-        for (const child of children) {
-          try {
-            const outcomes =
-              child.outcomes && child.outcomes.length > 0
-                ? child.outcomes
-                : ["YES", "NO"]
-
-            const onChain = balancesMap[child._id.toString()] || {}
-
-            const isResolved =
-              child.status === "resolved" || child.resolvedOutcome
-            const winningOutcome = child.resolvedOutcome
-            const isMulti = child.outcomeCount && child.outcomeCount > 2
-
-            let normalizedWinningOutcome = winningOutcome
-            if (!isMulti && winningOutcome && outcomes.length >= 2) {
-              if (
-                winningOutcome.toUpperCase() === outcomes[0].toUpperCase() ||
-                winningOutcome.toUpperCase() === "YES"
-              ) {
-                normalizedWinningOutcome = "YES"
-              } else if (
-                winningOutcome.toUpperCase() === outcomes[1].toUpperCase() ||
-                winningOutcome.toUpperCase() === "NO"
-              ) {
-                normalizedWinningOutcome = "NO"
-              }
-            }
-
-            for (let idx = 0; idx < outcomes.length; idx++) {
-              const outcome = outcomes[idx]
-              const normalizedSide = isMulti
-                ? outcome
-                : idx === 0
-                  ? "YES"
-                  : "NO"
-
-              const balance = onChain[outcome] ?? 0
-              const isLosing =
-                isResolved && normalizedWinningOutcome !== normalizedSide
-
-              // Find if we already have this position in DB matching normalizedSide
-              const dbPos = existingPositions.find(
-                (p) =>
-                  p.marketId.toString() === child._id.toString() &&
-                  p.side === normalizedSide,
-              )
-
-              if (!isLosing && balance > 0) {
-                // If there's no matching position, or the shares count differs, update/upsert
-                if (!dbPos || dbPos.shares !== balance) {
-                  await this.marketPositionModel.updateOne(
-                    {
-                      marketId: child._id,
-                      userId: new Types.ObjectId(userId),
-                      side: normalizedSide,
-                    },
-                    {
-                      $set: { shares: balance },
-                      $setOnInsert: {
-                        avgPrice: 0.5,
-                        investedUsdc: balance * 0.5,
-                        realizedPnl: 0,
-                      },
-                    },
-                    { upsert: true },
-                  )
-                }
-              } else {
-                // If there's a matching position, delete it
-                if (dbPos) {
-                  await this.marketPositionModel.deleteOne({
-                    marketId: child._id,
-                    userId: new Types.ObjectId(userId),
-                    side: normalizedSide,
-                  })
-                }
-              }
-            }
-          } catch (err) {
-            this.logger.error(
-              `Error syncing position in getPvpStatus for child ${child._id}: ${err.message}`,
-            )
-          }
-        }
+            `Background on-chain sync failed: ${err.message}`,
+          ),
+        )
       }
     }
 
-    // Fetch the user's on-chain positions for all child markets (same as normal markets)
+    // Fetch user positions and trade volume in parallel (aggregation for volume)
     const childMarketIds = children.map((c) => c._id)
-    const [userPositions, childTrades] = await Promise.all([
+    const [userPositions, volumeAgg] = await Promise.all([
       this.marketPositionModel.find({
         userId: new Types.ObjectId(userId),
         marketId: { $in: childMarketIds },
         shares: { $gt: 0 },
       }),
-      this.marketTradeModel.find({
-        marketId: { $in: childMarketIds },
-      }),
+      this.marketTradeModel.aggregate([
+        { $match: { marketId: { $in: childMarketIds } } },
+        { $group: { _id: "$marketId", totalVolume: { $sum: "$amountUsdc" } } },
+      ]),
     ])
 
     const volumeMap: Record<string, number> = {}
-    for (const t of childTrades) {
-      const idStr = t.marketId.toString()
-      volumeMap[idStr] = (volumeMap[idStr] || 0) + Number(t.amountUsdc || 0)
+    for (const v of volumeAgg) {
+      volumeMap[v._id.toString()] = v.totalVolume
     }
 
     return {
