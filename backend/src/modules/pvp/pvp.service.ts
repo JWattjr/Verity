@@ -1155,13 +1155,21 @@ export class PvpService {
           pick.isCorrect = isCorrect
           updated = true
 
-          // Delete losing position immediately so they don't clutter the active ticket list
+          // Archive losing position immediately so they don't clutter the active ticket list
           if (!pick.isCorrect) {
-            await this.marketPositionModel.deleteOne({
-              marketId: pick.marketId,
-              userId: ticket.userId,
-              side: pick.selection,
-            })
+            await this.marketPositionModel.updateOne(
+              {
+                marketId: pick.marketId,
+                userId: ticket.userId,
+                side: pick.selection,
+              },
+              {
+                $set: {
+                  shares: 0,
+                  isArchived: true,
+                },
+              },
+            )
           }
         }
       }
@@ -1488,13 +1496,21 @@ export class PvpService {
               )
             }
           } else {
-            // If there's a matching position, delete it
+            // If there's a matching position, archive it
             if (dbPos) {
-              await this.marketPositionModel.deleteOne({
-                marketId: child._id,
-                userId: new Types.ObjectId(userId),
-                side: normalizedSide,
-              })
+              await this.marketPositionModel.updateOne(
+                {
+                  marketId: child._id,
+                  userId: new Types.ObjectId(userId),
+                  side: normalizedSide,
+                },
+                {
+                  $set: {
+                    shares: 0,
+                    isArchived: true,
+                  },
+                },
+              )
             }
           }
         }
