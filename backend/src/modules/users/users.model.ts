@@ -86,6 +86,9 @@ export class User {
   @Prop({ type: Number, default: 0 })
   pvpMatchesDrawnCount: number
 
+  @Prop({ type: [String], default: [] })
+  completedMissions: string[]
+
   createdAt?: Date
   updatedAt?: Date
 }

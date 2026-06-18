@@ -11,6 +11,7 @@ import {
   CircleHelp,
   TrendingUp,
   Trophy,
+  Sparkles,
 } from "lucide-react"
 import ThemeToggle from "@/components/layout/ThemeToggle"
 import SidebarProfile from "@/components/layout/SidebarProfile"
@@ -23,6 +24,7 @@ const NAV_ITEMS = [
   { icon: TrendingUp, label: "Markets", href: "/markets" },
   { icon: Search, label: "Explore", href: "/explore" },
   { icon: Trophy, label: "Leaderboard", href: "/leaderboard" },
+  { icon: Sparkles, label: "Missions", href: "/missions" },
   { icon: CircleHelp, label: "How it works", href: "/how-it-works" },
   { icon: Bell, label: "Notifications", href: "/notifications" },
   { icon: Wallet, label: "Portfolio", href: "/portfolio" },

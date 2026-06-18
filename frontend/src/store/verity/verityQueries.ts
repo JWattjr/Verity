@@ -735,3 +735,54 @@ export function useClaimableWinningsQuery() {
     staleTime: 30000, // Cache for 30s to avoid excessive on-chain reads
   })
 }
+
+export interface Mission {
+  id: string
+  title: string
+  description: string
+  xpReward: number
+  actionUrl: string
+  completed: boolean
+}
+
+export function useMissionsQuery() {
+  return useQuery({
+    queryKey: ["missions"] as const,
+    queryFn: () => apiRequest<Mission[]>("/missions"),
+  })
+}
+
+export function useCompleteMissionMutation() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (missionId: string) =>
+      apiRequest<{ success: boolean; xpEarned: number; totalXp: number }>(
+        `/missions/${missionId}/complete`,
+        { method: "POST" },
+      ),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["missions"] })
+      void qc.invalidateQueries({ queryKey: ["wallet-profile"] })
+      void qc.invalidateQueries({ queryKey: ["pvp-leaderboards"] })
+    },
+  })
+}
+
+export function useCreateMissionMutation() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (body: {
+      title: string
+      description: string
+      xpReward: number
+      actionUrl: string
+    }) =>
+      apiRequest<any>("/missions", {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["missions"] })
+    },
+  })
+}
