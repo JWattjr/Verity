@@ -139,7 +139,10 @@ export const useTxStore = create<TxStore>((set, get) => ({
         set((s) => ({ txConfirmState: { ...s.txConfirmState, isOpen: false } }))
         set({ isExecutingTx: false })
       }
-      queryClient.invalidateQueries()
+      // Delay query invalidation to allow RPC nodes to sync with the blockchain
+      setTimeout(() => {
+        queryClient.invalidateQueries()
+      }, 3000)
     } catch (err: any) {
       const parsedError = err.message || "Transaction execution failed."
       set({ txError: parsedError, isExecutingTx: false })

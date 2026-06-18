@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback } from "react"
 import { useAuth } from "@/components/providers/AuthModals"
+import { useQueryClient } from "@tanstack/react-query"
 import { useMarketResolution } from "@/hooks/useMarketResolution"
 import { useUsdcBalance } from "@/hooks/useUsdcBalance"
 import { arcUsdcAddress, FPMM_ADDRESS, publicClient } from "@/lib/arc"
@@ -55,6 +56,7 @@ export default function PvpArenaTab({
   const { user, executeTxBatch, closeTxConfirm } = useAuth()
   const { redeemMultipleWinnings } = useMarketResolution()
   const { rawBalance } = useUsdcBalance()
+  const queryClient = useQueryClient()
   const submitTicketMutation = useSubmitPvpTicketMutation()
   const { mutateAsync: executeMarketTrade } = useExecuteMarketTradeMutation()
 
@@ -237,12 +239,17 @@ export default function PvpArenaTab({
           marketIds.forEach((id) => next.add(id))
           return next
         })
-        void refetchPvpStatus()
+        // Delay invalidation to avoid RPC latency issues showing old data
+        setTimeout(() => {
+          void refetchPvpStatus()
+          void queryClient.invalidateQueries({ queryKey: ["positions"] })
+          void queryClient.invalidateQueries({ queryKey: ["pvp-claimable-winnings"] })
+        }, 3000)
       } catch (err) {
         console.error("Failed to claim all winnings", err)
       }
     },
-    [redeemMultipleWinnings, refetchPvpStatus],
+    [redeemMultipleWinnings, refetchPvpStatus, queryClient],
   )
 
   async function handleSubmitPvpTicket() {

@@ -32,18 +32,21 @@ export default function PvpSidebarStats({
         claimableData.totalWinningsUsdc,
       )
 
-      // Invalidate relevant queries after successful claim
-      void queryClient.invalidateQueries({
-        queryKey: ["pvp-claimable-winnings"],
-      })
-      void queryClient.invalidateQueries({ queryKey: ["pvp-status"] })
-      void queryClient.invalidateQueries({
-        queryKey: ["pvp-my-active-tickets"],
-      })
+      // Delay invalidation to avoid RPC latency issues showing old data
+      setTimeout(() => {
+        void queryClient.invalidateQueries({
+          queryKey: ["pvp-claimable-winnings"],
+        })
+        void queryClient.invalidateQueries({ queryKey: ["pvp-status"] })
+        void queryClient.invalidateQueries({
+          queryKey: ["pvp-my-active-tickets"],
+        })
+        void queryClient.invalidateQueries({ queryKey: ["positions"] })
+        setIsClaiming(false)
+      }, 3000)
     } catch (err) {
       console.error("Failed to claim all winnings:", err)
       toast.error("Failed to claim winnings.")
-    } finally {
       setIsClaiming(false)
     }
   }, [claimableData, redeemMultipleWinnings, queryClient])
