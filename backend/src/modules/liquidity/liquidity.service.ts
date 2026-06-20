@@ -403,7 +403,8 @@ export class LiquidityService {
     const oldPoolStatus = pool.status
 
     try {
-      const onChainVoided = await this.blockchainService.readOnChainMarketVoided(marketId)
+      const onChainVoided =
+        await this.blockchainService.readOnChainMarketVoided(marketId)
       const isVoided = onChainVoided || oldPoolStatus === "voided"
 
       const onChainState = await this.blockchainService.readPoolBalances(
@@ -431,7 +432,10 @@ export class LiquidityService {
         if (positions.length > 0) {
           const walletAddresses = positions.map((pos) => pos.walletAddress)
           try {
-            const sharesList = await this.blockchainService.readLPSharesBatch(marketId, walletAddresses)
+            const sharesList = await this.blockchainService.readLPSharesBatch(
+              marketId,
+              walletAddresses,
+            )
             if (sharesList && sharesList.length === positions.length) {
               const ops = positions.map((pos, idx) => {
                 const shares = Number(sharesList[idx]) / 1e6
@@ -594,10 +598,24 @@ export class LiquidityService {
     if (!pool) {
       throw new NotFoundException("Pool not found.")
     }
-    return this.lpPositionModel.find({
+    const positions = await this.lpPositionModel.find({
       poolId: pool._id,
       userId: new Types.ObjectId(userId),
     })
+
+    return Promise.all(
+      positions.map(async (pos) => {
+        const canRemove = await this.canRemoveLiquidity(
+          marketId,
+          pos.walletAddress,
+        )
+        return {
+          ...pos.toObject(),
+          id: pos.id || (pos as any)._id?.toString(),
+          canRemoveLiquidity: canRemove,
+        }
+      }),
+    )
   }
 
   // Cron Job / Periodic scan to void expired pools
@@ -621,7 +639,9 @@ export class LiquidityService {
           market.status = "voided"
           await market.save()
         }
-        this.logger.log(`Successfully voided pool ${pool._id} on-chain and in DB.`)
+        this.logger.log(
+          `Successfully voided pool ${pool._id} on-chain and in DB.`,
+        )
       } catch (err: any) {
         this.logger.error(
           `Failed to void pool ${pool._id} on-chain: ${err.message}`,

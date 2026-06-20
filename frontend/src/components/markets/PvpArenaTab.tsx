@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useMemo, useCallback } from "react"
+import { useQueryClient } from "@tanstack/react-query"
 import { useAuth } from "@/components/providers/AuthModals"
 import { useMarketResolution } from "@/hooks/useMarketResolution"
 import { useUsdcBalance } from "@/hooks/useUsdcBalance"
@@ -56,6 +57,7 @@ export default function PvpArenaTab({
   claimedMarketIds,
   setClaimedMarketIds,
 }: PvpArenaTabProps) {
+  const queryClient = useQueryClient()
   const { user, executeTxBatch, closeTxConfirm } = useAuth()
   const { redeemMultipleWinnings } = useMarketResolution()
   const { rawBalance } = useUsdcBalance()
@@ -238,12 +240,23 @@ export default function PvpArenaTab({
           marketIds.forEach((id) => next.add(id))
           return next
         })
-        void refetchPvpStatus()
+        
+        // Invalidate all relevant queries to keep UI in sync
+        void queryClient.invalidateQueries({
+          queryKey: ["pvp-claimable-winnings"],
+        })
+        void queryClient.invalidateQueries({ queryKey: ["pvp-status"] })
+        void queryClient.invalidateQueries({
+          queryKey: ["pvp-my-active-tickets"],
+        })
+        void queryClient.invalidateQueries({ queryKey: ["positions"] })
+        void queryClient.invalidateQueries({ queryKey: ["usdcBalance"] })
+        void queryClient.invalidateQueries({ queryKey: ["wallet-profile"] })
       } catch (err) {
         console.error("Failed to claim all winnings", err)
       }
     },
-    [redeemMultipleWinnings, refetchPvpStatus],
+    [redeemMultipleWinnings, queryClient, setClaimedMarketIds],
   )
 
   async function handleSubmitPvpTicket() {

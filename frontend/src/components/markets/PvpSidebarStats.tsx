@@ -65,6 +65,9 @@ export default function PvpSidebarStats({
       void queryClient.invalidateQueries({
         queryKey: ["pvp-my-active-tickets"],
       })
+      void queryClient.invalidateQueries({ queryKey: ["positions"] })
+      void queryClient.invalidateQueries({ queryKey: ["usdcBalance"] })
+      void queryClient.invalidateQueries({ queryKey: ["wallet-profile"] })
     } catch (err) {
       console.error("Failed to claim all winnings:", err)
       toast.error("Failed to claim winnings.")

@@ -701,6 +701,35 @@ export class BlockchainService implements OnModuleInit {
     const formattedMarketId = this.formatMarketId(marketId)
     const formattedWalletAddress = this.formatAddress(walletAddress)
     try {
+      // 1. Fetch pool details from contract to verify if it is active / creator is set
+      const poolResult = await this.publicClient.readContract({
+        address: this.fpmmAddress,
+        abi: this.fpmmAbi,
+        functionName: "pools",
+        args: [formattedMarketId],
+      })
+      const pool = poolResult as any[]
+      const creatorAddress = pool[4] as string
+      const active = pool[8] as boolean
+
+      if (!active || creatorAddress === "0x0000000000000000000000000000000000000000") {
+        return false
+      }
+
+      // 2. Fetch deposit time to verify if user has actually deposited/claimed
+      const depositTime = await this.publicClient.readContract({
+        address: this.fpmmAddress,
+        abi: this.fpmmAbi,
+        functionName: "lpDepositTime",
+        args: [formattedMarketId, formattedWalletAddress],
+      })
+
+      // If user has not deposited on-chain, they cannot remove liquidity
+      if (depositTime === 0n) {
+        return false
+      }
+
+      // 3. Call canRemoveLiquidity as final check
       const result = await this.publicClient.readContract({
         address: this.fpmmAddress,
         abi: this.fpmmAbi,
@@ -874,6 +903,38 @@ export class BlockchainService implements OnModuleInit {
     } catch (error) {
       throw new Error(
         `Failed to deposit pre-market liquidity for ${marketId}: ${error.message}`,
+      )
+    }
+  }
+
+  async adminAddActiveLiquidity(
+    marketId: string,
+    amountUsdc: number,
+  ): Promise<string> {
+    if (!this.walletClient) {
+      throw new Error("Wallet client not initialized")
+    }
+
+    const rawAmount = BigInt(Math.round(amountUsdc * 1e6))
+    await this.approveUsdcIfNecessary(this.fpmmAddress, rawAmount)
+
+    const formattedMarketId = this.formatMarketId(marketId)
+    try {
+      const txHash = await this.walletClient.writeContract({
+        address: this.fpmmAddress,
+        abi: this.fpmmAbi,
+        functionName: "addLiquidity",
+        args: [formattedMarketId, rawAmount],
+        chain: arcTestnet,
+      })
+      const receipt = await this.publicClient.waitForTransactionReceipt({ hash: txHash })
+      if (receipt.status === "reverted") {
+        throw new Error("Transaction reverted on-chain: addLiquidity")
+      }
+      return txHash
+    } catch (error) {
+      throw new Error(
+        `Failed to add active pool liquidity for ${marketId}: ${error.message}`,
       )
     }
   }

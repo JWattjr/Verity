@@ -922,17 +922,41 @@ export class PvpService {
       if (ticketCount === 0) {
         xpBoostMultiplier = 2.0
         doubleBoostActive = true
-        this.logger.log(`User ${userId} qualifies for Welcome Boost 1 (2.0x XP).`)
+        this.logger.log(
+          `User ${userId} qualifies for Welcome Boost 1 (2.0x XP).`,
+        )
       } else if (ticketCount === 1) {
         xpBoostMultiplier = 1.5
         doubleBoostActive = true
-        this.logger.log(`User ${userId} qualifies for Welcome Boost 2 (1.5x XP).`)
+        this.logger.log(
+          `User ${userId} qualifies for Welcome Boost 2 (1.5x XP).`,
+        )
+      }
+    }
+
+    // If welcome boosts were not applied, try to consume 2.0x downtime compensation boost
+    if (!doubleBoostActive) {
+      const updateResult = await this.userModel.findOneAndUpdate(
+        { _id: user._id, downtimeBoostRemaining: { $gt: 0 } },
+        { $inc: { downtimeBoostRemaining: -1 } },
+        { new: true },
+      )
+      if (updateResult) {
+        doubleBoostActive = true
+        xpBoostMultiplier = 2.0
+        this.logger.log(
+          `User ${userId} consumed a 2.0x downtime compensation boost. remaining: ${updateResult.downtimeBoostRemaining}`,
+        )
       }
     }
 
     // If welcome boosts were not applied, try to consume Bronze 1.5x boost
     if (!doubleBoostActive) {
-      if (user.arenaXp >= 30 && user.arenaXp <= 499 && !user.hasUsedBronzeBoost) {
+      if (
+        user.arenaXp >= 30 &&
+        user.arenaXp <= 499 &&
+        !user.hasUsedBronzeBoost
+      ) {
         const updateResult = await this.userModel.findOneAndUpdate(
           { _id: user._id, hasUsedBronzeBoost: false },
           { $set: { hasUsedBronzeBoost: true } },
@@ -1157,13 +1181,21 @@ export class PvpService {
           pick.isCorrect = isCorrect
           updated = true
 
-          // Delete losing position immediately so they don't clutter the active ticket list
+          // Archive losing position immediately so they don't clutter the active ticket list
           if (!pick.isCorrect) {
-            await this.marketPositionModel.deleteOne({
-              marketId: pick.marketId,
-              userId: ticket.userId,
-              side: pick.selection,
-            })
+            await this.marketPositionModel.updateOne(
+              {
+                marketId: pick.marketId,
+                userId: ticket.userId,
+                side: pick.selection,
+              },
+              {
+                $set: {
+                  shares: 0,
+                  isArchived: true,
+                },
+              },
+            )
           }
         }
       }
@@ -1403,11 +1435,10 @@ export class PvpService {
 
     let balancesMap: Record<string, Record<string, number>> = {}
     try {
-      balancesMap =
-        await this.blockchainService.getUserOnChainBalancesBatch(
-          batchQueries,
-          walletAddress,
-        )
+      balancesMap = await this.blockchainService.getUserOnChainBalancesBatch(
+        batchQueries,
+        walletAddress,
+      )
     } catch (err) {
       this.logger.error(
         `Error syncing position batch in syncOnChainBalances: ${err.message}`,
@@ -1430,8 +1461,7 @@ export class PvpService {
 
         const onChain = balancesMap[child._id.toString()] || {}
 
-        const isResolved =
-          child.status === "resolved" || child.resolvedOutcome
+        const isResolved = child.status === "resolved" || child.resolvedOutcome
         const winningOutcome = child.resolvedOutcome
         const isMulti = child.outcomeCount && child.outcomeCount > 2
 
@@ -1452,11 +1482,7 @@ export class PvpService {
 
         for (let idx = 0; idx < outcomes.length; idx++) {
           const outcome = outcomes[idx]
-          const normalizedSide = isMulti
-            ? outcome
-            : idx === 0
-              ? "YES"
-              : "NO"
+          const normalizedSide = isMulti ? outcome : idx === 0 ? "YES" : "NO"
 
           const balance = onChain[outcome] ?? 0
           const isLosing =
@@ -1490,13 +1516,21 @@ export class PvpService {
               )
             }
           } else {
-            // If there's a matching position, delete it
+            // If there's a matching position, archive it
             if (dbPos) {
-              await this.marketPositionModel.deleteOne({
-                marketId: child._id,
-                userId: new Types.ObjectId(userId),
-                side: normalizedSide,
-              })
+              await this.marketPositionModel.updateOne(
+                {
+                  marketId: child._id,
+                  userId: new Types.ObjectId(userId),
+                  side: normalizedSide,
+                },
+                {
+                  $set: {
+                    shares: 0,
+                    isArchived: true,
+                  },
+                },
+              )
             }
           }
         }
@@ -1535,7 +1569,8 @@ export class PvpService {
 
     const boostsToAdd = 2 - appliedBoostsCount
     if (boostsToAdd > 0) {
-      referrer.doubleBoostRemaining = (referrer.doubleBoostRemaining ?? 0) + boostsToAdd
+      referrer.doubleBoostRemaining =
+        (referrer.doubleBoostRemaining ?? 0) + boostsToAdd
       await referrer.save()
       this.logger.log(
         `Added ${boostsToAdd} boosts to referrer ${referrer._id}'s doubleBoostRemaining (applied ${appliedBoostsCount} retroactively)`,
@@ -1608,7 +1643,9 @@ export class PvpService {
         : Promise.resolve(null),
     ])
 
-    const parent = allMarkets.find((m) => m._id.toString() === parentId.toString())
+    const parent = allMarkets.find(
+      (m) => m._id.toString() === parentId.toString(),
+    )
     const children = allMarkets.filter(
       (m) => m.parentMarketId?.toString() === parentId.toString(),
     )
@@ -1619,14 +1656,11 @@ export class PvpService {
       const lastSync = this.lastSyncMap.get(syncKey) || 0
       if (Date.now() - lastSync > 10000) {
         this.lastSyncMap.set(syncKey, Date.now())
-        this.syncOnChainBalances(
-          userId,
-          user.walletAddress,
-          children,
-        ).catch((err) =>
-          this.logger.error(
-            `Background on-chain sync failed: ${err.message}`,
-          ),
+        this.syncOnChainBalances(userId, user.walletAddress, children).catch(
+          (err) =>
+            this.logger.error(
+              `Background on-chain sync failed: ${err.message}`,
+            ),
         )
       }
     }
@@ -1872,17 +1906,22 @@ export class PvpService {
     }
 
     if (nextGameMultiplier === 1.0) {
-      const isBronze = user.arenaXp >= 30 && user.arenaXp <= 499
-      if (isBronze && !user.hasUsedBronzeBoost) {
-        nextGameMultiplier = 1.5
-      } else if ((user.doubleBoostRemaining ?? 0) > 0) {
-        nextGameMultiplier = 1.2
+      if ((user.downtimeBoostRemaining ?? 0) > 0) {
+        nextGameMultiplier = 2.0
+      } else {
+        const isBronze = user.arenaXp >= 30 && user.arenaXp <= 499
+        if (isBronze && !user.hasUsedBronzeBoost) {
+          nextGameMultiplier = 1.5
+        } else if ((user.doubleBoostRemaining ?? 0) > 0) {
+          nextGameMultiplier = 1.2
+        }
       }
     }
 
     return {
       referralLink: user.username,
       doubleBoostRemaining: user.doubleBoostRemaining ?? 0,
+      downtimeBoostRemaining: user.downtimeBoostRemaining ?? 0,
       hasWonFirstPvpDuel: user.hasWonFirstPvpDuel ?? false,
       welcomeBoosts: {
         isEligible,
@@ -2134,7 +2173,11 @@ export class PvpService {
     })
 
     if (resolvedTickets.length === 0) {
-      return { claimableMarketIds: [], totalWinningsUsdc: 0, claimablePicks: [] }
+      return {
+        claimableMarketIds: [],
+        totalWinningsUsdc: 0,
+        claimablePicks: [],
+      }
     }
 
     // Collect all winning picks (isCorrect === true)
@@ -2157,7 +2200,11 @@ export class PvpService {
     }
 
     if (winningPicks.length === 0) {
-      return { claimableMarketIds: [], totalWinningsUsdc: 0, claimablePicks: [] }
+      return {
+        claimableMarketIds: [],
+        totalWinningsUsdc: 0,
+        claimablePicks: [],
+      }
     }
 
     // Deduplicate market IDs (user could have same child market across tickets, though unlikely)
@@ -2190,7 +2237,11 @@ export class PvpService {
 
     // Verify on-chain balances to find truly claimable picks
     if (!user.walletAddress) {
-      return { claimableMarketIds: [], totalWinningsUsdc: 0, claimablePicks: [] }
+      return {
+        claimableMarketIds: [],
+        totalWinningsUsdc: 0,
+        claimablePicks: [],
+      }
     }
 
     // Build batch queries for on-chain balance check
@@ -2217,7 +2268,11 @@ export class PvpService {
       this.logger.error(
         `Failed to batch read on-chain balances for claimable winnings: ${err.message}`,
       )
-      return { claimableMarketIds: [], totalWinningsUsdc: 0, claimablePicks: [] }
+      return {
+        claimableMarketIds: [],
+        totalWinningsUsdc: 0,
+        claimablePicks: [],
+      }
     }
 
     // Filter to only picks where the user still holds tokens on-chain
@@ -2353,9 +2408,15 @@ export class PvpService {
       try {
         // Check if there is an unclaimed pre-market deposit on Factory for the admin
         if (adminAddress) {
-          const unclaimedDeposit = await this.blockchainService.getPreMarketDeposit(marketId, adminAddress)
+          const unclaimedDeposit =
+            await this.blockchainService.getPreMarketDeposit(
+              marketId,
+              adminAddress,
+            )
           if (unclaimedDeposit > 0n) {
-            this.logger.log(`Claiming pre-market LP shares for market ${marketId} (${unclaimedDeposit.toString()} raw)`)
+            this.logger.log(
+              `Claiming pre-market LP shares for market ${marketId} (${unclaimedDeposit.toString()} raw)`,
+            )
             await this.blockchainService.claimPreMarketLpShares(marketId)
           }
         }
@@ -2424,112 +2485,133 @@ export class PvpService {
     }
   }
 
-
-  async getAdminMetrics(adminId: string) {
-    const admin = await this.userModel.findById(adminId)
-    if (!admin || admin.role !== "admin") {
-      throw new ForbiddenException("Only admins can fetch admin metrics.")
-    }
-
+  private async calculateSystemMetrics() {
     const botUsernames = BOT_PROFILES.map((b) => b.username)
 
     // 1. Users count
     const totalUsers = await this.userModel.countDocuments()
-    const botsCount = await this.userModel.countDocuments({
-      username: { $in: botUsernames },
-    })
+
+    // Get bot user IDs first
+    const bots = await this.userModel
+      .find({ username: { $in: botUsernames } }, { _id: 1 })
+      .lean()
+    const botUserIds = new Set(bots.map((b) => b._id.toString()))
+    const botsCount = botUserIds.size
     const realUsersCount = Math.max(0, totalUsers - botsCount)
 
     // 2. PvP User Stats
-    const tickets = await this.pvpTicketModel
-      .find({}, { userId: 1, status: 1 })
-      .lean()
-    const ticketUserIds = [...new Set(tickets.map((t) => t.userId.toString()))]
-    const ticketUsers = await this.userModel
-      .find({ _id: { $in: ticketUserIds } }, { username: 1 })
-      .lean()
-
-    const botUserIdsSet = new Set(
-      ticketUsers
-        .filter((u) => botUsernames.includes(u.username))
-        .map((u) => u._id.toString()),
-    )
+    // Group tickets by userId and status using aggregation to avoid downloading thousands of documents
+    const ticketStatsList = await this.pvpTicketModel.aggregate([
+      { $match: { status: { $ne: "cancelled" } } },
+      {
+        $group: {
+          _id: "$userId",
+          hasPlayed: {
+            $max: {
+              $cond: [{ $in: ["$status", ["matched", "resolved"]] }, 1, 0],
+            },
+          },
+        },
+      },
+    ])
 
     let realUsersSubmittedCount = 0
     let botUsersSubmittedCount = 0
     let realUsersPlayedCount = 0
     let botUsersPlayedCount = 0
 
-    const uniqueUsersWithTicketsAll = new Set<string>()
-    const uniqueUsersWithMatchedTickets = new Set<string>()
+    for (const stats of ticketStatsList) {
+      if (!stats._id) continue
+      const uIdStr = stats._id.toString()
+      const isBot = botUserIds.has(uIdStr)
 
-    for (const t of tickets) {
-      const uIdStr = t.userId.toString()
-      uniqueUsersWithTicketsAll.add(uIdStr)
-      if (["matched", "resolved"].includes(t.status)) {
-        uniqueUsersWithMatchedTickets.add(uIdStr)
-      }
-    }
-
-    for (const uid of uniqueUsersWithTicketsAll) {
-      if (botUserIdsSet.has(uid)) {
+      if (isBot) {
         botUsersSubmittedCount++
+        if (stats.hasPlayed === 1) {
+          botUsersPlayedCount++
+        }
       } else {
         realUsersSubmittedCount++
+        if (stats.hasPlayed === 1) {
+          realUsersPlayedCount++
+        }
       }
     }
 
-    for (const uid of uniqueUsersWithMatchedTickets) {
-      if (botUserIdsSet.has(uid)) {
-        botUsersPlayedCount++
-      } else {
-        realUsersPlayedCount++
-      }
-    }
+    const uniqueUsersWithTicketsAllSize = ticketStatsList.length
+    const uniqueUsersWithMatchedTicketsSize = ticketStatsList.filter(
+      (s) => s.hasPlayed === 1,
+    ).length
 
     // 3. Count PvP Matches
     const totalPvpMatches = await this.pvpMatchModel.countDocuments()
 
     // 4. Sum USDC volume and fees from MarketTrades
-    const trades = await this.marketTradeModel
-      .find({}, { amountUsdc: 1, feeUsdc: 1, marketId: 1 })
-      .lean()
-    const marketsList = await this.marketModel
-      .find({}, { category: 1, creationFeeTxHash: 1, marketCreationFeeUsdc: 1 })
-      .lean()
-    const marketMap = new Map(marketsList.map((m) => [m._id.toString(), m]))
+    // We group by market category by looking up in markets collection
+    const tradeStatsList = await this.marketTradeModel.aggregate([
+      {
+        $lookup: {
+          from: "markets",
+          localField: "marketId",
+          foreignField: "_id",
+          as: "market",
+        },
+      },
+      {
+        $unwind: {
+          path: "$market",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          overallVolume: { $sum: "$amountUsdc" },
+          overallFees: { $sum: "$feeUsdc" },
+          pvpVolume: {
+            $sum: {
+              $cond: [{ $eq: ["$market.category", "pvp"] }, "$amountUsdc", 0],
+            },
+          },
+          pvpFees: {
+            $sum: {
+              $cond: [{ $eq: ["$market.category", "pvp"] }, "$feeUsdc", 0],
+            },
+          },
+          standardVolume: {
+            $sum: {
+              $cond: [{ $ne: ["$market.category", "pvp"] }, "$amountUsdc", 0],
+            },
+          },
+          standardFees: {
+            $sum: {
+              $cond: [{ $ne: ["$market.category", "pvp"] }, "$feeUsdc", 0],
+            },
+          },
+        },
+      },
+    ])
 
-    let totalVolume = 0
-    let totalFees = 0
-    let pvpVolume = 0
-    let pvpFees = 0
-    let standardVolume = 0
-    let standardFees = 0
-
-    for (const trade of trades) {
-      const amount = Number(trade.amountUsdc || 0)
-      const fee = Number(trade.feeUsdc || 0)
-
-      totalVolume += amount
-      totalFees += fee
-
-      const mId = trade.marketId.toString()
-      const market = marketMap.get(mId)
-      if (market && market.category === "pvp") {
-        pvpVolume += amount
-        pvpFees += fee
-      } else {
-        standardVolume += amount
-        standardFees += fee
-      }
+    const tradeStats = tradeStatsList[0] || {
+      overallVolume: 0,
+      overallFees: 0,
+      pvpVolume: 0,
+      pvpFees: 0,
+      standardVolume: 0,
+      standardFees: 0,
     }
 
-    let creationFeesCollected = 0
-    for (const market of marketsList) {
-      if (market.creationFeeTxHash) {
-        creationFeesCollected += Number(market.marketCreationFeeUsdc || 0)
-      }
-    }
+    // 5. Creation fees collected
+    const creationFeeStatsList = await this.marketModel.aggregate([
+      { $match: { creationFeeTxHash: { $ne: null } } },
+      {
+        $group: {
+          _id: null,
+          total: { $sum: "$marketCreationFeeUsdc" },
+        },
+      },
+    ])
+    const creationFeesCollected = creationFeeStatsList[0]?.total || 0
 
     return {
       users: {
@@ -2539,27 +2621,39 @@ export class PvpService {
       },
       pvpUsers: {
         submitted: {
-          total: uniqueUsersWithTicketsAll.size,
+          total: uniqueUsersWithTicketsAllSize,
           real: realUsersSubmittedCount,
           bots: botUsersSubmittedCount,
         },
         played: {
-          total: uniqueUsersWithMatchedTickets.size,
+          total: uniqueUsersWithMatchedTicketsSize,
           real: realUsersPlayedCount,
           bots: botUsersPlayedCount,
         },
       },
       pvpMatchesCount: totalPvpMatches,
       volumeAndFees: {
-        overallVolume: totalVolume,
-        overallFees: totalFees,
-        standardVolume,
-        standardFees,
-        pvpVolume,
-        pvpFees,
+        overallVolume: tradeStats.overallVolume,
+        overallFees: tradeStats.overallFees,
+        standardVolume: tradeStats.standardVolume,
+        standardFees: tradeStats.standardFees,
+        pvpVolume: tradeStats.pvpVolume,
+        pvpFees: tradeStats.pvpFees,
         creationFeesCollected,
-        combinedFees: totalFees + creationFeesCollected,
+        combinedFees: tradeStats.overallFees + creationFeesCollected,
       },
     }
+  }
+
+  async getAdminMetrics(adminId: string) {
+    const admin = await this.userModel.findById(adminId)
+    if (!admin || admin.role !== "admin") {
+      throw new ForbiddenException("Only admins can fetch admin metrics.")
+    }
+    return this.calculateSystemMetrics()
+  }
+
+  async getPublicMetrics() {
+    return this.calculateSystemMetrics()
   }
 }
