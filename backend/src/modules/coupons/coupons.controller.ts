@@ -22,8 +22,10 @@ export class CouponsController {
     const coupon = await this.couponsService.validateCoupon(code)
     return {
       success: true,
-      code: coupon.code,
-      multiplier: coupon.multiplier,
+      data: {
+        code: coupon.code,
+        multiplier: coupon.multiplier,
+      },
     }
   }
 
