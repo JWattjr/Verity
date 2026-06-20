@@ -360,7 +360,7 @@ export default function PvpTicketBuilder({
           )}
 
           <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between border-t border-border dark:border-zinc-800 pt-4 mt-2">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 w-full sm:w-auto">
               {couponMultiplier ? (
                 <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-100 dark:bg-emerald-950/40 text-[11px] font-bold text-emerald-700 dark:text-emerald-400 border border-emerald-200/60 dark:border-emerald-800/40">
                   Coupon Active: {couponMultiplier}x XP
@@ -370,16 +370,6 @@ export default function PvpTicketBuilder({
                 </span>
               ) : referralsData?.welcomeBoosts?.isEligible &&
                 referralsData.welcomeBoosts.nextGameMultiplier > 1.2 ? (
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-indigo-100 dark:bg-indigo-950/40 text-[11px] font-bold text-indigo-700 dark:text-indigo-400 border border-indigo-200/60 dark:border-indigo-800/40">
-                  Welcome Boost Active:{" "}
-                  {referralsData.welcomeBoosts.nextGameMultiplier}x XP for your{" "}
-                  {referralsData.welcomeBoosts.ticketsCount === 0
-                    ? "1st"
-                    : "2nd"}{" "}
-                  game!
-            <div className="flex items-center gap-2 w-full sm:w-auto">
-              {referralsData?.welcomeBoosts?.isEligible &&
-              referralsData.welcomeBoosts.nextGameMultiplier > 1.2 ? (
                 <span className="inline-flex items-center justify-center text-center gap-1 px-2.5 py-1.5 rounded-full bg-indigo-500/10 dark:bg-indigo-500/5 text-[10px] font-bold font-mono uppercase tracking-wider text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 shadow-sm w-full sm:w-auto">
                   ⚡ Welcome Boost: {referralsData.welcomeBoosts.nextGameMultiplier}x XP ({referralsData.welcomeBoosts.ticketsCount === 0 ? "1st" : "2nd"} game)
                 </span>
