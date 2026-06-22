@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useAuth } from "@/components/providers/AuthModals"
-import { Wallet, CircleHelp, Sparkles } from "lucide-react"
+import { Sparkles } from "lucide-react"
 import ThemeToggle from "./ThemeToggle"
 
 export default function MobileHeader() {
@@ -26,13 +26,6 @@ export default function MobileHeader() {
           href="/missions"
         >
           <Sparkles className="h-4 w-4" />
-        </Link>
-        <Link
-          aria-label="Open Verity guide"
-          className="flex h-8 w-8 items-center justify-center rounded-lg bg-surface-muted text-ash hover:text-charcoal-primary transition-colors"
-          href="/how-it-works"
-        >
-          <CircleHelp className="h-4 w-4" />
         </Link>
         <ThemeToggle />
 

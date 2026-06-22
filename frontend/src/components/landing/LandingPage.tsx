@@ -74,12 +74,6 @@ export default function LandingPage({
         </Link>
 
         <div className="flex items-center gap-2">
-          <Link
-            className="clickable-surface hidden rounded-[32px] px-4 py-2 text-sm font-semibold tracking-[-0.18px] text-graphite sm:inline-flex"
-            href="/how-it-works"
-          >
-            How it works
-          </Link>
           <ThemeToggle />
         </div>
       </header>
