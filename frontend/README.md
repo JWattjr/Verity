@@ -14,7 +14,6 @@ The client-side interface for the Verity prediction market platform, built with 
 | `/profile/[id]`  | **Public Profile**: User statistics, past posts, active positions, and Arena XP.                                         |
 | `/wallet`        | **Wallet Dashboard**: View USDC balances, portfolio position values, and transaction histories.                          |
 | `/notifications` | **Activity Center**: Lists comment threads, matchup results, and resolution events.                                      |
-| `/how-it-works`  | **Glossary & Guide**: Detailed instructions on qualification, trading mechanics, and fee setups.                         |
 | `/posts/[id]`    | **Thread View**: Displays a single post with its comment trees.                                                          |
 
 ---
