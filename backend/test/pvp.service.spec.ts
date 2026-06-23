@@ -622,7 +622,10 @@ describe("PvpService", () => {
         }),
       )
       expect(userModel.findOneAndUpdate).toHaveBeenCalledWith(
-        expect.objectContaining({ _id: mockUser._id, hasUsedBronzeBoost: false }),
+        expect.objectContaining({
+          _id: mockUser._id,
+          hasUsedBronzeBoost: false,
+        }),
         expect.objectContaining({ $set: { hasUsedBronzeBoost: true } }),
         expect.any(Object),
       )
