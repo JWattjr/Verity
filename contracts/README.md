@@ -36,9 +36,9 @@ The system uses a shared contract model. All prediction markets and AMM pools us
 
 The deployed contracts are configured with the following parameters:
 
-- **Minimum Pool Balance (`MIN_POOL_BALANCE`)**: `40 USDC` (6 decimals). A market's pre-market escrow must reach this amount before it graduates to tradable status and deploys the AMM pool.
-- **Creator Minimum Lock (`CREATOR_MIN_LOCK`)**: `10 USDC` (6 decimals). The market creator must pre-deposit at least this amount to register a market. Creator shares are locked and cannot be withdrawn until the market resolves.
-- **LP Lock Duration (`LP_LOCK_DURATION`)**: `24 Hours`. Public liquidity providers are locked from removing their deposits for 24 hours starting from their last deposit block timestamp.
+- **Minimum Pool Balance (`minPoolBalance`)**: `20 USDC` (6 decimals). A market's pre-market escrow must reach this amount before it graduates to tradable status and deploys the AMM pool.
+- **Creator Minimum Lock (`creatorMinLock`)**: `5 USDC` (6 decimals). The market creator must pre-deposit at least this amount to register a market. Creator shares are locked and cannot be withdrawn until the market resolves.
+- **LP Lock Duration (`lpLockDuration`)**: `24 Hours`. Public liquidity providers are locked from removing their deposits for 24 hours starting from their last deposit block timestamp.
 - **Trading Fee (`FEE_BPS`)**: `200 BPS` (2.0% of trade volume).
 - **Fee Split**:
   - **60%** is distributed to the pool's Liquidity Providers (`LP_FEE_SHARE`).
