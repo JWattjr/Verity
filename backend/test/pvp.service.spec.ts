@@ -367,7 +367,10 @@ describe("PvpService", () => {
         createdAt: new Date(),
       }
 
-      pvpTicketModel.find.mockResolvedValue([candidate])
+      pvpTicketModel.find.mockReturnValue({
+        populate: jest.fn().mockResolvedValue([candidate]),
+      })
+      userModel.findById.mockResolvedValue({ arenaXp: 100 })
 
       const result = await service.matchmake(ticket)
       expect(result).toBeNull()
@@ -411,7 +414,10 @@ describe("PvpService", () => {
         status: "matched",
       }
 
-      pvpTicketModel.find.mockResolvedValue([candidate])
+      pvpTicketModel.find.mockReturnValue({
+        populate: jest.fn().mockResolvedValue([candidate]),
+      })
+      userModel.findById.mockResolvedValue({ arenaXp: 100 })
       const mockPvpMatchModel = (service as any).pvpMatchModel
       jest
         .spyOn(mockPvpMatchModel, "create")
@@ -421,6 +427,154 @@ describe("PvpService", () => {
       expect(result).toEqual(mockPvpMatch)
       expect(ticket.status).toBe("matched")
       expect(candidate.status).toBe("matched")
+    })
+  })
+
+  describe("rank-based matchmaking", () => {
+    it("should prioritize matching players of the same rank tier", async () => {
+      const parentMarketId = new Types.ObjectId()
+      
+      const ticket: any = {
+        _id: new Types.ObjectId(),
+        userId: new Types.ObjectId(),
+        parentMarketId,
+        picks: [
+          { marketId: "market-1", selection: "YES" },
+          { marketId: "market-2", selection: "NO" },
+        ],
+        status: "queued",
+        save: jest.fn(),
+      }
+
+      const candidateSilver: any = {
+        _id: new Types.ObjectId(),
+        userId: { _id: new Types.ObjectId(), arenaXp: 1000 }, // Tier 2
+        parentMarketId,
+        picks: [
+          { marketId: "market-1", selection: "NO" },
+          { marketId: "market-2", selection: "YES" },
+        ],
+        status: "queued",
+        save: jest.fn(),
+        createdAt: new Date(),
+      }
+
+      const candidatePlatinum: any = {
+        _id: new Types.ObjectId(),
+        userId: { _id: new Types.ObjectId(), arenaXp: 3500 }, // Tier 4
+        parentMarketId,
+        picks: [
+          { marketId: "market-1", selection: "YES" },
+          { marketId: "market-2", selection: "YES" }, // divergence = 1
+        ],
+        status: "queued",
+        save: jest.fn(),
+        createdAt: new Date(),
+      }
+
+      userModel.findById.mockImplementation((id: any) => {
+        if (id && id.toString() === ticket.userId.toString()) {
+          return Promise.resolve({ arenaXp: 3200 }) // Submitter: Platinum
+        }
+        return Promise.resolve(null)
+      })
+
+      pvpTicketModel.find.mockReturnValue({
+        populate: jest.fn().mockResolvedValue([candidateSilver, candidatePlatinum])
+      })
+
+      const mockPvpMatch = {
+        _id: new Types.ObjectId(),
+        parentMarketId,
+        ticket1Id: ticket._id,
+        ticket2Id: candidatePlatinum._id,
+        user1Id: ticket.userId,
+        user2Id: candidatePlatinum.userId._id,
+        divergenceScore: 1,
+        status: "matched",
+      }
+
+      const mockPvpMatchModel = (service as any).pvpMatchModel
+      jest.spyOn(mockPvpMatchModel, "create").mockResolvedValue(mockPvpMatch as any)
+
+      const result = await service.matchmake(ticket)
+      
+      expect(result).toEqual(mockPvpMatch)
+      expect(ticket.status).toBe("matched")
+      expect(candidatePlatinum.status).toBe("matched")
+    })
+
+    it("should fall back to closer ranks when same rank is not available", async () => {
+      const parentMarketId = new Types.ObjectId()
+      
+      const ticket: any = {
+        _id: new Types.ObjectId(),
+        userId: new Types.ObjectId(),
+        parentMarketId,
+        picks: [
+          { marketId: "market-1", selection: "YES" },
+          { marketId: "market-2", selection: "NO" },
+        ],
+        status: "queued",
+        save: jest.fn(),
+      }
+
+      const candidateBronze: any = {
+        _id: new Types.ObjectId(),
+        userId: { _id: new Types.ObjectId(), arenaXp: 100 }, // Tier 1
+        parentMarketId,
+        picks: [
+          { marketId: "market-1", selection: "NO" },
+          { marketId: "market-2", selection: "YES" },
+        ],
+        status: "queued",
+        save: jest.fn(),
+        createdAt: new Date(),
+      }
+
+      const candidateGold: any = {
+        _id: new Types.ObjectId(),
+        userId: { _id: new Types.ObjectId(), arenaXp: 2000 }, // Tier 3
+        parentMarketId,
+        picks: [
+          { marketId: "market-1", selection: "YES" },
+          { marketId: "market-2", selection: "YES" }, // divergence = 1
+        ],
+        status: "queued",
+        save: jest.fn(),
+        createdAt: new Date(),
+      }
+
+      userModel.findById.mockImplementation((id: any) => {
+        if (id && id.toString() === ticket.userId.toString()) {
+          return Promise.resolve({ arenaXp: 3000 }) // Submitter: Platinum (Tier 4)
+        }
+        return Promise.resolve(null)
+      })
+
+      pvpTicketModel.find.mockReturnValue({
+        populate: jest.fn().mockResolvedValue([candidateBronze, candidateGold])
+      })
+
+      const mockPvpMatch = {
+        _id: new Types.ObjectId(),
+        parentMarketId,
+        ticket1Id: ticket._id,
+        ticket2Id: candidateGold._id,
+        user1Id: ticket.userId,
+        user2Id: candidateGold.userId._id,
+        divergenceScore: 1,
+        status: "matched",
+      }
+
+      const mockPvpMatchModel = (service as any).pvpMatchModel
+      jest.spyOn(mockPvpMatchModel, "create").mockResolvedValue(mockPvpMatch as any)
+
+      const result = await service.matchmake(ticket)
+      
+      expect(result).toEqual(mockPvpMatch)
+      expect(ticket.status).toBe("matched")
+      expect(candidateGold.status).toBe("matched")
     })
   })
 
