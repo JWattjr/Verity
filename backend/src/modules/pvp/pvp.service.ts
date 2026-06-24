@@ -155,6 +155,13 @@ export class PvpService {
     }
   }
 
+  private getRankTier(xp: number): number {
+    if (xp < 500) return 1 // Bronze
+    if (xp < 1500) return 2 // Silver
+    if (xp < 3000) return 3 // Gold
+    return 4 // Platinum
+  }
+
   constructor(
     @InjectModel(PvpTicket.name)
     private pvpTicketModel: Model<PvpTicketDocument>,
@@ -1238,18 +1245,28 @@ export class PvpService {
   }
 
   async matchmake(ticket: PvpTicketDocument): Promise<PvpMatchDocument | null> {
-    const candidates = await this.pvpTicketModel.find({
-      parentMarketId: ticket.parentMarketId,
-      userId: { $ne: ticket.userId },
-      status: "queued",
-    })
+    const candidates = await this.pvpTicketModel
+      .find({
+        parentMarketId: ticket.parentMarketId,
+        userId: { $ne: ticket.userId },
+        status: "queued",
+      })
+      .populate("userId")
 
     if (candidates.length === 0) {
       return null
     }
 
-    let bestOpponent: PvpTicketDocument | null = null
-    let maxDivergence = -1
+    const submitter = await this.userModel.findById(ticket.userId)
+    const submitterXp = submitter?.arenaXp ?? 0
+    const submitterTier = this.getRankTier(submitterXp)
+
+    const eligibleCandidates: Array<{
+      ticket: PvpTicketDocument
+      divergence: number
+      tier: number
+      tierDistance: number
+    }> = []
 
     for (const candidate of candidates) {
       let divergence = 0
@@ -1266,18 +1283,56 @@ export class PvpService {
         continue // Skip exact same picks to avoid pre-determined draws!
       }
 
-      if (divergence > maxDivergence) {
-        maxDivergence = divergence
-        bestOpponent = candidate
-      } else if (divergence === maxDivergence && bestOpponent) {
-        // Tie-breaker: oldest queued ticket
-        if (candidate.createdAt! < bestOpponent.createdAt!) {
-          bestOpponent = candidate
-        }
-      }
+      const candidateUser = candidate.userId as any
+      const candidateXp = candidateUser?.arenaXp ?? 0
+      const candidateTier = this.getRankTier(candidateXp)
+      const tierDistance = Math.abs(submitterTier - candidateTier)
+
+      eligibleCandidates.push({
+        ticket: candidate,
+        divergence,
+        tier: candidateTier,
+        tierDistance,
+      })
     }
 
-    if (maxDivergence < 1 || !bestOpponent) return null
+    if (eligibleCandidates.length === 0) {
+      return null
+    }
+
+    // Sort based on prioritized matchmaking rules:
+    // 1. Same tier or closest tier distance (ascending)
+    // 2. Tie-breaker 1: Prioritize the higher tier rank (e.g. Gold over Silver)
+    // 3. Tie-breaker 2: Prioritize higher pick divergence
+    // 4. Tie-breaker 3: Oldest queued ticket first
+    eligibleCandidates.sort((a, b) => {
+      if (a.tierDistance !== b.tierDistance) {
+        return a.tierDistance - b.tierDistance
+      }
+      if (a.tier !== b.tier) {
+        return b.tier - a.tier
+      }
+      if (a.divergence !== b.divergence) {
+        return b.divergence - a.divergence
+      }
+      const timeA = a.ticket.createdAt
+        ? new Date(a.ticket.createdAt).getTime()
+        : 0
+      const timeB = b.ticket.createdAt
+        ? new Date(b.ticket.createdAt).getTime()
+        : 0
+      return timeA - timeB
+    })
+
+    const bestOpponent = eligibleCandidates[0].ticket
+    const maxDivergence = eligibleCandidates[0].divergence
+
+    const bestOpponentUserId =
+      bestOpponent.userId &&
+      typeof bestOpponent.userId === "object" &&
+      "_id" in bestOpponent.userId
+        ? (bestOpponent.userId as any)._id
+        : bestOpponent.userId
 
     // Match found! Create PvpMatch
     const match = await this.pvpMatchModel.create({
@@ -1285,7 +1340,7 @@ export class PvpService {
       ticket1Id: ticket._id,
       ticket2Id: bestOpponent._id,
       user1Id: ticket.userId,
-      user2Id: bestOpponent.userId,
+      user2Id: bestOpponentUserId,
       divergenceScore: maxDivergence,
       status: "matched",
     })
@@ -1304,7 +1359,7 @@ export class PvpService {
     // Query usernames to send personalized alerts
     const [user1, user2] = await Promise.all([
       this.userModel.findById(ticket.userId),
-      this.userModel.findById(bestOpponent.userId),
+      this.userModel.findById(bestOpponentUserId),
     ])
     const u1Name = user1?.username || "someone"
     const u2Name = user2?.username || "someone"
@@ -1316,7 +1371,7 @@ export class PvpService {
       { matchId: match._id.toString() },
     )
     this.socketGateway.broadcastToRoom(
-      `user:${bestOpponent.userId.toString()}`,
+      `user:${bestOpponentUserId.toString()}`,
       "pvp-matched",
       { matchId: match._id.toString() },
     )
@@ -1324,14 +1379,14 @@ export class PvpService {
     // In-app Notifications
     await this.notificationsService.createNotification(
       ticket.userId.toString(),
-      bestOpponent.userId.toString(),
+      bestOpponentUserId.toString(),
       "pvp_matched",
       "PvP Arena Opponent Found!",
       `You've been matched against @${u2Name} for the event with a selection divergence of ${maxDivergence} picks.`,
       match._id.toString(),
     )
     await this.notificationsService.createNotification(
-      bestOpponent.userId.toString(),
+      bestOpponentUserId.toString(),
       ticket.userId.toString(),
       "pvp_matched",
       "PvP Arena Opponent Found!",
