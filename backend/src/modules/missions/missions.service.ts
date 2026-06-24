@@ -36,6 +36,7 @@ export class MissionsService {
     private readonly twitterVerifyService: TwitterVerifyService,
   ) {}
 
+
   async getMissions(userId: string, admin = false) {
     const user = await this.userModel.findById(userId)
     if (!user) throw new NotFoundException("User not found.")
@@ -82,7 +83,6 @@ export class MissionsService {
     )
 
     return {
-      success: true,
       twitterUsername: updatedUser?.twitterUsername || null,
     }
   }
@@ -257,7 +257,6 @@ export class MissionsService {
     )
 
     return {
-      success: true,
       xpEarned: mission.xpReward ?? 0,
       totalXp: updatedUser?.arenaXp ?? 0,
       completedMissions: updatedUser?.completedMissions ?? [],

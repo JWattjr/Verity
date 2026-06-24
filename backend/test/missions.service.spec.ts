@@ -180,7 +180,6 @@ describe("MissionsService", () => {
         { new: true },
       )
       expect(result).toEqual({
-        success: true,
         xpEarned: 100,
         totalXp: 150,
         completedMissions: [mockMissionId],

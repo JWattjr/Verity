@@ -924,7 +924,7 @@ export class PvpService {
       }
     }
 
-    // Cancel existing queued/matched ticket
+    // Check if user already has an active ticket for this matchup
     const existing = await this.pvpTicketModel.findOne({
       userId: new Types.ObjectId(userId),
       parentMarketId: parent._id,
@@ -932,13 +932,9 @@ export class PvpService {
     })
 
     if (existing) {
-      if (existing.status === "matched") {
-        throw new BadRequestException(
-          "You have already been matched with an opponent for this match. Selections are locked.",
-        )
-      }
-      existing.status = "cancelled"
-      await existing.save()
+      throw new BadRequestException(
+        "You have already submitted a ticket for this matchup.",
+      )
     }
 
     // 1. Calculate active user boost details first
@@ -1059,9 +1055,11 @@ export class PvpService {
     }
 
     // 4. Consume user boost if resolved as active
+    let boostConsumed = false
     if (shouldConsumeUserBoost && selectedUserBoostType) {
       if (selectedUserBoostType === "welcome") {
         this.logger.log(`User ${userId} consumed Welcome Boost (${xpBoostMultiplier}x).`)
+        boostConsumed = true
       } else if (selectedUserBoostType === "bronze") {
         await this.userModel.findOneAndUpdate(
           { _id: user._id, hasUsedBronzeBoost: false },
@@ -1069,6 +1067,7 @@ export class PvpService {
           { new: true }
         )
         this.logger.log(`User ${userId} consumed one-time Bronze 1.5x boost.`)
+        boostConsumed = true
       } else if (selectedBoostObject) {
         const source = selectedBoostObject.source
         const sourceId = selectedBoostObject.sourceId
@@ -1112,24 +1111,87 @@ export class PvpService {
             } as any
           )
           this.logger.log(`User ${userId} consumed a ${source} boost match (multiplier: ${xpBoostMultiplier}x).`)
+          boostConsumed = true
         }
       }
     }
 
     // Create the ticket
-    const ticket = await this.pvpTicketModel.create({
-      userId: new Types.ObjectId(userId),
-      parentMarketId: parent._id,
-      picks: dto.picks.map((p) => ({
-        marketId: new Types.ObjectId(p.marketId),
-        selection: p.selection,
-        isCorrect: null,
-      })),
-      status: "queued",
-      doubleBoostActive,
-      xpBoostMultiplier,
-      couponCode: appliedCoupon,
-    })
+    let ticket
+    try {
+      ticket = await this.pvpTicketModel.create({
+        userId: new Types.ObjectId(userId),
+        parentMarketId: parent._id,
+        picks: dto.picks.map((p) => ({
+          marketId: new Types.ObjectId(p.marketId),
+          selection: p.selection,
+          isCorrect: null,
+        })),
+        status: "queued",
+        doubleBoostActive,
+        xpBoostMultiplier,
+        couponCode: appliedCoupon,
+        boostType: shouldConsumeUserBoost ? selectedUserBoostType : null,
+        boostSourceId: (shouldConsumeUserBoost && selectedBoostObject) ? selectedBoostObject.sourceId : null,
+      })
+    } catch (createErr) {
+      // Rollback boost consumption if saving the ticket fails
+      if (boostConsumed && selectedUserBoostType) {
+        if (selectedUserBoostType === "bronze") {
+          await this.userModel.findOneAndUpdate(
+            { _id: user._id },
+            { $set: { hasUsedBronzeBoost: false } }
+          )
+          this.logger.log(`Rolled back Bronze Boost for user ${userId} due to ticket creation failure.`)
+        } else if (selectedBoostObject) {
+          const source = selectedBoostObject.source
+          const sourceId = selectedBoostObject.sourceId
+          const elemMatchQuery: any = {
+            source,
+            type: "match_based",
+          }
+          if (sourceId) {
+            elemMatchQuery.sourceId = sourceId
+          }
+
+          const updatedUser = await this.userModel.findById(user._id)
+          const existingBoost = (updatedUser?.activeBoosts || []).find(b =>
+            b.type === "match_based" &&
+            b.source === source &&
+            (!sourceId || b.sourceId === sourceId)
+          )
+
+          if (existingBoost) {
+            await this.userModel.updateOne(
+              {
+                _id: user._id,
+                activeBoosts: {
+                  $elemMatch: elemMatchQuery
+                }
+              },
+              {
+                $inc: { "activeBoosts.$.matchesRemaining": 1 }
+              }
+            )
+          } else {
+            const newBoost = {
+              type: "match_based",
+              multiplier: selectedBoostObject.multiplier,
+              matchesRemaining: 1,
+              source,
+              sourceId: sourceId || null,
+              category: null,
+              expiresAt: null
+            }
+            await this.userModel.findByIdAndUpdate(user._id, {
+              $push: { activeBoosts: newBoost }
+            })
+          }
+          this.logger.log(`Rolled back match-based boost ${source} for user ${userId} due to ticket creation failure.`)
+        }
+      }
+      throw createErr
+    }
 
     if (appliedCoupon) {
       await this.couponsService.incrementUsage(appliedCoupon)

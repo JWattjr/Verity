@@ -651,6 +651,7 @@ export function useSubmitPvpTicketMutation() {
       void qc.invalidateQueries({ queryKey: ["pvp-my-active-tickets"] })
       void qc.invalidateQueries({ queryKey: ["wallet-profile"] })
       void qc.invalidateQueries({ queryKey: ["pvp-active-events"] })
+      void qc.invalidateQueries({ queryKey: ["pvp-referrals"] })
     },
   })
 }
@@ -784,11 +785,13 @@ export function usePublicMetricsQuery() {
 export interface Mission {
   id: string
   title: string
-  xpReward: number
+  xpReward?: number | null
   actionUrl: string
   completed: boolean
   missionType: "social" | "activity"
   verificationKey?: string | null
+  rewardMultiplier?: number | null
+  rewardMatchesCount?: number | null
 }
 
 export function useMissionsQuery() {
