@@ -34,6 +34,7 @@ import { SocketGateway } from "../socket/socket.gateway"
 import { NotificationsService } from "../notifications/notifications.service"
 import { PvpService } from "../pvp/pvp.service"
 import { LiquidityService } from "../liquidity/liquidity.service"
+import { RoyaltyService } from "./royalty.service"
 
 export interface DailyVotesResponse {
   votesLimit: number
@@ -131,6 +132,7 @@ export class MarketsService implements OnModuleInit {
     private readonly notificationsService: NotificationsService,
     private readonly pvpService: PvpService,
     private readonly liquidityService: LiquidityService,
+    private readonly royaltyService: RoyaltyService,
   ) {}
 
   private todayKey(date = new Date()): string {
@@ -738,7 +740,7 @@ export class MarketsService implements OnModuleInit {
     const shares = dto.grossAmount || dto.amount
     const price = amountUsdc / (shares || 1)
 
-    await this.marketTradeModel.create({
+    const trade = await this.marketTradeModel.create({
       marketId: new Types.ObjectId(marketId),
       userId: new Types.ObjectId(dto.profileId),
       side: dto.side,
@@ -820,6 +822,13 @@ export class MarketsService implements OnModuleInit {
       "user-updated",
       {},
     )
+
+    // Process creator royalty payment in real-time
+    this.royaltyService.processTradeRoyalty(trade).catch((err) => {
+      this.logger.error(
+        `Failed to process trade royalty for trade ${trade._id}: ${err.message}`,
+      )
+    })
   }
 
   async syncMarketPrices(marketId: string): Promise<void> {

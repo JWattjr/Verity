@@ -1614,6 +1614,47 @@ export class BlockchainService implements OnModuleInit {
     })
   }
 
+  async transferUsdcFromTreasury(
+    toAddress: string,
+    amountUsdc: number,
+  ): Promise<string> {
+    if (!this.walletClient) {
+      throw new Error("Wallet client not initialized")
+    }
+
+    const rawAmount = BigInt(Math.round(amountUsdc * 1e6))
+    const formattedTo = this.formatAddress(toAddress)
+
+    try {
+      this.logger.log(
+        `Executing on-chain transfer of ${amountUsdc} USDC from treasury to ${formattedTo}`,
+      )
+      const txHash = await this.safeWriteContract({
+        address: this.usdcAddress,
+        abi: [
+          {
+            type: "function",
+            name: "transfer",
+            inputs: [
+              { name: "recipient", type: "address" },
+              { name: "amount", type: "uint256" },
+            ],
+            outputs: [{ name: "", type: "bool" }],
+            stateMutability: "nonpayable",
+          },
+        ],
+        functionName: "transfer",
+        args: [formattedTo, rawAmount],
+        chain: arcTestnet,
+      })
+      return txHash
+    } catch (error) {
+      throw new Error(
+        `Failed to transfer USDC from treasury: ${error.message}`,
+      )
+    }
+  }
+
   async getResolutionBond(): Promise<bigint> {
     try {
       const result = await this.publicClient.readContract({
