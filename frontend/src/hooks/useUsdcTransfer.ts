@@ -53,7 +53,7 @@ export function useUsdcTransfer() {
   ) {
     checkPreconditions()
 
-    let creationFee = BigInt(1000000) // 1 USDC fallback
+    let creationFee = BigInt(1000000) // 1 USDC fallback fee
     try {
       const fee = await publicClient.readContract({
         address: FACTORY_ADDRESS,
