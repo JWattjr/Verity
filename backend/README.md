@@ -1,26 +1,28 @@
 # Verity Backend
 
-The NestJS 11 API server powering Verity's social prediction market platform. Handles user authentication, social feed operations, on-chain market verification, liquidity pool management, and automated market resolution.
+The NestJS 11 API server powering Verity's social sports prediction arena. Handles user authentication, PvP matchmaking duels, on-chain market verification, liquidity pool management, and automated market resolution.
 
 ## Module Overview
 
-The backend is organized into 13 domain modules under `src/modules/`:
+The backend is organized into 16 domain modules under `src/modules/`:
 
 | Module            | Purpose                                                                                                  |
 | ----------------- | -------------------------------------------------------------------------------------------------------- |
-| **auth**          | Coordinates passwordless Email OTP verification and secure local JWT generation.                         |
-| **users**         | Wallet profiles, usernames, signal point tracking, follower counts                                       |
-| **posts**         | Social feed CRUD — normal posts and market-linked prediction posts                                       |
-| **markets**       | Market creation, free voting (10/day cap), USDC trading (buy/sell), position tracking                    |
+| **auth**          | Coordinates passwordless Email OTP verification via Resend and secure local JWT generation.              |
+| **users**         | Wallet profiles, usernames, signal point tracking, follower counts, active boosts                        |
+| **posts**         | Social event post containers                                                                             |
+| **markets**       | Market creation, free voting, USDC trading (buy/sell), position tracking                                 |
 | **liquidity**     | LP pool initialization, deposits, withdrawals, 24h lock enforcement, on-chain state sync                 |
 | **blockchain**    | Viem-based on-chain reads/writes, Account Abstraction calldata decoder, transaction receipt verification |
 | **agent**         | AI resolution agent — web search via DuckDuckGo, outcome analysis via Claude/Gemini/OpenAI/DeepSeek      |
-| **notifications** | Activity feed: likes, comments, reshares, market events                                                  |
+| **notifications** | Activity feed: matchup results, boost awards, market resolution events                                    |
 | **socket**        | Socket.IO WebSocket gateway for real-time feed/market/user broadcasts                                    |
 | **comments**      | Threaded comment system on posts                                                                         |
-| **interactions**  | Likes and reshares                                                                                       |
 | **circle-wallet** | Circle WaaS smart wallet integration utilities                                                           |
 | **pvp**           | Player-vs-Player Matchups Arena: coordinates duels, queues tickets, matches opponents, and scores duels  |
+| **coupons**       | Handles promotional duel boost coupons                                                                   |
+| **missions**      | Database onboarding milestones rewarding Arena XP                                                        |
+| **categories**    | System-wide tag groupings for prediction feeds                                                           |
 
 ### Cross-Cutting (`src/common/`)
 
@@ -32,13 +34,13 @@ The backend is organized into 13 domain modules under `src/modules/`:
 
 The `MarketsKeeperService` runs a background loop every **30 seconds** that:
 
-1. **Promotes qualified markets** — checks escrow balances on-chain and auto-transitions markets to `tradable` when they reach the 40 USDC threshold.
+1. **Promotes qualified markets** — checks escrow balances on-chain and auto-transitions markets to `tradable` when they reach the 20 USDC threshold.
 2. **Resolves Pyth markets** — fetches historical price VAAs from the Pyth Benchmarks API and submits resolution transactions.
 3. **Resolves subjective markets** — invokes the AI agent to search the web, analyze evidence, and propose YES/NO outcomes. Monitors the dispute window and auto-finalizes undisputed proposals.
 
 ## On-Chain Integration
 
-The `BlockchainService` uses **Viem** to interact with five smart contracts on Arc Testnet:
+The `BlockchainService` uses **Viem** to interact with four smart contracts on Arc Testnet:
 
 - Reads: escrow balances, pool states, LP shares, market prices, proposal statuses, dispute windows
 - Writes: market registration, resolution proposals, finalization (via admin wallet)
@@ -67,11 +69,14 @@ JWT_SECRET=<secure-secret>
 # Arc Testnet contract addresses
 ARC_RPC_URL=https://rpc.testnet.arc.network
 USDC_ADDRESS=0x3600000000000000000000000000000000000000
-ROUTER_ADDRESS=
+PYTH_ADDRESS=
 CONDITIONAL_TOKEN_VAULT_ADDRESS=
 FPMM_ADDRESS=
 FACTORY_ADDRESS=
 RESOLVER_ADDRESS=
+
+# PvP Welcome Boost Configuration
+NEW_USER_CUTOFF_DATE=
 
 # Circle WaaS & Resend Configuration
 CIRCLE_API_KEY=

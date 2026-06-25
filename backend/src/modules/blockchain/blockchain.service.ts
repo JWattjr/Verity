@@ -370,6 +370,57 @@ export class BlockchainService implements OnModuleInit {
     return (clean.startsWith("0x") ? clean : `0x${clean}`) as `0x${string}`
   }
 
+  private async safeWriteContract(params: any, retries = 2): Promise<string> {
+    let lastError: any
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      try {
+        const nonce = await this.publicClient.getTransactionCount({
+          address: this.account.address,
+          blockTag: "pending",
+        })
+
+        const txParams: any = {
+          ...params,
+          nonce,
+        }
+
+        // On retry attempts, fetch current gas price and bump it by 20%
+        if (attempt > 0) {
+          const gasPrice = await this.publicClient.getGasPrice()
+          txParams.gasPrice = (gasPrice * BigInt(120)) / BigInt(100)
+          this.logger.log(
+            `Retrying transaction with bumped gas price: ${txParams.gasPrice.toString()}`,
+          )
+        }
+
+        const txHash = await this.walletClient.writeContract(txParams)
+        const receipt = await this.publicClient.waitForTransactionReceipt({
+          hash: txHash,
+        })
+        if (receipt.status === "reverted") {
+          throw new Error("Transaction reverted on-chain")
+        }
+        return txHash
+      } catch (error: any) {
+        lastError = error
+        const msg = error?.message || ""
+        this.logger.warn(`Transaction attempt ${attempt} failed: ${msg}`)
+
+        if (
+          msg.includes("replacement transaction underpriced") ||
+          msg.includes("nonce too low") ||
+          msg.includes("underpriced")
+        ) {
+          await new Promise((resolve) => setTimeout(resolve, 1000))
+          continue
+        }
+
+        throw error
+      }
+    }
+    throw lastError
+  }
+
   async readPoolBalances(marketId: string) {
     const formattedMarketId = this.formatMarketId(marketId)
     try {
@@ -437,7 +488,10 @@ export class BlockchainService implements OnModuleInit {
     }
   }
 
-  async readLPSharesBatch(marketId: string, userAddresses: string[]): Promise<bigint[]> {
+  async readLPSharesBatch(
+    marketId: string,
+    userAddresses: string[],
+  ): Promise<bigint[]> {
     if (userAddresses.length === 0) return []
     const formattedMarketId = this.formatMarketId(marketId)
 
@@ -457,7 +511,9 @@ export class BlockchainService implements OnModuleInit {
       })
       return await Promise.all(promises)
     } catch (error) {
-      this.logger.error(`Failed to batch read LP shares for market ${marketId}: ${error.message}`)
+      this.logger.error(
+        `Failed to batch read LP shares for market ${marketId}: ${error.message}`,
+      )
       throw error
     }
   }
@@ -653,7 +709,9 @@ export class BlockchainService implements OnModuleInit {
     let receipt: any = null
     for (let attempt = 1; attempt <= 25; attempt++) {
       try {
-        receipt = await this.publicClient.getTransactionReceipt({ hash: txHash })
+        receipt = await this.publicClient.getTransactionReceipt({
+          hash: txHash,
+        })
         break
       } catch (error) {
         if (attempt === 25) {
@@ -712,7 +770,10 @@ export class BlockchainService implements OnModuleInit {
       const creatorAddress = pool[4] as string
       const active = pool[8] as boolean
 
-      if (!active || creatorAddress === "0x0000000000000000000000000000000000000000") {
+      if (
+        !active ||
+        creatorAddress === "0x0000000000000000000000000000000000000000"
+      ) {
         return false
       }
 
@@ -818,7 +879,7 @@ export class BlockchainService implements OnModuleInit {
     const formattedMarketId = this.formatMarketId(marketId)
 
     try {
-      const txHash = await this.walletClient.writeContract({
+      return await this.safeWriteContract({
         address: this.factoryAddress,
         abi: this.factoryAbi,
         functionName: "registerMarket",
@@ -831,11 +892,6 @@ export class BlockchainService implements OnModuleInit {
         ],
         chain: arcTestnet,
       })
-      const receipt = await this.publicClient.waitForTransactionReceipt({ hash: txHash })
-      if (receipt.status === "reverted") {
-        throw new Error("Transaction reverted on-chain: registerMarket")
-      }
-      return txHash
     } catch (error) {
       throw new Error(`Failed to register market ${marketId}: ${error.message}`)
     }
@@ -855,19 +911,13 @@ export class BlockchainService implements OnModuleInit {
 
     const formattedMarketId = this.formatMarketId(marketId)
     try {
-      const txHash = await this.walletClient.writeContract({
+      return await this.safeWriteContract({
         address: this.factoryAddress,
         abi: this.factoryAbi,
         functionName: "createMarketPreDeposit",
         args: [formattedMarketId, rawAmount],
         chain: arcTestnet,
       })
-      // Wait for block confirmation
-      const receipt = await this.publicClient.waitForTransactionReceipt({ hash: txHash })
-      if (receipt.status === "reverted") {
-        throw new Error("Transaction reverted on-chain: createMarketPreDeposit")
-      }
-      return txHash
     } catch (error) {
       throw new Error(
         `Failed to create market pre-deposit for ${marketId}: ${error.message}`,
@@ -895,9 +945,13 @@ export class BlockchainService implements OnModuleInit {
         args: [formattedMarketId, rawAmount],
         chain: arcTestnet,
       })
-      const receipt = await this.publicClient.waitForTransactionReceipt({ hash: txHash })
+      const receipt = await this.publicClient.waitForTransactionReceipt({
+        hash: txHash,
+      })
       if (receipt.status === "reverted") {
-        throw new Error("Transaction reverted on-chain: depositPreMarketLiquidity")
+        throw new Error(
+          "Transaction reverted on-chain: depositPreMarketLiquidity",
+        )
       }
       return txHash
     } catch (error) {
@@ -927,7 +981,9 @@ export class BlockchainService implements OnModuleInit {
         args: [formattedMarketId, rawAmount],
         chain: arcTestnet,
       })
-      const receipt = await this.publicClient.waitForTransactionReceipt({ hash: txHash })
+      const receipt = await this.publicClient.waitForTransactionReceipt({
+        hash: txHash,
+      })
       if (receipt.status === "reverted") {
         throw new Error("Transaction reverted on-chain: addLiquidity")
       }
@@ -956,7 +1012,9 @@ export class BlockchainService implements OnModuleInit {
         args: [formattedMarketId, winningIsYes],
         chain: arcTestnet,
       })
-      const receipt = await this.publicClient.waitForTransactionReceipt({ hash: txHash })
+      const receipt = await this.publicClient.waitForTransactionReceipt({
+        hash: txHash,
+      })
       if (receipt.status === "reverted") {
         throw new Error("Transaction reverted on-chain: resolveMarket")
       }
@@ -985,7 +1043,9 @@ export class BlockchainService implements OnModuleInit {
         args: [formattedMarketId, BigInt(winningOutcomeIndex)],
         chain: arcTestnet,
       })
-      const receipt = await this.publicClient.waitForTransactionReceipt({ hash: txHash })
+      const receipt = await this.publicClient.waitForTransactionReceipt({
+        hash: txHash,
+      })
       if (receipt.status === "reverted") {
         throw new Error("Transaction reverted on-chain: resolveMarketOutcome")
       }
@@ -1011,7 +1071,9 @@ export class BlockchainService implements OnModuleInit {
         args: [formattedMarketId],
         chain: arcTestnet,
       })
-      const receipt = await this.publicClient.waitForTransactionReceipt({ hash: txHash })
+      const receipt = await this.publicClient.waitForTransactionReceipt({
+        hash: txHash,
+      })
       if (receipt.status === "reverted") {
         throw new Error("Transaction reverted on-chain: voidMarket")
       }
@@ -1041,7 +1103,9 @@ export class BlockchainService implements OnModuleInit {
         args: [formattedMarketId],
         chain: arcTestnet,
       })
-      const receipt = await this.publicClient.waitForTransactionReceipt({ hash: txHash })
+      const receipt = await this.publicClient.waitForTransactionReceipt({
+        hash: txHash,
+      })
       if (receipt.status === "reverted") {
         throw new Error("Transaction reverted on-chain: claimCreatorLiquidity")
       }
@@ -1053,7 +1117,10 @@ export class BlockchainService implements OnModuleInit {
     }
   }
 
-  async getPreMarketDeposit(marketId: string, accountAddress: string): Promise<bigint> {
+  async getPreMarketDeposit(
+    marketId: string,
+    accountAddress: string,
+  ): Promise<bigint> {
     const formattedMarketId = this.formatMarketId(marketId)
     const formattedAddress = this.formatAddress(accountAddress)
     try {
@@ -1063,9 +1130,11 @@ export class BlockchainService implements OnModuleInit {
         functionName: "preMarketDeposits",
         args: [formattedMarketId, formattedAddress],
       })
-      return result as bigint;
+      return result as bigint
     } catch (error) {
-      this.logger.error(`Failed to read preMarketDeposits for market ${marketId}: ${error.message}`)
+      this.logger.error(
+        `Failed to read preMarketDeposits for market ${marketId}: ${error.message}`,
+      )
       return 0n
     }
   }
@@ -1084,7 +1153,9 @@ export class BlockchainService implements OnModuleInit {
         args: [formattedMarketId],
         chain: arcTestnet,
       })
-      const receipt = await this.publicClient.waitForTransactionReceipt({ hash: txHash })
+      const receipt = await this.publicClient.waitForTransactionReceipt({
+        hash: txHash,
+      })
       if (receipt.status === "reverted") {
         throw new Error("Transaction reverted on-chain: claimPreMarketLpShares")
       }
@@ -1135,7 +1206,9 @@ export class BlockchainService implements OnModuleInit {
       })
       return Number(result as bigint) / 1e6
     } catch (error) {
-      this.logger.error(`Failed to read minPoolBalance from contract: ${error.message}`)
+      this.logger.error(
+        `Failed to read minPoolBalance from contract: ${error.message}`,
+      )
       return 20 // Default fallback matching deployment limit
     }
   }
@@ -1149,7 +1222,9 @@ export class BlockchainService implements OnModuleInit {
       })
       return Number(result as bigint) / 1e6
     } catch (error) {
-      this.logger.error(`Failed to read creatorMinLock from contract: ${error.message}`)
+      this.logger.error(
+        `Failed to read creatorMinLock from contract: ${error.message}`,
+      )
       return 5 // Default fallback matching deployment limit
     }
   }
@@ -1163,7 +1238,9 @@ export class BlockchainService implements OnModuleInit {
       })
       return Number(result as bigint) / 1e6
     } catch (error) {
-      this.logger.error(`Failed to read marketCreationFee from contract: ${error.message}`)
+      this.logger.error(
+        `Failed to read marketCreationFee from contract: ${error.message}`,
+      )
       return 1 // Default fallback matching deployment limit
     }
   }
@@ -1219,7 +1296,6 @@ export class BlockchainService implements OnModuleInit {
       )
     }
   }
-
 
   async getAdminBalances() {
     if (!this.account) {
@@ -1288,7 +1364,9 @@ export class BlockchainService implements OnModuleInit {
         ],
         chain: arcTestnet,
       })
-      const receipt = await this.publicClient.waitForTransactionReceipt({ hash: txHash })
+      const receipt = await this.publicClient.waitForTransactionReceipt({
+        hash: txHash,
+      })
       if (receipt.status === "reverted") {
         throw new Error("Transaction reverted on-chain: registerPythMarket")
       }
@@ -1324,12 +1402,8 @@ export class BlockchainService implements OnModuleInit {
         functionName: "markets",
         args: [formattedMarketId],
       })
-      const [resolved, winningOutcomeIndex, totalCollateral, outcomeCount] = result as [
-        boolean,
-        bigint,
-        bigint,
-        bigint,
-      ]
+      const [resolved, winningOutcomeIndex, totalCollateral, outcomeCount] =
+        result as [boolean, bigint, bigint, bigint]
       return {
         resolved,
         winningOutcomeIndex: Number(winningOutcomeIndex),
@@ -1372,15 +1446,15 @@ export class BlockchainService implements OnModuleInit {
     ) as `0x${string}`
     try {
       const balances: Record<string, number> = {}
-      
+
       const balancePromises = outcomes.map(async (outcome, idx) => {
         const tokenId = BigInt(
           keccak256(
             encodePacked(
               ["bytes32", "uint256"],
-              [formattedMarketId, BigInt(idx)]
-            )
-          )
+              [formattedMarketId, BigInt(idx)],
+            ),
+          ),
         )
 
         const balance = await this.publicClient.readContract({
@@ -1426,7 +1500,8 @@ export class BlockchainService implements OnModuleInit {
     ) as `0x${string}`
 
     const calls: any[] = []
-    const mapping: { marketId: string; outcome: string; callIndex: number }[] = []
+    const mapping: { marketId: string; outcome: string; callIndex: number }[] =
+      []
 
     let callIndex = 0
     for (const query of queries) {
@@ -1436,9 +1511,9 @@ export class BlockchainService implements OnModuleInit {
           keccak256(
             encodePacked(
               ["bytes32", "uint256"],
-              [formattedMarketId, BigInt(idx)]
-            )
-          )
+              [formattedMarketId, BigInt(idx)],
+            ),
+          ),
         )
 
         calls.push({
@@ -1484,11 +1559,14 @@ export class BlockchainService implements OnModuleInit {
       mapping.forEach((map) => {
         const resp = response[map.callIndex]
         if (resp && resp.status === "success") {
-          resultsMap[map.marketId][map.outcome] = Number(resp.result as bigint) / 1e6
+          resultsMap[map.marketId][map.outcome] =
+            Number(resp.result as bigint) / 1e6
         }
       })
     } catch (error) {
-      this.logger.error(`Failed to batch read user balances via multicall: ${error.message}`)
+      this.logger.error(
+        `Failed to batch read user balances via multicall: ${error.message}`,
+      )
     }
 
     return resultsMap
@@ -1516,7 +1594,7 @@ export class BlockchainService implements OnModuleInit {
     const maxUint256 = BigInt(
       "115792089237316195423570985008687907853269984665640564039457584007913129639935",
     )
-    const txHash = await this.walletClient.writeContract({
+    return this.safeWriteContract({
       address: this.usdcAddress,
       abi: [
         {
@@ -1534,13 +1612,47 @@ export class BlockchainService implements OnModuleInit {
       args: [spender as `0x${string}`, maxUint256],
       chain: arcTestnet,
     })
+  }
 
-    // Wait for approval transaction receipt and check status
-    const receipt = await this.publicClient.waitForTransactionReceipt({ hash: txHash })
-    if (receipt.status === "reverted") {
-      throw new Error(`Approval transaction reverted on-chain for spender ${spender}`)
+  async transferUsdcFromTreasury(
+    toAddress: string,
+    amountUsdc: number,
+  ): Promise<string> {
+    if (!this.walletClient) {
+      throw new Error("Wallet client not initialized")
     }
-    return txHash
+
+    const rawAmount = BigInt(Math.round(amountUsdc * 1e6))
+    const formattedTo = this.formatAddress(toAddress)
+
+    try {
+      this.logger.log(
+        `Executing on-chain transfer of ${amountUsdc} USDC from treasury to ${formattedTo}`,
+      )
+      const txHash = await this.safeWriteContract({
+        address: this.usdcAddress,
+        abi: [
+          {
+            type: "function",
+            name: "transfer",
+            inputs: [
+              { name: "recipient", type: "address" },
+              { name: "amount", type: "uint256" },
+            ],
+            outputs: [{ name: "", type: "bool" }],
+            stateMutability: "nonpayable",
+          },
+        ],
+        functionName: "transfer",
+        args: [formattedTo, rawAmount],
+        chain: arcTestnet,
+      })
+      return txHash
+    } catch (error) {
+      throw new Error(
+        `Failed to transfer USDC from treasury: ${error.message}`,
+      )
+    }
   }
 
   async getResolutionBond(): Promise<bigint> {

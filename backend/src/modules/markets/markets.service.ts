@@ -11,7 +11,7 @@ import {
   OnModuleInit,
 } from "@nestjs/common"
 import { InjectModel } from "@nestjs/mongoose"
-import { Model, Types, /*SortOrder*/ } from "mongoose"
+import { Model, Types /*SortOrder*/ } from "mongoose"
 import {
   Market,
   MarketDocument,
@@ -34,6 +34,7 @@ import { SocketGateway } from "../socket/socket.gateway"
 import { NotificationsService } from "../notifications/notifications.service"
 import { PvpService } from "../pvp/pvp.service"
 import { LiquidityService } from "../liquidity/liquidity.service"
+import { RoyaltyService } from "./royalty.service"
 
 export interface DailyVotesResponse {
   votesLimit: number
@@ -131,7 +132,8 @@ export class MarketsService implements OnModuleInit {
     private readonly notificationsService: NotificationsService,
     private readonly pvpService: PvpService,
     private readonly liquidityService: LiquidityService,
-  ) { }
+    private readonly royaltyService: RoyaltyService,
+  ) {}
 
   private todayKey(date = new Date()): string {
     return date.toISOString().slice(0, 10)
@@ -443,8 +445,8 @@ export class MarketsService implements OnModuleInit {
     const allChildMarkets =
       parentMarketIds.length > 0
         ? await this.marketModel.find({
-          parentMarketId: { $in: parentMarketIds },
-        })
+            parentMarketId: { $in: parentMarketIds },
+          })
         : []
 
     const childMarketsMap = new Map<string, MarketDocument[]>()
@@ -738,7 +740,7 @@ export class MarketsService implements OnModuleInit {
     const shares = dto.grossAmount || dto.amount
     const price = amountUsdc / (shares || 1)
 
-    await this.marketTradeModel.create({
+    const trade = await this.marketTradeModel.create({
       marketId: new Types.ObjectId(marketId),
       userId: new Types.ObjectId(dto.profileId),
       side: dto.side,
@@ -820,6 +822,13 @@ export class MarketsService implements OnModuleInit {
       "user-updated",
       {},
     )
+
+    // Process creator royalty payment in real-time
+    // this.royaltyService.processTradeRoyalty(trade).catch((err) => {
+    //   this.logger.error(
+    //     `Failed to process trade royalty for trade ${trade._id}: ${err.message}`,
+    //   )
+    // })
   }
 
   async syncMarketPrices(marketId: string): Promise<void> {
@@ -1356,8 +1365,16 @@ export class MarketsService implements OnModuleInit {
         followingCount: user.followingCount,
         signalPoints: user.signalPoints,
         arenaXp: user.arenaXp,
-        doubleBoostRemaining: user.doubleBoostRemaining,
-        downtimeBoostRemaining: user.downtimeBoostRemaining,
+        doubleBoostRemaining: (user.activeBoosts || [])
+          .filter(
+            (b: any) => b.source === "referral" && b.type === "match_based",
+          )
+          .reduce((sum: number, b: any) => sum + (b.matchesRemaining || 0), 0),
+        downtimeBoostRemaining: (user.activeBoosts || [])
+          .filter(
+            (b: any) => b.source === "downtime" && b.type === "match_based",
+          )
+          .reduce((sum: number, b: any) => sum + (b.matchesRemaining || 0), 0),
         hasWonFirstPvpDuel: user.hasWonFirstPvpDuel,
         pvpMatchesWonCount: user.pvpMatchesWonCount,
         pvpMatchesLostCount: user.pvpMatchesLostCount,

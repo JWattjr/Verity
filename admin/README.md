@@ -19,36 +19,37 @@ Access to the Admin Console is restricted to accounts flagged with the `"admin"`
 
 ## Dashboard Console Interface
 
-The dashboard is divided into three key panels:
+The Admin Console is structured around a top-level balances overview and a tabbed control center:
 
-### A. Admin Wallet Status
+### Global Header Components
 
-- Tracks the connected administrative wallet on the **Arc Testnet**.
-- Displays real-time balances: **USDC** (collateral) and **ARC** (gas).
-- **PvP Event Cost Estimator**: Calculates the total pre-deposit cost (40 USDC per option) for the currently selected PvP setup.
+- **Admin Wallet Status**: Tracks the connected administrative wallet on the **Arc Testnet**, displaying real-time balances for **USDC** (collateral) and **ARC** (gas).
+- **Deploy World Cup PvP Matchup (Drawer)**: Creates parent matchup events and launches multiple child prediction markets. Administrators can configure parent match details, toggle builder options (Match Winner, First Team to Score, Red Card, Corners, Goals, Yellow Cards, and Custom), and deploy. The deployment automatically deducts the pre-deposit cost (20 USDC per option) from the admin wallet to bootstrap the liquidity pools.
 
-### B. Deploy World Cup PvP Matchup
+### Dashboard Action Tabs
 
-Deploy Parent PvP events and auto-fund their child options on-chain:
+#### 1. Moderation Tab
 
-- **Configure Parent Event**: Provide the match title (e.g. Paraguay vs Japan), lock-in deadline, and resolution source.
-- **Toggle Proposition Builders**: Enable preset football prediction categories:
-  - **Match Winner**: 3-way outcome (Home wins / Draw / Away wins).
-  - **First Team to Score**: 3-way outcome (Home / No Goal / Away).
-  - **Red Card**: Binary outcome (At least one red card / No red cards).
-  - **Corners**: Over/Under handicap selection (6.5 to 10.5 corners).
-  - **Goals**: Over/Under handicap selection (0.5 to 4.5 goals).
-  - **Yellow Cards**: Over/Under handicap selection (2.5 to 6.5 cards).
-  - **Custom Propositions**: Input arbitrary yes/no criteria dynamically.
-- **Deploy**: Submits the setup to `POST /api/pvp/events`. The backend pre-deposits 40 USDC for each child option from the admin account and registers the markets on-chain.
+Manage all registered prediction markets, track their status (`open_for_votes`, `qualified`, `funding_pool`, `tradable`, `resolving`), and execute actions:
+- **Approve Trading**: Promotes qualified prediction markets to the `funding_pool` stage to register them on-chain.
+- **Add Liquidity**: Escrow USDC deposits into pre-market pools to help them reach the **20 USDC** threshold required for `VerityFPMM` activation.
+- **Arbitrate Resolve**: Manually settle disputed markets. Select the winning outcome, input the confirming transaction hash, and verify the fee collector address.
 
-### C. Prediction Market Moderation
+#### 2. Metrics Tab
 
-A table showing all registered prediction markets, their status indicators (`open_for_votes`, `qualified`, `funding_pool`, `tradable`, `resolving`), and context actions:
+Displays platform usage statistics, on-chain volumes, user engagement rates, and active duels.
 
-- **Approve Trading**: Transitions qualified markets (50+ signals) to `funding_pool` status and registers them on-chain.
-- **Add Liquidity**: Escrow USDC deposits into pre-market pools to help them reach the 40 USDC threshold required for FPMM activation.
-- **Arbitrate Resolve**: Manually settle subjective or disputed markets. The administrator chooses the winning outcome (YES/NO or multi-option index), enters the confirming on-chain transaction hash, and verifies the fee collector address to finalize redemptions.
+#### 3. Coupons Tab
+
+Allows administrators to generate, revoke, and track promotional coupons used for user acquisition or referral boosts.
+
+#### 4. Missions Tab
+
+Allows administrators to configure platform-wide gamification missions, setting rules and rewards to incentivize user activity.
+
+#### 5. Categories Tab
+
+Manage the taxonomy of sports, leagues, and market categories to organize upcoming matchups.
 
 ---
 

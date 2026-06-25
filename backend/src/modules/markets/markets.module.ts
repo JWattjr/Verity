@@ -21,6 +21,7 @@ import { PostsModule } from "../posts/posts.module"
 import { AgentModule } from "../agent/agent.module"
 import { PvpModule } from "../pvp/pvp.module"
 import { LiquidityModule } from "../liquidity/liquidity.module"
+import { RoyaltyService } from "./royalty.service"
 
 @Module({
   imports: [
@@ -39,7 +40,7 @@ import { LiquidityModule } from "../liquidity/liquidity.module"
     LiquidityModule,
   ],
   controllers: [MarketsController],
-  providers: [MarketsService, MarketsKeeperService],
-  exports: [MarketsService, MarketsKeeperService],
+  providers: [MarketsService, MarketsKeeperService, RoyaltyService],
+  exports: [MarketsService, MarketsKeeperService, RoyaltyService],
 })
 export class MarketsModule {}

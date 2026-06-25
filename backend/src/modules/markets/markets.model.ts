@@ -366,6 +366,15 @@ export class MarketTrade {
   @Prop({ type: String, default: null })
   txHash: string | null
 
+  @Prop({ type: Boolean, default: false, index: true })
+  royaltyPaid: boolean
+
+  @Prop({ type: String, default: null })
+  royaltyPaidTxHash: string | null
+
+  @Prop({ type: Number, default: 0 })
+  royaltyAmountUsdc: number
+
   @Prop({ type: Date, default: Date.now, index: true })
   createdAt: Date
 }

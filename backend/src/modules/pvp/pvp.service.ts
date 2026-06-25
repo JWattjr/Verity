@@ -32,6 +32,7 @@ import { calculatePvpResultXp, calculatePvpScore } from "./pvp-scoring"
 import type { PvpResult } from "./pvp-scoring"
 import { AgentService } from "../agent/agent.service"
 import { ConfigService } from "@nestjs/config"
+import { CouponsService } from "../coupons/coupons.service"
 
 export const BOT_PROFILES = [
   { username: "alex_g", displayName: "Alex Green" },
@@ -154,6 +155,13 @@ export class PvpService {
     }
   }
 
+  private getRankTier(xp: number): number {
+    if (xp < 500) return 1 // Bronze
+    if (xp < 1500) return 2 // Silver
+    if (xp < 3000) return 3 // Gold
+    return 4 // Platinum
+  }
+
   constructor(
     @InjectModel(PvpTicket.name)
     private pvpTicketModel: Model<PvpTicketDocument>,
@@ -171,6 +179,7 @@ export class PvpService {
     private readonly liquidityService: LiquidityService,
     private readonly agentService: AgentService,
     private readonly configService: ConfigService,
+    private readonly couponsService: CouponsService,
   ) {}
 
   async createPvpEvent(adminId: string, dto: CreatePvpEventDto) {
@@ -210,32 +219,6 @@ export class PvpService {
     const childMarketIds: Types.ObjectId[] = []
 
     try {
-      // 1. Create Post
-      post = await this.postModel.create({
-        authorId: new Types.ObjectId(adminId),
-        type: "market",
-        content: dto.question.trim(),
-      })
-
-      // 2. Create Parent Market
-      const lockTime = dto.lockTime
-        ? new Date(dto.lockTime)
-        : new Date(dto.deadline)
-      parentMarket = await this.marketModel.create({
-        postId: post._id,
-        authorId: new Types.ObjectId(adminId),
-        question: dto.question.trim(),
-        category: "pvp",
-        deadline: new Date(dto.deadline),
-        lockTime,
-        resolutionSource: dto.resolutionSource.trim(),
-        yesCondition: teamA,
-        noCondition: teamB,
-        status: "tradable",
-        marketType: "parent",
-      })
-
-      // 3. Create Child Markets and Register/Fund them on-chain
       const childMarkets: MarketDocument[] = []
       const deadlineUnix = Math.floor(new Date(dto.deadline).getTime() / 1000)
       const now = new Date()
@@ -282,7 +265,22 @@ export class PvpService {
         groups[optionGroup].push(optionName)
       }
 
-      // We will loop over each option group to create one child market per group!
+      // We will loop over each option group to register and fund them on-chain first
+      const deployedMarkets: Array<{
+        childMarketId: Types.ObjectId
+        questionSuffix: string
+        optionName: string
+        outcomes: string[]
+        handicap: number | null
+        optionGroup: string
+        outcomeCount: number
+        preDepositTxHash: string
+      }> = []
+
+      const lockTime = dto.lockTime
+        ? new Date(dto.lockTime)
+        : new Date(dto.deadline)
+
       for (const [optionGroup, groupOptions] of Object.entries(groups)) {
         const outcomeCount = groupOptions.length === 1 ? 2 : groupOptions.length
 
@@ -341,28 +339,6 @@ export class PvpService {
         const childMarketId = new Types.ObjectId()
         childMarketIds.push(childMarketId)
 
-        const child = await this.marketModel.create({
-          _id: childMarketId,
-          postId: post._id,
-          authorId: new Types.ObjectId(adminId),
-          question: `${dto.question.trim()} - ${questionSuffix}`,
-          category: "pvp",
-          deadline: new Date(dto.deadline),
-          lockTime,
-          resolutionSource: dto.resolutionSource.trim(),
-          yesCondition: outcomes[0] || "YES",
-          noCondition: outcomes[1] || "NO",
-          status: "funding_pool", // temporary status while funding
-          marketType: "child",
-          parentMarketId: parentMarket._id,
-          optionName,
-          teamName: teamA, // Keep teamA as primary associated team
-          optionGroup,
-          outcomeCount,
-          outcomes,
-          handicap,
-        })
-
         // Pre-deposit USDC on-chain based on contract minPoolBalance
         const preDepositTxHash =
           await this.blockchainService.adminCreateMarketPreDeposit(
@@ -386,16 +362,80 @@ export class PvpService {
           }
         }
 
+        deployedMarkets.push({
+          childMarketId,
+          questionSuffix,
+          optionName,
+          outcomes,
+          handicap,
+          optionGroup,
+          outcomeCount,
+          preDepositTxHash,
+        })
+      }
+
+      // 4. All on-chain transactions succeeded! Write everything to MongoDB.
+      const postId = new Types.ObjectId()
+      const parentMarketId = new Types.ObjectId()
+
+      // Create Post
+      post = await this.postModel.create({
+        _id: postId,
+        authorId: new Types.ObjectId(adminId),
+        type: "market",
+        content: dto.question.trim(),
+      })
+
+      // Create Parent Market
+      parentMarket = await this.marketModel.create({
+        _id: parentMarketId,
+        postId: postId,
+        authorId: new Types.ObjectId(adminId),
+        question: dto.question.trim(),
+        category: "pvp",
+        deadline: new Date(dto.deadline),
+        lockTime,
+        resolutionSource: dto.resolutionSource.trim(),
+        yesCondition: teamA,
+        noCondition: teamB,
+        status: "tradable",
+        marketType: "parent",
+      })
+
+      // Create Child Markets & Pools in DB
+      for (const item of deployedMarkets) {
+        const child = await this.marketModel.create({
+          _id: item.childMarketId,
+          postId: postId,
+          authorId: new Types.ObjectId(adminId),
+          question: `${dto.question.trim()} - ${item.questionSuffix}`,
+          category: "pvp",
+          deadline: new Date(dto.deadline),
+          lockTime,
+          resolutionSource: dto.resolutionSource.trim(),
+          yesCondition: item.outcomes[0] || "YES",
+          noCondition: item.outcomes[1] || "NO",
+          status: "funding_pool", // temporary status while funding
+          marketType: "child",
+          parentMarketId: parentMarketId,
+          optionName: item.optionName,
+          teamName: teamA, // Keep teamA as primary associated team
+          optionGroup: item.optionGroup,
+          outcomeCount: item.outcomeCount,
+          outcomes: item.outcomes,
+          handicap: item.handicap,
+        })
+
         // Initialize database pool from pre-deposit (which will sync and transition status to "tradable")
         await this.liquidityService.initializePoolFromPreDeposit(
-          childMarketId.toString(),
+          item.childMarketId.toString(),
           adminId,
           adminWalletAddress,
-          preDepositTxHash,
+          item.preDepositTxHash,
           minPoolBalance,
         )
 
-        const updatedChild = await this.marketModel.findById(childMarketId)
+        const updatedChild = await this.marketModel.findById(item.childMarketId)
         if (updatedChild) {
           childMarkets.push(updatedChild)
         } else {
@@ -430,11 +470,14 @@ export class PvpService {
           await this.liquidityService.deletePoolAndPositions(childId.toString())
         } catch (poolErr) {
           this.logger.error(
-            `Rollback error cleaning pool for ${childId}: ${poolErr.message}`,
+            `Rollback error cleaning pool for child market ${childId}: ${poolErr.message}`,
           )
         }
         try {
-          await this.marketModel.deleteOne({ _id: childId })
+          const res = await this.marketModel.findByIdAndDelete(childId)
+          this.logger.log(
+            `Rollback: Deleted child market ${childId}. Result: ${JSON.stringify(res)}`,
+          )
         } catch (dbErr) {
           this.logger.error(
             `Rollback error deleting child market ${childId}: ${dbErr.message}`,
@@ -445,10 +488,13 @@ export class PvpService {
       // Rollback parent market
       if (parentMarket) {
         try {
-          await this.marketModel.deleteOne({ _id: parentMarket._id })
+          const res = await this.marketModel.findByIdAndDelete(parentMarket._id)
+          this.logger.log(
+            `Rollback: Deleted parent market ${parentMarket._id}. Result: ${JSON.stringify(res)}`,
+          )
         } catch (dbErr) {
           this.logger.error(
-            `Rollback error deleting parent market: ${dbErr.message}`,
+            `Rollback error deleting parent market ${parentMarket._id}: ${dbErr.message}`,
           )
         }
       }
@@ -456,9 +502,14 @@ export class PvpService {
       // Rollback post
       if (post) {
         try {
-          await this.postModel.deleteOne({ _id: post._id })
+          const res = await this.postModel.findByIdAndDelete(post._id)
+          this.logger.log(
+            `Rollback: Deleted post ${post._id}. Result: ${JSON.stringify(res)}`,
+          )
         } catch (dbErr) {
-          this.logger.error(`Rollback error deleting post: ${dbErr.message}`)
+          this.logger.error(
+            `Rollback error deleting post ${post._id}: ${dbErr.message}`,
+          )
         }
       }
 
@@ -888,7 +939,7 @@ export class PvpService {
       }
     }
 
-    // Cancel existing queued/matched ticket
+    // Check if user already has an active ticket for this matchup
     const existing = await this.pvpTicketModel.findOne({
       userId: new Types.ObjectId(userId),
       parentMarketId: parent._id,
@@ -896,109 +947,287 @@ export class PvpService {
     })
 
     if (existing) {
-      if (existing.status === "matched") {
-        throw new BadRequestException(
-          "You have already been matched with an opponent for this match. Selections are locked.",
-        )
-      }
-      existing.status = "cancelled"
-      await existing.save()
+      throw new BadRequestException(
+        "You have already submitted a ticket for this matchup.",
+      )
     }
+
+    // 1. Calculate active user boost details first
+    let activeUserBoostMultiplier = 1.0
+    let selectedUserBoostType: string | null = null
+    let selectedBoostObject: any = null
 
     // Check if new user welcome boosts apply
     const cutoffStr = this.configService.get<string>("NEW_USER_CUTOFF_DATE")
     const cutoffDate = cutoffStr ? new Date(cutoffStr) : null
     const isNewUser =
       cutoffDate && user.createdAt && new Date(user.createdAt) >= cutoffDate
-
-    let xpBoostMultiplier = 1.0
-    let doubleBoostActive = false
+    let welcomeBoostMultiplier = 1.0
 
     if (isNewUser) {
+      // Count only tickets where a coupon was NOT used
       const ticketCount = await this.pvpTicketModel.countDocuments({
         userId: user._id,
         status: { $ne: "cancelled" },
+        couponCode: { $in: [null, undefined] },
       })
       if (ticketCount === 0) {
-        xpBoostMultiplier = 2.0
-        doubleBoostActive = true
-        this.logger.log(
-          `User ${userId} qualifies for Welcome Boost 1 (2.0x XP).`,
-        )
+        welcomeBoostMultiplier = 2.0
       } else if (ticketCount === 1) {
-        xpBoostMultiplier = 1.5
-        doubleBoostActive = true
-        this.logger.log(
-          `User ${userId} qualifies for Welcome Boost 2 (1.5x XP).`,
+        welcomeBoostMultiplier = 1.5
+      }
+    }
+
+    const activeBoosts = user.activeBoosts || []
+    const isBronzeEligible =
+      user.arenaXp >= 30 && user.arenaXp <= 499 && !user.hasUsedBronzeBoost
+
+    const candidates: Array<{ type: string; multiplier: number; obj?: any }> =
+      []
+
+    if (welcomeBoostMultiplier > 1.0) {
+      candidates.push({ type: "welcome", multiplier: welcomeBoostMultiplier })
+    }
+
+    if (isBronzeEligible) {
+      candidates.push({ type: "bronze", multiplier: 1.5 })
+    }
+
+    for (const b of activeBoosts) {
+      if (b.type === "match_based" && b.matchesRemaining > 0) {
+        candidates.push({ type: b.source, multiplier: b.multiplier, obj: b })
+      }
+    }
+
+    if (candidates.length > 0) {
+      const typePriority: Record<string, number> = {
+        welcome: 10,
+        downtime: 8,
+        mission: 6,
+        bronze: 4,
+        referral: 2,
+      }
+
+      candidates.sort((a, b) => {
+        if (b.multiplier !== a.multiplier) {
+          return b.multiplier - a.multiplier
+        }
+        const prioA = typePriority[a.type] || 0
+        const prioB = typePriority[b.type] || 0
+        return prioB - prioA
+      })
+
+      const best = candidates[0]
+      activeUserBoostMultiplier = best.multiplier
+      selectedUserBoostType = best.type
+      selectedBoostObject = best.obj
+    }
+
+    // 2. Validate coupon if provided
+    let appliedCoupon: string | null = null
+    let couponMultiplier: number | null = null
+
+    if (dto.couponCode) {
+      try {
+        const coupon = await this.couponsService.validateCoupon(dto.couponCode)
+
+        // Check per-user limit
+        const userUsageCount = await this.pvpTicketModel.countDocuments({
+          userId: new Types.ObjectId(userId),
+          couponCode: coupon.code,
+          status: { $ne: "cancelled" },
+        })
+
+        if (userUsageCount >= coupon.maxUsesPerUser) {
+          throw new BadRequestException(
+            `You have already used this coupon code the maximum allowed number of times (${coupon.maxUsesPerUser}).`,
+          )
+        }
+
+        couponMultiplier = coupon.multiplier
+        appliedCoupon = coupon.code
+      } catch (err: any) {
+        this.logger.warn(
+          `User ${userId} provided invalid coupon code ${dto.couponCode}: ${err.message}`,
         )
       }
     }
 
-    // If welcome boosts were not applied, try to consume 2.0x downtime compensation boost
-    if (!doubleBoostActive) {
-      const updateResult = await this.userModel.findOneAndUpdate(
-        { _id: user._id, downtimeBoostRemaining: { $gt: 0 } },
-        { $inc: { downtimeBoostRemaining: -1 } },
-        { new: true },
+    // 3. Coupon Bypasses Active User Boost
+    let xpBoostMultiplier = 1.0
+    let doubleBoostActive = false
+    let shouldConsumeUserBoost = false
+
+    if (appliedCoupon && couponMultiplier) {
+      // Coupon is applied: use coupon, bypass and preserve active user boosts
+      xpBoostMultiplier = couponMultiplier
+      doubleBoostActive = true
+      this.logger.log(
+        `User ${userId} applied coupon ${appliedCoupon} (${couponMultiplier}x). Bypassing and preserving other boosts.`,
       )
-      if (updateResult) {
+    } else {
+      // No coupon applied: use active user boost (if any) and consume it
+      if (activeUserBoostMultiplier > 1.0) {
+        xpBoostMultiplier = activeUserBoostMultiplier
         doubleBoostActive = true
-        xpBoostMultiplier = 2.0
-        this.logger.log(
-          `User ${userId} consumed a 2.0x downtime compensation boost. remaining: ${updateResult.downtimeBoostRemaining}`,
-        )
+        shouldConsumeUserBoost = true
       }
     }
 
-    // If welcome boosts were not applied, try to consume Bronze 1.5x boost
-    if (!doubleBoostActive) {
-      if (
-        user.arenaXp >= 30 &&
-        user.arenaXp <= 499 &&
-        !user.hasUsedBronzeBoost
-      ) {
-        const updateResult = await this.userModel.findOneAndUpdate(
+    // 4. Consume user boost if resolved as active
+    let boostConsumed = false
+    if (shouldConsumeUserBoost && selectedUserBoostType) {
+      if (selectedUserBoostType === "welcome") {
+        this.logger.log(
+          `User ${userId} consumed Welcome Boost (${xpBoostMultiplier}x).`,
+        )
+        boostConsumed = true
+      } else if (selectedUserBoostType === "bronze") {
+        await this.userModel.findOneAndUpdate(
           { _id: user._id, hasUsedBronzeBoost: false },
           { $set: { hasUsedBronzeBoost: true } },
           { new: true },
         )
+        this.logger.log(`User ${userId} consumed one-time Bronze 1.5x boost.`)
+        boostConsumed = true
+      } else if (selectedBoostObject) {
+        const source = selectedBoostObject.source
+        const sourceId = selectedBoostObject.sourceId
+
+        const elemMatchQuery: any = {
+          source,
+          type: "match_based",
+          matchesRemaining: { $gt: 0 },
+        }
+        if (sourceId) {
+          elemMatchQuery.sourceId = sourceId
+        }
+
+        const updateResult = await this.userModel.findOneAndUpdate(
+          {
+            _id: user._id,
+            activeBoosts: {
+              $elemMatch: elemMatchQuery,
+            },
+          } as any,
+          {
+            $inc: { "activeBoosts.$.matchesRemaining": -1 },
+          },
+          { new: true },
+        )
         if (updateResult) {
-          doubleBoostActive = true
-          xpBoostMultiplier = 1.5
-          this.logger.log(`User ${userId} consumed one-time Bronze 1.5x boost.`)
+          const pullQuery: any = {
+            source,
+            type: "match_based",
+            matchesRemaining: { $lte: 0 },
+          }
+          if (sourceId) {
+            pullQuery.sourceId = sourceId
+          }
+          await this.userModel.updateOne({ _id: user._id }, {
+            $pull: {
+              activeBoosts: pullQuery,
+            },
+          } as any)
+          this.logger.log(
+            `User ${userId} consumed a ${source} boost match (multiplier: ${xpBoostMultiplier}x).`,
+          )
+          boostConsumed = true
         }
       }
     }
 
-    // If welcome and bronze boosts were not applied, try to consume standard referral boost
-    if (!doubleBoostActive) {
-      const updateResult = await this.userModel.findOneAndUpdate(
-        { _id: user._id, doubleBoostRemaining: { $gt: 0 } },
-        { $inc: { doubleBoostRemaining: -1 } },
-        { new: true },
-      )
-      if (updateResult) {
-        doubleBoostActive = true
-        xpBoostMultiplier = 1.2
-        this.logger.log(
-          `User ${userId} consumed an XP boost. remaining: ${updateResult.doubleBoostRemaining}`,
-        )
+    // Create the ticket
+    let ticket
+    try {
+      ticket = await this.pvpTicketModel.create({
+        userId: new Types.ObjectId(userId),
+        parentMarketId: parent._id,
+        picks: dto.picks.map((p) => ({
+          marketId: new Types.ObjectId(p.marketId),
+          selection: p.selection,
+          isCorrect: null,
+        })),
+        status: "queued",
+        doubleBoostActive,
+        xpBoostMultiplier,
+        couponCode: appliedCoupon,
+        boostType: shouldConsumeUserBoost ? selectedUserBoostType : null,
+        boostSourceId:
+          shouldConsumeUserBoost && selectedBoostObject
+            ? selectedBoostObject.sourceId
+            : null,
+      })
+    } catch (createErr) {
+      // Rollback boost consumption if saving the ticket fails
+      if (boostConsumed && selectedUserBoostType) {
+        if (selectedUserBoostType === "bronze") {
+          await this.userModel.findOneAndUpdate(
+            { _id: user._id },
+            { $set: { hasUsedBronzeBoost: false } },
+          )
+          this.logger.log(
+            `Rolled back Bronze Boost for user ${userId} due to ticket creation failure.`,
+          )
+        } else if (selectedBoostObject) {
+          const source = selectedBoostObject.source
+          const sourceId = selectedBoostObject.sourceId
+          const elemMatchQuery: any = {
+            source,
+            type: "match_based",
+          }
+          if (sourceId) {
+            elemMatchQuery.sourceId = sourceId
+          }
+
+          const updatedUser = await this.userModel.findById(user._id)
+          const existingBoost = (updatedUser?.activeBoosts || []).find(
+            (b) =>
+              b.type === "match_based" &&
+              b.source === source &&
+              (!sourceId || b.sourceId === sourceId),
+          )
+
+          if (existingBoost) {
+            await this.userModel.updateOne(
+              {
+                _id: user._id,
+                activeBoosts: {
+                  $elemMatch: elemMatchQuery,
+                },
+              },
+              {
+                $inc: { "activeBoosts.$.matchesRemaining": 1 },
+              },
+            )
+          } else {
+            const newBoost = {
+              type: "match_based",
+              multiplier: selectedBoostObject.multiplier,
+              matchesRemaining: 1,
+              source,
+              sourceId: sourceId || null,
+              category: null,
+              expiresAt: null,
+            }
+            await this.userModel.findByIdAndUpdate(user._id, {
+              $push: { activeBoosts: newBoost },
+            })
+          }
+          this.logger.log(
+            `Rolled back match-based boost ${source} for user ${userId} due to ticket creation failure.`,
+          )
+        }
       }
+      throw createErr
     }
 
-    // Create the ticket
-    const ticket = await this.pvpTicketModel.create({
-      userId: new Types.ObjectId(userId),
-      parentMarketId: parent._id,
-      picks: dto.picks.map((p) => ({
-        marketId: new Types.ObjectId(p.marketId),
-        selection: p.selection,
-        isCorrect: null,
-      })),
-      status: "queued",
-      doubleBoostActive,
-      xpBoostMultiplier,
-    })
+    if (appliedCoupon) {
+      await this.couponsService.incrementUsage(appliedCoupon)
+      this.logger.log(
+        `User ${userId} successfully applied coupon ${appliedCoupon}. New multiplier: ${xpBoostMultiplier}x.`,
+      )
+    }
 
     // Perform matchmaking
     const match = await this.matchmake(ticket)
@@ -1016,18 +1245,28 @@ export class PvpService {
   }
 
   async matchmake(ticket: PvpTicketDocument): Promise<PvpMatchDocument | null> {
-    const candidates = await this.pvpTicketModel.find({
-      parentMarketId: ticket.parentMarketId,
-      userId: { $ne: ticket.userId },
-      status: "queued",
-    })
+    const candidates = await this.pvpTicketModel
+      .find({
+        parentMarketId: ticket.parentMarketId,
+        userId: { $ne: ticket.userId },
+        status: "queued",
+      })
+      .populate("userId")
 
     if (candidates.length === 0) {
       return null
     }
 
-    let bestOpponent: PvpTicketDocument | null = null
-    let maxDivergence = -1
+    const submitter = await this.userModel.findById(ticket.userId)
+    const submitterXp = submitter?.arenaXp ?? 0
+    const submitterTier = this.getRankTier(submitterXp)
+
+    const eligibleCandidates: Array<{
+      ticket: PvpTicketDocument
+      divergence: number
+      tier: number
+      tierDistance: number
+    }> = []
 
     for (const candidate of candidates) {
       let divergence = 0
@@ -1044,18 +1283,56 @@ export class PvpService {
         continue // Skip exact same picks to avoid pre-determined draws!
       }
 
-      if (divergence > maxDivergence) {
-        maxDivergence = divergence
-        bestOpponent = candidate
-      } else if (divergence === maxDivergence && bestOpponent) {
-        // Tie-breaker: oldest queued ticket
-        if (candidate.createdAt! < bestOpponent.createdAt!) {
-          bestOpponent = candidate
-        }
-      }
+      const candidateUser = candidate.userId as any
+      const candidateXp = candidateUser?.arenaXp ?? 0
+      const candidateTier = this.getRankTier(candidateXp)
+      const tierDistance = Math.abs(submitterTier - candidateTier)
+
+      eligibleCandidates.push({
+        ticket: candidate,
+        divergence,
+        tier: candidateTier,
+        tierDistance,
+      })
     }
 
-    if (maxDivergence < 1 || !bestOpponent) return null
+    if (eligibleCandidates.length === 0) {
+      return null
+    }
+
+    // Sort based on prioritized matchmaking rules:
+    // 1. Same tier or closest tier distance (ascending)
+    // 2. Tie-breaker 1: Prioritize the higher tier rank (e.g. Gold over Silver)
+    // 3. Tie-breaker 2: Prioritize higher pick divergence
+    // 4. Tie-breaker 3: Oldest queued ticket first
+    eligibleCandidates.sort((a, b) => {
+      if (a.tierDistance !== b.tierDistance) {
+        return a.tierDistance - b.tierDistance
+      }
+      if (a.tier !== b.tier) {
+        return b.tier - a.tier
+      }
+      if (a.divergence !== b.divergence) {
+        return b.divergence - a.divergence
+      }
+      const timeA = a.ticket.createdAt
+        ? new Date(a.ticket.createdAt).getTime()
+        : 0
+      const timeB = b.ticket.createdAt
+        ? new Date(b.ticket.createdAt).getTime()
+        : 0
+      return timeA - timeB
+    })
+
+    const bestOpponent = eligibleCandidates[0].ticket
+    const maxDivergence = eligibleCandidates[0].divergence
+
+    const bestOpponentUserId =
+      bestOpponent.userId &&
+      typeof bestOpponent.userId === "object" &&
+      "_id" in bestOpponent.userId
+        ? (bestOpponent.userId as any)._id
+        : bestOpponent.userId
 
     // Match found! Create PvpMatch
     const match = await this.pvpMatchModel.create({
@@ -1063,7 +1340,7 @@ export class PvpService {
       ticket1Id: ticket._id,
       ticket2Id: bestOpponent._id,
       user1Id: ticket.userId,
-      user2Id: bestOpponent.userId,
+      user2Id: bestOpponentUserId,
       divergenceScore: maxDivergence,
       status: "matched",
     })
@@ -1082,7 +1359,7 @@ export class PvpService {
     // Query usernames to send personalized alerts
     const [user1, user2] = await Promise.all([
       this.userModel.findById(ticket.userId),
-      this.userModel.findById(bestOpponent.userId),
+      this.userModel.findById(bestOpponentUserId),
     ])
     const u1Name = user1?.username || "someone"
     const u2Name = user2?.username || "someone"
@@ -1094,7 +1371,7 @@ export class PvpService {
       { matchId: match._id.toString() },
     )
     this.socketGateway.broadcastToRoom(
-      `user:${bestOpponent.userId.toString()}`,
+      `user:${bestOpponentUserId.toString()}`,
       "pvp-matched",
       { matchId: match._id.toString() },
     )
@@ -1102,14 +1379,14 @@ export class PvpService {
     // In-app Notifications
     await this.notificationsService.createNotification(
       ticket.userId.toString(),
-      bestOpponent.userId.toString(),
+      bestOpponentUserId.toString(),
       "pvp_matched",
       "PvP Arena Opponent Found!",
       `You've been matched against @${u2Name} for the event with a selection divergence of ${maxDivergence} picks.`,
       match._id.toString(),
     )
     await this.notificationsService.createNotification(
-      bestOpponent.userId.toString(),
+      bestOpponentUserId.toString(),
       ticket.userId.toString(),
       "pvp_matched",
       "PvP Arena Opponent Found!",
@@ -1569,11 +1846,29 @@ export class PvpService {
 
     const boostsToAdd = 2 - appliedBoostsCount
     if (boostsToAdd > 0) {
-      referrer.doubleBoostRemaining =
-        (referrer.doubleBoostRemaining ?? 0) + boostsToAdd
+      if (!referrer.activeBoosts) {
+        referrer.activeBoosts = []
+      }
+      const existingRefBoost = referrer.activeBoosts.find(
+        (b) => b.source === "referral" && b.type === "match_based",
+      )
+      if (existingRefBoost) {
+        existingRefBoost.matchesRemaining += boostsToAdd
+      } else {
+        referrer.activeBoosts.push({
+          type: "match_based",
+          multiplier: 1.2,
+          matchesRemaining: boostsToAdd,
+          category: null,
+          source: "referral",
+          sourceId: null,
+          expiresAt: null,
+        } as any)
+      }
+      referrer.markModified("activeBoosts")
       await referrer.save()
       this.logger.log(
-        `Added ${boostsToAdd} boosts to referrer ${referrer._id}'s doubleBoostRemaining (applied ${appliedBoostsCount} retroactively)`,
+        `Added ${boostsToAdd} boosts to referrer ${referrer._id}'s activeBoosts (applied ${appliedBoostsCount} retroactively)`,
       )
     } else {
       this.logger.log(
@@ -1895,6 +2190,7 @@ export class PvpService {
       ticketsCount = await this.pvpTicketModel.countDocuments({
         userId: user._id,
         status: { $ne: "cancelled" },
+        couponCode: { $in: [null, undefined] },
       })
       if (ticketsCount === 0) {
         isEligible = true
@@ -1906,22 +2202,46 @@ export class PvpService {
     }
 
     if (nextGameMultiplier === 1.0) {
-      if ((user.downtimeBoostRemaining ?? 0) > 0) {
-        nextGameMultiplier = 2.0
-      } else {
-        const isBronze = user.arenaXp >= 30 && user.arenaXp <= 499
-        if (isBronze && !user.hasUsedBronzeBoost) {
-          nextGameMultiplier = 1.5
-        } else if ((user.doubleBoostRemaining ?? 0) > 0) {
-          nextGameMultiplier = 1.2
+      const activeBoosts = user.activeBoosts || []
+      const isBronzeEligible =
+        user.arenaXp >= 30 && user.arenaXp <= 499 && !user.hasUsedBronzeBoost
+
+      const candidates: Array<{ type: string; multiplier: number }> = []
+
+      if (isBronzeEligible) {
+        candidates.push({ type: "bronze", multiplier: 1.5 })
+      }
+
+      for (const b of activeBoosts) {
+        if (b.type === "match_based" && b.matchesRemaining > 0) {
+          candidates.push({ type: b.source, multiplier: b.multiplier })
         }
+      }
+
+      if (candidates.length > 0) {
+        const typePriority: Record<string, number> = {
+          downtime: 8,
+          mission: 6,
+          bronze: 4,
+          referral: 2,
+        }
+
+        candidates.sort((a, b) => {
+          if (b.multiplier !== a.multiplier) {
+            return b.multiplier - a.multiplier
+          }
+          const prioA = typePriority[a.type] || 0
+          const prioB = typePriority[b.type] || 0
+          return prioB - prioA
+        })
+
+        nextGameMultiplier = candidates[0].multiplier
       }
     }
 
     return {
       referralLink: user.username,
-      doubleBoostRemaining: user.doubleBoostRemaining ?? 0,
-      downtimeBoostRemaining: user.downtimeBoostRemaining ?? 0,
+      activeBoosts: user.activeBoosts || [],
       hasWonFirstPvpDuel: user.hasWonFirstPvpDuel ?? false,
       welcomeBoosts: {
         isEligible,
