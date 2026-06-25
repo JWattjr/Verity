@@ -250,7 +250,7 @@ export class MarketsKeeperService implements OnModuleInit, OnModuleDestroy {
               }
             }
 
-            // No proposal yet -> AI agent investigates and proposes
+            // No proposal yet -> AI agent investigates and proposes one
             this.logger.log(
               `No active proposal found for market ${marketIdStr}. Invoking AI Agent...`,
             )

@@ -16,9 +16,11 @@ import { reviewPredictionPost, type VerityAgentReview } from "@/lib/verityAgent"
 import { useUsdcTransfer } from "@/hooks/useUsdcTransfer"
 import { useUsdcBalance } from "@/hooks/useUsdcBalance"
 import { useAuth } from "@/components/providers/AuthModals"
+import { useMarketLimits } from "@/hooks/useMarketLimits"
 import {
   useCreateMarketPostMutation,
   useValidateMarketPostMutation,
+  useGetCategoriesQuery,
 } from "@/store/verity/verityQueries"
 import { toast } from "@/lib/toast"
 import { FACTORY_ADDRESS } from "@/lib/arc"
@@ -152,6 +154,8 @@ export default function ComposeBox({ onCreated }: ComposeBoxProps) {
   const { user, closeTxConfirm } = useAuth()
   const { createMarketPreDeposit } = useUsdcTransfer()
   const { rawBalance } = useUsdcBalance()
+  const { data: limits } = useMarketLimits()
+  const { data: categoriesData } = useGetCategoriesQuery()
   const { mutateAsync: validateMarketPost } = useValidateMarketPostMutation()
   const { mutateAsync: createMarketPost } = useCreateMarketPostMutation()
 
@@ -163,7 +167,7 @@ export default function ComposeBox({ onCreated }: ComposeBoxProps) {
   const [market, setMarket] = useState<MarketInput>({
     content: "",
     question: "",
-    category: "Sports",
+    category: "sports",
     deadline: "",
     resolutionSource: "",
     yesCondition: "",
@@ -307,12 +311,13 @@ export default function ComposeBox({ onCreated }: ComposeBoxProps) {
   const visibleAgentReview =
     reviewIsCurrent && agentReview ? agentReview : liveAgentReview
 
+  const creatorLp = limits?.creatorMinLock ?? 5
+  const creationFee = limits?.marketCreationFee ?? 1
+  const dynamicCost = creatorLp + creationFee
+
   const requiredMarketCost = useMemo(() => {
-    if (isMultiOption) {
-      return options.filter((o) => o.trim().length > 0).length * 11
-    }
-    return 11
-  }, [isMultiOption, options])
+    return dynamicCost
+  }, [dynamicCost])
 
   const isBalanceInsufficient = useMemo(() => {
     if (!user || !isMarket) return false
@@ -394,8 +399,6 @@ export default function ComposeBox({ onCreated }: ComposeBoxProps) {
     })
   }
 
-  const dynamicCost = 11
-
   const primaryLabel = useMemo(() => {
     if (saving) return "Posting..."
     if (isValidating) return "Reviewing..."
@@ -458,7 +461,11 @@ export default function ComposeBox({ onCreated }: ComposeBoxProps) {
 
         if (isMultiOption) {
           const validOptions = options.filter((o) => o.trim().length > 0)
-          const payment = await createMarketPreDeposit(marketId, 10, true)
+          const payment = await createMarketPreDeposit(
+            marketId,
+            creatorLp,
+            true,
+          )
           txHash = payment.hash
 
           await createMarketPost({
@@ -475,7 +482,11 @@ export default function ComposeBox({ onCreated }: ComposeBoxProps) {
           })
         } else {
           // Binary Market Pre-Deposit
-          const payment = await createMarketPreDeposit(marketId, 10, true)
+          const payment = await createMarketPreDeposit(
+            marketId,
+            creatorLp,
+            true,
+          )
           txHash = payment.hash
 
           await createMarketPost({
@@ -494,7 +505,7 @@ export default function ComposeBox({ onCreated }: ComposeBoxProps) {
         setMarket({
           content: "",
           question: "",
-          category: "Sports",
+          category: "sports",
           deadline: "",
           resolutionSource: "",
           yesCondition: "",
@@ -657,12 +668,26 @@ export default function ComposeBox({ onCreated }: ComposeBoxProps) {
                     }
                     value={market.category}
                   >
-                    {MARKET_CATEGORIES.map((category) => (
+                    {(categoriesData && categoriesData.length > 0
+                      ? categoriesData
+                      : [
+                          { slug: "sports", displayName: "Sports" },
+                          { slug: "culture", displayName: "Culture" },
+                          { slug: "crypto", displayName: "Crypto" },
+                          { slug: "economics", displayName: "Economics" },
+                          {
+                            slug: "miscellaneous",
+                            displayName: "Miscellaneous",
+                          },
+                          { slug: "politics", displayName: "Politics" },
+                        ]
+                    ).map((cat) => (
                       <option
-                        key={category}
+                        key={cat.slug}
+                        value={cat.slug}
                         className="bg-surface-solid text-charcoal-primary"
                       >
-                        {category}
+                        {cat.displayName}
                       </option>
                     ))}
                   </select>
@@ -699,9 +724,7 @@ export default function ComposeBox({ onCreated }: ComposeBoxProps) {
                       Options Editor (Minimum 3 options)
                     </label>
                     <span className="text-[10px] font-mono text-ash">
-                      Cost:{" "}
-                      {options.filter((o) => o.trim().length > 0).length * 11}{" "}
-                      USDC
+                      Cost: {dynamicCost} USDC
                     </span>
                   </div>
 

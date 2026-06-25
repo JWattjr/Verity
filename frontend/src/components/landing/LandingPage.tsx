@@ -74,12 +74,6 @@ export default function LandingPage({
         </Link>
 
         <div className="flex items-center gap-2">
-          <Link
-            className="clickable-surface hidden rounded-[32px] px-4 py-2 text-sm font-semibold tracking-[-0.18px] text-graphite sm:inline-flex"
-            href="/how-it-works"
-          >
-            How it works
-          </Link>
           <ThemeToggle />
         </div>
       </header>
@@ -248,7 +242,7 @@ function LandingVisual() {
               <div className="h-full bg-meadow-green landing-progress" />
             </div>
             <p className="mt-3 font-mono text-xs text-ash">
-              28.80 / 40.00 USDC
+              14.40 / 20.00 USDC
             </p>
           </div>
         </div>

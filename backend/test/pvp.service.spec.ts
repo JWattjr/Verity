@@ -16,6 +16,7 @@ import { LiquidityService } from "../src/modules/liquidity/liquidity.service"
 import { AgentService } from "../src/modules/agent/agent.service"
 import { BadRequestException } from "@nestjs/common"
 import { ConfigService } from "@nestjs/config"
+import { CouponsService } from "../src/modules/coupons/coupons.service"
 
 import { Types } from "mongoose"
 import { calculatePvpResultXp } from "../src/modules/pvp/pvp-scoring"
@@ -84,6 +85,12 @@ describe("PvpService", () => {
                 return "2026-06-16T00:00:00.000Z"
               return null
             }),
+          },
+        },
+        {
+          provide: CouponsService,
+          useValue: {
+            validateCoupon: jest.fn(),
           },
         },
       ],
@@ -360,7 +367,10 @@ describe("PvpService", () => {
         createdAt: new Date(),
       }
 
-      pvpTicketModel.find.mockResolvedValue([candidate])
+      pvpTicketModel.find.mockReturnValue({
+        populate: jest.fn().mockResolvedValue([candidate]),
+      })
+      userModel.findById.mockResolvedValue({ arenaXp: 100 })
 
       const result = await service.matchmake(ticket)
       expect(result).toBeNull()
@@ -404,7 +414,10 @@ describe("PvpService", () => {
         status: "matched",
       }
 
-      pvpTicketModel.find.mockResolvedValue([candidate])
+      pvpTicketModel.find.mockReturnValue({
+        populate: jest.fn().mockResolvedValue([candidate]),
+      })
+      userModel.findById.mockResolvedValue({ arenaXp: 100 })
       const mockPvpMatchModel = (service as any).pvpMatchModel
       jest
         .spyOn(mockPvpMatchModel, "create")
@@ -414,6 +427,154 @@ describe("PvpService", () => {
       expect(result).toEqual(mockPvpMatch)
       expect(ticket.status).toBe("matched")
       expect(candidate.status).toBe("matched")
+    })
+  })
+
+  describe("rank-based matchmaking", () => {
+    it("should prioritize matching players of the same rank tier", async () => {
+      const parentMarketId = new Types.ObjectId()
+      
+      const ticket: any = {
+        _id: new Types.ObjectId(),
+        userId: new Types.ObjectId(),
+        parentMarketId,
+        picks: [
+          { marketId: "market-1", selection: "YES" },
+          { marketId: "market-2", selection: "NO" },
+        ],
+        status: "queued",
+        save: jest.fn(),
+      }
+
+      const candidateSilver: any = {
+        _id: new Types.ObjectId(),
+        userId: { _id: new Types.ObjectId(), arenaXp: 1000 }, // Tier 2
+        parentMarketId,
+        picks: [
+          { marketId: "market-1", selection: "NO" },
+          { marketId: "market-2", selection: "YES" },
+        ],
+        status: "queued",
+        save: jest.fn(),
+        createdAt: new Date(),
+      }
+
+      const candidatePlatinum: any = {
+        _id: new Types.ObjectId(),
+        userId: { _id: new Types.ObjectId(), arenaXp: 3500 }, // Tier 4
+        parentMarketId,
+        picks: [
+          { marketId: "market-1", selection: "YES" },
+          { marketId: "market-2", selection: "YES" }, // divergence = 1
+        ],
+        status: "queued",
+        save: jest.fn(),
+        createdAt: new Date(),
+      }
+
+      userModel.findById.mockImplementation((id: any) => {
+        if (id && id.toString() === ticket.userId.toString()) {
+          return Promise.resolve({ arenaXp: 3200 }) // Submitter: Platinum
+        }
+        return Promise.resolve(null)
+      })
+
+      pvpTicketModel.find.mockReturnValue({
+        populate: jest.fn().mockResolvedValue([candidateSilver, candidatePlatinum])
+      })
+
+      const mockPvpMatch = {
+        _id: new Types.ObjectId(),
+        parentMarketId,
+        ticket1Id: ticket._id,
+        ticket2Id: candidatePlatinum._id,
+        user1Id: ticket.userId,
+        user2Id: candidatePlatinum.userId._id,
+        divergenceScore: 1,
+        status: "matched",
+      }
+
+      const mockPvpMatchModel = (service as any).pvpMatchModel
+      jest.spyOn(mockPvpMatchModel, "create").mockResolvedValue(mockPvpMatch as any)
+
+      const result = await service.matchmake(ticket)
+      
+      expect(result).toEqual(mockPvpMatch)
+      expect(ticket.status).toBe("matched")
+      expect(candidatePlatinum.status).toBe("matched")
+    })
+
+    it("should fall back to closer ranks when same rank is not available", async () => {
+      const parentMarketId = new Types.ObjectId()
+      
+      const ticket: any = {
+        _id: new Types.ObjectId(),
+        userId: new Types.ObjectId(),
+        parentMarketId,
+        picks: [
+          { marketId: "market-1", selection: "YES" },
+          { marketId: "market-2", selection: "NO" },
+        ],
+        status: "queued",
+        save: jest.fn(),
+      }
+
+      const candidateBronze: any = {
+        _id: new Types.ObjectId(),
+        userId: { _id: new Types.ObjectId(), arenaXp: 100 }, // Tier 1
+        parentMarketId,
+        picks: [
+          { marketId: "market-1", selection: "NO" },
+          { marketId: "market-2", selection: "YES" },
+        ],
+        status: "queued",
+        save: jest.fn(),
+        createdAt: new Date(),
+      }
+
+      const candidateGold: any = {
+        _id: new Types.ObjectId(),
+        userId: { _id: new Types.ObjectId(), arenaXp: 2000 }, // Tier 3
+        parentMarketId,
+        picks: [
+          { marketId: "market-1", selection: "YES" },
+          { marketId: "market-2", selection: "YES" }, // divergence = 1
+        ],
+        status: "queued",
+        save: jest.fn(),
+        createdAt: new Date(),
+      }
+
+      userModel.findById.mockImplementation((id: any) => {
+        if (id && id.toString() === ticket.userId.toString()) {
+          return Promise.resolve({ arenaXp: 3000 }) // Submitter: Platinum (Tier 4)
+        }
+        return Promise.resolve(null)
+      })
+
+      pvpTicketModel.find.mockReturnValue({
+        populate: jest.fn().mockResolvedValue([candidateBronze, candidateGold])
+      })
+
+      const mockPvpMatch = {
+        _id: new Types.ObjectId(),
+        parentMarketId,
+        ticket1Id: ticket._id,
+        ticket2Id: candidateGold._id,
+        user1Id: ticket.userId,
+        user2Id: candidateGold.userId._id,
+        divergenceScore: 1,
+        status: "matched",
+      }
+
+      const mockPvpMatchModel = (service as any).pvpMatchModel
+      jest.spyOn(mockPvpMatchModel, "create").mockResolvedValue(mockPvpMatch as any)
+
+      const result = await service.matchmake(ticket)
+      
+      expect(result).toEqual(mockPvpMatch)
+      expect(ticket.status).toBe("matched")
+      expect(candidateGold.status).toBe("matched")
     })
   })
 
@@ -430,7 +591,7 @@ describe("PvpService", () => {
       const mockUser = {
         _id: new Types.ObjectId(),
         createdAt: new Date("2026-06-17T00:00:00.000Z"), // after cutoff
-        doubleBoostRemaining: 0,
+        activeBoosts: [],
       }
       const mockParentMarket = {
         _id: new Types.ObjectId(),
@@ -496,7 +657,7 @@ describe("PvpService", () => {
       const mockUser = {
         _id: new Types.ObjectId(),
         createdAt: new Date("2026-06-17T00:00:00.000Z"), // after cutoff
-        doubleBoostRemaining: 0,
+        activeBoosts: [],
       }
       const mockParentMarket = {
         _id: new Types.ObjectId(),
@@ -564,7 +725,7 @@ describe("PvpService", () => {
       const mockUser = {
         _id: new Types.ObjectId(),
         createdAt: new Date("2020-01-01"),
-        doubleBoostRemaining: 0,
+        activeBoosts: [],
         arenaXp: 100,
         hasUsedBronzeBoost: false,
       }
@@ -622,15 +783,116 @@ describe("PvpService", () => {
         }),
       )
       expect(userModel.findOneAndUpdate).toHaveBeenCalledWith(
-        expect.objectContaining({ _id: mockUser._id, hasUsedBronzeBoost: false }),
+        expect.objectContaining({
+          _id: mockUser._id,
+          hasUsedBronzeBoost: false,
+        }),
         expect.objectContaining({ $set: { hasUsedBronzeBoost: true } }),
         expect.any(Object),
       )
     })
   })
 
+  describe("dynamic mission boost logic", () => {
+    it("should assign and consume dynamic mission boost with highest multiplier", async () => {
+      const mockUser = {
+        _id: new Types.ObjectId(),
+        createdAt: new Date("2020-01-01"),
+        activeBoosts: [
+          {
+            type: "match_based",
+            multiplier: 1.8,
+            matchesRemaining: 3,
+            source: "mission",
+            sourceId: "mission-id-123",
+          },
+          {
+            type: "match_based",
+            multiplier: 1.2,
+            matchesRemaining: 5,
+            source: "referral",
+            sourceId: null,
+          },
+        ],
+        arenaXp: 10,
+        hasUsedBronzeBoost: false,
+      }
+      const mockParentMarket = {
+        _id: new Types.ObjectId(),
+        marketType: "parent",
+        category: "pvp",
+        deadline: new Date(Date.now() + 1000 * 60 * 60),
+      }
+
+      const child1Id = new Types.ObjectId()
+      const child2Id = new Types.ObjectId()
+      const child3Id = new Types.ObjectId()
+
+      userModel.findById.mockImplementation((id: any) => {
+        if (id && id.toString() === mockUser._id.toString()) {
+          return Promise.resolve(mockUser)
+        }
+        return Promise.resolve(mockParentMarket)
+      })
+      userModel.findOneAndUpdate.mockResolvedValue(mockUser)
+      userModel.updateOne.mockResolvedValue({ modifiedCount: 1 })
+      marketModel.find.mockResolvedValue([
+        { _id: child1Id, optionGroup: "group-1" },
+        { _id: child2Id, optionGroup: "group-2" },
+        { _id: child3Id, optionGroup: "group-3" },
+      ])
+      pvpTicketModel.findOne.mockResolvedValue(null)
+
+      const mockTicket = {
+        _id: new Types.ObjectId(),
+        userId: mockUser._id,
+        parentMarketId: mockParentMarket._id,
+        picks: [],
+        status: "queued",
+        doubleBoostActive: true,
+        xpBoostMultiplier: 1.8,
+      }
+      pvpTicketModel.create.mockResolvedValue(mockTicket)
+      jest.spyOn(service as any, "matchmake").mockResolvedValue(null)
+
+      const result = await service.submitTicket(mockUser._id.toString(), {
+        parentMarketId: mockParentMarket._id.toString(),
+        picks: [
+          { marketId: child1Id.toString(), selection: "YES" },
+          { marketId: child2Id.toString(), selection: "NO" },
+          { marketId: child3Id.toString(), selection: "YES" },
+        ],
+      })
+
+      expect(result.doubleBoostActive).toBe(true)
+      expect(pvpTicketModel.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          xpBoostMultiplier: 1.8,
+          doubleBoostActive: true,
+        }),
+      )
+      expect(userModel.findOneAndUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          _id: mockUser._id,
+          activeBoosts: expect.objectContaining({
+            $elemMatch: {
+              source: "mission",
+              type: "match_based",
+              matchesRemaining: { $gt: 0 },
+              sourceId: "mission-id-123",
+            },
+          }),
+        }),
+        expect.objectContaining({
+          $inc: { "activeBoosts.$.matchesRemaining": -1 },
+        }),
+        expect.any(Object),
+      )
+    })
+  })
+
   describe("awardReferrerFirstWinBoosts", () => {
-    it("should retroactively apply boosts to active tickets and add remainder to doubleBoostRemaining", async () => {
+    it("should retroactively apply boosts to active tickets and add remainder to activeBoosts", async () => {
       const mockReferredPlayer = {
         _id: new Types.ObjectId(),
         username: "referee",
@@ -639,8 +901,9 @@ describe("PvpService", () => {
       const mockReferrer = {
         _id: mockReferredPlayer.referredById,
         username: "referrer",
-        doubleBoostRemaining: 0,
+        activeBoosts: [] as any[],
         save: jest.fn().mockResolvedValue(true),
+        markModified: jest.fn(),
       }
 
       const mockTicket1 = {
@@ -666,11 +929,11 @@ describe("PvpService", () => {
       expect(mockTicket1.save).toHaveBeenCalled()
 
       // Remaining boost should be added to referrer (2 earned - 1 applied = 1 remaining)
-      expect(mockReferrer.doubleBoostRemaining).toBe(1)
+      expect(mockReferrer.activeBoosts[0].matchesRemaining).toBe(1)
       expect(mockReferrer.save).toHaveBeenCalled()
     })
 
-    it("should add both boosts to doubleBoostRemaining if there are no active, unboosted tickets", async () => {
+    it("should add both boosts to activeBoosts if there are no active, unboosted tickets", async () => {
       const mockReferredPlayer = {
         _id: new Types.ObjectId(),
         username: "referee",
@@ -679,8 +942,19 @@ describe("PvpService", () => {
       const mockReferrer = {
         _id: mockReferredPlayer.referredById,
         username: "referrer",
-        doubleBoostRemaining: 1,
+        activeBoosts: [
+          {
+            type: "match_based",
+            multiplier: 1.2,
+            matchesRemaining: 1,
+            source: "referral",
+            category: null,
+            sourceId: null,
+            expiresAt: null,
+          },
+        ] as any[],
         save: jest.fn().mockResolvedValue(true),
+        markModified: jest.fn(),
       }
 
       userModel.findById.mockResolvedValue(mockReferrer)
@@ -694,7 +968,7 @@ describe("PvpService", () => {
       await (service as any).awardReferrerFirstWinBoosts(mockReferredPlayer)
 
       // Referral boosts added to referrer (1 + 2 = 3)
-      expect(mockReferrer.doubleBoostRemaining).toBe(3)
+      expect(mockReferrer.activeBoosts[0].matchesRemaining).toBe(3)
       expect(mockReferrer.save).toHaveBeenCalled()
     })
   })

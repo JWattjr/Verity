@@ -40,7 +40,7 @@ contract Deploy is Script {
                 networkName: "Arc Testnet",
                 usdcAddress: 0x3600000000000000000000000000000000000000,
                 pythAddress: 0x2880aB155794e7179c9eE2e38200202908C17B43,
-                vaultAddress: 0xd418a4116E48A180DCA0b6b5a2D69b17Cb1F1Ac3, // Set this to the existing vault address to reuse it (e.g. 0xd418a4116E48A180DCA0b6b5a2D69b17Cb1F1Ac3)
+                vaultAddress: 0xbE483AC5964937eb7F6FCD12ae4ba2872FF34E8A, // Set this to the existing vault address to reuse it (e.g. 0xd418a4116E48A180DCA0b6b5a2D69b17Cb1F1Ac3)
                 isTestnet: true
             });
         }

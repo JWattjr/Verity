@@ -64,6 +64,8 @@ export interface MarketResponse {
   uniqueVoterThreshold: number
   marketCreationFeeUsdc: number
   market_creation_fee_usdc: number
+  minimumPoolBalance: number
+  minimum_pool_balance: number
   creationFeeTxHash: string | null
   creation_fee_tx_hash: string | null
   feeCollectorAddress: string | null
@@ -165,12 +167,12 @@ export class PostsService {
   validateMarketHeuristics(input: CreateMarketPostDto) {
     const question = input.question ? input.question.trim() : ""
     if (question.length === 0) {
-      throw new BadRequestException(
-        "Market question/title is required.",
-      )
+      throw new BadRequestException("Market question/title is required.")
     }
 
-    const resolutionSource = input.resolutionSource ? input.resolutionSource.trim() : ""
+    const resolutionSource = input.resolutionSource
+      ? input.resolutionSource.trim()
+      : ""
     if (resolutionSource.length < 5) {
       throw new BadRequestException(
         "Resolution source must specify a clear, verifiable platform or oracle.",
@@ -246,6 +248,8 @@ export class PostsService {
       uniqueVoterThreshold: market.uniqueVoterThreshold,
       marketCreationFeeUsdc: market.marketCreationFeeUsdc,
       market_creation_fee_usdc: market.marketCreationFeeUsdc,
+      minimumPoolBalance: market.minimumPoolBalance ?? 20,
+      minimum_pool_balance: market.minimumPoolBalance ?? 20,
       creationFeeTxHash: market.creationFeeTxHash,
       creation_fee_tx_hash: market.creationFeeTxHash,
       feeCollectorAddress: market.feeCollectorAddress,
@@ -275,8 +279,11 @@ export class PostsService {
       proposedOutcome: market.proposedOutcome,
       proposedOutcomeIndex: market.proposedOutcomeIndex,
       proposedOutcome_index: market.proposedOutcomeIndex,
-      proposedAt: market.proposedAt ? new Date(market.proposedAt).toISOString() : null,
-      disputeWindowSeconds: this.configService.get<number>("DISPUTE_WINDOW_SECONDS") || 120,
+      proposedAt: market.proposedAt
+        ? new Date(market.proposedAt).toISOString()
+        : null,
+      disputeWindowSeconds:
+        this.configService.get<number>("DISPUTE_WINDOW_SECONDS") || 120,
       marketType: market.marketType || "binary",
       parentMarketId: market.parentMarketId
         ? market.parentMarketId.toString()
@@ -870,9 +877,14 @@ export class PostsService {
         isPythMarket,
         marketType: input.marketType || "binary",
         outcomeCount: input.outcomeCount ?? 2,
-        outcomes: input.outcomes && input.outcomes.length > 0 ? input.outcomes : ["YES", "NO"],
+        outcomes:
+          input.outcomes && input.outcomes.length > 0
+            ? input.outcomes
+            : ["YES", "NO"],
         handicap: input.handicap ?? null,
-        parentMarketId: input.parentMarketId ? new Types.ObjectId(input.parentMarketId) : null,
+        parentMarketId: input.parentMarketId
+          ? new Types.ObjectId(input.parentMarketId)
+          : null,
         optionName: input.optionName || null,
       })
 

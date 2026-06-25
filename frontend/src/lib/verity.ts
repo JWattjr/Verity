@@ -26,8 +26,14 @@ export interface Profile {
   isOnboarded?: boolean
   referredById?: string | null
   arenaXp?: number
-  doubleBoostRemaining?: number
-  downtimeBoostRemaining?: number
+  activeBoosts?: Array<{
+    type: string
+    multiplier: number
+    expiresAt: string | null
+    matchesRemaining: number
+    category: string | null
+    source: string
+  }>
   hasWonFirstPvpDuel?: boolean
   pvpMatchesWonCount?: number
   pvpMatchesLostCount?: number
@@ -65,6 +71,8 @@ export interface MarketPost {
   usdcNoAmount?: number
   liquidity?: number
   market_creation_fee_usdc?: number
+  minimumPoolBalance?: number
+  minimum_pool_balance?: number
   creationFeeTxHash?: string | null
   creation_fee_tx_hash?: string | null
   feeCollectorAddress?: string | null

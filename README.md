@@ -3,28 +3,30 @@
 ![Arc Testnet](https://img.shields.io/badge/Arc-Testnet-blue)
 ![Prediction Markets](https://img.shields.io/badge/Protocol-Prediction_Markets-emerald)
 
-> A social prediction network where opinions become USDC-backed markets.
+> A social sports prediction app and on-chain arena where players compete in PvP matchmaking duels backed by USDC prediction markets.
 
 ## Problem Statement
 
-Social media is full of opinions, but opinions are cheap when there's nothing at stake.
+Sports prediction platforms are often isolated from competitive social engagement, and traditional prediction markets can feel overly complex and dry.
 
-- Hot takes flood feeds with zero accountability.
-- There's no mechanism to separate genuine conviction from performative commentary.
-- Prediction markets exist, but they're isolated from the social graphs where discourse actually happens.
+- Social networks lack built-in accountability or stakes for sports predictions.
+- Traditional prediction markets lack direct player-vs-player (PvP) competitive layers and user community building.
+- It's hard to match predictions directly against other sports fans with opposing views in a fun, social environment.
 
 ## Solution
 
-Verity merges social media with on-chain prediction markets, letting users put USDC behind their opinions on the Arc Testnet.
+Verity fuses sports prediction duels with underlying prediction markets on the Arc Testnet, creating a social, competitive arena where fans face off directly in PvP prediction matchups.
 
-1. **Social-First Markets**
-   - Any post can become a YES/NO prediction market with clear resolution criteria, a deadline, and a verifiable source.
-2. **Community Signal Layer**
-   - Free daily Upvote/Downvote signals let the community qualify which ideas deserve real liquidity, before any money is at stake.
-3. **On-Chain AMM Trading**
-   - Qualified markets graduate to USDC-backed FPMM pools where users buy and sell outcome tokens at market-driven prices.
-4. **Autonomous Resolution**
-    - An AI agent powered by configurable LLMs (Claude, Gemini, OpenAI) and DuckDuckGo web search automatically resolves expired markets. Pyth price feeds handle objective price-based markets.
+1. **Social PvP Arena (Primary)**
+   - Create tickets containing multiple predictions for a sports matchup event.
+   - Algorithms match you against other users in your rank tier based on prediction divergence.
+   - Interact with the community, follow other sports predictors, and discuss matchups via nested comment threads on matchups/posts.
+2. **On-Chain AMM Trading (Underlying Engine)**
+   - Tickets are translated into positions in underlying USDC-backed Fixed Product Market Maker (FPMM) pools.
+   - Prices dynamically adjust based on pool liquidity and user trades.
+3. **Autonomous & Optimistic Resolution**
+   - Pyth price feeds automatically settle price-based prediction markets.
+   - An AI agent powered by configurable LLMs (Claude, Gemini, OpenAI, DeepSeek) and DuckDuckGo web search handles subjective resolution proposals, managed by an optimistic resolution dispute window.
 
 ## How It Works
 
@@ -33,9 +35,8 @@ Verity merges social media with on-chain prediction markets, letting users put U
 A prediction market on Verity follows a progressive lifecycle:
 
 ```plaintext
-Post Created → Open for Votes → Qualified (50+ signals)
-→ Funding Pool (USDC deposits) → Tradable (AMM live)
-→ Resolving → Resolved (YES/NO payout)
+Event Created → Qualified (Escrow Funding) → Tradable (20 USDC reached, AMM live)
+→ Closed (Predictions Locked) → Resolving → Resolved (Winning payouts)
 ```
 
 ### 2. Trading Mechanics
@@ -85,26 +86,29 @@ Verity/
 │       ├── ConditionalTokenVault.sol   # USDC escrow + outcome token minting
 │       ├── VerityMarketFactory.sol     # Market registry + pool deployment
 │       ├── VerityFPMM.sol              # Fixed Product Market Maker (AMM)
-│       ├── VerityOptimisticResolver.sol # Dispute-window resolution system
-│       └── VerityRouter.sol            # One-click user actions proxy
+│       └── VerityOptimisticResolver.sol # Dispute-window resolution system
 ├── backend/             # NestJS 11 API Server
 │   └── src/
 │       ├── modules/
-│       │   ├── agent/           # AI resolution agent (Claude/Gemini/OpenAI)
-│       │   ├── auth/            # Privy JWT auth + database-first guard
+│       │   ├── agent/           # AI resolution agent (Claude/Gemini/OpenAI/DeepSeek)
+│       │   ├── auth/            # Passwordless Email OTP via Resend + JWT guard
 │       │   ├── blockchain/      # Viem on-chain reads/writes + AA decoder
 │       │   ├── liquidity/       # LP pool state, positions, chain sync
 │       │   ├── markets/         # Market CRUD, voting, trading, keeper loop
+│       │   ├── pvp/             # PvP Arena duels, matchmaking, tickets, boosts
+│       │   ├── coupons/         # Promotional duel boost coupons
+│       │   ├── missions/        # Onboarding achievements
+│       │   ├── categories/      # Category tag filters
 │       │   ├── notifications/   # Activity feed notifications
-│       │   ├── posts/           # Social feed + market post creation
+│       │   ├── posts/           #社交 posts coordinators
 │       │   ├── socket/          # WebSocket real-time updates
 │       │   └── users/           # Wallet profiles + signal tracking
 │       └── common/              # Guards, filters, interceptors
 └── frontend/            # Next.js (App Router) + React 19
     └── src/
-        ├── app/                 # Pages: feed, markets, profile, wallet, notifications
-        ├── components/          # Feed, market cards, onboarding modal, layout
-        ├── hooks/               # Market liquidity, USDC transfers, portfolio, socket
+        ├── app/                 # Pages: feed, markets, profile, portfolio, notifications
+        ├── components/          # PvP Arena tabs, ticket builders, layout
+        ├── hooks/               # Market liquidity, USDC transfers, socket
         ├── lib/                 # Arc chain config, contract ABIs, type definitions
         └── store/               # Zustand stores + TanStack Query API layer
 ```
@@ -113,15 +117,15 @@ Verity/
 
 ### Smart Contracts (Foundry / Solidity 0.8.24)
 
-Five contracts deployed on Arc Testnet handle the full market lifecycle: a **ConditionalTokenVault** for USDC escrow and outcome token minting, a **VerityMarketFactory** for market registration and automatic pool deployment, a **VerityFPMM** for AMM trading, and a **VerityOptimisticResolver** for dispute-window based resolution
+Four contracts deployed on Arc Testnet handle the full market lifecycle: a **ConditionalTokenVault** for USDC escrow and outcome token minting, a **VerityMarketFactory** for market registration and automatic pool deployment, a **VerityFPMM** for AMM trading, and a **VerityOptimisticResolver** for dispute-window based resolution.
 
 ### Backend API (NestJS 11)
 
-A modular REST API with Swagger documentation, Privy-based JWT authentication with database-first lookups, WebSocket broadcasting for real-time feed updates, and an automated keeper service that resolves expired markets every 30 seconds using AI agents or Pyth price oracles.
+A modular REST API with Swagger documentation, passwordless Email OTP authentication with local database verification, Circle smart account wallet provisioning, WebSocket broadcasting for real-time feed updates, and an automated keeper service that resolves expired markets every 30 seconds using AI agents or Pyth price oracles.
 
 ### Frontend (Next.js + React 19)
 
-A premium social feed interface with Privy smart wallet onboarding (Account Abstraction), USDC-backed market trading, daily free signal voting, real-time WebSocket updates, and a responsive dark/light theme system.
+A premium social prediction interface with automatic smart wallet provisioning (Circle WaaS Account Abstraction), USDC-backed market trading, PvP matchmaking duels with interactive ticket builders, and a responsive styling layout.
 
 ## Getting Started
 
@@ -178,13 +182,12 @@ pnpm dev:frontend
 
 ## How to Test the Product
 
-1. **Log In**: Visit `http://localhost:3000` and sign in with your email via Privy.
-2. **Onboard**: Activate your smart wallet, choose a username, and fund with testnet USDC from the faucet.
-3. **Post a Claim**: Create a normal post or a prediction market with a clear question, YES/NO conditions, a deadline, and a resolution source.
-4. **Signal Conviction**: Cast free daily Upvote/Downvote signals on market posts to help them qualify.
-5. **Fund a Market**: Once a market qualifies (50+ signals), deposit USDC into the launch pool. The pool deploys automatically when it reaches 40 USDC.
-6. **Trade Outcomes**: Buy YES or NO shares on active markets. Watch prices move based on demand.
-7. **Watch Resolution**: After the deadline, the AI keeper automatically proposes and finalizes the outcome. Winning shares can be redeemed for USDC.
+1. **Log In**: Visit `http://localhost:3000` and sign in with your email using passwordless OTP via Resend.
+2. **Onboard**: Upon authentication, a Circle SCA wallet is automatically provisioned for you. Fund your wallet with testnet USDC.
+3. **Submit PvP Prediction Ticket**: Browse active events, pick outcomes across at least 3 propositions, apply any available boosts/coupons, and submit your ticket to the PvP matchmaking queue.
+4. **Opponent Matchmaking**: The system matches you against other queued users in your rank tier based on prediction divergence. If no player is found by the event lock time, you are matched with a bot.
+5. **Trade Outcomes**: You can buy/sell outcomes in underlying child markets of active events. Watch prices move dynamically as pools are funded.
+6. **Watch Resolution**: Once the event's lock time/deadline passes, the keeper automatically resolves the event (using Pyth historical feeds or LLM agent proposals). Duels are scored, XP is awarded to winners, and winning tickets can be redeemed for USDC.
 
 ---
 
