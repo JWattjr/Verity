@@ -160,7 +160,7 @@ export default function PvpMatchupCarousel({
     }
   }, [selectedPvpEventId])
 
-  // Filter and limit events (max 4 past matchups)
+  // Filter and limit events (max 7 past matchups)
   const filteredEvents = useMemo(() => {
     if (!pvpEvents) return []
 
@@ -192,13 +192,13 @@ export default function PvpMatchupCarousel({
       }
     })
 
-    // Sort closed ascending (oldest first), then take the 4 most recent closed ones
+    // Sort closed ascending (oldest first), then take the 7 most recent closed ones
     closed.sort((a, b) => {
       const timeA = new Date(a.lockTime || a.deadline || 0).getTime()
       const timeB = new Date(b.lockTime || b.deadline || 0).getTime()
       return timeA - timeB
     })
-    const limitedClosed = closed.slice(-5)
+    const limitedClosed = closed.slice(-7)
 
     // Ensure the selected matchup is always included in the carousel list even if it is an older closed matchup
     if (selectedPvpEventId) {
