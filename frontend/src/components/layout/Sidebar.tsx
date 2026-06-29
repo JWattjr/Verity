@@ -16,7 +16,7 @@ import {
 import ThemeToggle from "@/components/layout/ThemeToggle"
 import SidebarProfile from "@/components/layout/SidebarProfile"
 import { useWalletProfile } from "@/hooks/useWalletProfile"
-import { useNotificationsQuery } from "@/store/verity/verityQueries"
+import { useNotificationsQuery, useMissionsQuery } from "@/store/verity/verityQueries"
 import { useAuth } from "@/components/providers/AuthModals"
 
 const NAV_ITEMS = [
@@ -36,6 +36,8 @@ export default function Sidebar() {
   const { profile } = useWalletProfile()
   const { data: notifications = [] } = useNotificationsQuery(profile?.id || "")
   const unreadCount = notifications.filter((n: any) => !n.read).length
+  const { data: missions = [] } = useMissionsQuery(profile?.id)
+  const incompleteMissionsCount = missions.filter((m: any) => !m.completed).length
 
   return (
     <div className="verity-card flex h-full flex-col p-4">
@@ -91,6 +93,11 @@ export default function Sidebar() {
                   {item.href === "/notifications" && unreadCount > 0 && (
                     <span className="absolute -right-1 -top-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-coral-red text-[8px] font-bold text-white shadow-sm ring-1.5 ring-surface-solid">
                       {unreadCount}
+                    </span>
+                  )}
+                  {item.href === "/missions" && incompleteMissionsCount > 0 && (
+                    <span className="absolute -right-1 -top-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-coral-red text-[8px] font-bold text-white shadow-sm ring-1.5 ring-surface-solid">
+                      {incompleteMissionsCount}
                     </span>
                   )}
                 </div>

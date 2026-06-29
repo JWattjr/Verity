@@ -12,7 +12,9 @@ import toast from "@/lib/toast"
 
 export default function MissionsPage() {
   const { profile } = useWalletProfile()
-  const { data: missions, isLoading: isMissionsLoading } = useMissionsQuery()
+  const { data: missions, isLoading: isMissionsLoading } = useMissionsQuery(
+    profile?.id,
+  )
   const { mutateAsync: linkTwitter, isPending: isLinking } =
     useLinkTwitterMutation()
   const { mutateAsync: completeMission } = useCompleteMissionMutation()

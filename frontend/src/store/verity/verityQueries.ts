@@ -794,10 +794,11 @@ export interface Mission {
   rewardMatchesCount?: number | null
 }
 
-export function useMissionsQuery() {
+export function useMissionsQuery(userId?: string) {
   return useQuery({
-    queryKey: ["missions"] as const,
+    queryKey: ["missions", userId || ""] as const,
     queryFn: () => apiRequest<Mission[]>("/missions"),
+    enabled: Boolean(userId),
   })
 }
 
