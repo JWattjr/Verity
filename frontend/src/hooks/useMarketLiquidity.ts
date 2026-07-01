@@ -9,6 +9,7 @@ import {
   publicClient,
   erc20Abi,
 } from "@/lib/arc"
+import { maxUint256 } from "viem"
 import { conditionalTokenVaultAbi } from "@/lib/contracts-generated"
 import {
   useFundPoolMutation,
@@ -72,7 +73,7 @@ export function useMarketLiquidity() {
         calls.push({
           contractAddress: arcUsdcAddress,
           abiFunctionSignature: "approve(address,uint256)",
-          abiParameters: [FACTORY_ADDRESS, rawAmount],
+          abiParameters: [FACTORY_ADDRESS, maxUint256],
         })
       }
 
@@ -155,7 +156,7 @@ export function useMarketLiquidity() {
         calls.push({
           contractAddress: arcUsdcAddress,
           abiFunctionSignature: "approve(address,uint256)",
-          abiParameters: [FPMM_ADDRESS, rawAmount],
+          abiParameters: [FPMM_ADDRESS, maxUint256],
         })
       }
 
@@ -282,7 +283,7 @@ export function useMarketLiquidity() {
         calls.push({
           contractAddress: arcUsdcAddress,
           abiFunctionSignature: "approve(address,uint256)",
-          abiParameters: [FPMM_ADDRESS, rawAmount],
+          abiParameters: [FPMM_ADDRESS, maxUint256],
         })
       }
 

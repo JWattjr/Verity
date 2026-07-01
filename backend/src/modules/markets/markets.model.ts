@@ -114,7 +114,7 @@ export class Market {
   @Prop({ type: Number, default: 10 })
   creatorLiquidityUsdc: number
 
-  @Prop({ type: Number, default: 6 })
+  @Prop({ type: Number, default: 20 })
   minimumPoolBalance: number
 
   @Prop({ type: Date, default: null })

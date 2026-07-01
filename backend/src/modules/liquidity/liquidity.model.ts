@@ -40,7 +40,7 @@ export class LiquidityPool {
   @Prop({ type: Number, default: 0 })
   currentPoolBalance: number
 
-  @Prop({ type: Number, default: 6 })
+  @Prop({ type: Number, default: 20 })
   minimumPoolBalance: number
 
   @Prop({ type: Date, required: true })

@@ -208,11 +208,6 @@ export class MarketsKeeperService implements OnModuleInit, OnModuleDestroy {
     const expiredMarkets = await this.marketModel.find({
       isPythMarket: { $ne: true },
       marketType: { $ne: "parent" },
-      // Exclude multi-outcome markets (optimistic resolver contract only supports binary)
-      // $or: [
-      //   { outcomeCount: { $exists: false } },
-      //   { outcomeCount: { $lte: 2 } },
-      // ],
       status: { $in: ["tradable", "resolving", "closed"] },
       deadline: { $lte: now },
     })

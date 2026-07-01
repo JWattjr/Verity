@@ -6,6 +6,7 @@ import { useAuth } from "@/components/providers/AuthModals"
 import { useMarketResolution } from "@/hooks/useMarketResolution"
 import { useUsdcBalance } from "@/hooks/useUsdcBalance"
 import { arcUsdcAddress, FPMM_ADDRESS, publicClient } from "@/lib/arc"
+import { maxUint256 } from "viem"
 import {
   useSubmitPvpTicketMutation,
   useExecuteMarketTradeMutation,
@@ -358,7 +359,7 @@ export default function PvpArenaTab({
         batchCalls.push({
           contractAddress: arcUsdcAddress,
           abiFunctionSignature: "approve(address,uint256)",
-          abiParameters: [FPMM_ADDRESS, rawTotalAmount],
+          abiParameters: [FPMM_ADDRESS, maxUint256],
         })
       }
 

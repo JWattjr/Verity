@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useSearchParams } from "next/navigation"
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState, useRef } from "react"
 import { useQueryClient } from "@tanstack/react-query"
 import { toast } from "@/lib/toast"
 
@@ -91,6 +91,7 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
   const [commentDraft, setCommentDraft] = useState("")
   const [commentLoading, setCommentLoading] = useState(false)
   const [tradeAmount, setTradeAmount] = useState("1")
+  const isTradingRef = useRef(false)
   const [tradeAction, setTradeAction] = useState<MarketTradeAction>(
     queryAction || "BUY",
   )
@@ -498,48 +499,54 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
 
   const executeTrade = useCallback(
     async (side: VoteSide) => {
-      if (!activeMarket || !profileId) return
+      if (!activeMarket || !profileId || isTradingRef.current) return
+      isTradingRef.current = true
 
-      if (tradeAction === "BUY" && isBalanceInsufficient) {
-        toast.error(`Insufficient USDC balance`)
-        return
+      try {
+        if (tradeAction === "BUY" && isBalanceInsufficient) {
+          toast.error(`Insufficient USDC balance`)
+          return
+        }
+
+        await runAction("trade", async () => {
+          const amount = Number(tradeAmount)
+          if (!Number.isFinite(amount) || amount <= 0) {
+            throw new Error("Enter a valid USDC amount.")
+          }
+          const isMulti =
+            activeMarket.outcomeCount !== undefined &&
+            activeMarket.outcomeCount > 2
+          const outcomeIndex = isMulti
+            ? (activeMarket.outcomes?.indexOf(side) ?? -1)
+            : -1
+          const isYesOrIndex = isMulti ? outcomeIndex : side === "YES"
+
+          if (tradeAction === "BUY") {
+            await buyTokens(
+              activeMarket.id,
+              profileId,
+              isYesOrIndex,
+              tradeAmountNumber,
+              tradeFee,
+              buyShares,
+              isMulti ? side : undefined,
+            )
+          } else {
+            await sellTokens(
+              activeMarket.id,
+              profileId,
+              isYesOrIndex,
+              amount,
+              tradeTotal,
+              tradeFee,
+              isMulti ? side : undefined,
+            )
+          }
+          setTradeAmount("")
+        })
+      } finally {
+        isTradingRef.current = false
       }
-
-      await runAction("trade", async () => {
-        const amount = Number(tradeAmount)
-        if (!Number.isFinite(amount) || amount <= 0) {
-          throw new Error("Enter a valid USDC amount.")
-        }
-        const isMulti =
-          activeMarket.outcomeCount !== undefined &&
-          activeMarket.outcomeCount > 2
-        const outcomeIndex = isMulti
-          ? (activeMarket.outcomes?.indexOf(side) ?? -1)
-          : -1
-        const isYesOrIndex = isMulti ? outcomeIndex : side === "YES"
-
-        if (tradeAction === "BUY") {
-          await buyTokens(
-            activeMarket.id,
-            profileId,
-            isYesOrIndex,
-            tradeAmountNumber,
-            tradeFee,
-            buyShares,
-            isMulti ? side : undefined,
-          )
-        } else {
-          await sellTokens(
-            activeMarket.id,
-            profileId,
-            isYesOrIndex,
-            amount,
-            tradeTotal,
-            tradeFee,
-            isMulti ? side : undefined,
-          )
-        }
-      })
     },
     [
       activeMarket,
@@ -555,6 +562,8 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
       tradeTotal,
       isBalanceInsufficient,
       balance.formattedBalance,
+      setTradeAmount,
+      isTradingRef,
     ],
   )
 
