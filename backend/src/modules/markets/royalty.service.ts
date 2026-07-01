@@ -1,28 +1,48 @@
-import { Injectable, Logger, OnModuleInit } from "@nestjs/common"
+import {
+  Injectable,
+  Logger,
+  OnModuleInit,
+  OnModuleDestroy,
+} from "@nestjs/common"
 import { InjectModel } from "@nestjs/mongoose"
 import { Model } from "mongoose"
 import { MarketTrade, MarketTradeDocument } from "./markets.model"
 import { BlockchainService } from "../blockchain/blockchain.service"
 
+import { ConfigService } from "@nestjs/config"
+
 @Injectable()
-export class RoyaltyService implements OnModuleInit {
+export class RoyaltyService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(RoyaltyService.name)
   private isProcessingQueue = false
+  private intervalId: NodeJS.Timeout | null = null
 
   constructor(
     @InjectModel(MarketTrade.name)
     private readonly marketTradeModel: Model<MarketTradeDocument>,
     private readonly blockchainService: BlockchainService,
+    private readonly configService: ConfigService,
   ) {}
 
   onModuleInit() {
-    this.logger.log("Initializing Royalty Payout Queue Processor...")
-    // Process pending payouts every 15 seconds
-    setInterval(() => {
+    const intervalMs =
+      this.configService.get<number>("ROYALTY_QUEUE_INTERVAL_MS") || 120000
+    this.logger.log(
+      `Initializing Royalty Payout Queue Processor (interval: ${intervalMs}ms)...`,
+    )
+    this.intervalId = setInterval(() => {
       this.processPendingRoyaltiesQueue().catch((err) => {
-        this.logger.error(`Error in royalty payout background process: ${err.message}`)
+        this.logger.error(
+          `Error in royalty payout background process: ${err.message}`,
+        )
       })
-    }, 15000)
+    }, intervalMs)
+  }
+
+  onModuleDestroy() {
+    if (this.intervalId) {
+      clearInterval(this.intervalId)
+    }
   }
 
   /**
@@ -49,7 +69,9 @@ export class RoyaltyService implements OnModuleInit {
         return
       }
 
-      this.logger.log(`Found ${pendingTrades.length} pending royalties to process.`)
+      this.logger.log(
+        `Found ${pendingTrades.length} pending royalties to process.`,
+      )
 
       // Group trades by marketId first to resolve their pool creator address once per market
       const tradesByMarket: Record<string, MarketTradeDocument[]> = {}
@@ -95,7 +117,7 @@ export class RoyaltyService implements OnModuleInit {
 
           for (const trade of trades) {
             // Royalty is 50% of the 40% platform fee = 20% of total feeUsdc
-            const rAmt = Number((trade.feeUsdc * 0.40 * 0.50).toFixed(6))
+            const rAmt = Number((trade.feeUsdc * 0.4 * 0.5).toFixed(6))
             tradesByCreator[creatorKey].trades.push(trade)
             tradesByCreator[creatorKey].amount += rAmt
           }
@@ -108,7 +130,9 @@ export class RoyaltyService implements OnModuleInit {
       }
 
       // Process payouts for each creator address sequentially to avoid nonce collisions
-      const adminAddress = this.blockchainService.getAdminAddress().toLowerCase()
+      const adminAddress = this.blockchainService
+        .getAdminAddress()
+        .toLowerCase()
 
       for (const [creatorAddress, data] of Object.entries(tradesByCreator)) {
         const totalAmount = Number(data.amount.toFixed(6))
@@ -145,7 +169,7 @@ export class RoyaltyService implements OnModuleInit {
 
           // Mark trades as paid in MongoDB
           for (const trade of tradesToUpdate) {
-            const rAmt = Number((trade.feeUsdc * 0.40 * 0.50).toFixed(6))
+            const rAmt = Number((trade.feeUsdc * 0.4 * 0.5).toFixed(6))
             trade.royaltyPaid = true
             trade.royaltyPaidTxHash = txHash
             trade.royaltyAmountUsdc = rAmt
@@ -159,7 +183,9 @@ export class RoyaltyService implements OnModuleInit {
         }
       }
     } catch (err: any) {
-      this.logger.error(`Failed to process pending royalties queue: ${err.message}`)
+      this.logger.error(
+        `Failed to process pending royalties queue: ${err.message}`,
+      )
     } finally {
       this.isProcessingQueue = false
     }

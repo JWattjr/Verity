@@ -115,11 +115,15 @@ export class MarketsKeeperService implements OnModuleInit, OnModuleDestroy {
               market.resolveAbove ?? true,
             )
           } else {
+            this.logger.log(
+              `[Keeper] Registering market ${marketIdStr} on-chain with outcomeCount=${market.outcomeCount}`,
+            )
             await this.blockchainService.registerMarket(
               marketIdStr,
               creator.walletAddress,
               deadlineUnix,
               fundingDeadlineUnix,
+              market.outcomeCount,
             )
           }
 

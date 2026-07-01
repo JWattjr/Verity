@@ -531,11 +531,15 @@ export class MarketsService implements OnModuleInit {
           market.resolveAbove ?? true,
         )
       } else {
+        this.logger.log(
+          `Registering market ${marketId} on-chain with outcomeCount=${market.outcomeCount}`,
+        )
         await this.blockchainService.registerMarket(
           marketId,
           creator.walletAddress,
           deadlineUnix,
           fundingDeadlineUnix,
+          market.outcomeCount,
         )
       }
     } catch (error) {
