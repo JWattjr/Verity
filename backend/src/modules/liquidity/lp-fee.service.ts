@@ -12,6 +12,7 @@ import { MarketTrade } from "../markets/markets.model"
 import { LPPosition, LPPositionDocument, LiquidityPool, LiquidityPoolDocument, LpFeeLedger, LpFeeLedgerDocument } from "./liquidity.model"
 import { User, UserDocument } from "../users/users.model"
 import { BlockchainService } from "../blockchain/blockchain.service"
+import { NanopaymentsService } from "../circle-wallet/nanopayments.service"
 import { ConfigService } from "@nestjs/config"
 
 @Injectable()
@@ -34,6 +35,7 @@ export class LpFeeService implements OnModuleInit, OnModuleDestroy {
     private readonly userModel: Model<UserDocument>,
     private readonly blockchainService: BlockchainService,
     private readonly configService: ConfigService,
+    private readonly nanopaymentsService: NanopaymentsService,
   ) {}
 
   onModuleInit() {
@@ -214,12 +216,12 @@ export class LpFeeService implements OnModuleInit, OnModuleDestroy {
           let txHash = "self_split"
 
           if (ledger.walletAddress.toLowerCase() !== adminAddress) {
-            txHash = await this.blockchainService.transferUsdcFromTreasury(
+            txHash = await this.nanopaymentsService.payoutUSDC(
               ledger.walletAddress,
               amount,
             )
             this.logger.log(
-              `Auto-pushed LP fee payout of ${amount} USDC to ${ledger.walletAddress}. Tx: ${txHash}`,
+              `Auto-pushed LP fee payout of ${amount} USDC via Circle Gateway to ${ledger.walletAddress}. Tx: ${txHash}`,
             )
           } else {
             this.logger.log(
@@ -230,6 +232,7 @@ export class LpFeeService implements OnModuleInit, OnModuleDestroy {
           ledger.totalPaidFeesUsdc += ledger.accruedFeesUsdc
           ledger.accruedFeesUsdc = 0
           ledger.lastPayoutTxHash = txHash
+          ledger.payoutStatus = "settled"
           await ledger.save()
         } catch (err: any) {
           this.logger.error(
@@ -272,12 +275,12 @@ export class LpFeeService implements OnModuleInit, OnModuleDestroy {
       let txHash = "self_split"
 
       if (user.walletAddress.toLowerCase() !== adminAddress) {
-        txHash = await this.blockchainService.transferUsdcFromTreasury(
+        txHash = await this.nanopaymentsService.payoutUSDC(
           user.walletAddress,
           amount,
         )
         this.logger.log(
-          `User ${user.username} claimed LP fee payout of ${amount} USDC to ${user.walletAddress}. Tx: ${txHash}`,
+          `User ${user.username} claimed LP fee payout of ${amount} USDC via Circle Gateway to ${user.walletAddress}. Tx: ${txHash}`,
         )
       } else {
         this.logger.log(
@@ -288,6 +291,7 @@ export class LpFeeService implements OnModuleInit, OnModuleDestroy {
       ledger.totalPaidFeesUsdc += ledger.accruedFeesUsdc
       ledger.accruedFeesUsdc = 0
       ledger.lastPayoutTxHash = txHash
+      ledger.payoutStatus = "settled"
       await ledger.save()
 
       return {

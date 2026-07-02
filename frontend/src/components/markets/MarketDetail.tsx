@@ -70,9 +70,13 @@ const EMPTY_ARRAY: any[] = []
 
 interface MarketDetailProps {
   marketId: string
+  hideOutcomesList?: boolean
 }
 
-export default function MarketDetail({ marketId }: MarketDetailProps) {
+export default function MarketDetail({
+  marketId,
+  hideOutcomesList = false,
+}: MarketDetailProps) {
   const { user } = useAuth()
   const profile = user
   const queryClient = useQueryClient()
@@ -801,19 +805,21 @@ export default function MarketDetail({ marketId }: MarketDetailProps) {
         devQualifyLoading={actionPending === "dev_qualify"}
       />
 
-      {market.marketType === "parent" && market.childMarkets && (
-        <OutcomesPanel
-          childMarkets={market.childMarkets}
-          selectedChildId={selectedChildId}
-          selectedSide={selectedSide}
-          marketStatus={market.status}
-          onSelectOptionAndSide={(childId, side) => {
-            setSelectedChildId(childId)
-            setSelectedSide(side)
-            setTradeAction("BUY")
-          }}
-        />
-      )}
+      {!hideOutcomesList &&
+        market.marketType === "parent" &&
+        market.childMarkets && (
+          <OutcomesPanel
+            childMarkets={market.childMarkets}
+            selectedChildId={selectedChildId}
+            selectedSide={selectedSide}
+            marketStatus={market.status}
+            onSelectOptionAndSide={(childId, side) => {
+              setSelectedChildId(childId)
+              setSelectedSide(side)
+              setTradeAction("BUY")
+            }}
+          />
+        )}
 
       {/* Mobile Right Sidebar Slots */}
       <div className="flex flex-col gap-3 lg:hidden">{sidebarPanels}</div>

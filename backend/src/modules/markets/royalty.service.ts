@@ -8,6 +8,7 @@ import { InjectModel } from "@nestjs/mongoose"
 import { Model } from "mongoose"
 import { MarketTrade, MarketTradeDocument } from "./markets.model"
 import { BlockchainService } from "../blockchain/blockchain.service"
+import { NanopaymentsService } from "../circle-wallet/nanopayments.service"
 
 import { ConfigService } from "@nestjs/config"
 
@@ -22,6 +23,7 @@ export class RoyaltyService implements OnModuleInit, OnModuleDestroy {
     private readonly marketTradeModel: Model<MarketTradeDocument>,
     private readonly blockchainService: BlockchainService,
     private readonly configService: ConfigService,
+    private readonly nanopaymentsService: NanopaymentsService,
   ) {}
 
   onModuleInit() {
@@ -105,6 +107,7 @@ export class RoyaltyService implements OnModuleInit, OnModuleDestroy {
               trade.royaltyPaid = true
               trade.royaltyAmountUsdc = 0
               trade.royaltyPaidTxHash = "invalid_creator"
+              trade.royaltyStatus = "settled"
               await trade.save()
             }
             continue
@@ -144,6 +147,7 @@ export class RoyaltyService implements OnModuleInit, OnModuleDestroy {
             trade.royaltyPaid = true
             trade.royaltyAmountUsdc = 0
             trade.royaltyPaidTxHash = "zero_amount"
+            trade.royaltyStatus = "settled"
             await trade.save()
           }
           continue
@@ -154,12 +158,12 @@ export class RoyaltyService implements OnModuleInit, OnModuleDestroy {
 
           // Skip on-chain transfer if creator is the admin/treasury wallet
           if (creatorAddress !== adminAddress) {
-            txHash = await this.blockchainService.transferUsdcFromTreasury(
+            txHash = await this.nanopaymentsService.payoutUSDC(
               creatorAddress,
               totalAmount,
             )
             this.logger.log(
-              `Paid batched creator royalty of ${totalAmount} USDC to ${creatorAddress} for ${tradesToUpdate.length} trades. Tx: ${txHash}`,
+              `Paid batched creator royalty of ${totalAmount} USDC via Circle Gateway to ${creatorAddress} for ${tradesToUpdate.length} trades. Tx: ${txHash}`,
             )
           } else {
             this.logger.log(
@@ -173,6 +177,7 @@ export class RoyaltyService implements OnModuleInit, OnModuleDestroy {
             trade.royaltyPaid = true
             trade.royaltyPaidTxHash = txHash
             trade.royaltyAmountUsdc = rAmt
+            trade.royaltyStatus = "settled"
             await trade.save()
           }
         } catch (error: any) {

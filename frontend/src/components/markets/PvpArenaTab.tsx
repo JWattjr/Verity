@@ -12,12 +12,21 @@ import {
   useExecuteMarketTradeMutation,
 } from "@/store/verity/verityQueries"
 import { toast } from "@/lib/toast"
-import { Lock, ArrowRight, Loader2, Swords } from "lucide-react"
 import PvpMatchupCarousel, {
   getCountryFlag,
   parseEventTeams,
 } from "./PvpMatchupCarousel"
 import PvpClaimBanner from "./PvpClaimBanner"
+import { useDrawerStore } from "@/store/drawerStore"
+import {
+  Drawer,
+  DrawerContent,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerClose,
+} from "@/components/ui/drawer"
+import MarketDetail from "@/components/markets/MarketDetail"
+import { X, Lock, ArrowRight, Loader2, Swords } from "lucide-react"
 
 // Sub-components
 import PvpArenaSkeleton from "./PvpArenaSkeleton"
@@ -62,6 +71,12 @@ export default function PvpArenaTab({
   const { user, executeTxBatch, closeTxConfirm } = useAuth()
   const { redeemMultipleWinnings } = useMarketResolution()
   const { rawBalance } = useUsdcBalance()
+  const {
+    tradeMarketId,
+    isTradeDrawerOpen,
+    openTradeDrawer,
+    closeTradeDrawer,
+  } = useDrawerStore()
   const submitTicketMutation = useSubmitPvpTicketMutation()
   const { mutateAsync: executeMarketTrade } = useExecuteMarketTradeMutation()
 
@@ -532,7 +547,12 @@ export default function PvpArenaTab({
                 onClaim={handleClaim}
                 showEmoji={true}
               />
-              <PvpDuelPicks pvpStatus={pvpStatus} />
+              <PvpDuelPicks
+                pvpStatus={pvpStatus}
+                onSelectChildMarketForTrade={(market) =>
+                  openTradeDrawer(market.id)
+                }
+              />
             </div>
           )}
 
@@ -680,6 +700,28 @@ export default function PvpArenaTab({
         refetchPvpStatus={refetchPvpStatus}
         profile={profile}
       />
+
+      {/* Dynamic Trade Drawer for PvP Picks */}
+      <Drawer
+        open={isTradeDrawerOpen}
+        onOpenChange={(open) => !open && closeTradeDrawer()}
+      >
+        <DrawerContent className="max-h-[92vh] rounded-t-3xl border-t border-stone-surface bg-warm-canvas pb-6 px-4 outline-none overflow-y-auto">
+          <DrawerHeader className="relative flex items-center justify-between border-b border-stone-surface pb-3 pt-2 mb-4">
+            <DrawerTitle className="font-heading text-lg font-bold text-charcoal-primary">
+              Trade Outcome Shares
+            </DrawerTitle>
+            <DrawerClose className="rounded-full p-1.5 hover:bg-stone-surface text-ash hover:text-charcoal-primary transition-colors">
+              <X className="h-4.5 w-4.5" />
+            </DrawerClose>
+          </DrawerHeader>
+          <div className="px-2">
+            {tradeMarketId && (
+              <MarketDetail marketId={tradeMarketId} hideOutcomesList={true} />
+            )}
+          </div>
+        </DrawerContent>
+      </Drawer>
     </div>
   )
 }

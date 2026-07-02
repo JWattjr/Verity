@@ -163,6 +163,18 @@ export class LpFeeLedger {
 
   @Prop({ type: String, default: null })
   lastPayoutTxHash: string | null
+
+  @Prop({ type: String, default: null })
+  pendingAuthSignature: string | null
+
+  @Prop({ type: String, default: null })
+  pendingAuthNonce: string | null
+
+  @Prop({ type: Number, default: null })
+  pendingAuthValidBefore: number | null
+
+  @Prop({ type: String, enum: ["pending", "authorized", "settled"], default: "pending", index: true })
+  payoutStatus: "pending" | "authorized" | "settled"
 }
 
 export const LpFeeLedgerSchema = SchemaFactory.createForClass(LpFeeLedger)

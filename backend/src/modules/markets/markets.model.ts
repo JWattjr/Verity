@@ -375,6 +375,18 @@ export class MarketTrade {
   @Prop({ type: Number, default: 0 })
   royaltyAmountUsdc: number
 
+  @Prop({ type: String, default: null })
+  royaltyAuthSignature: string | null
+
+  @Prop({ type: String, default: null })
+  royaltyNonce: string | null
+
+  @Prop({ type: Number, default: null })
+  royaltyValidBefore: number | null
+
+  @Prop({ type: String, enum: ["pending", "authorized", "settled"], default: "pending", index: true })
+  royaltyStatus: "pending" | "authorized" | "settled"
+
   @Prop({ type: Boolean, default: true, index: true })
   lpFeesPending: boolean
 

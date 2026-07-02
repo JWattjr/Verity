@@ -15,6 +15,7 @@ import {
 } from "./liquidity.model"
 import { Market, MarketSchema, MarketTrade, MarketTradeSchema } from "../markets/markets.model"
 import { User, UserSchema } from "../users/users.model"
+import { CircleWalletModule } from "../circle-wallet/circle-wallet.module"
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { User, UserSchema } from "../users/users.model"
       { name: MarketTrade.name, schema: MarketTradeSchema },
       { name: User.name, schema: UserSchema },
     ]),
+    CircleWalletModule,
   ],
   controllers: [LiquidityController],
   providers: [LiquidityService, LpFeeService],

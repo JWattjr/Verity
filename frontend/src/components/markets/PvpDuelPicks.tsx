@@ -2,9 +2,10 @@ import { cleanOutcomeName } from "./PvpTicketBuilder"
 
 interface PvpDuelPicksProps {
   pvpStatus: any
+  onSelectChildMarketForTrade?: (market: any) => void
 }
 
-export default function PvpDuelPicks({ pvpStatus }: PvpDuelPicksProps) {
+export default function PvpDuelPicks({ pvpStatus, onSelectChildMarketForTrade }: PvpDuelPicksProps) {
   const userPicks = pvpStatus.ticket?.picks || []
   const oppPicks = pvpStatus.opponent?.picks || []
 
@@ -70,11 +71,11 @@ export default function PvpDuelPicks({ pvpStatus }: PvpDuelPicksProps) {
 
           const isResolved =
             childOpt?.status === "resolved" ||
-            childOpt?.resolvedOutcome !== null ||
+            (childOpt?.resolvedOutcome !== null && childOpt?.resolvedOutcome !== undefined) ||
             pick?.status === "resolved" ||
-            pick?.resolvedOutcome !== null ||
+            (pick?.resolvedOutcome !== null && pick?.resolvedOutcome !== undefined) ||
             oppPick?.status === "resolved" ||
-            oppPick?.resolvedOutcome !== null
+            (oppPick?.resolvedOutcome !== null && oppPick?.resolvedOutcome !== undefined)
 
           const resolvedOutcome =
             childOpt?.resolvedOutcome ||
@@ -85,7 +86,16 @@ export default function PvpDuelPicks({ pvpStatus }: PvpDuelPicksProps) {
           return (
             <div
               key={marketId}
-              className="flex flex-col gap-3 p-4 rounded-xl bg-parchment-card dark:bg-zinc-900/40 border border-border dark:border-zinc-800/85"
+              onClick={() => {
+                if (childOpt && !isResolved) {
+                  onSelectChildMarketForTrade?.(childOpt)
+                }
+              }}
+              className={`flex flex-col gap-3 p-4 rounded-xl bg-parchment-card dark:bg-zinc-900/40 border border-border dark:border-zinc-800/85 transition-all ${
+                childOpt && !isResolved
+                  ? "cursor-pointer hover:border-sky-blue/50 hover:bg-stone-surface/30 active:scale-[0.99]"
+                  : ""
+              }`}
             >
               {/* Top row: Title + Shares */}
               <div className="flex items-baseline justify-between gap-2">
