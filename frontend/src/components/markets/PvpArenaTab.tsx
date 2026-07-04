@@ -84,7 +84,7 @@ export default function PvpArenaTab({
   const [mounted, setMounted] = useState<boolean>(false)
   const [showBuilderOverride, setShowBuilderOverride] = useState<boolean>(false)
   const [betAmountPerSelection, setBetAmountPerSelection] = useState<number>(5)
-  const [pvpSelections, setPvpSelections] = useState<Record<string, string>>({})
+  const [allPvpSelections, setAllPvpSelections] = useState<Record<string, Record<string, string>>>({})
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false)
   const [isRegisteringQueue, setIsRegisteringQueue] = useState<boolean>(false)
   const [showTooltip, setShowTooltip] = useState<boolean>(false)
@@ -205,12 +205,13 @@ export default function PvpArenaTab({
       selectedPvpEvent.status === "resolved" ||
       selectedPvpEvent.status === "closed")
 
+  const pvpSelections = selectedPvpEvent ? (allPvpSelections[selectedPvpEvent.id] || {}) : {}
+
   // ─── Effects ────────────────────────────────────────────────
 
-  // Reset selections when event changes
+  // Reset override when event changes
   useEffect(() => {
     if (selectedPvpEvent) {
-      setPvpSelections({})
       setShowBuilderOverride(false)
     }
   }, [selectedPvpEvent])
@@ -219,12 +220,16 @@ export default function PvpArenaTab({
 
   const handleToggleSelection = useCallback(
     (optId: string, selection: string) => {
-      setPvpSelections((prev) => {
-        const next = { ...prev }
+      if (!selectedPvpEvent) return;
 
-        if (next[optId] === selection) {
-          delete next[optId]
-          return next
+      setAllPvpSelections((prevAll) => {
+        const eventId = selectedPvpEvent.id;
+        const prevEventSelections = prevAll[eventId] || {};
+        const nextEventSelections = { ...prevEventSelections };
+
+        if (nextEventSelections[optId] === selection) {
+          delete nextEventSelections[optId];
+          return { ...prevAll, [eventId]: nextEventSelections };
         }
 
         const currentOpt = selectedPvpEvent?.options?.find(
@@ -235,13 +240,13 @@ export default function PvpArenaTab({
         if (group) {
           selectedPvpEvent.options.forEach((otherOpt: any) => {
             if (otherOpt.id !== optId && otherOpt.optionGroup === group) {
-              delete next[otherOpt.id]
+              delete nextEventSelections[otherOpt.id]
             }
           })
         }
 
-        next[optId] = selection
-        return next
+        nextEventSelections[optId] = selection;
+        return { ...prevAll, [eventId]: nextEventSelections };
       })
     },
     [selectedPvpEvent],
@@ -434,7 +439,11 @@ export default function PvpArenaTab({
       setIsRegisteringQueue(true)
       setIsSubmitting(false)
       setShowBuilderOverride(false)
-      setPvpSelections({})
+      setAllPvpSelections((prev) => {
+        const next = { ...prev }
+        delete next[selectedPvpEvent.id]
+        return next
+      })
 
       // 5. Register trades and submit ticket to queue in background
       const tradePromises = picks.map((pick) => {
