@@ -34,6 +34,7 @@ import PvpDuelStatus from "./PvpDuelStatus"
 import PvpDuelPicks from "./PvpDuelPicks"
 import PvpTicketBuilder from "./PvpTicketBuilder"
 import PvpLiquidityModal from "./PvpLiquidityModal"
+import { useMarketLiquidity } from "@/hooks/useMarketLiquidity"
 
 function formatMarketId(marketId: string): `0x${string}` {
   const clean = marketId.replace(/^0x/, "")
@@ -79,12 +80,13 @@ export default function PvpArenaTab({
   } = useDrawerStore()
   const submitTicketMutation = useSubmitPvpTicketMutation()
   const { mutateAsync: executeMarketTrade } = useExecuteMarketTradeMutation()
+  const { batchAddPoolLiquidity } = useMarketLiquidity()
 
   // ─── Local state ────────────────────────────────────────────
   const [mounted, setMounted] = useState<boolean>(false)
   const [showBuilderOverride, setShowBuilderOverride] = useState<boolean>(false)
   const [betAmountPerSelection, setBetAmountPerSelection] = useState<number>(5)
-  const [pvpSelections, setPvpSelections] = useState<Record<string, string>>({})
+  const [allPvpSelections, setAllPvpSelections] = useState<Record<string, Record<string, string>>>({})
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false)
   const [isRegisteringQueue, setIsRegisteringQueue] = useState<boolean>(false)
   const [showTooltip, setShowTooltip] = useState<boolean>(false)
@@ -205,12 +207,13 @@ export default function PvpArenaTab({
       selectedPvpEvent.status === "resolved" ||
       selectedPvpEvent.status === "closed")
 
+  const pvpSelections = selectedPvpEvent ? (allPvpSelections[selectedPvpEvent.id] || {}) : {}
+
   // ─── Effects ────────────────────────────────────────────────
 
-  // Reset selections when event changes
+  // Reset override when event changes
   useEffect(() => {
     if (selectedPvpEvent) {
-      setPvpSelections({})
       setShowBuilderOverride(false)
     }
   }, [selectedPvpEvent])
@@ -219,12 +222,16 @@ export default function PvpArenaTab({
 
   const handleToggleSelection = useCallback(
     (optId: string, selection: string) => {
-      setPvpSelections((prev) => {
-        const next = { ...prev }
+      if (!selectedPvpEvent) return;
 
-        if (next[optId] === selection) {
-          delete next[optId]
-          return next
+      setAllPvpSelections((prevAll) => {
+        const eventId = selectedPvpEvent.id;
+        const prevEventSelections = prevAll[eventId] || {};
+        const nextEventSelections = { ...prevEventSelections };
+
+        if (nextEventSelections[optId] === selection) {
+          delete nextEventSelections[optId];
+          return { ...prevAll, [eventId]: nextEventSelections };
         }
 
         const currentOpt = selectedPvpEvent?.options?.find(
@@ -235,13 +242,13 @@ export default function PvpArenaTab({
         if (group) {
           selectedPvpEvent.options.forEach((otherOpt: any) => {
             if (otherOpt.id !== optId && otherOpt.optionGroup === group) {
-              delete next[otherOpt.id]
+              delete nextEventSelections[otherOpt.id]
             }
           })
         }
 
-        next[optId] = selection
-        return next
+        nextEventSelections[optId] = selection;
+        return { ...prevAll, [eventId]: nextEventSelections };
       })
     },
     [selectedPvpEvent],
@@ -434,7 +441,11 @@ export default function PvpArenaTab({
       setIsRegisteringQueue(true)
       setIsSubmitting(false)
       setShowBuilderOverride(false)
-      setPvpSelections({})
+      setAllPvpSelections((prev) => {
+        const next = { ...prev }
+        delete next[selectedPvpEvent.id]
+        return next
+      })
 
       // 5. Register trades and submit ticket to queue in background
       const tradePromises = picks.map((pick) => {
@@ -479,6 +490,38 @@ export default function PvpArenaTab({
       if (!err.message?.includes("rejected")) {
         toast.error("Failed to purchase tickets.")
       }
+      setIsSubmitting(false)
+    }
+  }
+
+  const handleProvideLiquidity = async (amounts: Record<string, number>) => {
+    if (!profile) {
+      toast.error("Please connect your wallet first.")
+      return
+    }
+
+    const deposits = Object.entries(amounts).map(([optId, amt]) => ({
+      marketId: optId,
+      amount: amt,
+    }))
+
+    if (deposits.length === 0) return
+
+    setIsSubmitting(true)
+    try {
+      await batchAddPoolLiquidity(deposits, profile.id)
+      
+      // Clear selections for this event after providing liquidity
+      setAllPvpSelections((prev) => {
+        const next = { ...prev }
+        delete next[selectedPvpEvent.id]
+        return next
+      })
+      setShowBuilderOverride(false)
+      void refetchPvpStatus()
+    } catch (error: any) {
+      // Error handled by hook
+    } finally {
       setIsSubmitting(false)
     }
   }
@@ -552,6 +595,7 @@ export default function PvpArenaTab({
                 onSelectChildMarketForTrade={(market) =>
                   openTradeDrawer(market.id)
                 }
+                onAddLiquidity={(id) => setLiquidityMarketId(id)}
               />
             </div>
           )}
@@ -686,6 +730,7 @@ export default function PvpArenaTab({
                 onSetShowTooltip={setShowTooltip}
                 onSubmitTicket={handleSubmitPvpTicket}
                 onAddLiquidity={(id) => setLiquidityMarketId(id)}
+                onProvideLiquidity={handleProvideLiquidity}
               />
             ))}
         </>

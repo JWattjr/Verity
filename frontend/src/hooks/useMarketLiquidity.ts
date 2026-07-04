@@ -197,6 +197,85 @@ export function useMarketLiquidity() {
     }
   }
 
+  async function batchAddPoolLiquidity(
+    deposits: Array<{ marketId: string; amount: number }>,
+    userId: string,
+  ) {
+    checkPreconditions()
+
+    if (deposits.length === 0) return;
+
+    const totalAmount = deposits.reduce((sum, d) => sum + d.amount, 0)
+    const toastId = toast.loading("Preparing batch liquidity deposit...")
+    try {
+      const rawTotalAmount = BigInt(Math.round(totalAmount * 1e6))
+      const calls: Array<{
+        contractAddress: string
+        abiFunctionSignature: string
+        abiParameters: any[]
+      }> = []
+
+      // Check USDC allowance to FPMM
+      const allowance = await publicClient.readContract({
+        abi: erc20Abi,
+        address: arcUsdcAddress,
+        functionName: "allowance",
+        args: [user!.walletAddress as `0x${string}`, FPMM_ADDRESS],
+      })
+
+      if (allowance < rawTotalAmount) {
+        calls.push({
+          contractAddress: arcUsdcAddress,
+          abiFunctionSignature: "approve(address,uint256)",
+          abiParameters: [FPMM_ADDRESS, maxUint256],
+        })
+      }
+
+      deposits.forEach((dep) => {
+        const formattedId = formatMarketId(dep.marketId)
+        const rawAmount = BigInt(Math.round(dep.amount * 1e6))
+        calls.push({
+          contractAddress: FPMM_ADDRESS,
+          abiFunctionSignature: "addLiquidity(bytes32,uint256)",
+          abiParameters: [formattedId, rawAmount],
+        })
+      })
+
+      toast.dismiss(toastId)
+
+      const hash = await executeTxBatch(
+        calls,
+        `Deposit ${totalAmount} USDC into Liquidity Pools`,
+        totalAmount,
+      )
+
+      // Notify NestJS backend for each deposit
+      const finalizeToastId = toast.loading("Finalizing pool deposits...")
+      await Promise.all(
+        deposits.map((dep) =>
+          addLiquidityBackend({
+            marketId: dep.marketId,
+            userId,
+            amount: dep.amount,
+            txHash: hash,
+          }),
+        ),
+      )
+      toast.dismiss(finalizeToastId)
+
+      toast.success(
+        `Successfully deposited ${totalAmount} USDC into liquidity pools!`,
+      )
+      return hash
+    } catch (error: any) {
+      toast.dismiss(toastId)
+      if (!error.message?.includes("rejected")) {
+        toast.error(error.message || "Failed to add liquidity.")
+      }
+      throw error
+    }
+  }
+
   async function removePoolLiquidity(
     marketId: string,
     userId: string,
@@ -423,6 +502,7 @@ export function useMarketLiquidity() {
   return {
     fundPreMarket,
     addPoolLiquidity,
+    batchAddPoolLiquidity,
     removePoolLiquidity,
     buyTokens,
     sellTokens,
