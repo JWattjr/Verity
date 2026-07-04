@@ -466,8 +466,8 @@ export default function PvpTicketBuilder({
             </button>
 
             <Drawer open={isMobileDrawerOpen} onOpenChange={setIsMobileDrawerOpen}>
-              <DrawerContent className="max-h-[92vh] rounded-t-3xl border-t border-stone-surface bg-warm-canvas pb-6 px-4 outline-none overflow-y-auto">
-                <DrawerHeader className="relative flex items-center justify-between border-b border-stone-surface pb-3 pt-2 mb-4">
+              <DrawerContent className="max-h-[92vh] flex flex-col rounded-t-3xl border-t border-stone-surface bg-warm-canvas pb-4 outline-none">
+                <DrawerHeader className="relative flex-shrink-0 flex items-center justify-between border-b border-stone-surface pb-3 pt-2 mb-2 px-4">
                   <DrawerTitle className="font-heading text-lg font-bold text-charcoal-primary">
                     Your Selections
                   </DrawerTitle>
@@ -475,7 +475,7 @@ export default function PvpTicketBuilder({
                     <X className="h-4.5 w-4.5" />
                   </DrawerClose>
                 </DrawerHeader>
-                <div className="px-1 pb-4">
+                <div className="px-5 overflow-y-auto flex-1 pb-16">
                   {renderTicketSlip()}
                 </div>
               </DrawerContent>
