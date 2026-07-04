@@ -34,6 +34,7 @@ import PvpDuelStatus from "./PvpDuelStatus"
 import PvpDuelPicks from "./PvpDuelPicks"
 import PvpTicketBuilder from "./PvpTicketBuilder"
 import PvpLiquidityModal from "./PvpLiquidityModal"
+import { useMarketLiquidity } from "@/hooks/useMarketLiquidity"
 
 function formatMarketId(marketId: string): `0x${string}` {
   const clean = marketId.replace(/^0x/, "")
@@ -79,6 +80,7 @@ export default function PvpArenaTab({
   } = useDrawerStore()
   const submitTicketMutation = useSubmitPvpTicketMutation()
   const { mutateAsync: executeMarketTrade } = useExecuteMarketTradeMutation()
+  const { batchAddPoolLiquidity } = useMarketLiquidity()
 
   // ─── Local state ────────────────────────────────────────────
   const [mounted, setMounted] = useState<boolean>(false)
@@ -492,6 +494,38 @@ export default function PvpArenaTab({
     }
   }
 
+  const handleProvideLiquidity = async (amounts: Record<string, number>) => {
+    if (!profile) {
+      toast.error("Please connect your wallet first.")
+      return
+    }
+
+    const deposits = Object.entries(amounts).map(([optId, amt]) => ({
+      marketId: optId,
+      amount: amt,
+    }))
+
+    if (deposits.length === 0) return
+
+    setIsSubmitting(true)
+    try {
+      await batchAddPoolLiquidity(deposits, profile.id)
+      
+      // Clear selections for this event after providing liquidity
+      setAllPvpSelections((prev) => {
+        const next = { ...prev }
+        delete next[selectedPvpEvent.id]
+        return next
+      })
+      setShowBuilderOverride(false)
+      void refetchPvpStatus()
+    } catch (error: any) {
+      // Error handled by hook
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
   // ─── Loading state ──────────────────────────────────────────
   const isPvpStatusPending =
     !!profile &&
@@ -695,6 +729,7 @@ export default function PvpArenaTab({
                 onSetShowTooltip={setShowTooltip}
                 onSubmitTicket={handleSubmitPvpTicket}
                 onAddLiquidity={(id) => setLiquidityMarketId(id)}
+                onProvideLiquidity={handleProvideLiquidity}
               />
             ))}
         </>
