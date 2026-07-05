@@ -304,7 +304,7 @@ export default function PvpTicketBuilder({
                 : "text-ash hover:text-charcoal-primary dark:hover:text-zinc-300 hover:bg-stone-200 dark:hover:bg-zinc-800/50"
             }`}
           >
-            Single
+            Review Picks
           </button>
           <button
             onClick={() => setActiveTab("liquidity")}
@@ -314,7 +314,7 @@ export default function PvpTicketBuilder({
                 : "text-ash hover:text-charcoal-primary dark:hover:text-zinc-300 hover:bg-stone-200 dark:hover:bg-zinc-800/50"
             }`}
           >
-            Liquidity
+            Fund Markets
           </button>
         </div>
 
@@ -527,7 +527,7 @@ export default function PvpTicketBuilder({
   }
 
   return (
-    <div className="flex flex-col gap-5 w-full pb-8 lg:pb-20 relative">
+    <div className="flex flex-col gap-5 w-full pb-12 lg:pb-24 relative">
       {/* 1. Match Header Details */}
       {selectedPvpEvent && (
         <div className="flex flex-col gap-1 pb-1">
@@ -587,23 +587,23 @@ export default function PvpTicketBuilder({
 
                 {/* Floating Bottom Button (Desktop) */}
                 {selectionCount > 0 && (
-                  <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-40 w-full max-w-sm">
+                  <div className="sticky bottom-6 z-40 w-full mt-4">
                     <button
                       onClick={() => setDesktopView("selections")}
                       disabled={isSubmitting}
-                      className="w-full h-12 bg-black hover:bg-black text-white font-bold rounded-xl flex items-center justify-between px-5 shadow-lg active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="w-full h-[52px] bg-black hover:bg-zinc-900 dark:bg-white dark:hover:bg-zinc-100 text-white dark:text-black font-extrabold rounded-xl flex items-center justify-between px-5 shadow-lg active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer group"
                     >
                       <div className="flex items-center gap-2">
-                        <Receipt className="h-5 w-5" />
+                        <Receipt className="h-5 w-5 shrink-0" />
                         <span className="text-sm font-bold uppercase tracking-wider">
                           Continue
                         </span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="bg-white/20 text-xs px-2 py-0.5 rounded-full font-bold">
+                        <span className="bg-brand-secondary/15 text-brand-secondary border border-brand-secondary/20 text-xs px-2.5 py-0.5 rounded-full font-bold">
                           {selectionCount} picks
                         </span>
-                        <ChevronRight className="h-5 w-5" />
+                        <ChevronRight className="h-5 w-5 group-hover:translate-x-0.5 transition-transform" />
                       </div>
                     </button>
                   </div>
@@ -619,7 +619,7 @@ export default function PvpTicketBuilder({
                     onClick={() => setDesktopView("categories")}
                     className="text-xs font-bold font-mono tracking-wider px-3 py-1.5 rounded-md bg-stone-100 hover:bg-stone-200 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-charcoal-primary dark:text-white transition-colors"
                   >
-                    ← Back to Categories
+                    ← Go back
                   </button>
                 </div>
                 {renderTicketSlip()}
@@ -651,19 +651,19 @@ export default function PvpTicketBuilder({
                 <button
                   onClick={() => setIsMobileDrawerOpen(true)}
                   disabled={isSubmitting}
-                  className="w-full h-12 bg-black hover:bg-black text-white font-bold rounded-xl flex items-center justify-between px-5 shadow-lg active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full h-[52px] bg-black hover:bg-zinc-900 dark:bg-white dark:hover:bg-zinc-100 text-white dark:text-black font-extrabold rounded-xl flex items-center justify-between px-5 shadow-lg active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed group cursor-pointer"
                 >
                   <div className="flex items-center gap-2">
-                    <Receipt className="h-5 w-5" />
+                    <Receipt className="h-5 w-5 shrink-0" />
                     <span className="text-sm font-bold uppercase tracking-wider">
                       Continue
                     </span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="bg-white/20 text-xs px-2 py-0.5 rounded-full font-bold">
+                    <span className="bg-brand-secondary/15 text-brand-secondary border border-brand-secondary/20 text-xs px-2.5 py-0.5 rounded-full font-bold">
                       {selectionCount} picks
                     </span>
-                    <ChevronRight className="h-5 w-5" />
+                    <ChevronRight className="h-5 w-5 group-hover:translate-x-0.5 transition-transform" />
                   </div>
                 </button>
               </div>
