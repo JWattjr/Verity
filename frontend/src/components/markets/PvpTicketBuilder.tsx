@@ -168,6 +168,15 @@ export default function PvpTicketBuilder({
     Record<string, string>
   >({})
   const [liquidityPerSelection, setLiquidityPerSelection] = useState<number>(0)
+  const [desktopView, setDesktopView] = useState<"categories" | "selections">(
+    "categories",
+  )
+
+  useEffect(() => {
+    if (selectionCount === 0) {
+      setDesktopView("categories")
+    }
+  }, [selectionCount])
 
   useEffect(() => {
     if (liquidityPerSelection > 0) {
@@ -268,6 +277,7 @@ export default function PvpTicketBuilder({
     try {
       await onProvideLiquidity(validAmounts)
       setLiquidityAmounts({})
+      setDesktopView("categories")
     } catch (error) {
       // Allow user to manually re-open with their inputs intact on failure
     }
@@ -417,7 +427,7 @@ export default function PvpTicketBuilder({
             <div className="flex flex-col gap-4">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-ash uppercase">
-                  Stake per bet
+                  USDC per pick
                 </span>
                 <div className="flex items-center gap-2 w-32">
                   <span className="text-xs font-bold text-ash">USDC</span>
@@ -439,7 +449,7 @@ export default function PvpTicketBuilder({
 
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-charcoal-primary dark:text-white">
-                  Total Stake
+                  Total
                 </span>
                 <span className="text-sm font-bold font-mono text-charcoal-primary dark:text-white">
                   {betAmountPerSelection * selectionCount} USDC
@@ -517,7 +527,7 @@ export default function PvpTicketBuilder({
   }
 
   return (
-    <div className="flex flex-col gap-5 w-full pb-20 relative">
+    <div className="flex flex-col gap-5 w-full pb-8 lg:pb-20 relative">
       {/* 1. Match Header Details */}
       {selectedPvpEvent && (
         <div className="flex flex-col gap-1 pb-1">
@@ -555,48 +565,118 @@ export default function PvpTicketBuilder({
       {/* Category cards & form */}
       {pvpEvents.length > 0 && selectedPvpEvent && (
         <div className="flex flex-col gap-4">
-          {/* Category Cards */}
-          <div className="space-y-3 mt-2">
-            {Object.entries(groupedOptions).map(([groupKey, opts]) => (
-              <CategoryCard
-                key={groupKey}
-                groupKey={groupKey}
-                opts={opts}
-                pvpSelections={pvpSelections}
-                parsedTeams={parsedTeams}
-                isSubmitting={isSubmitting}
-                onToggleSelection={onToggleSelection}
-                onAddLiquidity={() => onAddLiquidity(opts[0].id)}
-              />
-            ))}
+          {/* Desktop Content switching */}
+          <div className="hidden sm:block">
+            {desktopView === "categories" ? (
+              <>
+                {/* Category Cards */}
+                <div className="space-y-3 mt-2">
+                  {Object.entries(groupedOptions).map(([groupKey, opts]) => (
+                    <CategoryCard
+                      key={groupKey}
+                      groupKey={groupKey}
+                      opts={opts}
+                      pvpSelections={pvpSelections}
+                      parsedTeams={parsedTeams}
+                      isSubmitting={isSubmitting}
+                      onToggleSelection={onToggleSelection}
+                      onAddLiquidity={() => onAddLiquidity(opts[0].id)}
+                    />
+                  ))}
+                </div>
+
+                {/* Floating Bottom Button (Desktop) */}
+                {selectionCount > 0 && (
+                  <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-40 w-full max-w-sm">
+                    <button
+                      onClick={() => setDesktopView("selections")}
+                      disabled={isSubmitting}
+                      className="w-full h-12 bg-black hover:bg-black text-white font-bold rounded-xl flex items-center justify-between px-5 shadow-lg active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Receipt className="h-5 w-5" />
+                        <span className="text-sm font-bold uppercase tracking-wider">
+                          Continue
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="bg-white/20 text-xs px-2 py-0.5 rounded-full font-bold">
+                          {selectionCount} picks
+                        </span>
+                        <ChevronRight className="h-5 w-5" />
+                      </div>
+                    </button>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="verity-card p-6 bg-warm-canvas border border-stone-200 dark:border-zinc-800">
+                <div className="flex items-center justify-between mb-6 pb-4 border-b border-stone-200 dark:border-zinc-800">
+                  <h3 className="text-base font-bold text-charcoal-primary dark:text-white">
+                    Your Selections ({selectionCount})
+                  </h3>
+                  <button
+                    onClick={() => setDesktopView("categories")}
+                    className="text-xs font-bold font-mono tracking-wider px-3 py-1.5 rounded-md bg-stone-100 hover:bg-stone-200 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-charcoal-primary dark:text-white transition-colors"
+                  >
+                    ← Back to Categories
+                  </button>
+                </div>
+                {renderTicketSlip()}
+              </div>
+            )}
           </div>
 
-          {/* Ticket Slip (Desktop) */}
-          <div className="hidden sm:block">{renderTicketSlip()}</div>
-
-          {/* Ticket Slip (Mobile) */}
+          {/* Mobile Layout */}
           <div className="sm:hidden">
-            <DraggableFAB
-              id="pvp-ticket-drawer"
-              onClick={() => setIsMobileDrawerOpen(true)}
-              className="fixed bottom-[calc(env(safe-area-inset-bottom)+82px)] right-4 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-brand-primary text-white shadow-sm cursor-pointer border-2 border-white/10"
-            >
-              <Receipt className="h-6 w-6 pointer-events-none" />
-              {selectionCount > 0 && (
-                <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500 text-[10px] font-bold text-white ring-2 ring-white dark:ring-zinc-900 pointer-events-none">
-                  {selectionCount}
-                </span>
-              )}
-            </DraggableFAB>
+            {/* Category Cards */}
+            <div className="space-y-3 mt-2">
+              {Object.entries(groupedOptions).map(([groupKey, opts]) => (
+                <CategoryCard
+                  key={groupKey}
+                  groupKey={groupKey}
+                  opts={opts}
+                  pvpSelections={pvpSelections}
+                  parsedTeams={parsedTeams}
+                  isSubmitting={isSubmitting}
+                  onToggleSelection={onToggleSelection}
+                  onAddLiquidity={() => onAddLiquidity(opts[0].id)}
+                />
+              ))}
+            </div>
+
+            {/* Bottom floating Continue button (Mobile) */}
+            {selectionCount > 0 && (
+              <div className="fixed bottom-[calc(env(safe-area-inset-bottom)+82px)] left-4 right-4 z-40">
+                <button
+                  onClick={() => setIsMobileDrawerOpen(true)}
+                  disabled={isSubmitting}
+                  className="w-full h-12 bg-black hover:bg-black text-white font-bold rounded-xl flex items-center justify-between px-5 shadow-lg active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <div className="flex items-center gap-2">
+                    <Receipt className="h-5 w-5" />
+                    <span className="text-sm font-bold uppercase tracking-wider">
+                      Continue
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="bg-white/20 text-xs px-2 py-0.5 rounded-full font-bold">
+                      {selectionCount} picks
+                    </span>
+                    <ChevronRight className="h-5 w-5" />
+                  </div>
+                </button>
+              </div>
+            )}
 
             <Drawer
               open={isMobileDrawerOpen}
               onOpenChange={setIsMobileDrawerOpen}
             >
               <DrawerContent className="max-h-[92vh] flex flex-col rounded-t-3xl border-t border-stone-surface bg-warm-canvas pb-4 outline-none">
-                <DrawerHeader className="relative flex-shrink-0 flex flex-row items-center justify-between border-b border-stone-surface pb-3 pt-2 mb-2 px-4 text-left">
+                <DrawerHeader className="relative shrink-0 flex flex-row items-center justify-between border-b border-stone-surface pb-3 pt-2 mb-2 px-4 text-left">
                   <DrawerTitle className="font-heading text-lg font-bold text-charcoal-primary m-0">
-                    Your Selections
+                    Your selections
                   </DrawerTitle>
                   <DrawerClose className="rounded-full p-1.5 hover:bg-stone-surface text-ash hover:text-charcoal-primary transition-colors shrink-0">
                     <X className="h-4.5 w-4.5" />

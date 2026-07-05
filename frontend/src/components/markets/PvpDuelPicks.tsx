@@ -87,16 +87,7 @@ export default function PvpDuelPicks({ pvpStatus, onSelectChildMarketForTrade, o
           return (
             <div
               key={marketId}
-              onClick={() => {
-                if (childOpt && !isResolved) {
-                  onSelectChildMarketForTrade?.(childOpt)
-                }
-              }}
-              className={`flex flex-col gap-3 p-4 rounded-xl bg-parchment-card dark:bg-zinc-900/40 border border-border dark:border-zinc-800/85 transition-all ${
-                childOpt && !isResolved
-                  ? "cursor-pointer hover:border-sky-blue/50 hover:bg-stone-surface/30 active:scale-[0.99]"
-                  : ""
-              }`}
+              className="flex flex-col gap-3 p-4 rounded-xl bg-parchment-card dark:bg-zinc-900/40 border border-border dark:border-zinc-800/85 transition-all"
             >
               {/* Top row: Title + Shares */}
               <div className="flex items-baseline justify-between gap-2">
