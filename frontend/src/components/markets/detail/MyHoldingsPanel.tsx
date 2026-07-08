@@ -12,6 +12,11 @@ interface MyHoldingsPanelProps {
   activeMarket: MarketPost
   viewerVote: VoteSide | null
   onQuickSell: (side: VoteSide) => void
+  lpPositions?: any[]
+  onRedeem?: (claimAmount?: number) => Promise<void>
+  onClaimCreatorLP?: (claimAmount?: number) => Promise<void>
+  onRemoveLP?: (shares: number) => Promise<void>
+  actionLoading?: string | null
 }
 
 export default function MyHoldingsPanel({
@@ -19,8 +24,21 @@ export default function MyHoldingsPanel({
   activeMarket,
   viewerVote,
   onQuickSell,
+  lpPositions,
+  onRedeem,
+  onClaimCreatorLP,
+  onRemoveLP,
+  actionLoading,
 }: MyHoldingsPanelProps) {
-  if (!viewerVote && positions.length === 0) return null
+  const creatorLP = lpPositions?.find((pos) => pos.isCreator)
+  const hasCreatorLP = creatorLP && creatorLP.lpShares > 0
+  const normalLP = lpPositions?.find(
+    (pos) => !pos.isCreator && pos.lpShares > 0,
+  )
+  const hasNormalLP = normalLP && normalLP.lpShares > 0
+
+  if (!viewerVote && positions.length === 0 && !hasCreatorLP && !hasNormalLP)
+    return null
 
   return (
     <div className="verity-card p-4 sm:p-5">
@@ -44,14 +62,16 @@ export default function MyHoldingsPanel({
         )}
       </div>
 
-      {positions.length === 0 ? (
+      {positions.length === 0 && !hasCreatorLP && !hasNormalLP ? (
         <p className="text-xs text-ash">No cash positions in this market.</p>
       ) : (
         <div className="flex flex-col gap-3">
           {positions.map((pos) => {
             const isResolved = activeMarket.status === "resolved"
             const isWinner =
-              isResolved && activeMarket.resolvedOutcome === pos.side
+              isResolved &&
+              activeMarket.resolvedOutcome?.toUpperCase() ===
+                pos.side?.toUpperCase()
             const currentPrice = isResolved
               ? isWinner
                 ? 1.0
@@ -62,6 +82,7 @@ export default function MyHoldingsPanel({
             const pnl = currentValue - pos.invested_usdc
             const pnlPercent =
               pos.invested_usdc > 0 ? (pnl / pos.invested_usdc) * 100 : 0
+            const isClaimable = isResolved && isWinner && pos.shares > 0
 
             return (
               <div
@@ -149,9 +170,102 @@ export default function MyHoldingsPanel({
                     {pnlPercent.toFixed(1)}%)
                   </span>
                 </div>
+
+                {isClaimable && (
+                  <button
+                    className="verity-pill mt-3 flex h-9 w-full items-center justify-center bg-meadow-green font-mono text-xs font-semibold uppercase tracking-[0.12em] text-white transition-colors hover:bg-meadow-green/90 disabled:cursor-not-allowed disabled:opacity-45"
+                    disabled={Boolean(actionLoading)}
+                    onClick={() => onRedeem && onRedeem(pos.shares)}
+                    type="button"
+                  >
+                    {actionLoading === "redeem" ? "Claiming..." : "Claim"}
+                  </button>
+                )}
               </div>
             )
           })}
+
+          {hasCreatorLP && (
+            <div className="rounded-[12px] bg-parchment-card p-3 shadow-subtle">
+              <div className="mb-2 flex items-center justify-between gap-3">
+                <span className="inline-flex items-center rounded-full bg-meadow-green/10 px-2 py-0.5 text-[9px] font-mono font-semibold text-meadow-green shadow-subtle">
+                  Market Creator LP
+                </span>
+              </div>
+              <div className="mt-1.5 grid grid-cols-2 gap-2 font-mono text-[11px]">
+                <div>
+                  <span className="block text-[9px] uppercase text-ash">
+                    LP Shares
+                  </span>
+                  <span className="font-semibold text-charcoal-primary">
+                    {creatorLP.lpShares.toFixed(4)}
+                  </span>
+                </div>
+                <div>
+                  <span className="block text-[9px] uppercase text-ash">
+                    Value
+                  </span>
+                  <span className="font-semibold text-meadow-green">
+                    ${creatorLP.depositedUsdc.toFixed(2)} USDC
+                  </span>
+                </div>
+              </div>
+              {activeMarket.status === "resolved" && (
+                <button
+                  className="verity-pill mt-3 flex h-9 w-full items-center justify-center bg-meadow-green font-mono text-xs font-semibold uppercase tracking-[0.12em] text-white transition-colors hover:bg-meadow-green/90 disabled:cursor-not-allowed disabled:opacity-45"
+                  disabled={Boolean(actionLoading)}
+                  onClick={() =>
+                    onClaimCreatorLP && onClaimCreatorLP(creatorLP.lpShares)
+                  }
+                  type="button"
+                >
+                  {actionLoading === "claim_lp"
+                    ? "Claiming..."
+                    : "Claim Creator LP Payout"}
+                </button>
+              )}
+            </div>
+          )}
+
+          {hasNormalLP && (
+            <div className="rounded-[12px] bg-parchment-card p-3 shadow-subtle">
+              <div className="mb-2 flex items-center justify-between gap-3">
+                <span className="inline-flex items-center rounded-full bg-meadow-green/10 px-2 py-0.5 text-[9px] font-mono font-semibold text-meadow-green shadow-subtle">
+                  Liquidity Provider
+                </span>
+              </div>
+              <div className="mt-1.5 grid grid-cols-2 gap-2 font-mono text-[11px]">
+                <div>
+                  <span className="block text-[9px] uppercase text-ash">
+                    LP Shares
+                  </span>
+                  <span className="font-semibold text-charcoal-primary">
+                    {normalLP.lpShares.toFixed(4)}
+                  </span>
+                </div>
+                <div>
+                  <span className="block text-[9px] uppercase text-ash">
+                    Value
+                  </span>
+                  <span className="font-semibold text-meadow-green">
+                    ${normalLP.depositedUsdc.toFixed(2)} USDC
+                  </span>
+                </div>
+              </div>
+              {activeMarket.status === "resolved" && (
+                <button
+                  className="verity-pill mt-3 flex h-9 w-full items-center justify-center bg-meadow-green font-mono text-xs font-semibold uppercase tracking-[0.12em] text-white transition-colors hover:bg-meadow-green/90 disabled:cursor-not-allowed disabled:opacity-45"
+                  disabled={Boolean(actionLoading)}
+                  onClick={() => onRemoveLP && onRemoveLP(normalLP.lpShares)}
+                  type="button"
+                >
+                  {actionLoading === "remove_lp"
+                    ? "Withdrawing..."
+                    : "Withdraw LP Liquidity"}
+                </button>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>

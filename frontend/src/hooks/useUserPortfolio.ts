@@ -28,9 +28,10 @@ export function useUserPortfolio() {
     if (!rawPositions) return []
 
     return rawPositions.map((p) => {
+      const isResolved = p.status === "resolved"
       const currentPrice =
-        p.status === "resolved"
-          ? p.resolved_outcome === p.side
+        isResolved
+          ? p.resolved_outcome?.toUpperCase() === p.side?.toUpperCase()
             ? 1.0
             : 0.0
           : getMarketPrice(
@@ -41,13 +42,19 @@ export function useUserPortfolio() {
               p.side,
             )
       const currentValue = p.shares * currentPrice
-      const unrealizedPnL = currentValue - (p.invested_usdc || 0)
+      const unrealizedPnL = isResolved ? 0 : currentValue - (p.invested_usdc || 0)
+      const realizedPnL = isResolved
+        ? p.realized_pnl !== undefined
+          ? p.realized_pnl
+          : currentValue - (p.invested_usdc || 0)
+        : 0
 
       return {
         ...p,
         currentPrice,
         currentValue,
         unrealizedPnL,
+        realizedPnL,
       }
     })
   }, [rawPositions])
@@ -73,9 +80,12 @@ export function useUserPortfolio() {
       (sum, p) => sum + Number(p.currentValue || 0),
       0,
     )
-    const unrealizedPnL = holdingsValue - totalInvested
+    const unrealizedPnL = positions.reduce(
+      (sum, p) => sum + Number(p.unrealizedPnL || 0),
+      0,
+    )
     const realizedPnL = positions.reduce(
-      (sum, p) => sum + Number(p.realized_pnl || 0),
+      (sum, p) => sum + Number(p.realizedPnL || 0),
       0,
     )
     const netWorth = usdcBalance + holdingsValue
