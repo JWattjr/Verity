@@ -31,7 +31,9 @@ export function RedeemPanel({
 
   if (!myPosition && !hasCreatorLP) return null
 
-  const isWinner = myPosition && myPosition.side === winningSide
+  const isWinner =
+    myPosition &&
+    myPosition.side?.toUpperCase() === winningSide?.toUpperCase()
   const winningShares = isWinner ? myPosition.shares : 0
 
   return (

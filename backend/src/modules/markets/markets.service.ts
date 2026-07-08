@@ -651,42 +651,139 @@ export class MarketsService implements OnModuleInit {
 
           const balance = onChain[outcome] ?? 0
           const isLosing =
-            isResolved && normalizedWinningOutcome !== normalizedSide
+            isResolved && normalizedWinningOutcome?.toUpperCase() !== normalizedSide?.toUpperCase()
 
-          if (!isLosing && balance > 0) {
-            await this.marketPositionModel.updateOne(
-              {
-                marketId: new Types.ObjectId(marketId),
-                userId: new Types.ObjectId(profileId),
-                side: normalizedSide,
-              },
-              {
-                $set: {
-                  shares: balance,
-                  isArchived: false,
-                },
-                $setOnInsert: {
-                  avgPrice: 0.5,
-                  investedUsdc: balance * 0.5,
-                  realizedPnl: 0,
-                },
-              },
-              { upsert: true },
-            )
+          // Find existing position first to retrieve avgPrice
+          const existingPos = await this.marketPositionModel.findOne({
+            marketId: new Types.ObjectId(marketId),
+            userId: new Types.ObjectId(profileId),
+            side: normalizedSide,
+          })
+
+          if (isResolved) {
+            const isWinner = !isLosing
+            if (isWinner) {
+              if (balance > 0) {
+                // Winning position, not yet redeemed. Scale investedUsdc to match current shares.
+                const avgPrice = existingPos?.avgPrice ?? 0.5
+                const investedUsdc = balance * avgPrice
+                await this.marketPositionModel.updateOne(
+                  {
+                    marketId: new Types.ObjectId(marketId),
+                    userId: new Types.ObjectId(profileId),
+                    side: normalizedSide,
+                  },
+                  {
+                    $set: {
+                      shares: balance,
+                      investedUsdc,
+                      avgPrice,
+                      isArchived: false,
+                    },
+                  },
+                  { upsert: true },
+                )
+              } else {
+                // Winning position, balance is 0. If they had shares before, they redeemed them!
+                if (existingPos && (existingPos.shares > 0 || existingPos.investedUsdc > 0)) {
+                  const avgPrice = existingPos.avgPrice ?? 0.5
+                  const redeemedShares = existingPos.shares || (existingPos.investedUsdc / avgPrice)
+                  const pnl = redeemedShares * (1.0 - avgPrice)
+                  await this.marketPositionModel.updateOne(
+                    { _id: existingPos._id },
+                    {
+                      $set: {
+                        shares: 0,
+                        investedUsdc: 0,
+                        realizedPnl: (existingPos.realizedPnl || 0) + pnl,
+                        isArchived: true,
+                      },
+                    },
+                  )
+                } else {
+                  // No position to redeem
+                  await this.marketPositionModel.updateOne(
+                    {
+                      marketId: new Types.ObjectId(marketId),
+                      userId: new Types.ObjectId(profileId),
+                      side: normalizedSide,
+                    },
+                    {
+                      $set: {
+                        shares: 0,
+                        isArchived: true,
+                      },
+                    },
+                  )
+                }
+              }
+            } else {
+              // Losing position. Realize loss!
+              if (existingPos && existingPos.investedUsdc > 0) {
+                const pnl = -existingPos.investedUsdc
+                await this.marketPositionModel.updateOne(
+                  { _id: existingPos._id },
+                  {
+                    $set: {
+                      shares: 0,
+                      investedUsdc: 0,
+                      realizedPnl: (existingPos.realizedPnl || 0) + pnl,
+                      isArchived: true,
+                    },
+                  },
+                )
+              } else {
+                await this.marketPositionModel.updateOne(
+                  {
+                    marketId: new Types.ObjectId(marketId),
+                    userId: new Types.ObjectId(profileId),
+                    side: normalizedSide,
+                  },
+                  {
+                    $set: {
+                      shares: 0,
+                      isArchived: true,
+                    },
+                  },
+                )
+              }
+            }
           } else {
-            await this.marketPositionModel.updateOne(
-              {
-                marketId: new Types.ObjectId(marketId),
-                userId: new Types.ObjectId(profileId),
-                side: normalizedSide,
-              },
-              {
-                $set: {
-                  shares: 0,
-                  isArchived: true,
+            // Market is not resolved (active market)
+            if (balance > 0) {
+              const avgPrice = existingPos?.avgPrice ?? 0.5
+              const investedUsdc = balance * avgPrice
+              await this.marketPositionModel.updateOne(
+                {
+                  marketId: new Types.ObjectId(marketId),
+                  userId: new Types.ObjectId(profileId),
+                  side: normalizedSide,
                 },
-              },
-            )
+                {
+                  $set: {
+                    shares: balance,
+                    investedUsdc,
+                    avgPrice,
+                    isArchived: false,
+                  },
+                },
+                { upsert: true },
+              )
+            } else {
+              await this.marketPositionModel.updateOne(
+                {
+                  marketId: new Types.ObjectId(marketId),
+                  userId: new Types.ObjectId(profileId),
+                  side: normalizedSide,
+                },
+                {
+                  $set: {
+                    shares: 0,
+                    isArchived: true,
+                  },
+                },
+              )
+            }
           }
         }
       } catch (err) {
@@ -1070,6 +1167,14 @@ export class MarketsService implements OnModuleInit {
               child.resolvedByAdmin = adminAddress
               await child.save()
 
+              await this.notifyParticipantsOfResolution(
+                child._id.toString(),
+                child.resolvedOutcome,
+                adminAddress,
+                child.optionName || child.question || market.question,
+                market.authorId.toString(),
+              )
+
               // Trigger PvP match resolution for each child market
               await this.pvpService.resolvePvpMatchesForMarket(
                 child._id.toString(),
@@ -1124,6 +1229,14 @@ export class MarketsService implements OnModuleInit {
               child.winningOutcomeIndex = isYesMatch ? 0 : 1
               child.resolvedByAdmin = adminAddress
               await child.save()
+
+              await this.notifyParticipantsOfResolution(
+                child._id.toString(),
+                childResolvedOutcome,
+                adminAddress,
+                child.optionName || child.question || market.question,
+                market.authorId.toString(),
+              )
 
               // Trigger PvP match resolution for each child market
               await this.pvpService.resolvePvpMatchesForMarket(
@@ -1190,6 +1303,17 @@ export class MarketsService implements OnModuleInit {
       )
     }
 
+    // Trigger Notifications for all participants of standalone market
+    if (market.marketType !== "parent") {
+      await this.notifyParticipantsOfResolution(
+        marketId,
+        winningOutcome,
+        adminAddress,
+        market.question,
+        market.authorId.toString(),
+      )
+    }
+
     // Emit Socket events
     this.socketGateway.broadcastToRoom("feed", "feed-updated", {})
     this.socketGateway.broadcastToRoom(`market:${marketId}`, "market-updated", {
@@ -1202,6 +1326,52 @@ export class MarketsService implements OnModuleInit {
     )
 
     return this.postsService.serializeMarket(market)
+  }
+
+  private async notifyParticipantsOfResolution(
+    marketId: string,
+    resolvedOutcome: string,
+    adminAddress: string,
+    marketQuestion: string,
+    authorId: string,
+  ): Promise<void> {
+    try {
+      const participants = await this.marketPositionModel.find({
+        marketId: new Types.ObjectId(marketId),
+        shares: { $gt: 0 },
+      })
+
+      const adminUser = await this.userModel.findOne({
+        walletAddress: adminAddress.trim().toLowerCase(),
+      })
+      const actorId = adminUser ? adminUser.id : authorId
+
+      for (const pos of participants) {
+        const isWinner = pos.side.toUpperCase() === resolvedOutcome.toUpperCase()
+        const recipientId = pos.userId.toString()
+
+        const title = isWinner ? "You won a prediction!" : "Market resolved"
+        const body = isWinner
+          ? `Your prediction "${pos.side}" on "${marketQuestion}" was correct! Claim your winnings now.`
+          : `The market "${marketQuestion}" has been resolved to ${resolvedOutcome}.`
+
+        await this.notificationsService.createNotification(
+          recipientId,
+          actorId,
+          "settlement",
+          title,
+          body,
+          marketId,
+        )
+      }
+      this.logger.log(
+        `Resolution notifications sent to ${participants.length} participants in market ${marketId}`,
+      )
+    } catch (err) {
+      this.logger.warn(
+        `Failed to send participant notifications for market ${marketId}: ${err.message}`,
+      )
+    }
   }
 
   async disputeMarket(

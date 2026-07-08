@@ -610,6 +610,11 @@ export default function MarketDetail({
             setTradeAction("SELL")
             setSelectedSide(side)
           }}
+          lpPositions={lpPositions}
+          onRedeem={handleRedeem}
+          onClaimCreatorLP={handleClaimCreatorLP}
+          onRemoveLP={handleRemoveLP}
+          actionLoading={actionPending}
         />
 
         {["open_for_votes", "qualified", "funding_pool"].includes(
@@ -625,7 +630,7 @@ export default function MarketDetail({
             profileId={profileId}
             activeOptionName={activeOptionName}
           />
-        ) : (
+        ) : activeMarket.status === "resolved" || activeMarket.status === "voided" ? null : (
           <TradeTicket
             action={tradeAction}
             amount={tradeAmount}
@@ -873,18 +878,6 @@ export default function MarketDetail({
         <ResolutionPanel
           market={activeMarket}
           onDispute={handleDispute}
-          actionLoading={actionPending}
-          profileId={profileId}
-        />
-      )}
-
-      {activeMarket.status === "resolved" && (
-        <RedeemPanel
-          market={activeMarket}
-          positions={positions}
-          lpPositions={lpPositions}
-          onRedeem={handleRedeem}
-          onClaimCreatorLP={handleClaimCreatorLP}
           actionLoading={actionPending}
           profileId={profileId}
         />

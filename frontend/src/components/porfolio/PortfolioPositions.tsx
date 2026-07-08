@@ -61,9 +61,14 @@ export default function PortfolioPositions() {
           <div className="flex flex-col gap-3">
             {positions.map((pos) => {
               const yes = pos.side === "YES"
+              const isClaimable =
+                pos.status === "resolved" &&
+                pos.resolved_outcome?.toUpperCase() === pos.side?.toUpperCase() &&
+                pos.shares > 0
+
               return (
                 <div
-                  key={pos.id}
+                   key={pos.id}
                   className="group flex flex-col gap-4 rounded-[12px] bg-parchment-card p-4 shadow-subtle transition-colors hover:bg-stone-surface sm:flex-row sm:items-center sm:justify-between"
                 >
                   <div className="flex-1 min-w-0">
@@ -72,6 +77,11 @@ export default function PortfolioPositions() {
                     >
                       {pos.side}
                     </span>
+                    {isClaimable && (
+                      <span className="ml-2 px-1.5 py-0.5 rounded-full bg-meadow-green text-[8px] font-mono font-bold text-white uppercase tracking-wider">
+                        Redeemable
+                      </span>
+                    )}
                     <h3 className="mt-2 line-clamp-2 text-sm font-semibold leading-snug tracking-[-0.18px] text-charcoal-primary transition-colors group-hover:text-ember-orange">
                       {pos.market_question ||
                         `Market ID: ${pos.market_id.slice(0, 12)}...`}
@@ -99,8 +109,23 @@ export default function PortfolioPositions() {
                       <span className="block text-[9px] font-semibold uppercase text-ash">
                         Invested
                       </span>
-                      <span className="font-semibold text-meadow-green">
+                      <span className="font-semibold text-charcoal-primary">
                         {pos.invested_usdc.toFixed(2)} USDC
+                      </span>
+                    </div>
+                    <div>
+                      <span className="block text-[9px] font-semibold uppercase text-ash">
+                        P&L
+                      </span>
+                      <span
+                        className={`font-semibold ${
+                          (pos.status === "resolved" ? pos.realizedPnL : pos.unrealizedPnL) >= 0
+                            ? "text-meadow-green"
+                            : "text-ember-orange"
+                        }`}
+                      >
+                        {(pos.status === "resolved" ? pos.realizedPnL : pos.unrealizedPnL) >= 0 ? "+" : ""}
+                        {(pos.status === "resolved" ? pos.realizedPnL : pos.unrealizedPnL).toFixed(2)}
                       </span>
                     </div>
                     <Link

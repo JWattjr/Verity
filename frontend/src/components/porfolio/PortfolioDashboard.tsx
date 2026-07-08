@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import {
   ArrowUpRight,
   Send,
@@ -23,6 +23,8 @@ import Link from "next/link"
 import { useAuth } from "@/components/providers/AuthModals"
 import SendUsdcModal from "./SendUsdcModal"
 import ReceiveUsdcModal from "./ReceiveUsdcModal"
+import { useMarketResolution } from "@/hooks/useMarketResolution"
+import { apiRequest } from "@/store/apiClient"
 
 export default function PortfolioDashboard() {
   const { login } = useAuth()
@@ -38,17 +40,44 @@ export default function PortfolioDashboard() {
   const { data: trades, isLoading: isTradesLoading } =
     useUserTradesQuery(userId)
   const { data: accruedData } = useAccruedLpFeesQuery(userId)
-  const { mutateAsync: claimLpFees, isPending: isClaiming } = useClaimLpFeesMutation()
+  const { mutateAsync: claimLpFees, isPending: isClaiming } =
+    useClaimLpFeesMutation()
 
   const accruedLpFees = accruedData?.accruedFeesUsdc || 0
 
   const handleClaimLpFees = async () => {
     try {
       const result = await claimLpFees()
-      toast.success(`Successfully claimed ${result.amountClaimed.toFixed(4)} USDC in LP fees!`)
+      toast.success(
+        `Successfully claimed ${result.amountClaimed.toFixed(4)} USDC in LP fees!`,
+      )
       refetch()
     } catch (err: any) {
       toast.error(err?.message || "Failed to claim LP fees.")
+    }
+  }
+
+  const { redeemMultipleWinnings } = useMarketResolution()
+  const [isClaimingAll, setIsClaimingAll] = useState(false)
+
+  const handleClaimAll = async () => {
+    if (winningPositions.length === 0) return
+    const marketIds = winningPositions.map((pos) => pos.market_id)
+    setIsClaimingAll(true)
+    try {
+      await redeemMultipleWinnings(marketIds)
+      toast.success("Winnings claimed successfully!")
+      await Promise.all(
+        marketIds.map((marketId) =>
+          apiRequest(`/markets/${marketId}/positions?profileId=${userId}`),
+        ),
+      )
+      refetch()
+    } catch (err: any) {
+      console.error(err)
+      toast.error(err?.message || "Failed to claim winnings.")
+    } finally {
+      setIsClaimingAll(false)
     }
   }
   const { dailyVotes, isLoading: isDailyVotesLoading } = useDailyVotes(
@@ -60,10 +89,19 @@ export default function PortfolioDashboard() {
   const trending = marketItems.slice(0, 3)
 
   const [activeTab, setActiveTab] = useState<
-    "overview" | "tokens" | "activity"
+    "overview" | "tokens" | "wins" | "activity"
   >("overview")
   const [isSendOpen, setIsSendOpen] = useState(false)
   const [isRecvOpen, setIsRecvOpen] = useState(false)
+
+  const winningPositions = useMemo(() => {
+    return positions.filter(
+      (pos) =>
+        pos.status === "resolved" &&
+        pos.resolved_outcome?.toUpperCase() === pos.side?.toUpperCase() &&
+        pos.shares > 0,
+    )
+  }, [positions])
 
   const isConnected = !!profile
 
@@ -122,7 +160,7 @@ export default function PortfolioDashboard() {
           </section>
 
           <div className="grid gap-4 md:grid-cols-3">
-            <div className="md:col-span-2 verity-card p-6 bg-surface-solid border border-border relative overflow-hidden flex flex-col justify-between">
+            <div className="md:col-span-2 verity-card p-4 sm:p-6 bg-surface-solid border border-border relative overflow-hidden flex flex-col justify-between">
               <div className="absolute right-4 top-7 flex flex-col items-end gap-1.5">
                 <div className="text-right mt-1">
                   <span className="block font-mono text-[8px] text-ash uppercase tracking-wider">
@@ -139,12 +177,12 @@ export default function PortfolioDashboard() {
                 <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-ash">
                   Total Portfolio Value
                 </span>
-                <h2 className="mt-2 font-mono text-4xl font-semibold tracking-[-0.9px] text-midnight">
+                <h2 className="sm:mt-2 font-mono text-4xl font-semibold tracking-[-0.9px] text-midnight">
                   ${stats.netWorth.toFixed(2)}
                 </h2>
               </div>
 
-              <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-4 border-t border-stone-surface pt-4">
+              <div className="mt-2 sm:mt-6 grid grid-cols-2 md:grid-cols-4 gap-1 sm:gap-4 border-t border-stone-surface pt-2 sm:pt-4">
                 <div>
                   <span className="block font-mono text-[9px] font-semibold text-ash uppercase tracking-wider">
                     USDC Balance
@@ -168,8 +206,7 @@ export default function PortfolioDashboard() {
                   <span
                     className={`font-mono text-base font-semibold ${stats.unrealizedPnL >= 0 ? "text-meadow-green" : "text-ember-orange"}`}
                   >
-                    {stats.unrealizedPnL >= 0 ? "+" : ""}
-                    {stats.unrealizedPnL.toFixed(2)} USDC
+                    ${stats.unrealizedPnL.toFixed(2)}
                   </span>
                 </div>
                 <div>
@@ -194,11 +231,11 @@ export default function PortfolioDashboard() {
               </div>
             </div>
 
-            {/* Quick Actions Grid (1/3 width on desktop) */}
-            <div className="grid grid-cols-2 gap-3">
+            {/* Quick Actions (Flex row of 4 items on mobile, 2x2 grid on desktop) */}
+            <div className="flex flex-row gap-2 md:grid md:grid-cols-2 md:gap-3">
               <button
                 onClick={() => setIsSendOpen(true)}
-                className="verity-card p-4 flex flex-col items-center justify-center gap-2 bg-stone-surface hover:bg-stone-surface/80 border border-border rounded-[12px] transition-all cursor-pointer group text-center"
+                className="flex-1 verity-card p-2.5 sm:p-4 flex flex-col items-center justify-center gap-2 bg-stone-surface hover:bg-stone-surface/80 border border-border rounded-[12px] transition-all cursor-pointer group text-center"
               >
                 <div className="flex h-10 w-10 items-center justify-center rounded-full bg-ember-orange/10 text-ember-orange transition-transform group-hover:-translate-y-1">
                   <Send className="h-5 w-5" />
@@ -210,7 +247,7 @@ export default function PortfolioDashboard() {
 
               <button
                 onClick={() => setIsRecvOpen(true)}
-                className="verity-card p-4 flex flex-col items-center justify-center gap-2 bg-stone-surface hover:bg-stone-surface/80 border border-border rounded-[12px] transition-all cursor-pointer group text-center"
+                className="flex-1 verity-card p-2.5 sm:p-4 flex flex-col items-center justify-center gap-2 bg-stone-surface hover:bg-stone-surface/80 border border-border rounded-[12px] transition-all cursor-pointer group text-center"
               >
                 <div className="flex h-10 w-10 items-center justify-center rounded-full bg-sky-blue/10 text-sky-blue transition-transform group-hover:translate-y-1">
                   <ArrowDownLeft className="h-5 w-5" />
@@ -224,7 +261,7 @@ export default function PortfolioDashboard() {
                 href="https://faucet.circle.com"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="verity-card p-4 flex flex-col items-center justify-center gap-2 bg-stone-surface hover:bg-stone-surface/80 border border-border rounded-[12px] transition-all cursor-pointer group text-center"
+                className="flex-1 verity-card p-2.5 sm:p-4 flex flex-col items-center justify-center gap-2 bg-stone-surface hover:bg-stone-surface/80 border border-border rounded-[12px] transition-all cursor-pointer group text-center"
               >
                 <div className="flex h-10 w-10 items-center justify-center rounded-full bg-sunburst-yellow/10 text-sunburst-yellow transition-transform group-hover:scale-110">
                   <Sparkles className="h-5 w-5" />
@@ -238,7 +275,7 @@ export default function PortfolioDashboard() {
                 href={`https://testnet.arcscan.app/address/${profile?.walletAddress || ""}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="verity-card p-4 flex flex-col items-center justify-center gap-2 bg-stone-surface hover:bg-stone-surface/80 border border-border rounded-[12px] transition-all cursor-pointer group text-center"
+                className="flex-1 verity-card p-2.5 sm:p-4 flex flex-col items-center justify-center gap-2 bg-stone-surface hover:bg-stone-surface/80 border border-border rounded-[12px] transition-all cursor-pointer group text-center"
               >
                 <div className="flex h-10 w-10 items-center justify-center rounded-full bg-graphite/10 text-graphite transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5">
                   <ExternalLink className="h-5 w-5" />
@@ -252,7 +289,7 @@ export default function PortfolioDashboard() {
         </div>
 
         {/* Right Section (spanning 1 column on desktop, holds Trending Markets) */}
-        <div className="lg:col-span-1">
+        <div className="hidden lg:block lg:col-span-1">
           <div className="verity-card flex flex-col overflow-hidden h-full">
             <div className="border-b border-dashed border-stone-surface p-4">
               <h2 className="flex items-center gap-2 font-mono text-xs font-semibold uppercase tracking-[0.16em] text-charcoal-primary">
@@ -333,22 +370,30 @@ export default function PortfolioDashboard() {
       {/* Tabs Navigation */}
       <section className="border-b border-border">
         <div className="flex gap-6">
-          {(["overview", "tokens", "activity"] as const).map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`pb-3 font-semibold text-sm relative transition-colors cursor-pointer capitalize tracking-[-0.1px] ${
-                activeTab === tab
-                  ? "text-charcoal-primary font-bold"
-                  : "text-ash hover:text-charcoal-primary"
-              }`}
-            >
-              {tab}
-              {activeTab === tab && (
-                <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-ember-orange rounded-full animate-fade-in" />
-              )}
-            </button>
-          ))}
+          {(["overview", "tokens", "wins", "activity"] as const).map((tab) => {
+            const label = tab === "wins" ? "Wins" : tab
+            return (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                className={`pb-3 font-semibold text-sm relative transition-colors cursor-pointer capitalize tracking-[-0.1px] flex items-center ${
+                  activeTab === tab
+                    ? "text-charcoal-primary font-bold"
+                    : "text-ash hover:text-charcoal-primary"
+                }`}
+              >
+                {label}
+                {tab === "wins" && winningPositions.length > 0 && (
+                  <span className="ml-1.5 px-1.5 py-0.5 rounded-full bg-meadow-green text-[9px] font-mono font-bold text-white uppercase tracking-wider">
+                    {winningPositions.length}
+                  </span>
+                )}
+                {activeTab === tab && (
+                  <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-ember-orange rounded-full animate-fade-in" />
+                )}
+              </button>
+            )
+          })}
         </div>
       </section>
 
@@ -388,6 +433,16 @@ export default function PortfolioDashboard() {
                 <div className="flex flex-col gap-3">
                   {recentPositions.map((pos) => {
                     const isYes = pos.side === "YES"
+                    const isClaimable =
+                      pos.status === "resolved" &&
+                      pos.resolved_outcome?.toUpperCase() ===
+                        pos.side?.toUpperCase() &&
+                      pos.shares > 0
+                    const displayPnL =
+                      pos.status === "resolved"
+                        ? (pos.realizedPnL ?? pos.unrealizedPnL)
+                        : pos.unrealizedPnL
+
                     return (
                       <div
                         key={pos.id}
@@ -403,6 +458,11 @@ export default function PortfolioDashboard() {
                           >
                             {pos.side}
                           </span>
+                          {isClaimable && (
+                            <span className="ml-2 px-1.5 py-0.5 rounded-full bg-meadow-green text-[8px] font-mono font-bold text-white uppercase tracking-wider">
+                              Redeemable
+                            </span>
+                          )}
                           <h4
                             className="mt-1.5 text-xs font-semibold leading-normal text-charcoal-primary truncate"
                             title={pos.market_question || ""}
@@ -433,10 +493,10 @@ export default function PortfolioDashboard() {
                               P&L
                             </span>
                             <span
-                              className={`font-semibold ${pos.unrealizedPnL >= 0 ? "text-meadow-green" : "text-ember-orange"}`}
+                              className={`font-semibold ${displayPnL >= 0 ? "text-meadow-green" : "text-ember-orange"}`}
                             >
-                              {pos.unrealizedPnL >= 0 ? "+" : ""}
-                              {pos.unrealizedPnL.toFixed(2)}
+                              {displayPnL >= 0 ? "+" : ""}
+                              {displayPnL.toFixed(2)}
                             </span>
                           </div>
                           <Link
@@ -545,15 +605,23 @@ export default function PortfolioDashboard() {
                     <th className="pb-3 font-semibold text-right">
                       Current Value
                     </th>
-                    <th className="pb-3 font-semibold text-right">
-                      Unrealized P&L
-                    </th>
+                    <th className="pb-3 font-semibold text-right">P&L</th>
                     <th className="pb-3 font-semibold text-right">Link</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-stone-surface">
                   {positions.map((pos) => {
                     const isYes = pos.side === "YES"
+                    const isClaimable =
+                      pos.status === "resolved" &&
+                      pos.resolved_outcome?.toUpperCase() ===
+                        pos.side?.toUpperCase() &&
+                      pos.shares > 0
+                    const displayPnL =
+                      pos.status === "resolved"
+                        ? (pos.realizedPnL ?? pos.unrealizedPnL)
+                        : pos.unrealizedPnL
+
                     return (
                       <tr
                         key={pos.id}
@@ -565,6 +633,11 @@ export default function PortfolioDashboard() {
                         >
                           {pos.market_question ||
                             `Market ${pos.market_id.slice(0, 12)}...`}
+                          {isClaimable && (
+                            <span className="ml-2 px-1.5 py-0.5 rounded-full bg-meadow-green text-[8px] font-mono font-bold text-white uppercase tracking-wider">
+                              Redeemable
+                            </span>
+                          )}
                         </td>
                         <td className="py-3.5 pr-2">
                           <span
@@ -593,10 +666,10 @@ export default function PortfolioDashboard() {
                           ${pos.currentValue.toFixed(2)}
                         </td>
                         <td
-                          className={`py-3.5 font-mono text-right font-semibold ${pos.unrealizedPnL >= 0 ? "text-meadow-green" : "text-ember-orange"}`}
+                          className={`py-3.5 font-mono text-right font-semibold ${displayPnL >= 0 ? "text-meadow-green" : "text-ember-orange"}`}
                         >
-                          {pos.unrealizedPnL >= 0 ? "+" : ""}
-                          {pos.unrealizedPnL.toFixed(2)}
+                          {displayPnL >= 0 ? "+" : ""}
+                          {displayPnL.toFixed(2)}
                         </td>
                         <td className="py-3.5 text-right">
                           <Link
@@ -615,6 +688,69 @@ export default function PortfolioDashboard() {
                   })}
                 </tbody>
               </table>
+            )}
+          </div>
+        )}
+
+        {activeTab === "wins" && (
+          <div className="verity-card p-5 bg-surface-solid border border-border overflow-x-auto hide-scrollbar">
+            <div className="flex items-center justify-between pb-3 border-b border-stone-surface mb-4">
+              <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-charcoal-primary">
+                My Winning Positions
+              </h3>
+              {/* {winningPositions.length > 0 && (
+                <button
+                  onClick={handleClaimAll}
+                  disabled={isClaimingAll}
+                  className="px-3 py-2 text-xs font-semibold uppercase tracking-wider bg-meadow-green text-white rounded-[6px] hover:bg-meadow-green/90 disabled:opacity-50 transition-colors cursor-pointer shadow-subtle"
+                >
+                  {isClaimingAll ? "Claiming..." : "Claim All"}
+                </button>
+              )} */}
+            </div>
+            {winningPositions.length === 0 ? (
+              <div className="text-center py-16">
+                <p className="text-sm text-ash">
+                  No winning positions to claim at the moment.
+                </p>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-4">
+                {winningPositions.map((pos) => {
+                  return (
+                    <div
+                      key={pos.id}
+                      className="group flex flex-col gap-4 rounded-[12px] bg-parchment-card p-4 shadow-subtle transition-colors hover:bg-stone-surface/30 sm:flex-row sm:items-center sm:justify-between"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <span className="verity-pill inline-flex px-2.5 py-0.5 font-mono text-[9px] font-semibold bg-meadow-green/10 text-meadow-green">
+                          {pos.side} (WINNER)
+                        </span>
+                        <h4 className="mt-2 text-sm font-semibold leading-snug tracking-[-0.18px] text-charcoal-primary group-hover:text-ember-orange transition-colors">
+                          {pos.market_question || `Market ID: ${pos.market_id}`}
+                        </h4>
+                      </div>
+
+                      <div className="flex justify-between items-center gap-6 font-mono text-xs text-right shrink-0">
+                        <div>
+                          <span className="block text-left text-[8px] text-ash uppercase">
+                            Winnings
+                          </span>
+                          <span className="font-semibold text-charcoal-primary">
+                            {pos.shares.toFixed(2)} USDC
+                          </span>
+                        </div>
+                        <Link
+                          href={`/markets/${pos.market_id}`}
+                          className="flex h-9 px-4 items-center justify-center rounded-[8px] bg-black/80 text-white font-semibold hover:bg-black/70 transition-colors shadow-subtle text-[11px] uppercase tracking-wider text-center"
+                        >
+                          View
+                        </Link>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
             )}
           </div>
         )}
