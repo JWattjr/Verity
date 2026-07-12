@@ -23,6 +23,7 @@ import {
   MarketTradeDocument,
 } from "../markets/markets.model"
 import { Post, PostDocument } from "../posts/posts.model"
+import { LpFeeLedger, LpFeeLedgerDocument } from "../liquidity/liquidity.model"
 import { SocketGateway } from "../socket/socket.gateway"
 import { NotificationsService } from "../notifications/notifications.service"
 import { CreatePvpEventDto, SubmitTicketDto } from "./pvp.dto"
@@ -197,9 +198,13 @@ export class PvpService {
     private marketPositionModel: Model<MarketPositionDocument>,
     @InjectModel(MarketTrade.name)
     private marketTradeModel: Model<MarketTradeDocument>,
-    @InjectModel(Post.name) private postModel: Model<PostDocument>,
-    @InjectModel(User.name) private userModel: Model<UserDocument>,
-    private readonly socketGateway: SocketGateway,
+    @InjectModel(User.name)
+    private userModel: Model<UserDocument>,
+    @InjectModel(Post.name)
+    private postModel: Model<PostDocument>,
+    @InjectModel(LpFeeLedger.name)
+    private lpLedgerModel: Model<LpFeeLedgerDocument>,
+    private socketGateway: SocketGateway,
     private readonly notificationsService: NotificationsService,
     private readonly blockchainService: BlockchainService,
     private readonly liquidityService: LiquidityService,
@@ -2986,6 +2991,15 @@ export class PvpService {
     ])
     const creationFeesCollected = creationFeeStatsList[0]?.total || 0
 
+    // Count Nanopayments
+    const uniqueRoyaltyHashes = await this.marketTradeModel.distinct("royaltyPaidTxHash", {
+      royaltyPaidTxHash: { $nin: [null, "", "zero_amount", "self_split", "no_pool", "no_positions", "apportioned"] }
+    })
+    const uniqueLpHashes = await this.lpLedgerModel.distinct("lastPayoutTxHash", {
+      lastPayoutTxHash: { $nin: [null, "", "zero_amount", "self_split"] }
+    })
+    const nanopaymentsProcessed = new Set([...uniqueRoyaltyHashes, ...uniqueLpHashes]).size
+
     // 6. Recent Trades (within timeframe, max 1000) for line charts
     const recentTrades = await this.marketTradeModel.aggregate([
       { $match: { createdAt: { $gte: cutoff } } },
@@ -3139,6 +3153,7 @@ export class PvpService {
         creationFeesCollected,
         combinedFees: tradeStats.overallFees + creationFeesCollected,
       },
+      nanopaymentsProcessed,
       recentTrades,
       activityTimeline,
     }
