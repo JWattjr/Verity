@@ -806,6 +806,7 @@ export function usePublicMetricsQuery() {
           combinedFees: number
         }
         nanopaymentsProcessed: number
+        totalMarketCreators: number
       }>("/pvp/public-metrics"),
   })
 }

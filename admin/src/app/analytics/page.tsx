@@ -48,6 +48,7 @@ interface AdminMetrics {
     combinedFees: number
   }
   nanopaymentsProcessed: number
+  totalMarketCreators: number
   recentTrades: {
     marketId: string
     marketQuestion: string
@@ -59,6 +60,7 @@ interface AdminMetrics {
     signups: number
     trades: number
     tickets: number
+    marketCreators: number
   }[]
 }
 
@@ -228,8 +230,8 @@ export default function AnalyticsPage() {
         </div>
       </div>
 
-      {/* Metrics Summary Row (6 columns) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-5">
+      {/* Metrics Summary Row (7 columns) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-7 gap-5">
         {/* Total Volume */}
         <div className="bg-white border border-stone-200 p-5 rounded-2xl shadow-xs flex flex-col gap-1.5">
           <div className="flex items-center justify-between text-stone-400">
@@ -322,6 +324,22 @@ export default function AnalyticsPage() {
           </span>
           <span className="text-[10px] font-semibold text-stone-450 mt-1">
             Balances in payout contracts
+          </span>
+        </div>
+
+        {/* Market Creators */}
+        <div className="bg-white border border-stone-200 p-5 rounded-2xl shadow-xs flex flex-col gap-1.5">
+          <div className="flex items-center justify-between text-stone-400">
+            <span className="text-[10px] font-black text-stone-500 uppercase tracking-wider">
+              Market Creators
+            </span>
+            <Users className="h-4.5 w-4.5 text-indigo-600" />
+          </div>
+          <span className="text-2xl font-black text-stone-950 font-mono tracking-tight">
+            {metricsData.totalMarketCreators}
+          </span>
+          <span className="text-[10px] font-semibold text-stone-450 mt-1">
+            Unique users creating markets
           </span>
         </div>
 

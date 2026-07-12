@@ -48,6 +48,7 @@ interface AdminMetrics {
     combinedFees: number
   }
   nanopaymentsProcessed: number
+  totalMarketCreators: number
   recentTrades: {
     marketId: string
     marketQuestion: string
@@ -59,6 +60,7 @@ interface AdminMetrics {
     signups: number
     trades: number
     tickets: number
+    marketCreators: number
   }[]
 }
 
@@ -96,7 +98,9 @@ export default function MetricsTab({
   // Calculate unclaimed rewards / payout contract balances
   const unclaimedRewards = useMemo(() => {
     if (!contractBalances) return 0
-    return contractBalances.fpmmUsdcBalance + contractBalances.factoryUsdcBalance
+    return (
+      contractBalances.fpmmUsdcBalance + contractBalances.factoryUsdcBalance
+    )
   }, [contractBalances])
 
   if (metricsLoading && !metricsData) {
@@ -122,7 +126,8 @@ export default function MetricsTab({
   }
 
   // Format bets count: PvP tickets count + standard trades count
-  const totalBetsCount = metricsData.pvpMatchesCount + (metricsData.recentTrades?.length || 0)
+  const totalBetsCount =
+    metricsData.pvpMatchesCount + (metricsData.recentTrades?.length || 0)
 
   return (
     <div className="flex flex-col gap-6 animate-fade-in">
@@ -134,7 +139,8 @@ export default function MetricsTab({
             Platform Analytics
           </h2>
           <p className="text-xs text-stone-500 mt-0.5">
-            Real-time on-chain volume, active wallets, trading stats, and contract balances.
+            Real-time on-chain volume, active wallets, trading stats, and
+            contract balances.
           </p>
         </div>
 
@@ -161,13 +167,15 @@ export default function MetricsTab({
             disabled={metricsLoading}
             className="h-8.5 w-8.5 rounded-xl hover:bg-stone-50 bg-white border border-stone-200 flex items-center justify-center text-stone-500 hover:text-stone-950 transition-colors shadow-2xs cursor-pointer disabled:opacity-50"
           >
-            <RefreshCw className={`h-4 w-4 ${metricsLoading ? "animate-spin" : ""}`} />
+            <RefreshCw
+              className={`h-4 w-4 ${metricsLoading ? "animate-spin" : ""}`}
+            />
           </button>
         </div>
       </div>
 
-      {/* Metrics Summary Row (Inspiration style - 6 Columns) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
+      {/* Metrics Summary Row (7 columns) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
         {/* Total Volume */}
         <div className="bg-white border border-stone-200 p-5 rounded-2xl shadow-xs flex flex-col gap-1.5">
           <div className="flex items-center justify-between text-stone-400">
@@ -250,7 +258,9 @@ export default function MetricsTab({
           </div>
           <span className="text-2xl font-black text-stone-950 font-mono tracking-tight">
             {contractBalancesLoading ? (
-              <span className="text-xs text-stone-400 animate-pulse">Loading...</span>
+              <span className="text-xs text-stone-400 animate-pulse">
+                Loading...
+              </span>
             ) : (
               `${unclaimedRewards.toLocaleString(undefined, {
                 minimumFractionDigits: 2,
@@ -260,6 +270,22 @@ export default function MetricsTab({
           </span>
           <span className="text-[10px] font-semibold text-stone-450 mt-1">
             Total pending claims
+          </span>
+        </div>
+
+        {/* Market Creators */}
+        <div className="bg-white border border-stone-200 p-5 rounded-2xl shadow-xs flex flex-col gap-1.5">
+          <div className="flex items-center justify-between text-stone-400">
+            <span className="text-[10px] font-black text-stone-500 uppercase tracking-wider">
+              Market Creators
+            </span>
+            <Users className="h-4.5 w-4.5 text-indigo-600" />
+          </div>
+          <span className="text-2xl font-black text-stone-950 font-mono tracking-tight">
+            {metricsData.totalMarketCreators}
+          </span>
+          <span className="text-[10px] font-semibold text-stone-450 mt-1">
+            Unique users creating markets
           </span>
         </div>
 
@@ -281,13 +307,18 @@ export default function MetricsTab({
       </div>
 
       {/* Main Cumulative Volume Chart (Full width) */}
-      <VolumeLineChart trades={metricsData.recentTrades} timeframe={timeframe} />
+      <VolumeLineChart
+        trades={metricsData.recentTrades}
+        timeframe={timeframe}
+      />
 
       {/* Grouped User Activity & Funnel Row */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* User Activity Bar Chart */}
         <div className="lg:col-span-7">
-          <UserActivityBarChart activityTimeline={metricsData.activityTimeline} />
+          <UserActivityBarChart
+            activityTimeline={metricsData.activityTimeline}
+          />
         </div>
 
         {/* PvP Funnel Chart */}
@@ -302,7 +333,9 @@ export default function MetricsTab({
             <div className="flex flex-col gap-1.5">
               <div className="flex justify-between text-xs font-semibold">
                 <span className="text-stone-500">Registered Accounts</span>
-                <span className="text-stone-950 font-mono font-bold">{metricsData.users.real}</span>
+                <span className="text-stone-950 font-mono font-bold">
+                  {metricsData.users.real}
+                </span>
               </div>
               <div className="w-full bg-stone-100 h-2 rounded-full overflow-hidden">
                 <div className="bg-indigo-650 h-full rounded-full w-full" />
@@ -315,7 +348,8 @@ export default function MetricsTab({
                 <span className="text-stone-950 font-mono font-bold">
                   {metricsData.pvpUsers.submitted.real} (
                   {(
-                    (metricsData.pvpUsers.submitted.real / (metricsData.users.real || 1)) *
+                    (metricsData.pvpUsers.submitted.real /
+                      (metricsData.users.real || 1)) *
                     100
                   ).toFixed(0)}
                   %)
@@ -326,7 +360,9 @@ export default function MetricsTab({
                   className="bg-indigo-500 h-full rounded-full"
                   style={{
                     width: `${
-                      (metricsData.pvpUsers.submitted.real / (metricsData.users.real || 1)) * 100
+                      (metricsData.pvpUsers.submitted.real /
+                        (metricsData.users.real || 1)) *
+                      100
                     }%`,
                   }}
                 />
@@ -339,7 +375,8 @@ export default function MetricsTab({
                 <span className="text-stone-950 font-mono font-bold">
                   {metricsData.pvpUsers.played.real} (
                   {(
-                    (metricsData.pvpUsers.played.real / (metricsData.users.real || 1)) *
+                    (metricsData.pvpUsers.played.real /
+                      (metricsData.users.real || 1)) *
                     100
                   ).toFixed(0)}
                   %)
@@ -350,7 +387,9 @@ export default function MetricsTab({
                   className="bg-emerald-500 h-full rounded-full"
                   style={{
                     width: `${
-                      (metricsData.pvpUsers.played.real / (metricsData.users.real || 1)) * 100
+                      (metricsData.pvpUsers.played.real /
+                        (metricsData.users.real || 1)) *
+                      100
                     }%`,
                   }}
                 />

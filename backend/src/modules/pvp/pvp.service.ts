@@ -2879,6 +2879,10 @@ export class PvpService {
     const botsCount = botUserIds.size
     const realUsersCount = Math.max(0, totalUsers - botsCount)
 
+    // Get total unique market creators within timeframe
+    const marketCreatorsList = await this.marketModel.distinct("authorId", { createdAt: { $gte: cutoff } })
+    const totalMarketCreators = marketCreatorsList.length
+
     // 2. PvP User Stats
     const ticketStatsList = await this.pvpTicketModel.aggregate([
       { $match: { status: { $ne: "cancelled" } } },
@@ -2991,12 +2995,14 @@ export class PvpService {
     ])
     const creationFeesCollected = creationFeeStatsList[0]?.total || 0
 
-    // Count Nanopayments
+    // Count Nanopayments within timeframe
     const uniqueRoyaltyHashes = await this.marketTradeModel.distinct("royaltyPaidTxHash", {
-      royaltyPaidTxHash: { $nin: [null, "", "zero_amount", "self_split", "no_pool", "no_positions", "apportioned"] }
+      royaltyPaidTxHash: { $nin: [null, "", "zero_amount", "self_split", "no_pool", "no_positions", "apportioned"] },
+      createdAt: { $gte: cutoff }
     })
     const uniqueLpHashes = await this.lpLedgerModel.distinct("lastPayoutTxHash", {
-      lastPayoutTxHash: { $nin: [null, "", "zero_amount", "self_split"] }
+      lastPayoutTxHash: { $nin: [null, "", "zero_amount", "self_split"] },
+      updatedAt: { $gte: cutoff }
     })
     const nanopaymentsProcessed = new Set([...uniqueRoyaltyHashes, ...uniqueLpHashes]).size
 
@@ -3060,8 +3066,9 @@ export class PvpService {
     const signups = await this.userModel.find({ createdAt: { $gte: cutoff } }, { createdAt: 1 }).lean()
     const trades = await this.marketTradeModel.find({ createdAt: { $gte: cutoff } }, { createdAt: 1 }).lean()
     const tickets = await this.pvpTicketModel.find({ createdAt: { $gte: cutoff } }, { createdAt: 1 }).lean()
+    const markets = await this.marketModel.find({ createdAt: { $gte: cutoff } }, { createdAt: 1, authorId: 1 }).lean()
 
-    const timeline: { label: string; signups: number; trades: number; tickets: number; start: number; end: number }[] = []
+    const timeline: { label: string; signups: number; trades: number; tickets: number; marketCreators: number; start: number; end: number }[] = []
     const nowMs = Date.now()
 
     if (tf === "1h") {
@@ -3071,7 +3078,7 @@ export class PvpService {
         const end = i === 0 ? Infinity : nowMs - i * 5 * 60 * 1000
         const dateObj = new Date(start)
         const label = `${String(dateObj.getHours()).padStart(2, "0")}:${String(dateObj.getMinutes() - (dateObj.getMinutes() % 5)).padStart(2, "0")}`
-        timeline.push({ label, signups: 0, trades: 0, tickets: 0, start, end })
+        timeline.push({ label, signups: 0, trades: 0, tickets: 0, marketCreators: 0, start, end })
       }
     } else if (tf === "1d") {
       // 24 intervals of 1 hour
@@ -3080,7 +3087,7 @@ export class PvpService {
         const end = i === 0 ? Infinity : nowMs - i * 60 * 60 * 1000
         const dateObj = new Date(start)
         const label = `${String(dateObj.getHours()).padStart(2, "0")}:00`
-        timeline.push({ label, signups: 0, trades: 0, tickets: 0, start, end })
+        timeline.push({ label, signups: 0, trades: 0, tickets: 0, marketCreators: 0, start, end })
       }
     } else if (tf === "30d") {
       // 30 intervals of 1 day
@@ -3089,7 +3096,7 @@ export class PvpService {
         const end = i === 0 ? Infinity : nowMs - i * 24 * 60 * 60 * 1000
         const dateObj = new Date(start)
         const label = `${dateObj.getDate()} ${dateObj.toLocaleString("default", { month: "short" })}`
-        timeline.push({ label, signups: 0, trades: 0, tickets: 0, start, end })
+        timeline.push({ label, signups: 0, trades: 0, tickets: 0, marketCreators: 0, start, end })
       }
     } else {
       // 7 intervals of 1 day (7d default)
@@ -3098,7 +3105,7 @@ export class PvpService {
         const end = i === 0 ? Infinity : nowMs - i * 24 * 60 * 60 * 1000
         const dateObj = new Date(start)
         const label = dateObj.toLocaleDateString("default", { weekday: "short" })
-        timeline.push({ label, signups: 0, trades: 0, tickets: 0, start, end })
+        timeline.push({ label, signups: 0, trades: 0, tickets: 0, marketCreators: 0, start, end })
       }
     }
 
@@ -3117,11 +3124,33 @@ export class PvpService {
     fillTimeline(trades, "trades")
     fillTimeline(tickets, "tickets")
 
-    const activityTimeline = timeline.map(({ label, signups, trades, tickets }) => ({
+    // Custom fill for unique market creators per bucket
+    const fillTimelineUniqueUsers = (items: any[], key: "marketCreators", userIdField: string) => {
+      const bucketUsers = new Map<number, Set<string>>()
+      for (const bucket of timeline) {
+        bucketUsers.set(bucket.start, new Set())
+      }
+      for (const item of items) {
+        if (!item.createdAt || !item[userIdField]) continue
+        const t = new Date(item.createdAt).getTime()
+        const bucket = timeline.find((b) => t >= b.start && t < b.end)
+        if (bucket) {
+          bucketUsers.get(bucket.start)?.add(item[userIdField].toString())
+        }
+      }
+      for (const bucket of timeline) {
+        bucket[key] = bucketUsers.get(bucket.start)?.size || 0
+      }
+    }
+
+    fillTimelineUniqueUsers(markets, "marketCreators", "authorId")
+
+    const activityTimeline = timeline.map(({ label, signups, trades, tickets, marketCreators }) => ({
       label,
       signups,
       trades,
       tickets,
+      marketCreators,
     }))
 
     return {
@@ -3154,6 +3183,7 @@ export class PvpService {
         combinedFees: tradeStats.overallFees + creationFeesCollected,
       },
       nanopaymentsProcessed,
+      totalMarketCreators,
       recentTrades,
       activityTimeline,
     }
