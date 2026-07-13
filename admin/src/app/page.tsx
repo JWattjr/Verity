@@ -78,6 +78,8 @@ interface AdminMetrics {
     creationFeesCollected: number
     combinedFees: number
   }
+  nanopaymentsProcessed: number
+  totalMarketCreators: number
   recentTrades: {
     marketId: string
     marketQuestion: string
@@ -89,6 +91,7 @@ interface AdminMetrics {
     signups: number
     trades: number
     tickets: number
+    marketCreators: number
   }[]
 }
 
