@@ -14,6 +14,10 @@ import {
   MarketTrade,
   MarketTradeSchema,
 } from "../markets/markets.model"
+import {
+  LpFeeLedger,
+  LpFeeLedgerSchema,
+} from "../liquidity/liquidity.model"
 import { Post, PostSchema } from "../posts/posts.model"
 import { User, UserSchema } from "../users/users.model"
 import { PvpService } from "./pvp.service"
@@ -34,6 +38,7 @@ import { CouponsModule } from "../coupons/coupons.module"
       { name: User.name, schema: UserSchema },
       { name: MarketPosition.name, schema: MarketPositionSchema },
       { name: MarketTrade.name, schema: MarketTradeSchema },
+      { name: LpFeeLedger.name, schema: LpFeeLedgerSchema },
     ]),
     SocketModule,
     NotificationsModule,

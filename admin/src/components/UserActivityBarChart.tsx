@@ -7,6 +7,7 @@ interface ActivityPoint {
   signups: number
   trades: number
   tickets: number
+  marketCreators: number
 }
 
 interface UserActivityBarChartProps {
@@ -24,7 +25,7 @@ export default function UserActivityBarChart({ activityTimeline }: UserActivityB
   const maxVal = useMemo(() => {
     let max = 5 // fallback minimum
     for (const pt of safeTimeline) {
-      const highest = Math.max(pt.signups, pt.trades, pt.tickets)
+      const highest = Math.max(pt.signups, pt.trades, pt.tickets, pt.marketCreators || 0)
       if (highest > max) {
         max = highest
       }
@@ -57,8 +58,8 @@ export default function UserActivityBarChart({ activityTimeline }: UserActivityB
 
   // Bar sizes
   const groupWidth = safeTimeline.length > 0 ? plotWidth / safeTimeline.length : plotWidth
-  const barWidth = Math.max(4, Math.min(16, (groupWidth * 0.6) / 3))
-  const groupSpacing = groupWidth - barWidth * 3
+  const barWidth = Math.max(3, Math.min(12, (groupWidth * 0.6) / 4))
+  const groupSpacing = groupWidth - barWidth * 4
 
   return (
     <div className="flex flex-col gap-4 bg-white border border-stone-250/70 p-5 rounded-2xl shadow-xs">
@@ -77,6 +78,9 @@ export default function UserActivityBarChart({ activityTimeline }: UserActivityB
             </span>
             <span className="flex items-center gap-1 text-[10px] font-semibold text-stone-500">
               <span className="w-2.5 h-2.5 rounded-xs bg-violet-500" /> PvP Tickets
+            </span>
+            <span className="flex items-center gap-1 text-[10px] font-semibold text-stone-500">
+              <span className="w-2.5 h-2.5 rounded-xs bg-orange-500" /> Market Creators
             </span>
           </div>
         </div>
@@ -149,42 +153,53 @@ export default function UserActivityBarChart({ activityTimeline }: UserActivityB
                     />
                   )}
 
-                  {/* Signups Bar */}
+                  {/* Bar 1: Signups */}
                   <rect
-                    x={signupX}
-                    y={signupY}
+                    x={centerX}
+                    y={yScale(pt.signups)}
                     width={barWidth - 1}
-                    height={signupHeight}
+                    height={Math.max(0, height - padding.bottom - yScale(pt.signups))}
                     fill={isHovered ? "#4f46e5" : "#6366f1"}
-                    rx="1.5"
+                    rx={1.5}
                     className="transition-all duration-200"
                   />
 
-                  {/* Trades Bar */}
+                  {/* Bar 2: Trades */}
                   <rect
-                    x={tradeX}
-                    y={tradeY}
+                    x={centerX + barWidth}
+                    y={yScale(pt.trades)}
                     width={barWidth - 1}
-                    height={tradeHeight}
+                    height={Math.max(0, height - padding.bottom - yScale(pt.trades))}
                     fill={isHovered ? "#059669" : "#10b981"}
-                    rx="1.5"
+                    rx={1.5}
                     className="transition-all duration-200"
                   />
 
-                  {/* PvP Tickets Bar */}
+                  {/* Bar 3: Tickets */}
                   <rect
-                    x={ticketX}
-                    y={ticketY}
+                    x={centerX + barWidth * 2}
+                    y={yScale(pt.tickets)}
                     width={barWidth - 1}
-                    height={ticketHeight}
+                    height={Math.max(0, height - padding.bottom - yScale(pt.tickets))}
                     fill={isHovered ? "#7c3aed" : "#8b5cf6"}
-                    rx="1.5"
+                    rx={1.5}
                     className="transition-all duration-200"
                   />
 
-                  {/* X Axis Labels */}
+                  {/* Bar 4: Market Creators */}
+                  <rect
+                    x={centerX + barWidth * 3}
+                    y={yScale(pt.marketCreators || 0)}
+                    width={barWidth - 1}
+                    height={Math.max(0, height - padding.bottom - yScale(pt.marketCreators || 0))}
+                    fill={isHovered ? "#ea580c" : "#f97316"}
+                    rx={1.5}
+                    className="transition-all duration-200"
+                  />
+
+                  {/* X Axis Label */}
                   <text
-                    x={centerX + barWidth * 1.5}
+                    x={centerX + (barWidth * 1.5)}
                     y={height - padding.bottom + 18}
                     textAnchor="middle"
                     className={`font-medium text-[10px] ${
@@ -204,18 +219,17 @@ export default function UserActivityBarChart({ activityTimeline }: UserActivityB
               {(() => {
                 const pt = safeTimeline[hoveredIdx]
                 const groupX = padding.left + hoveredIdx * groupWidth
-                const tooltipW = 140
-                const tooltipH = 90
+                const tooltipW = 160
+                const tooltipH = 120
                 let tooltipX = groupX + groupWidth / 2 - tooltipW / 2
-                let tooltipY = yScale(Math.max(pt.signups, pt.trades, pt.tickets)) - tooltipH - 8
+                let tooltipY = yScale(Math.max(pt.signups, pt.trades, pt.tickets, pt.marketCreators)) - tooltipH - 8
 
-                // Prevent overflow boundaries
                 if (tooltipX < padding.left) tooltipX = padding.left
                 if (tooltipX + tooltipW > width - padding.right) {
                   tooltipX = width - padding.right - tooltipW
                 }
                 if (tooltipY < padding.top) {
-                  tooltipY = yScale(Math.max(pt.signups, pt.trades, pt.tickets)) + 8
+                  tooltipY = yScale(Math.min(pt.signups, pt.trades, pt.tickets, pt.marketCreators)) + 20
                 }
 
                 return (
@@ -226,22 +240,25 @@ export default function UserActivityBarChart({ activityTimeline }: UserActivityB
                     height={tooltipH}
                     className="pointer-events-none"
                   >
-                    <div className="bg-stone-900 border border-stone-800 text-white rounded-lg p-2.5 flex flex-col gap-1 shadow-lg text-left">
-                      <p className="text-[10px] font-bold text-stone-300">
-                        {pt.label} Summary
+                    <div className="bg-white border border-stone-200 rounded-lg p-3 flex flex-col gap-2 shadow-xl text-left">
+                      <p className="text-[11px] font-bold text-stone-900">
+                        {pt.label}
                       </p>
-                      <div className="h-px bg-stone-850 my-0.5" />
-                      <div className="flex justify-between text-[9px]">
-                        <span className="text-stone-400">Signups:</span>
-                        <span className="font-bold text-indigo-400">{pt.signups}</span>
+                      <div className="flex justify-between text-[10px]">
+                        <span className="text-stone-500">Signups:</span>
+                        <span className="font-bold text-indigo-600">{pt.signups}</span>
                       </div>
-                      <div className="flex justify-between text-[9px]">
-                        <span className="text-stone-400">Trades:</span>
-                        <span className="font-bold text-emerald-400">{pt.trades}</span>
+                      <div className="flex justify-between text-[10px]">
+                        <span className="text-stone-500">Trades:</span>
+                        <span className="font-bold text-emerald-600">{pt.trades}</span>
                       </div>
-                      <div className="flex justify-between text-[9px]">
-                        <span className="text-stone-400">Tickets:</span>
-                        <span className="font-bold text-violet-400">{pt.tickets}</span>
+                      <div className="flex justify-between text-[10px]">
+                        <span className="text-stone-500">Tickets:</span>
+                        <span className="font-bold text-violet-600">{pt.tickets}</span>
+                      </div>
+                      <div className="flex justify-between text-[10px]">
+                        <span className="text-stone-500">Creators:</span>
+                        <span className="font-bold text-orange-600">{pt.marketCreators}</span>
                       </div>
                     </div>
                   </foreignObject>
