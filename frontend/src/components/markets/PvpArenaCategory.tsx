@@ -237,27 +237,27 @@ export default function ArenaCategory({
 
   return (
     <div
-      className={`rounded-xl border transition-all overflow-hidden ${
+      className={`overflow-hidden border transition-all ${
         hasSelection
-          ? `${colors.bg} ${colors.border}`
-          : "border-border dark:border-zinc-800 bg-white dark:bg-zinc-900/30"
+          ? `${colors.bg} ${colors.border} shadow-subtle`
+          : "border-border bg-white dark:border-zinc-800 dark:bg-zinc-900/30"
       }`}
     >
       {/* Header */}
-      <div className="flex items-center justify-between p-3 gap-3">
+      <div className="flex items-center justify-between gap-3 border-b border-border p-3 dark:border-zinc-800/80">
         <div className="flex items-center gap-2.5 min-w-0">
           <div
-            className={`h-8 w-8 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
+            className={`flex h-8 w-8 shrink-0 items-center justify-center transition-colors ${
               hasSelection ? colors.iconActive : colors.iconBg
             }`}
           >
             {icon}
           </div>
           <div className="text-left min-w-0">
-            <span className="block text-sm font-bold text-charcoal-primary dark:text-white leading-tight">
+            <span className="block font-heading text-sm font-black uppercase leading-tight text-charcoal-primary dark:text-white">
               {title}
             </span>
-            <span className="block text-[10px] text-ash font-mono truncate">
+            <span className="block truncate font-mono text-[9px] uppercase tracking-wider text-ash">
               {subtitle}
             </span>
           </div>
@@ -269,7 +269,7 @@ export default function ArenaCategory({
           <button
             type="button"
             onClick={onAddLiquidity}
-            className="px-2.5 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all border border-border dark:border-zinc-800 hover:border-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-950/20 text-stone-600 dark:text-zinc-400 hover:text-indigo-600 dark:hover:text-indigo-400 cursor-pointer shadow-xs bg-stone-50/50 dark:bg-zinc-900/20"
+            className="cursor-pointer border border-border bg-stone-50/50 px-2.5 py-1.5 text-[9px] font-bold uppercase tracking-wider text-stone-600 shadow-xs transition-all hover:border-brand-accent hover:bg-orange-50 hover:text-brand-accent dark:border-zinc-800 dark:bg-zinc-900/20 dark:text-zinc-400 dark:hover:bg-orange-950/20"
           >
             + LP
           </button>
@@ -277,7 +277,7 @@ export default function ArenaCategory({
       </div>
 
       {/* Body */}
-      <div className="px-3 pb-3">{children}</div>
+      <div className="p-3">{children}</div>
     </div>
   )
 }

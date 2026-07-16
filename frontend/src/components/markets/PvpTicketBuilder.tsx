@@ -168,15 +168,6 @@ export default function PvpTicketBuilder({
     Record<string, string>
   >({})
   const [liquidityPerSelection, setLiquidityPerSelection] = useState<number>(0)
-  const [desktopView, setDesktopView] = useState<"categories" | "selections">(
-    "categories",
-  )
-
-  useEffect(() => {
-    if (selectionCount === 0) {
-      setDesktopView("categories")
-    }
-  }, [selectionCount])
 
   useEffect(() => {
     if (liquidityPerSelection > 0) {
@@ -277,7 +268,6 @@ export default function PvpTicketBuilder({
     try {
       await onProvideLiquidity(validAmounts)
       setLiquidityAmounts({})
-      setDesktopView("categories")
     } catch (error) {
       // Allow user to manually re-open with their inputs intact on failure
     }
@@ -527,30 +517,57 @@ export default function PvpTicketBuilder({
   }
 
   return (
-    <div className="flex flex-col gap-5 w-full pb-12 lg:pb-24 relative">
-      {/* 1. Match Header Details */}
+    <div className="relative flex w-full flex-col gap-4 pb-12 lg:pb-24">
       {selectedPvpEvent && (
-        <div className="flex flex-col gap-1 pb-1">
-          <div className="flex items-center gap-2.5 text-2xl font-black text-charcoal-primary dark:text-white">
-            <span className="text-3xl select-none">
-              {getCountryFlag(parsedTeams.teamA)}
-            </span>
-            <span className="text-sm font-semibold opacity-40 font-mono">
-              vs
-            </span>
-            <span className="text-3xl select-none">
-              {getCountryFlag(parsedTeams.teamB)}
-            </span>
-            <h1 className="font-sans ml-1.5 leading-none">
-              {parsedTeams.teamA} vs {parsedTeams.teamB}
-            </h1>
+        <div className="overflow-hidden border border-[#292929] bg-[#0a0a0a] text-white">
+          <div className="flex flex-col gap-4 px-4 py-4 sm:px-5">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2 text-[9px] font-bold uppercase tracking-[0.2em] text-ash">
+                <span className="h-2 w-2 bg-brand-accent" />
+                Arena card · open for picks
+              </div>
+              <span className="border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 font-mono text-[8px] font-bold uppercase tracking-[0.16em] text-emerald-600 dark:text-emerald-400">
+                USDC backed
+              </span>
+            </div>
+
+            <div className="flex items-center gap-3 text-white">
+              <span className="select-none text-3xl sm:text-4xl">
+                {getCountryFlag(parsedTeams.teamA)}
+              </span>
+              <h1 className="min-w-0 truncate font-heading text-2xl font-black uppercase leading-none tracking-tight sm:text-3xl">
+                {parsedTeams.teamA}
+              </h1>
+              <span className="shrink-0 font-mono text-[10px] font-bold uppercase text-ash">
+                vs
+              </span>
+              <span className="select-none text-3xl sm:text-4xl">
+                {getCountryFlag(parsedTeams.teamB)}
+              </span>
+              <h1 className="min-w-0 truncate font-heading text-2xl font-black uppercase leading-none tracking-tight sm:text-3xl">
+                {parsedTeams.teamB}
+              </h1>
+            </div>
           </div>
-          <div className="flex items-center gap-2 text-[10px] font-mono text-ash font-bold uppercase mt-1.5 tracking-wider">
-            <span>{formattedDate}</span>
-            <span>·</span>
-            <span>Vol ${totalVolume.toLocaleString()}</span>
-            <span>·</span>
-            <span>Minimum 3 picks</span>
+
+          <div className="grid grid-cols-3 border-t border-[#292929]">
+            <MatchMeta label="Locks" value={formattedDate} />
+            <MatchMeta
+              label="Market volume"
+              value={`$${totalVolume.toLocaleString()}`}
+            />
+            <MatchMeta
+              label="Card progress"
+              value={`${selectionCount} / 3 minimum`}
+              accent={selectionCount >= 3}
+            />
+          </div>
+
+          <div className="h-1 bg-[#1d1d1d]">
+            <div
+              className="h-full bg-brand-accent transition-all duration-300"
+              style={{ width: `${progressPercent}%` }}
+            />
           </div>
         </div>
       )}
@@ -565,66 +582,58 @@ export default function PvpTicketBuilder({
       {/* Category cards & form */}
       {pvpEvents.length > 0 && selectedPvpEvent && (
         <div className="flex flex-col gap-4">
-          {/* Desktop Content switching */}
-          <div className="hidden sm:block">
-            {desktopView === "categories" ? (
-              <>
-                {/* Category Cards */}
-                <div className="space-y-3 mt-2">
-                  {Object.entries(groupedOptions).map(([groupKey, opts]) => (
-                    <CategoryCard
-                      key={groupKey}
-                      groupKey={groupKey}
-                      opts={opts}
-                      pvpSelections={pvpSelections}
-                      parsedTeams={parsedTeams}
-                      isSubmitting={isSubmitting}
-                      onToggleSelection={onToggleSelection}
-                      onAddLiquidity={() => onAddLiquidity(opts[0].id)}
-                    />
-                  ))}
+          <div
+            className="hidden items-start gap-4 sm:grid"
+            style={{
+              gridTemplateColumns:
+                "repeat(auto-fit, minmax(min(100%, 320px), 1fr))",
+            }}
+          >
+            <div className="space-y-3">
+              <div className="flex items-end justify-between px-1 pb-1">
+                <div>
+                  <span className="text-[9px] font-bold uppercase tracking-[0.2em] text-brand-accent">
+                    Step 1
+                  </span>
+                  <h2 className="mt-1 font-heading text-xl font-black uppercase text-charcoal-primary dark:text-white">
+                    Make your calls
+                  </h2>
                 </div>
-
-                {/* Floating Bottom Button (Desktop) */}
-                {selectionCount > 0 && (
-                  <div className="sticky bottom-6 z-40 w-full mt-4">
-                    <button
-                      onClick={() => setDesktopView("selections")}
-                      disabled={isSubmitting}
-                      className="w-full h-[52px] bg-black hover:bg-zinc-900 dark:bg-white dark:hover:bg-zinc-100 text-white dark:text-black font-extrabold rounded-xl flex items-center justify-between px-5 shadow-lg active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer group"
-                    >
-                      <div className="flex items-center gap-2">
-                        <Receipt className="h-5 w-5 shrink-0" />
-                        <span className="text-sm font-bold uppercase tracking-wider">
-                          Continue
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="bg-brand-secondary/15 text-brand-secondary border border-brand-secondary/20 text-xs px-2.5 py-0.5 rounded-full font-bold">
-                          {selectionCount} picks
-                        </span>
-                        <ChevronRight className="h-5 w-5 group-hover:translate-x-0.5 transition-transform" />
-                      </div>
-                    </button>
-                  </div>
-                )}
-              </>
-            ) : (
-              <div className="verity-card p-6 bg-warm-canvas border border-stone-200 dark:border-zinc-800">
-                <div className="flex items-center justify-between mb-6 pb-4 border-b border-stone-200 dark:border-zinc-800">
-                  <h3 className="text-base font-bold text-charcoal-primary dark:text-white">
-                    Your Selections ({selectionCount})
-                  </h3>
-                  <button
-                    onClick={() => setDesktopView("categories")}
-                    className="text-xs font-bold font-mono tracking-wider px-3 py-1.5 rounded-md bg-stone-100 hover:bg-stone-200 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-charcoal-primary dark:text-white transition-colors"
-                  >
-                    ← Go back
-                  </button>
-                </div>
-                {renderTicketSlip()}
+                <span className="font-mono text-[9px] uppercase tracking-wider text-ash">
+                  Pick across 3+ categories
+                </span>
               </div>
-            )}
+
+              {Object.entries(groupedOptions).map(([groupKey, opts]) => (
+                <CategoryCard
+                  key={groupKey}
+                  groupKey={groupKey}
+                  opts={opts}
+                  pvpSelections={pvpSelections}
+                  parsedTeams={parsedTeams}
+                  isSubmitting={isSubmitting}
+                  onToggleSelection={onToggleSelection}
+                  onAddLiquidity={() => onAddLiquidity(opts[0].id)}
+                />
+              ))}
+            </div>
+
+            <aside className="sticky top-24 overflow-hidden border border-border-strong bg-white-surface p-4 shadow-subtle dark:border-zinc-800 dark:bg-zinc-950/50">
+              <div className="mb-4 flex items-center justify-between border-b border-border pb-3 dark:border-zinc-800">
+                <div>
+                  <span className="text-[9px] font-bold uppercase tracking-[0.18em] text-brand-accent">
+                    Step 2
+                  </span>
+                  <h3 className="mt-1 font-heading text-lg font-black uppercase text-charcoal-primary dark:text-white">
+                    Your arena card
+                  </h3>
+                </div>
+                <span className="flex h-8 min-w-8 items-center justify-center bg-brand-primary px-2 font-mono text-xs font-bold text-white dark:bg-white dark:text-zinc-950">
+                  {selectionCount}
+                </span>
+              </div>
+              {renderTicketSlip()}
+            </aside>
           </div>
 
           {/* Mobile Layout */}
@@ -651,7 +660,7 @@ export default function PvpTicketBuilder({
                 <button
                   onClick={() => setIsMobileDrawerOpen(true)}
                   disabled={isSubmitting}
-                  className="w-full h-[52px] bg-black hover:bg-zinc-900 dark:bg-white dark:hover:bg-zinc-100 text-white dark:text-black font-extrabold rounded-xl flex items-center justify-between px-5 shadow-lg active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed group cursor-pointer"
+                  className="group flex h-[54px] w-full cursor-pointer items-center justify-between bg-brand-accent px-5 font-extrabold text-white shadow-xl transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <div className="flex items-center gap-2">
                     <Receipt className="h-5 w-5 shrink-0" />
@@ -660,7 +669,7 @@ export default function PvpTicketBuilder({
                     </span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="bg-brand-secondary/15 text-brand-secondary border border-brand-secondary/20 text-xs px-2.5 py-0.5 rounded-full font-bold">
+                    <span className="border border-white/20 bg-white/10 px-2.5 py-0.5 text-xs font-bold text-white">
                       {selectionCount} picks
                     </span>
                     <ChevronRight className="h-5 w-5 group-hover:translate-x-0.5 transition-transform" />
@@ -673,11 +682,16 @@ export default function PvpTicketBuilder({
               open={isMobileDrawerOpen}
               onOpenChange={setIsMobileDrawerOpen}
             >
-              <DrawerContent className="max-h-[92vh] flex flex-col rounded-t-3xl border-t border-stone-surface bg-warm-canvas pb-4 outline-none">
+              <DrawerContent className="flex max-h-[92vh] flex-col rounded-t-2xl border-t-2 border-brand-accent bg-warm-canvas pb-4 outline-none">
                 <DrawerHeader className="relative shrink-0 flex flex-row items-center justify-between border-b border-stone-surface pb-3 pt-2 mb-2 px-4 text-left">
-                  <DrawerTitle className="font-heading text-lg font-bold text-charcoal-primary m-0">
-                    Your selections
-                  </DrawerTitle>
+                  <div>
+                    <span className="text-[8px] font-bold uppercase tracking-[0.18em] text-brand-accent">
+                      Review and enter
+                    </span>
+                    <DrawerTitle className="m-0 mt-1 font-heading text-xl font-black uppercase text-charcoal-primary">
+                      Your arena card
+                    </DrawerTitle>
+                  </div>
                   <DrawerClose className="rounded-full p-1.5 hover:bg-stone-surface text-ash hover:text-charcoal-primary transition-colors shrink-0">
                     <X className="h-4.5 w-4.5" />
                   </DrawerClose>
@@ -690,6 +704,31 @@ export default function PvpTicketBuilder({
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+function MatchMeta({
+  label,
+  value,
+  accent = false,
+}: {
+  label: string
+  value: string
+  accent?: boolean
+}) {
+  return (
+    <div className="min-w-0 border-r border-[#292929] px-3 py-3 last:border-r-0 sm:px-4">
+      <span className="block text-[8px] font-bold uppercase tracking-[0.16em] text-ash">
+        {label}
+      </span>
+      <span
+        className={`mt-1 block truncate font-mono text-[9px] font-bold uppercase sm:text-[10px] ${
+          accent ? "text-emerald-600 dark:text-emerald-400" : "text-zinc-200"
+        }`}
+      >
+        {value}
+      </span>
     </div>
   )
 }

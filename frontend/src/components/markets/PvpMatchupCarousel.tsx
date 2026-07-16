@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useMemo, useEffect, useRef } from "react"
-import { Search, Lock } from "lucide-react"
+import { ArrowRight, Lock, Search, Swords } from "lucide-react"
 
 // Country flag helper
 export function getCountryFlag(name: string): string {
@@ -97,6 +97,9 @@ export default function PvpMatchupCarousel({
   setSelectedPvpEventId,
 }: PvpMatchupCarouselProps) {
   const [searchQuery, setSearchQuery] = useState("")
+  const [eventFilter, setEventFilter] = useState<"open" | "settled" | "all">(
+    "open",
+  )
 
   // Calculate live/remaining time label
   const getCardTimeStatus = (evt: any) => {
@@ -159,6 +162,28 @@ export default function PvpMatchupCarousel({
       })
     }
   }, [selectedPvpEventId])
+
+  const eventSummary = useMemo(() => {
+    const summary = pvpEvents.reduce(
+      (acc, event) => {
+        const lockTime = event.lockTime || event.deadline
+        const isClosed =
+          !lockTime ||
+          new Date(lockTime).getTime() <= Date.now() ||
+          event.status === "resolved" ||
+          event.status === "closed"
+
+        if (isClosed) acc.settled += 1
+        else acc.open += 1
+
+        acc.volume += getEventVolume(event)
+        return acc
+      },
+      { open: 0, settled: 0, volume: 0 },
+    )
+
+    return summary
+  }, [pvpEvents])
 
   // Filter and limit events (max 7 past matchups)
   const filteredEvents = useMemo(() => {
@@ -223,38 +248,87 @@ export default function PvpMatchupCarousel({
       return timeA - timeB
     })
 
-    return [...limitedClosed, ...live]
-  }, [pvpEvents, searchQuery, selectedPvpEventId])
+    if (eventFilter === "open") return live
+    if (eventFilter === "settled") return limitedClosed.reverse()
+    return [...live, ...limitedClosed.reverse()]
+  }, [eventFilter, pvpEvents, searchQuery, selectedPvpEventId])
 
   return (
-    <div className="flex flex-col gap-4">
-      {/* Search Header Row */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-xl font-bold tracking-tight text-charcoal-primary dark:text-white">
-            Select matchup
-          </h2>
-          <p className="text-xs text-ash">Scroll, search, or tap a card.</p>
+    <section className="overflow-hidden rounded-2xl border border-[#252525] bg-[#080808] text-white shadow-subtle">
+      <div className="relative overflow-hidden bg-[#080808] px-5 py-5 text-white sm:px-6 sm:py-6">
+        <div className="absolute -right-16 -top-20 h-56 w-56 rounded-full border border-white/10" />
+        <div className="absolute -right-5 top-5 h-28 w-28 rounded-full border border-white/10" />
+
+        <div className="relative flex flex-col gap-5">
+          <div className="max-w-xl">
+            <div className="mb-3 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.22em] text-zinc-400">
+              <Swords className="h-3.5 w-3.5 text-brand-accent" />
+              World Cup 2026 · PvP pick&apos;em
+            </div>
+            <h2 className="font-heading text-3xl font-black uppercase leading-none tracking-tight sm:text-4xl">
+              Build your arena card
+            </h2>
+            <p className="mt-3 max-w-lg text-xs leading-relaxed text-zinc-400 sm:text-sm">
+              Choose a fixture, call at least three markets, and enter a
+              head-to-head duel backed by USDC.
+            </p>
+          </div>
+
+          <div className="grid w-full grid-cols-3 border border-white/10">
+            <ArenaStat label="Open" value={eventSummary.open} accent />
+            <ArenaStat label="Settled" value={eventSummary.settled} />
+            <ArenaStat
+              label="Volume"
+              value={formatCompactCurrency(eventSummary.volume)}
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-3 border-b border-[#252525] bg-[#0b0b0b] px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+        <div className="flex items-center gap-1" aria-label="Matchup filters">
+          {(
+            [
+              ["open", "Open", eventSummary.open],
+              ["settled", "Results", eventSummary.settled],
+              ["all", "All", pvpEvents.length],
+            ] as const
+          ).map(([value, label, count]) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => setEventFilter(value)}
+              aria-pressed={eventFilter === value}
+              className={`relative px-3 py-2 text-[10px] font-bold uppercase tracking-[0.16em] transition-colors ${
+                eventFilter === value
+                  ? "text-white"
+                  : "text-zinc-500 hover:text-white"
+              }`}
+            >
+              {label} <span className="opacity-50">{count}</span>
+              {eventFilter === value && (
+                <span className="absolute inset-x-3 -bottom-3 h-0.5 bg-brand-accent" />
+              )}
+            </button>
+          ))}
         </div>
 
-        {/* Search input with Rounded Border */}
-        <div className="relative w-full sm:w-64">
+        <div className="relative w-full sm:w-60">
           <input
             type="text"
             placeholder="Search teams..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full h-10 pl-4 pr-10 border border-border dark:border-zinc-800 bg-white dark:bg-zinc-900/50 text-xs rounded-full text-charcoal-primary dark:text-white focus:outline-none focus:border-indigo-500 transition-colors"
+            className="h-9 w-full border border-[#2a2a2a] bg-[#121212] pl-3 pr-9 text-xs text-white outline-none transition-colors placeholder:text-zinc-600 focus:border-brand-accent"
           />
-          <Search className="absolute right-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-ash" />
+          <Search className="absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ash" />
         </div>
       </div>
 
-      {/* Horizontal Scroll Carousel */}
-      <div className="flex gap-4 overflow-x-auto pb-3 pt-1 no-scrollbar -mx-1 px-1">
+      <div className="flex gap-3 overflow-x-auto p-4 no-scrollbar sm:p-5">
         {filteredEvents.length === 0 ? (
-          <div className="w-full text-center py-6 text-xs font-mono text-ash border border-dashed border-border dark:border-zinc-800 rounded-xl bg-white/30 dark:bg-zinc-900/10">
-            No matchups found.
+          <div className="w-full border border-dashed border-[#2a2a2a] py-8 text-center font-mono text-xs uppercase tracking-wider text-zinc-500">
+            No matchups in this slate.
           </div>
         ) : (
           filteredEvents.map((evt) => {
@@ -272,21 +346,26 @@ export default function PvpMatchupCarousel({
                 key={evt.id}
                 ref={isSelected ? selectedRef : undefined}
                 onClick={() => setSelectedPvpEventId(evt.id)}
-                className={`relative flex-none w-68 h-40 p-4 rounded-2xl border transition-all cursor-pointer select-none flex flex-col justify-between ${
+                className={`group relative flex h-40 w-70 flex-none cursor-pointer select-none flex-col justify-between overflow-hidden border p-4 transition-all ${
                   isSelected
-                    ? "bg-brand-primary border-brand-primary dark:bg-white dark:border-white text-white dark:text-zinc-950 shadow-lg scale-[1.01]"
-                    : "bg-white dark:bg-zinc-900/40 border-border dark:border-zinc-800 hover:border-indigo-500 hover:scale-[1.005]"
+                    ? "border-brand-accent bg-[#151515] text-white shadow-lg"
+                    : "border-[#282828] bg-[#111111] text-white hover:border-brand-accent"
                 } ${isClosed && !isSelected ? "opacity-75" : ""}`}
               >
+                <span
+                  className={`absolute inset-y-0 left-0 w-1 ${
+                    isSelected ? "bg-brand-accent" : "bg-transparent"
+                  }`}
+                />
                 {/* Top Badge Row */}
                 <div className="flex items-center justify-between">
                   <div
-                    className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold font-mono tracking-wider ${
+                    className={`flex items-center gap-1 text-[9px] font-bold font-mono tracking-[0.14em] ${
                       isClosed
-                        ? "bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400"
+                        ? "text-zinc-500"
                         : isSelected
-                          ? "bg-zinc-800/80 text-white"
-                          : "bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400"
+                          ? "text-zinc-300"
+                          : "text-emerald-400"
                     }`}
                   >
                     {isClosed ? (
@@ -296,56 +375,65 @@ export default function PvpMatchupCarousel({
                       </>
                     ) : (
                       <>
-                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                        <span className="h-1.5 w-1.5 bg-emerald-500 animate-pulse" />
                         {statusLabel}
                       </>
                     )}
                   </div>
                   <span
-                    className={`text-[10px] font-mono font-bold ${isSelected ? "text-zinc-400" : "text-ash"}`}
+                    className={`text-[10px] font-mono font-bold ${isSelected ? "text-zinc-400" : "text-zinc-500"}`}
                   >
                     ${vol.toLocaleString()}
                   </span>
                 </div>
 
                 {/* Teams/Flags Content */}
-                <div className="flex items-center justify-between gap-2 my-2">
+                <div className="my-2 flex items-center justify-between gap-2">
                   <div className="flex flex-col items-center flex-1 text-center min-w-0">
-                    <span className="text-xl" title={teamA}>
+                    <span className="text-2xl" title={teamA}>
                       {getCountryFlag(teamA)}
                     </span>
-                    <span className="text-xs font-bold leading-snug truncate w-full mt-1.5">
+                    <span className="mt-1.5 w-full truncate font-heading text-sm font-black uppercase leading-snug">
                       {teamA}
                     </span>
                   </div>
 
-                  <span className="text-[10px] font-mono font-semibold opacity-50 px-1 shrink-0">
+                  <span className="shrink-0 px-1 font-mono text-[9px] font-semibold uppercase opacity-40">
                     vs
                   </span>
 
                   <div className="flex flex-col items-center flex-1 text-center min-w-0">
-                    <span className="text-xl" title={teamB}>
+                    <span className="text-2xl" title={teamB}>
                       {getCountryFlag(teamB)}
                     </span>
-                    <span className="text-xs font-bold leading-snug truncate w-full mt-1.5">
+                    <span className="mt-1.5 w-full truncate font-heading text-sm font-black uppercase leading-snug">
                       {teamB}
                     </span>
                   </div>
                 </div>
 
                 {/* Footer Details */}
-                <div className="flex items-center justify-between text-[9px] font-mono border-t border-dashed border-zinc-200/20 dark:border-zinc-800/50 pt-2 shrink-0">
-                  <span className={isSelected ? "text-zinc-400" : "text-ash"}>
+                <div className="flex shrink-0 items-center justify-between border-t border-dashed border-zinc-800/80 pt-2 font-mono text-[9px]">
+                  <span
+                    className={isSelected ? "text-zinc-400" : "text-zinc-500"}
+                  >
                     {formattedDate}
                   </span>
-                  <span className={isSelected ? "text-zinc-400" : "text-ash"}>
-                    Min. 3 picks
+                  <span
+                    className={`flex items-center gap-1 font-bold uppercase ${
+                      isSelected
+                        ? "text-brand-accent"
+                        : "text-zinc-300 group-hover:text-brand-accent"
+                    }`}
+                  >
+                    {isClosed ? "View result" : "Build card"}
+                    <ArrowRight className="h-3 w-3" />
                   </span>
                 </div>
 
                 {/* Selected Check Badge Badge */}
                 {isSelected && (
-                  <div className="absolute -top-1.5 -right-1.5 bg-[#FF3E00] text-white h-5 w-5 rounded-full flex items-center justify-center shadow-md ring-2 ring-white dark:ring-white">
+                  <div className="absolute right-0 top-0 flex h-6 w-6 items-center justify-center bg-brand-accent text-white shadow-md">
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
                       viewBox="0 0 24 24"
@@ -365,6 +453,37 @@ export default function PvpMatchupCarousel({
           })
         )}
       </div>
+    </section>
+  )
+}
+
+function ArenaStat({
+  label,
+  value,
+  accent = false,
+}: {
+  label: string
+  value: string | number
+  accent?: boolean
+}) {
+  return (
+    <div className="min-w-20 border-r border-white/10 px-3 py-2.5 last:border-r-0 sm:min-w-24 sm:px-4">
+      <span
+        className={`block font-heading text-xl font-black sm:text-2xl ${
+          accent ? "text-brand-accent" : ""
+        }`}
+      >
+        {value}
+      </span>
+      <span className="block text-[8px] font-bold uppercase tracking-[0.18em] text-zinc-500">
+        {label}
+      </span>
     </div>
   )
+}
+
+function formatCompactCurrency(value: number): string {
+  if (value >= 1_000_000) return `$${(value / 1_000_000).toFixed(1)}M`
+  if (value >= 1_000) return `$${Math.round(value / 1_000)}K`
+  return `$${Math.round(value)}`
 }
