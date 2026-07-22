@@ -96,11 +96,7 @@ export default function MobileNav() {
                 <button
                   key="center-actions"
                   onClick={() => {
-                    if (!authenticated) {
-                      login()
-                    } else {
-                      openQuickActions()
-                    }
+                    openQuickActions()
                   }}
                   className="flex flex-col items-center justify-center shrink-0 -mt-4 cursor-pointer"
                 >
@@ -123,17 +119,13 @@ export default function MobileNav() {
 
             return (
               <Link
-                className={`flex min-w-0 flex-col items-center justify-center gap-1 rounded-[10px] px-1 py-2 text-[10px] font-medium tracking-[-0.12px] transition-colors ${
-                  isActive
+                className={`flex min-w-0 flex-col items-center justify-center gap-1 rounded-[10px] px-1 py-2 text-[10px] font-medium tracking-[-0.12px] transition-colors ${isActive
                     ? "bg-stone-surface text-charcoal-primary shadow-subtle"
                     : "hover:bg-stone-surface/40 text-graphite"
-                }`}
+                  }`}
                 href={item.href || "/"}
                 onClick={(e) => {
-                  if (isAuthRequired && !authenticated) {
-                    e.preventDefault()
-                    login()
-                  }
+                  // Temporarily disabled for preview testing
                 }}
                 key={item.label}
               >

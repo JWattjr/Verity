@@ -47,7 +47,7 @@ export function RedeemPanel({
       </p>
 
       {myPosition && (
-        <div className="mb-4 rounded-[12px] bg-parchment-card p-4 shadow-subtle">
+        <div className="mb-4 bg-parchment-card p-4 shadow-subtle">
           <div className="mb-3 flex items-center justify-between gap-3">
             <div>
               <span className="font-mono text-[10px] font-semibold uppercase text-ash">
@@ -58,11 +58,11 @@ export function RedeemPanel({
               </p>
             </div>
             {isWinner ? (
-              <span className="inline-flex items-center rounded-full bg-meadow-green/10 px-2 py-1 text-xs font-medium text-meadow-green shadow-subtle">
+              <span className="inline-flex items-center bg-meadow-green/10 px-2 py-1 text-xs font-medium text-meadow-green shadow-subtle">
                 Winning Position
               </span>
             ) : (
-              <span className="inline-flex items-center rounded-full bg-cherry-red/10 px-2 py-1 text-xs font-medium text-cherry-red shadow-subtle">
+              <span className="inline-flex items-center bg-cherry-red/10 px-2 py-1 text-xs font-medium text-cherry-red shadow-subtle">
                 Losing Position
               </span>
             )}
@@ -83,7 +83,7 @@ export function RedeemPanel({
       )}
 
       {hasCreatorLP && (
-        <div className="rounded-[12px] bg-parchment-card p-4 shadow-subtle">
+        <div className="bg-parchment-card p-4 shadow-subtle">
           <div className="mb-3 flex items-center justify-between gap-3">
             <div>
               <span className="font-mono text-[10px] font-semibold uppercase text-ash">
@@ -93,7 +93,7 @@ export function RedeemPanel({
                 {myLPPosition.lpShares.toFixed(2)} USDC
               </p>
             </div>
-            <span className="inline-flex items-center rounded-full bg-royal-blue/10 px-2 py-1 text-xs font-medium text-royal-blue shadow-subtle">
+            <span className="inline-flex items-center bg-royal-blue/10 px-2 py-1 text-xs font-medium text-royal-blue shadow-subtle">
               Market Creator LP
             </span>
           </div>
@@ -177,7 +177,7 @@ export function RefundPanel({
         This market was voided. You can retrieve your committed pool funding.
       </p>
 
-      <div className="rounded-[12px] bg-parchment-card p-4 shadow-subtle">
+      <div className="bg-parchment-card p-4 shadow-subtle">
         <div className="mb-3 flex items-center justify-between gap-3">
           <div>
             <span className="font-mono text-[10px] font-semibold uppercase text-ash">
@@ -187,7 +187,7 @@ export function RefundPanel({
               {refundShares.toFixed(2)} USDC
             </p>
           </div>
-          <span className="inline-flex items-center rounded-full bg-meadow-green/10 px-2 py-1 text-xs font-medium text-meadow-green shadow-subtle">
+          <span className="inline-flex items-center bg-meadow-green/10 px-2 py-1 text-xs font-medium text-meadow-green shadow-subtle">
             Voided Market Refund
           </span>
         </div>

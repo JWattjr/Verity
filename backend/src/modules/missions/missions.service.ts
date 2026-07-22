@@ -12,7 +12,11 @@ import { CreateMissionDto, UpdateMissionDto } from "./missions.dto"
 import { Vote, Market, MarketTrade } from "../markets/markets.model"
 import { Comment } from "../comments/comments.model"
 import { Like } from "../interactions/interactions.model"
-import { LPPosition, LiquidityPool, LiquidityEvent } from "../liquidity/liquidity.model"
+import {
+  LPPosition,
+  LiquidityPool,
+  LiquidityEvent,
+} from "../liquidity/liquidity.model"
 import { Post } from "../posts/posts.model"
 import { TwitterVerifyService } from "./twitter-verify.service"
 
@@ -39,6 +43,39 @@ export class MissionsService {
     @InjectModel(Post.name) private readonly postModel: Model<Post>,
     private readonly twitterVerifyService: TwitterVerifyService,
   ) {}
+
+  async getPublicMissions() {
+    const missions = await this.missionModel
+      .find({ isActive: true })
+      .populate("marketId")
+      .sort({ createdAt: -1 })
+
+    return missions
+      .map((mission) => {
+        const missionObject = mission.toObject()
+        const market = mission.marketId as any
+        const marketIsClosed =
+          market && (market.status === "resolved" || market.status === "voided")
+
+        return {
+          id: missionObject._id.toString(),
+          title: missionObject.title,
+          xpReward: missionObject.xpReward,
+          actionUrl: missionObject.actionUrl,
+          isActive: !marketIsClosed && missionObject.isActive,
+          missionType: missionObject.missionType || "social",
+          verificationKey: missionObject.verificationKey || null,
+          rewardMultiplier: missionObject.rewardMultiplier ?? null,
+          rewardMatchesCount: missionObject.rewardMatchesCount ?? null,
+          completed: false,
+          marketId: missionObject.marketId
+            ? (missionObject.marketId._id || missionObject.marketId).toString()
+            : null,
+          marketQuestion: market?.question || null,
+        }
+      })
+      .filter((mission) => mission.isActive)
+  }
 
   async getMissions(userId: string, admin = false) {
     const user = await this.userModel.findById(userId)
@@ -125,13 +162,18 @@ export class MissionsService {
       throw new BadRequestException("Invalid mission ID format.")
     }
 
-    const mission = await this.missionModel.findById(missionId).populate("marketId")
+    const mission = await this.missionModel
+      .findById(missionId)
+      .populate("marketId")
     if (!mission || !mission.isActive) {
       throw new NotFoundException("Mission not found or inactive.")
     }
 
     const market = mission.marketId as any
-    if (market && (market.status === "resolved" || market.status === "voided")) {
+    if (
+      market &&
+      (market.status === "resolved" || market.status === "voided")
+    ) {
       mission.isActive = false
       await mission.save()
       throw new BadRequestException(
@@ -228,7 +270,9 @@ export class MissionsService {
               if (pool) {
                 query.poolId = pool._id
               } else {
-                throw new BadRequestException("No liquidity pool exists for this market.")
+                throw new BadRequestException(
+                  "No liquidity pool exists for this market.",
+                )
               }
             }
             const hasLP = await this.liquidityEventModel.findOne(query)
@@ -299,7 +343,9 @@ export class MissionsService {
                 "You have not commented on the target post.",
               )
             }
-          } else if (mission.verificationKey === "twitter_retweet_and_comment") {
+          } else if (
+            mission.verificationKey === "twitter_retweet_and_comment"
+          ) {
             const hasRetweeted = await this.twitterVerifyService.checkRetweet(
               user.twitterUsername,
               mission.actionUrl || "",
@@ -440,8 +486,10 @@ export class MissionsService {
       merged.xpReward !== undefined &&
       merged.xpReward > 0
     const hasMultiplierReward =
-      (merged.rewardMultiplier !== null && merged.rewardMultiplier !== undefined) ||
-      (merged.rewardMatchesCount !== null && merged.rewardMatchesCount !== undefined)
+      (merged.rewardMultiplier !== null &&
+        merged.rewardMultiplier !== undefined) ||
+      (merged.rewardMatchesCount !== null &&
+        merged.rewardMatchesCount !== undefined)
 
     if (hasXpReward && hasMultiplierReward) {
       throw new BadRequestException(
@@ -464,7 +512,9 @@ export class MissionsService {
 
     const updateSet: any = { ...dto }
     if (dto.marketId !== undefined) {
-      updateSet.marketId = dto.marketId ? new Types.ObjectId(dto.marketId) : null
+      updateSet.marketId = dto.marketId
+        ? new Types.ObjectId(dto.marketId)
+        : null
     }
 
     if (hasMultiplierReward) {

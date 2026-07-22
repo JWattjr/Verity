@@ -101,7 +101,7 @@ export default function PvpSidebarStats({
     <div className="verity-card p-5 bg-white dark:bg-zinc-900/30 flex flex-col gap-4">
       {/* Header */}
       <div className="flex items-center gap-2 border-b border-border dark:border-zinc-800 pb-3">
-        <h3 className="font-sans text-xs font-black uppercase tracking-wider text-charcoal-primary dark:text-white">
+        <h3 className="font-heading text-lg font-black uppercase tracking-[0.06em] text-charcoal-primary">
           PVP STATS
         </h3>
       </div>
@@ -111,7 +111,7 @@ export default function PvpSidebarStats({
         <span className="text-[10px] font-mono text-ash uppercase font-bold tracking-wider block">
           Arena XP
         </span>
-        <strong className="text-5xl font-family text-[#FF4D00] block mt-1.5">
+        <strong className="mt-1.5 block font-heading text-5xl font-black text-accent">
           {profile?.arenaXp ?? 0}
         </strong>
       </div>

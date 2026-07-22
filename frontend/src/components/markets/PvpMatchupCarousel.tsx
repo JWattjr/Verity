@@ -263,7 +263,7 @@ export default function PvpMatchupCarousel({
           <div className="max-w-xl">
             <div className="mb-3 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.22em] text-zinc-400">
               <Swords className="h-3.5 w-3.5 text-brand-accent" />
-              World Cup 2026 · PvP pick&apos;em
+              Verity · PVP Arena
             </div>
             <h2 className="font-heading text-3xl font-black uppercase leading-none tracking-tight sm:text-4xl">
               Build your arena card

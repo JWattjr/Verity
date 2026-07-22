@@ -81,7 +81,7 @@ export default function ResolutionPanel({
   return (
     <section className="verity-card p-4 sm:p-5">
       <div className="mb-2 flex items-center gap-2">
-        <span className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-meadow-green/10">
+        <span className="flex h-9 w-9 items-center justify-center bg-meadow-green/10">
           <ShieldCheck className="h-5 w-5 text-meadow-green" />
         </span>
         <h2 className="text-[19px] font-semibold leading-[1.28] tracking-[-0.25px] text-charcoal-primary">
@@ -90,7 +90,7 @@ export default function ResolutionPanel({
       </div>
 
       {isPyth ? (
-        <div className="rounded-[12px] bg-parchment-card p-4 shadow-subtle">
+        <div className="bg-parchment-card p-4 shadow-subtle">
           <p className="text-sm leading-relaxed tracking-[-0.18px] text-ash">
             <strong>Pyth Quantitative Market:</strong> This prediction resolves
             automatically on-chain using real-time price oracle updates. No
@@ -100,7 +100,7 @@ export default function ResolutionPanel({
       ) : (
         <>
           {isPastDeadline && !proposal && !isResolved && (
-            <div className="rounded-[12px] bg-parchment-card p-4 shadow-subtle">
+            <div className="bg-parchment-card p-4 shadow-subtle">
               <p className="text-sm leading-relaxed tracking-[-0.18px] text-ash">
                 The market trading period has expired. Awaiting AI Agent
                 resolution proposal on-chain...
@@ -113,7 +113,7 @@ export default function ResolutionPanel({
             !proposal.disputed &&
             proposal.proposer !==
               "0x0000000000000000000000000000000000000000" && (
-              <div className="flex flex-col gap-3 rounded-[12px] bg-parchment-card p-4 shadow-subtle">
+              <div className="flex flex-col gap-3 bg-parchment-card p-4 shadow-subtle">
                 <div>
                   <span className="font-mono text-[10px] font-semibold uppercase text-ash">
                     Active Proposal
@@ -137,7 +137,7 @@ export default function ResolutionPanel({
                 </div>
 
                 {timeLeft !== null && timeLeft > 0 ? (
-                  <div className="rounded-[10px] bg-white-surface p-3 shadow-subtle">
+                  <div className="bg-white-surface p-3 shadow-subtle">
                     <span className="font-mono text-[10px] font-semibold uppercase text-ash">
                       Dispute Window Closes In
                     </span>
@@ -160,7 +160,7 @@ export default function ResolutionPanel({
                     </button>
                   </div>
                 ) : (
-                  <div className="rounded-[10px] bg-white-surface p-3 shadow-subtle">
+                  <div className="bg-white-surface p-3 shadow-subtle">
                     <span className="font-mono text-[10px] font-semibold uppercase text-ash">
                       Dispute Window Has Closed
                     </span>
@@ -174,7 +174,7 @@ export default function ResolutionPanel({
             )}
 
           {proposal && proposal.disputed && !isResolved && (
-            <div className="rounded-[12px] bg-ember-orange/10 p-4 shadow-subtle">
+            <div className="bg-ember-orange/10 p-4 shadow-subtle">
               <span className="font-mono text-[10px] font-semibold uppercase text-ember-orange">
                 Disputed
               </span>
@@ -195,7 +195,7 @@ export default function ResolutionPanel({
       )}
 
       {isResolved && (
-        <div className="flex flex-col gap-3 rounded-[12px] bg-meadow-green/10 p-4 shadow-subtle">
+        <div className="flex flex-col gap-3 bg-meadow-green/10 p-4 shadow-subtle">
           <div>
             <span className="font-mono text-[10px] font-semibold uppercase text-meadow-green">
               Resolved Outcome
@@ -220,7 +220,7 @@ export default function ResolutionPanel({
           </div>
 
           {market.proposalReasoning && (
-            <div className="rounded-[10px] bg-white-surface p-3 text-xs leading-relaxed text-charcoal-primary shadow-subtle">
+            <div className="bg-white-surface p-3 text-xs leading-relaxed text-charcoal-primary shadow-subtle">
               <p className="mb-1 font-semibold">AI Agent Reasoning:</p>
               <p className="italic text-ash">{market.proposalReasoning}</p>
               {market.proposalCitations &&

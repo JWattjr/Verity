@@ -3,8 +3,7 @@
 import React, { useState } from "react"
 import Link from "next/link"
 import UserHoverCard from "@/components/social/UserHoverCard"
-import MarketCard from "@/components/post/MarketCard"
-import PostCard from "@/components/post/PostCard"
+import MarketFeedCard from "@/components/markets/MarketFeedCard"
 import { FeedSkeleton } from "@/components/feed/FeedShell"
 import {
   displayHandle,
@@ -16,14 +15,14 @@ import {
   type Profile,
   type MarketPosition,
 } from "@/lib/verity"
-import { useRouter } from "next/navigation"
+import { ArrowUpRight, ChevronRight, ChevronLeft } from "lucide-react"
+import { useQueryClient } from "@tanstack/react-query"
 import {
-  ArrowUpRight,
-  Swords,
-  Timer,
-  ChevronRight,
-  ChevronLeft,
-} from "lucide-react"
+  useCastFreeVoteMutation,
+  useDailyVotesQuery,
+  useToggleLikeMutation,
+} from "@/store/verity/verityQueries"
+import { toast } from "@/lib/toast"
 
 export type ProfileActivityTab = "predictions" | "markets" | "activity"
 
@@ -32,7 +31,9 @@ interface ProfileActivityTabsProps {
   items?: FeedPost[]
   positions?: MarketPosition[]
   profile: Profile
+  viewerProfile?: Profile | null
   onOpenMarket: (market: MarketPost) => void
+  onOpenPvp?: (market: MarketPost) => void
   onOpenPost?: (post: FeedPost) => void
   loading?: boolean
 }
@@ -42,15 +43,65 @@ export default function ProfileActivityTabs({
   items = [],
   positions = [],
   profile,
+  viewerProfile,
   onOpenMarket,
+  onOpenPvp,
   onOpenPost,
   loading = false,
 }: ProfileActivityTabsProps) {
+  const queryClient = useQueryClient()
+  const castFreeVoteMutation = useCastFreeVoteMutation()
+  const toggleLikeMutation = useToggleLikeMutation()
+  const { data: dailyVotesData } = useDailyVotesQuery(viewerProfile?.id || "")
+  const dailyVotesRemaining = dailyVotesData?.votesRemaining ?? 10
   const [predictionFilter, setPredictionFilter] = useState<
     "all" | "unresolved" | "resolved" | "won" | "lost"
   >("all")
   const [predictionPage, setPredictionPage] = useState(1)
   const PREDICTIONS_PER_PAGE = 5
+
+  async function handleFreeVote(market: MarketPost, side: "YES" | "NO") {
+    if (!viewerProfile) {
+      toast.error("Connect your wallet to cast a vote.")
+      return
+    }
+
+    try {
+      await castFreeVoteMutation.mutateAsync({
+        marketId: market.id,
+        userId: viewerProfile.id,
+        side,
+      })
+      toast.success(`Casted your ${side} signal!`)
+      void queryClient.invalidateQueries({
+        queryKey: ["profile-activity", profile.id],
+      })
+    } catch (err: unknown) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to submit signal.",
+      )
+    }
+  }
+
+  async function handleLike(item: FeedPost) {
+    if (!viewerProfile) {
+      toast.error("Connect your wallet to like this market.")
+      return
+    }
+
+    try {
+      await toggleLikeMutation.mutateAsync({
+        postId: item.id,
+        profileId: viewerProfile.id,
+        currentlyLiked: Boolean(item.viewerLiked),
+      })
+      void queryClient.invalidateQueries({
+        queryKey: ["profile-activity", profile.id],
+      })
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to update like.")
+    }
+  }
 
   if (loading) {
     return <FeedSkeleton />
@@ -80,124 +131,135 @@ export default function ProfileActivityTabs({
     )
 
     return (
-      <section className="flex flex-col gap-3">
-        <div className="flex gap-2 flex-wrap">
+      <section className="verity-profile-predictions">
+        <div className="verity-profile-predictions__toolbar">
+          <div className="verity-profile-predictions__summary">
+            <span>Position history</span>
+            <strong>{filteredPositions.length} RECORDS</strong>
+          </div>
+          <div
+            aria-label="Filter prediction history"
+            className="verity-profile-predictions__filters"
+            role="group"
+          >
           {(["all", "unresolved", "resolved", "won", "lost"] as const).map(
             (filter) => (
               <button
+                aria-pressed={predictionFilter === filter}
                 key={filter}
                 onClick={() => {
                   setPredictionFilter(filter)
                   setPredictionPage(1)
                 }}
-                className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${
-                  predictionFilter === filter
-                    ? "bg-black/10 dark:bg-white/10 text-charcoal-primary dark:text-white font-bold"
-                    : "bg-stone-surface dark:bg-stone-800/50 text-ash dark:text-stone-400 font-bold hover:text-charcoal-primary dark:hover:text-white"
-                }`}
+                className={predictionFilter === filter ? "is-active" : ""}
+                type="button"
               >
                 {filter.charAt(0).toUpperCase() + filter.slice(1)}
               </button>
             ),
           )}
+          </div>
         </div>
         {paginatedPositions.length > 0 ? (
           <>
-            {paginatedPositions.map((pos) => {
-              const isYes = pos.side === "YES"
-              const currentPrice =
-                pos.status === "resolved"
-                  ? pos.resolved_outcome === pos.side
-                    ? 1.0
-                    : 0.0
-                  : getMarketPrice(
-                      {
-                        usdc_yes_amount: pos.usdc_yes_amount ?? 0,
-                        usdc_no_amount: pos.usdc_no_amount ?? 0,
-                      },
-                      pos.side,
-                    )
-              const currentValue = pos.shares * currentPrice
-              const unrealizedPnL = currentValue - (pos.invested_usdc || 0)
+            <div className="verity-profile-predictions__list">
+              {paginatedPositions.map((pos) => {
+                const isYes = pos.side === "YES"
+                const currentPrice =
+                  pos.status === "resolved"
+                    ? pos.resolved_outcome === pos.side
+                      ? 1.0
+                      : 0.0
+                    : getMarketPrice(
+                        {
+                          usdc_yes_amount: pos.usdc_yes_amount ?? 0,
+                          usdc_no_amount: pos.usdc_no_amount ?? 0,
+                        },
+                        pos.side,
+                      )
+                const currentValue = pos.shares * currentPrice
+                const unrealizedPnL = currentValue - (pos.invested_usdc || 0)
+                const positionState =
+                  pos.status !== "resolved"
+                    ? "OPEN"
+                    : pos.resolved_outcome === pos.side
+                      ? "WON"
+                      : pos.resolved_outcome
+                        ? "LOST"
+                        : "RESOLVED"
 
-              const isPvp = pos.category?.toLowerCase() === "pvp"
-              const href = isPvp
-                ? "/markets?tab=pvp-arena"
-                : `/markets/${pos.market_id}`
+                const isPvp = pos.category?.toLowerCase() === "pvp"
+                const href = isPvp
+                  ? "/markets?tab=pvp-arena"
+                  : `/markets/${pos.market_id}`
 
-              return (
-                <div
-                  key={pos.id}
-                  className="flex flex-col gap-3 p-4 bg-stone-surface rounded-[12px] border border-border sm:flex-row sm:items-center sm:justify-between"
-                >
-                  <div className="min-w-0 flex-1">
-                    <span
-                      className={`verity-pill inline-flex items-center px-2 py-0.5 font-mono text-[9px] font-semibold ${
-                        isYes
-                          ? "bg-meadow-green/10 text-meadow-green"
-                          : "bg-ember-orange/10 text-ember-orange"
-                      }`}
-                    >
-                      {pos.side}
-                    </span>
-                    <h4
-                      className="mt-1.5 text-xs font-semibold leading-normal text-charcoal-primary truncate"
-                      title={pos.market_question || ""}
-                    >
-                      {pos.market_question ||
-                        `Market ID: ${pos.market_id.slice(0, 10)}`}
-                    </h4>
-                  </div>
-                  <div className="flex items-center gap-4 font-mono text-xs text-right shrink-0">
-                    <div>
-                      <span className="block text-[8px] text-ash uppercase">
-                        Shares
-                      </span>
-                      <span className="font-semibold text-charcoal-primary">
-                        {pos.shares.toFixed(2)}
-                      </span>
+                return (
+                  <article
+                    className="verity-profile-prediction"
+                    key={pos.id}
+                  >
+                    <div className="verity-profile-prediction__title">
+                      <div>
+                        <span className={isYes ? "is-yes" : "is-no"}>
+                          {pos.side}
+                        </span>
+                        <small className={`is-${positionState.toLowerCase()}`}>
+                          {positionState}
+                        </small>
+                      </div>
+                      <h3 title={pos.market_question || ""}>
+                        {pos.market_question ||
+                          `Market ID: ${pos.market_id.slice(0, 10)}`}
+                      </h3>
                     </div>
-                    <div>
-                      <span className="block text-[8px] text-ash uppercase">
-                        Cost
-                      </span>
-                      <span className="font-semibold text-charcoal-primary">
-                        ${pos.invested_usdc.toFixed(2)}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="block text-[8px] text-ash uppercase">
-                        P&L
-                      </span>
-                      <span
-                        className={`font-semibold ${unrealizedPnL >= 0 ? "text-meadow-green" : "text-ember-orange"}`}
-                      >
-                        {unrealizedPnL >= 0 ? "+" : ""}
-                        {unrealizedPnL.toFixed(2)}
-                      </span>
-                    </div>
+
+                    <dl className="verity-profile-prediction__metrics">
+                      <div>
+                        <dt>Shares</dt>
+                        <dd>{pos.shares.toFixed(2)}</dd>
+                      </div>
+                      <div>
+                        <dt>Cost</dt>
+                        <dd>${pos.invested_usdc.toFixed(2)}</dd>
+                      </div>
+                      <div>
+                        <dt>P&amp;L</dt>
+                        <dd className={unrealizedPnL >= 0 ? "is-positive" : "is-negative"}>
+                          {unrealizedPnL >= 0 ? "+" : ""}
+                          {unrealizedPnL.toFixed(2)}
+                        </dd>
+                      </div>
+                    </dl>
+
                     <Link
+                      aria-label={`Open ${pos.market_question || "market"}`}
                       href={href}
-                      className="flex h-7 w-7 items-center justify-center rounded-[6px] bg-white border border-border hover:bg-stone-surface transition-colors cursor-pointer text-ash hover:text-charcoal-primary"
                     >
-                      <ArrowUpRight className="h-3.5 w-3.5" />
+                      <span>OPEN MARKET</span>
+                      <ArrowUpRight aria-hidden="true" />
                     </Link>
-                  </div>
-                </div>
-              )
-            })}
+                  </article>
+                )
+              })}
+            </div>
             {totalPages > 1 && (
-              <div className="flex items-center justify-between mt-4 pt-4 border-t border-border">
+              <nav
+                aria-label="Prediction history pages"
+                className="verity-profile-predictions__pagination"
+              >
                 <button
                   onClick={() => setPredictionPage((p) => Math.max(1, p - 1))}
                   disabled={predictionPage === 1}
                   aria-label="Previous page"
-                  className="p-2 rounded-lg border border-border bg-white dark:bg-stone-900 text-charcoal-primary dark:text-white shadow-sm disabled:opacity-50 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors"
                 >
-                  <ChevronLeft className="h-5 w-5" />
+                  <ChevronLeft aria-hidden="true" />
+                  PREV
                 </button>
-                <span className="text-sm font-semibold text-charcoal-primary dark:text-white">
-                  Page {predictionPage} of {totalPages}
+                <span>
+                  <small>PAGE</small>
+                  <strong>{predictionPage}</strong>
+                  <i>/</i>
+                  <strong>{totalPages}</strong>
                 </span>
                 <button
                   onClick={() =>
@@ -205,17 +267,20 @@ export default function ProfileActivityTabs({
                   }
                   disabled={predictionPage === totalPages}
                   aria-label="Next page"
-                  className="p-2 rounded-lg border border-border bg-white dark:bg-stone-900 text-charcoal-primary dark:text-white shadow-sm disabled:opacity-50 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors"
                 >
-                  <ChevronRight className="h-5 w-5" />
+                  NEXT
+                  <ChevronRight aria-hidden="true" />
                 </button>
-              </div>
+              </nav>
             )}
           </>
         ) : (
-          <div className="verity-card p-8 text-center text-sm tracking-[-0.18px] text-ash">
-            No {predictionFilter !== "all" ? predictionFilter : ""} predictions
-            found.
+          <div className="verity-profile-predictions__empty">
+            <span>NO SIGNAL</span>
+            <strong>
+              No {predictionFilter !== "all" ? predictionFilter : ""}{" "}
+              predictions found.
+            </strong>
           </div>
         )}
       </section>
@@ -231,7 +296,6 @@ export default function ProfileActivityTabs({
             <CommentActivityRow
               item={item}
               key={item.id}
-              profile={profile}
               onOpenMarket={onOpenMarket}
               onOpenPost={onOpenPost}
             />
@@ -248,18 +312,22 @@ export default function ProfileActivityTabs({
   // Default is "markets" tab (custom created markets by user)
   const rows = items
   return (
-    <section className="flex flex-col gap-3">
+    <section className="grid grid-cols-1 border-l border-t border-border xl:grid-cols-2">
       {rows.length > 0 ? (
         rows.map((item) => (
-          <ActivityItem
+          <MarketFeedCard
+            dailyVotesRemaining={dailyVotesRemaining}
             item={item}
             key={item.id}
-            onOpenMarket={onOpenMarket}
-            onOpenPost={onOpenPost}
+            likePending={toggleLikeMutation.isPending}
+            onLike={handleLike}
+            onOpenPvp={onOpenPvp ?? onOpenMarket}
+            onVote={handleFreeVote}
+            votePending={castFreeVoteMutation.isPending}
           />
         ))
       ) : (
-        <div className="verity-card p-8 text-center text-sm tracking-[-0.18px] text-ash">
+        <div className="col-span-full flex min-h-52 items-center justify-center border-b border-r border-border bg-surface p-10 text-center font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-ash">
           No created markets yet.
         </div>
       )}
@@ -269,12 +337,10 @@ export default function ProfileActivityTabs({
 
 function CommentActivityRow({
   item,
-  profile,
   onOpenMarket,
   onOpenPost,
 }: {
   item: FeedPost
-  profile: Profile
   onOpenMarket: (market: MarketPost) => void
   onOpenPost?: (post: FeedPost) => void
 }) {
@@ -393,124 +459,5 @@ function CommentActivityRow({
         )}
       </div>
     </article>
-  )
-}
-
-function ActivityItem({
-  item,
-  onOpenMarket,
-  onOpenPost,
-}: {
-  item: FeedPost
-  onOpenMarket: (market: MarketPost) => void
-  onOpenPost?: (post: FeedPost) => void
-}) {
-  const router = useRouter()
-  if (item.market) {
-    const market = item.market
-    const isPvp = market.category?.toLowerCase() === "pvp"
-
-    if (isPvp) {
-      return (
-        <article
-          onClick={() => {
-            const pId =
-              market.parentMarketId || market.parent_market_id || market.id
-            router.push(`/markets?tab=pvp-arena&id=${pId}`)
-          }}
-          className="verity-card p-5 border border-indigo-200 dark:border-indigo-950 bg-indigo-50/20 hover:border-indigo-400 dark:hover:border-indigo-800 transition-all cursor-pointer group relative flex flex-col justify-between"
-        >
-          <div className="absolute top-4 right-4 flex items-center gap-1 bg-indigo-500/10 px-2 py-0.5 rounded-full text-[9px] font-mono font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider shadow-subtle">
-            <Swords className="h-3 w-3" />
-            PvP Matchup
-          </div>
-
-          <div>
-            <span className="font-mono text-[10px] font-bold text-ash uppercase tracking-wider">
-              World Cup Arena
-            </span>
-            <h3 className="text-xl font-bold tracking-tight text-charcoal-primary dark:text-white mt-1 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
-              {market.question}
-            </h3>
-            <p className="text-xs text-graphite dark:text-zinc-400 mt-2 leading-relaxed font-sans">
-              Predict all propositions for the match. Battle head-to-head for
-              Arena XP, boosts, and bragging rights.
-            </p>
-          </div>
-
-          <div className="mt-6 flex items-center justify-between border-t border-dashed border-indigo-100 dark:border-indigo-950/60 pt-3">
-            <div className="flex items-center gap-2 font-mono text-[10px] text-ash">
-              <Timer className="h-3.5 w-3.5" />
-              <span>
-                Closes: {new Date(market.deadline).toLocaleDateString()}
-              </span>
-            </div>
-            <span className="flex items-center gap-1 text-xs font-semibold text-indigo-600 dark:text-indigo-400 font-sans">
-              Predict Now
-              <ChevronRight className="h-4 w-4 group-hover:translate-x-0.5 transition-transform" />
-            </span>
-          </div>
-        </article>
-      )
-    }
-
-    const totalUsdc =
-      Number(market.usdc_yes_amount) + Number(market.usdc_no_amount)
-    const yesPercent =
-      totalUsdc > 0 ? (Number(market.usdc_yes_amount) / totalUsdc) * 100 : 50
-
-    return (
-      <MarketCard
-        category={market.category}
-        comments={item.commentsCount}
-        dailyVotesRemaining={10}
-        deadline={new Date(market.deadline).toLocaleString()}
-        freeNoVotes={market.free_no_votes}
-        freeYesVotes={market.free_yes_votes}
-        handle={displayHandle(item.author)}
-        liquidity={market.liquidity}
-        marketCreationFeeUsdc={market.market_creation_fee_usdc}
-        name={displayName(item.author)}
-        noCondition={market.no_condition}
-        onOpenDetails={() => onOpenMarket(market)}
-        postContent={item.content}
-        profile={item.author}
-        profileHref={`/profile/${encodeURIComponent(item.author.id)}`}
-        question={market.question}
-        resolutionSource={market.resolution_source}
-        reshares={item.resharesCount}
-        status={market.status}
-        time={relativeTime(item.created_at)}
-        totalFreeVotes={market.totalFreeVotes}
-        usdcNo={Number(market.usdc_no_amount)}
-        usdcYes={Number(market.usdc_yes_amount)}
-        viewerVote={item.viewerVote}
-        yesCondition={market.yes_condition}
-        yesPercent={yesPercent}
-        outcomeCount={market.outcomeCount}
-        outcomes={market.outcomes}
-        outcomePrices={market.outcomePrices}
-        minimumPoolBalance={
-          market.minimumPoolBalance || market.minimum_pool_balance
-        }
-      />
-    )
-  }
-
-  return (
-    <PostCard
-      comments={item.commentsCount}
-      content={item.content}
-      handle={displayHandle(item.author)}
-      liked={item.viewerLiked}
-      likes={item.likesCount}
-      name={displayName(item.author)}
-      onOpenDetails={() => onOpenPost?.(item)}
-      profile={item.author}
-      profileHref={`/profile/${encodeURIComponent(item.author.id)}`}
-      reshares={item.resharesCount}
-      reshared={item.viewerReshared}
-      time={relativeTime(item.created_at)}
-    />
   )
 }

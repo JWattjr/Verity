@@ -1,19 +1,52 @@
 import { cleanOutcomeName } from "./PvpTicketBuilder"
 
 interface PvpDuelPicksProps {
-  pvpStatus: any
-  onSelectChildMarketForTrade?: (market: any) => void
+  pvpStatus: DuelStatusData
   onAddLiquidity?: (marketId: string) => void
 }
 
-export default function PvpDuelPicks({ pvpStatus, onSelectChildMarketForTrade, onAddLiquidity }: PvpDuelPicksProps) {
+interface DuelOption {
+  id: string
+  optionGroup?: string | null
+  optionName?: string | null
+  yesCondition?: string | null
+  noCondition?: string | null
+  status?: string | null
+  resolvedOutcome?: string | null
+}
+
+interface DuelPick {
+  marketId: string
+  selection: string | null
+  optionName?: string | null
+  investedUsdc?: number | null
+  status?: string | null
+  resolvedOutcome?: string | null
+  arenaCorrect?: boolean | null
+  isCorrect?: boolean | null
+}
+
+interface DuelStatusData {
+  status?: string | null
+  event?: {
+    question?: string | null
+    options?: DuelOption[] | null
+  } | null
+  ticket?: { picks?: DuelPick[] | null } | null
+  opponent?: { picks?: DuelPick[] | null } | null
+}
+
+export default function PvpDuelPicks({
+  pvpStatus,
+  onAddLiquidity,
+}: PvpDuelPicksProps) {
   const userPicks = pvpStatus.ticket?.picks || []
   const oppPicks = pvpStatus.opponent?.picks || []
 
   const allMarketIds = Array.from(
     new Set([
-      ...userPicks.map((p: any) => p.marketId),
-      ...oppPicks.map((p: any) => p.marketId),
+      ...userPicks.map((pick) => pick.marketId),
+      ...oppPicks.map((pick) => pick.marketId),
     ]),
   ).filter(Boolean)
 
@@ -28,7 +61,7 @@ export default function PvpDuelPicks({ pvpStatus, onSelectChildMarketForTrade, o
     return { teamA: "Team A", teamB: "Team B" }
   })()
 
-  const formatPickSelection = (selection: string | null, opt: any) => {
+  const formatPickSelection = (selection: string | null, opt?: DuelOption) => {
     if (!selection) return ""
     const group = opt?.optionGroup || ""
     if (group === "red_card" || group === "red_cards") {
@@ -46,37 +79,41 @@ export default function PvpDuelPicks({ pvpStatus, onSelectChildMarketForTrade, o
   }
 
   return (
-    <div className="verity-card p-5">
-      <div className="border-b border-border dark:border-zinc-800 pb-3 mb-4 flex items-center justify-between">
+    <section className="border border-border bg-surface">
+      <div className="flex min-h-12 items-center justify-between border-b border-border px-4">
         <div>
-          <h3 className="text-base font-bold text-charcoal-primary dark:text-white">
-            Your Predictions & Outcomes
+          <h3 className="font-heading text-xl font-black uppercase tracking-[0.03em] text-charcoal-primary">
+            Card breakdown
           </h3>
-          <p className="text-xs text-ash mt-0.5">
-            Track your selections, payouts, and opponent picks in real-time.
+          <p className="font-mono text-[8px] font-semibold uppercase tracking-[0.12em] text-ash">
+            Your picks · Rival picks · Official outcomes
           </p>
         </div>
+        <span className="bg-black px-3 py-2 font-mono text-[8px] font-bold uppercase tracking-[0.14em] text-white">
+          Head to head
+        </span>
       </div>
 
       {/* Per-pick rows */}
-      <div className="space-y-3">
-        {allMarketIds.map((marketId: any) => {
-          const pick = userPicks.find((p: any) => p.marketId === marketId)
-          const childOpt = pvpStatus.event?.options.find(
-            (o: any) => o.id === marketId,
+      <div className="grid grid-cols-1 border-l border-t border-border xl:grid-cols-2">
+        {allMarketIds.map((marketId) => {
+          const pick = userPicks.find((item) => item.marketId === marketId)
+          const childOpt = pvpStatus.event?.options?.find(
+            (option) => option.id === marketId,
           )
-          const oppPick = pvpStatus.opponent?.picks.find(
-            (p: any) => p.marketId === marketId,
-          )
+          const oppPick = oppPicks.find((item) => item.marketId === marketId)
           const invested = pick?.investedUsdc ?? 0
 
           const isResolved =
             childOpt?.status === "resolved" ||
-            (childOpt?.resolvedOutcome !== null && childOpt?.resolvedOutcome !== undefined) ||
+            (childOpt?.resolvedOutcome !== null &&
+              childOpt?.resolvedOutcome !== undefined) ||
             pick?.status === "resolved" ||
-            (pick?.resolvedOutcome !== null && pick?.resolvedOutcome !== undefined) ||
+            (pick?.resolvedOutcome !== null &&
+              pick?.resolvedOutcome !== undefined) ||
             oppPick?.status === "resolved" ||
-            (oppPick?.resolvedOutcome !== null && oppPick?.resolvedOutcome !== undefined)
+            (oppPick?.resolvedOutcome !== null &&
+              oppPick?.resolvedOutcome !== undefined)
 
           const resolvedOutcome =
             childOpt?.resolvedOutcome ||
@@ -87,7 +124,7 @@ export default function PvpDuelPicks({ pvpStatus, onSelectChildMarketForTrade, o
           return (
             <div
               key={marketId}
-              className="flex flex-col gap-3 p-4 rounded-xl bg-parchment-card dark:bg-zinc-900/40 border border-border dark:border-zinc-800/85 transition-all"
+              className="flex flex-col gap-3 border-b border-r border-border bg-surface p-4 transition-colors hover:bg-surface-muted"
             >
               {/* Top row: Title + Shares */}
               <div className="flex items-baseline justify-between gap-2">
@@ -100,7 +137,7 @@ export default function PvpDuelPicks({ pvpStatus, onSelectChildMarketForTrade, o
                   ).toUpperCase()}
                 </span>
                 <div className="flex items-center gap-3 shrink-0">
-                  <span className="text-[10px] text-stone-400 dark:text-zinc-500 font-inter">
+                  <span className="font-mono text-[9px] text-ash">
                     Shares: <strong>{invested.toFixed(2)}</strong>
                   </span>
                   {childOpt && !isResolved && onAddLiquidity && (
@@ -109,7 +146,7 @@ export default function PvpDuelPicks({ pvpStatus, onSelectChildMarketForTrade, o
                         e.stopPropagation()
                         onAddLiquidity(marketId)
                       }}
-                      className="px-2 py-0.5 rounded border border-border dark:border-zinc-700 text-[9px] font-bold text-ash dark:text-zinc-400 bg-white-surface dark:bg-zinc-900 hover:text-charcoal-primary dark:hover:text-zinc-200 hover:border-charcoal-primary/30 dark:hover:border-zinc-500 transition-all uppercase tracking-wider"
+                      className="border border-border bg-black px-2 py-1 font-mono text-[8px] font-bold uppercase tracking-wider text-white transition-colors hover:bg-accent hover:text-black"
                     >
                       + LP
                     </button>
@@ -120,11 +157,11 @@ export default function PvpDuelPicks({ pvpStatus, onSelectChildMarketForTrade, o
               {/* Bottom row: Selections */}
               <div className="grid grid-cols-2 md:flex md:items-stretch gap-2">
                 {/* Your Pick */}
-                <div className="flex flex-col items-start bg-white-surface dark:bg-zinc-950 px-3 py-1.5 rounded-[8px] border border-border dark:border-zinc-800 flex-1 min-w-0">
-                  <span className="text-[9px] font-inter text-ash uppercase">
+                <div className="flex min-w-0 flex-1 flex-col items-start border border-border bg-black px-3 py-2 text-white">
+                  <span className="font-mono text-[8px] uppercase tracking-[0.12em] text-ash">
                     You
                   </span>
-                  <span className="text-xs font-semibold text-charcoal-primary dark:text-zinc-200 truncate max-w-full">
+                  <span className="max-w-full truncate text-xs font-semibold">
                     {pick
                       ? formatPickSelection(pick.selection, childOpt) || "—"
                       : "—"}
@@ -132,8 +169,8 @@ export default function PvpDuelPicks({ pvpStatus, onSelectChildMarketForTrade, o
                 </div>
 
                 {/* Opponent's Pick */}
-                <div className="flex flex-col items-start bg-white-surface dark:bg-zinc-950 px-3 py-1.5 rounded-[8px] border border-border dark:border-zinc-800 flex-1 min-w-0">
-                  <span className="text-[9px] font-inter text-ash uppercase">
+                <div className="flex min-w-0 flex-1 flex-col items-start border border-border bg-black px-3 py-2 text-white">
+                  <span className="font-mono text-[8px] uppercase tracking-[0.12em] text-ash">
                     Opponent
                   </span>
                   {pvpStatus.status === "queued" ? (
@@ -141,7 +178,7 @@ export default function PvpDuelPicks({ pvpStatus, onSelectChildMarketForTrade, o
                       Waiting...
                     </span>
                   ) : (
-                    <span className="text-xs font-semibold text-charcoal-primary dark:text-zinc-200 truncate max-w-full">
+                    <span className="max-w-full truncate text-xs font-semibold">
                       {oppPick
                         ? formatPickSelection(oppPick.selection, childOpt) ||
                           "—"
@@ -152,28 +189,30 @@ export default function PvpDuelPicks({ pvpStatus, onSelectChildMarketForTrade, o
 
                 {/* Outcome — only shown when resolved */}
                 {isResolved && (
-                  <div className="flex flex-col items-start bg-zinc-100 dark:bg-zinc-900/60 px-3 py-1.5 rounded-[8px] border border-border dark:border-zinc-800 flex-1 min-w-0">
-                    <span className="text-[9px] font-inter text-ash uppercase">
+                  <div className="flex min-w-0 flex-1 flex-col items-start border border-accent bg-accent px-3 py-2 text-black">
+                    <span className="font-mono text-[8px] uppercase tracking-[0.12em] text-black/60">
                       Outcome
                     </span>
-                    <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400 truncate max-w-full">
+                    <span className="max-w-full truncate text-xs font-bold">
                       {formatPickSelection(resolvedOutcome, childOpt) || ""}
                     </span>
                   </div>
                 )}
 
                 {/* Points — only shown when resolved */}
-                {(((pick && (pick.arenaCorrect ?? pick.isCorrect) !== null) ||
+                {((pick && (pick.arenaCorrect ?? pick.isCorrect) !== null) ||
                   (oppPick &&
-                    (oppPick.arenaCorrect ?? oppPick.isCorrect) !== null))) && (
-                  <div className="flex flex-col items-center justify-center px-3 py-1.5 rounded-[8px] border border-border dark:border-zinc-800 shrink-0">
-                    <span className="text-[9px] font-inter text-ash uppercase">
+                    (oppPick.arenaCorrect ?? oppPick.isCorrect) !== null)) && (
+                  <div className="flex shrink-0 flex-col items-center justify-center border border-border px-3 py-2">
+                    <span className="font-mono text-[8px] uppercase tracking-[0.12em] text-ash">
                       Points
                     </span>
                     <span
                       className={`text-xs font-bold ${(pick?.arenaCorrect ?? pick?.isCorrect) ? "text-meadow-green" : "text-charcoal-primary dark:text-zinc-400"}`}
                     >
-                      {(pick?.arenaCorrect ?? pick?.isCorrect) ? "+1 pt" : "0 pts"}
+                      {(pick?.arenaCorrect ?? pick?.isCorrect)
+                        ? "+1 pt"
+                        : "0 pts"}
                     </span>
                   </div>
                 )}
@@ -182,6 +221,6 @@ export default function PvpDuelPicks({ pvpStatus, onSelectChildMarketForTrade, o
           )
         })}
       </div>
-    </div>
+    </section>
   )
 }

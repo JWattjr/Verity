@@ -12,7 +12,7 @@ export default function DuelHistory() {
   return (
     <div className="verity-card overflow-hidden flex flex-col bg-white dark:bg-zinc-900/30">
       <div className="p-4 border-b border-border dark:border-zinc-800 flex items-center gap-2">
-        <h3 className="font-sans text-xs font-black uppercase tracking-wider text-charcoal-primary dark:text-white">
+        <h3 className="font-heading text-lg font-black uppercase tracking-[0.06em] text-charcoal-primary">
           DUEL HISTORY
         </h3>
       </div>

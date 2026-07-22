@@ -15,7 +15,7 @@ export default function OpenGraphImage() {
         color: "#121212",
         display: "flex",
         flexDirection: "column",
-        fontFamily: "Arial, sans-serif",
+        fontFamily: "Archivo, sans-serif",
         height: "100%",
         justifyContent: "space-between",
         overflow: "hidden",

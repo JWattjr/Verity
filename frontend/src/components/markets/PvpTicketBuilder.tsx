@@ -285,13 +285,13 @@ export default function PvpTicketBuilder({
     return (
       <div className="flex flex-col gap-0 w-full h-full min-h-0 max-h-full">
         {/* Custom Tabs */}
-        <div className="flex items-center w-full p-1 mb-4 rounded-lg bg-stone-100 dark:bg-zinc-900 border border-stone-200 dark:border-zinc-800 shrink-0">
+        <div className="flex items-center w-full p-1 mb-4 rounded-lg bg-[#111113] border border-[#202023] shrink-0">
           <button
             onClick={() => setActiveTab("single")}
             className={`flex-1 py-1.5 text-xs font-bold font-mono tracking-wider rounded-md transition-colors ${
               activeTab === "single"
-                ? "bg-white dark:bg-zinc-800 text-charcoal-primary dark:text-white shadow-sm"
-                : "text-ash hover:text-charcoal-primary dark:hover:text-zinc-300 hover:bg-stone-200 dark:hover:bg-zinc-800/50"
+                ? "bg-[#1a1a1d] text-white shadow-sm"
+                : "text-ash hover:text-zinc-300 hover:bg-[#1a1a1d]/50"
             }`}
           >
             Review Picks
@@ -300,8 +300,8 @@ export default function PvpTicketBuilder({
             onClick={() => setActiveTab("liquidity")}
             className={`flex-1 py-1.5 text-xs font-bold font-mono tracking-wider rounded-md transition-colors ${
               activeTab === "liquidity"
-                ? "bg-white dark:bg-zinc-800 text-charcoal-primary dark:text-white shadow-sm"
-                : "text-ash hover:text-charcoal-primary dark:hover:text-zinc-300 hover:bg-stone-200 dark:hover:bg-zinc-800/50"
+                ? "bg-[#1a1a1d] text-white shadow-sm"
+                : "text-ash hover:text-zinc-300 hover:bg-[#1a1a1d]/50"
             }`}
           >
             Fund Markets
@@ -349,7 +349,7 @@ export default function PvpTicketBuilder({
             return (
               <div
                 key={optId}
-                className="flex flex-col gap-2 p-3 bg-stone-100 dark:bg-zinc-900 rounded-xl border border-stone-200 dark:border-zinc-800"
+                className="flex flex-col gap-2 p-3 bg-[#111113] rounded-xl border border-[#202023]"
               >
                 <div className="flex items-start justify-between gap-3">
                   <button
@@ -397,7 +397,7 @@ export default function PvpTicketBuilder({
                                     e.target.value,
                                   )
                                 }
-                                className="h-8 text-xs font-mono bg-white dark:bg-black border-stone-300 dark:border-zinc-700 text-right"
+                                className="h-8 text-xs font-mono bg-[#111113] border-[#202023] text-right"
                               />
                             </div>
                           </div>
@@ -432,7 +432,7 @@ export default function PvpTicketBuilder({
                       const val = e.target.value
                       onSetBetAmount(val === "" ? 0 : Number(val))
                     }}
-                    className="h-9 text-xs font-bold font-mono bg-stone-100 dark:bg-zinc-900 border-stone-300 dark:border-zinc-700 text-right"
+                    className="h-9 text-xs font-bold font-mono bg-[#111113] border-[#202023] text-right"
                   />
                 </div>
               </div>
@@ -454,7 +454,7 @@ export default function PvpTicketBuilder({
                   onSubmitTicket()
                 }}
                 disabled={isSubmitting || selectionCount < 3}
-                className="w-full h-12 bg-emerald-600 hover:bg-emerald-500 text-white font-bold uppercase tracking-wider text-sm shadow-md transition-all rounded-lg flex items-center justify-center gap-2 disabled:opacity-50"
+                className="flex h-12 w-full items-center justify-center gap-2 border border-accent bg-accent text-sm font-bold uppercase tracking-wider text-black shadow-md transition-colors hover:bg-accent/90 disabled:border-[#202023] disabled:bg-[#161618] disabled:text-[#6f6b67] disabled:opacity-100"
               >
                 {isSubmitting
                   ? "Submitting..."
@@ -489,7 +489,7 @@ export default function PvpTicketBuilder({
                       })
                       setLiquidityAmounts(newAmounts)
                     }}
-                    className="h-9 text-xs font-bold font-mono bg-stone-100 dark:bg-zinc-900 border-stone-300 dark:border-zinc-700 text-right"
+                    className="h-9 text-xs font-bold font-mono bg-[#111113] border-[#202023] text-right"
                   />
                 </div>
               </div>
@@ -505,7 +505,7 @@ export default function PvpTicketBuilder({
               <button
                 onClick={handleProvideLiquiditySubmit}
                 disabled={isSubmitting || totalLiquidity <= 0}
-                className="w-full h-12 bg-indigo-600 hover:bg-indigo-500 text-white font-bold uppercase tracking-wider text-sm shadow-md transition-all rounded-lg flex items-center justify-center gap-2 disabled:opacity-50"
+                className="flex h-12 w-full items-center justify-center gap-2 border border-accent bg-accent text-sm font-bold uppercase tracking-wider text-black shadow-md transition-colors hover:bg-accent/90 disabled:border-[#202023] disabled:bg-[#161618] disabled:text-[#6f6b67] disabled:opacity-100"
               >
                 {isSubmitting ? "Providing Liquidity..." : "Provide Liquidity"}
               </button>
@@ -618,7 +618,7 @@ export default function PvpTicketBuilder({
               ))}
             </div>
 
-            <aside className="sticky top-24 overflow-hidden border border-border-strong bg-white-surface p-4 shadow-subtle dark:border-zinc-800 dark:bg-zinc-950/50">
+            <aside className="sticky top-24 overflow-hidden border border-[#202023] bg-[#0a0a0a] p-4 shadow-subtle">
               <div className="mb-4 flex items-center justify-between border-b border-border pb-3 dark:border-zinc-800">
                 <div>
                   <span className="text-[9px] font-bold uppercase tracking-[0.18em] text-brand-accent">
@@ -656,8 +656,9 @@ export default function PvpTicketBuilder({
 
             {/* Bottom floating Continue button (Mobile) */}
             {selectionCount > 0 && (
-              <div className="fixed bottom-[calc(env(safe-area-inset-bottom)+82px)] left-4 right-4 z-40">
+              <div className="fixed bottom-[calc(env(safe-area-inset-bottom)+88px)] left-4 right-4 z-50">
                 <button
+                  type="button"
                   onClick={() => setIsMobileDrawerOpen(true)}
                   disabled={isSubmitting}
                   className="group flex h-[54px] w-full cursor-pointer items-center justify-between bg-brand-accent px-5 font-extrabold text-white shadow-xl transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
@@ -696,7 +697,7 @@ export default function PvpTicketBuilder({
                     <X className="h-4.5 w-4.5" />
                   </DrawerClose>
                 </DrawerHeader>
-                <div className="px-5 flex flex-col min-h-0 flex-1 pb-safe overflow-hidden">
+                <div className="px-5 flex flex-col min-h-0 flex-1 pb-24 overflow-hidden">
                   {renderTicketSlip()}
                 </div>
               </DrawerContent>
@@ -861,8 +862,8 @@ function MultiWayOutcomes({
           displayName.toLowerCase().includes("no goal") ||
           displayName.toLowerCase().includes("equal")
         const btnColor = isSelected
-          ? "bg-[#121212] dark:bg-white text-white dark:text-zinc-950 font-bold shadow-md relative"
-          : "bg-[#FAF9F6] dark:bg-zinc-900/40 hover:bg-[#F3F1EC] dark:hover:bg-zinc-850/50 text-charcoal-primary dark:text-zinc-300 font-medium"
+          ? "bg-[#2a0a0a] border border-[#7f1d1d] text-white font-bold shadow-md relative"
+          : "bg-[#161618] border border-[#202023] hover:bg-[#202023] text-[#aaa6a1] hover:text-[#f4f1ea] font-medium"
 
         return (
           <button
@@ -876,14 +877,14 @@ function MultiWayOutcomes({
               {displayName}
             </span>
             <span
-              className={`text-[9px] font-mono mt-1 opacity-70 ${isSelected ? "text-zinc-400 dark:text-zinc-600" : "text-ash"}`}
+              className={`text-[9px] font-mono mt-1 opacity-70 ${isSelected ? "text-red-300" : "text-ash"}`}
             >
               {priceCents}¢
             </span>
 
             {/* Red Check Circle Badge */}
             {isSelected && (
-              <div className="absolute -top-1 -right-1 bg-[#FF3E00] text-white h-4.5 w-4.5 rounded-full flex items-center justify-center shadow-md ring-2 ring-white dark:ring-zinc-900">
+              <div className="absolute -top-1 -right-1 bg-[#FF3E00] text-white h-4.5 w-4.5 rounded-full flex items-center justify-center shadow-md ring-2 ring-[#2a0a0a]">
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
                   viewBox="0 0 24 24"
@@ -952,22 +953,22 @@ function BinaryOutcomes({
         type="button"
         onClick={() => onToggleSelection(opt.id, "YES")}
         disabled={isSubmitting}
-        className={`flex flex-col items-center justify-center gap-1 p-3.5 rounded-xl cursor-pointer transition-all disabled:opacity-50 disabled:cursor-not-allowed relative ${
+        className={`flex flex-col items-center justify-center gap-1 p-3.5 rounded-xl cursor-pointer transition-all disabled:opacity-50 disabled:cursor-not-allowed relative border ${
           pvpSelections[opt.id] === "YES"
-            ? "bg-brand-primary dark:bg-white text-white dark:text-zinc-950 font-bold shadow-md"
-            : "bg-[#FAF9F6] dark:bg-zinc-900/40 hover:bg-[#F3F1EC] dark:hover:bg-zinc-800/50 text-charcoal-primary dark:text-zinc-300 font-medium"
+            ? "bg-[#2a0a0a] border-[#7f1d1d] text-white font-bold shadow-md"
+            : "bg-[#161618] border-[#202023] hover:bg-[#202023] text-[#aaa6a1] hover:text-[#f4f1ea] font-medium"
         }`}
       >
         <span className="text-xs font-bold">{yesLabel}</span>
         <span
-          className={`text-[9px] font-mono mt-1 opacity-70 ${pvpSelections[opt.id] === "YES" ? "text-zinc-400 dark:text-zinc-600" : "text-ash"}`}
+          className={`text-[9px] font-mono mt-1 opacity-70 ${pvpSelections[opt.id] === "YES" ? "text-red-300" : "text-ash"}`}
         >
           {yesProb.toFixed(1)}¢
         </span>
 
         {/* Red Check Circle Badge */}
         {pvpSelections[opt.id] === "YES" && (
-          <div className="absolute -top-1 -right-1 bg-[#FF3E00] text-white h-4.5 w-4.5 rounded-full flex items-center justify-center shadow-md ring-2 ring-white dark:ring-zinc-900">
+          <div className="absolute -top-1 -right-1 bg-[#FF3E00] text-white h-4.5 w-4.5 rounded-full flex items-center justify-center shadow-md ring-2 ring-[#2a0a0a]">
             <svg
               xmlns="http://www.w3.org/2000/svg"
               viewBox="0 0 24 24"
@@ -987,22 +988,22 @@ function BinaryOutcomes({
         type="button"
         onClick={() => onToggleSelection(opt.id, "NO")}
         disabled={isSubmitting}
-        className={`flex flex-col items-center justify-center gap-1 p-3.5 rounded-xl cursor-pointer transition-all disabled:opacity-50 disabled:cursor-not-allowed relative ${
+        className={`flex flex-col items-center justify-center gap-1 p-3.5 rounded-xl cursor-pointer transition-all disabled:opacity-50 disabled:cursor-not-allowed relative border ${
           pvpSelections[opt.id] === "NO"
-            ? "bg-brand-primary dark:bg-white text-white dark:text-zinc-950 font-bold shadow-md"
-            : "bg-[#FAF9F6] dark:bg-zinc-900/40 hover:bg-[#F3F1EC] dark:hover:bg-zinc-800/50 text-charcoal-primary dark:text-zinc-300 font-medium"
+            ? "bg-[#2a0a0a] border-[#7f1d1d] text-white font-bold shadow-md"
+            : "bg-[#161618] border-[#202023] hover:bg-[#202023] text-[#aaa6a1] hover:text-[#f4f1ea] font-medium"
         }`}
       >
         <span className="text-xs font-bold">{noLabel}</span>
         <span
-          className={`text-[9px] font-mono mt-1 opacity-70 ${pvpSelections[opt.id] === "NO" ? "text-zinc-400 dark:text-zinc-600" : "text-ash"}`}
+          className={`text-[9px] font-mono mt-1 opacity-70 ${pvpSelections[opt.id] === "NO" ? "text-red-300" : "text-ash"}`}
         >
           {noProb.toFixed(1)}¢
         </span>
 
         {/* Red Check Circle Badge */}
         {pvpSelections[opt.id] === "NO" && (
-          <div className="absolute -top-1 -right-1 bg-[#FF3E00] text-white h-4.5 w-4.5 rounded-full flex items-center justify-center shadow-md ring-2 ring-white dark:ring-zinc-900">
+          <div className="absolute -top-1 -right-1 bg-[#FF3E00] text-white h-4.5 w-4.5 rounded-full flex items-center justify-center shadow-md ring-2 ring-[#2a0a0a]">
             <svg
               xmlns="http://www.w3.org/2000/svg"
               viewBox="0 0 24 24"

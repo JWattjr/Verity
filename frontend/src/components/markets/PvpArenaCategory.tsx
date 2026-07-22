@@ -239,8 +239,8 @@ export default function ArenaCategory({
     <div
       className={`overflow-hidden border transition-all ${
         hasSelection
-          ? `${colors.bg} ${colors.border} shadow-subtle`
-          : "border-border bg-white dark:border-zinc-800 dark:bg-zinc-900/30"
+          ? "bg-[#111113] border-[#303033] shadow-subtle"
+          : "border-[#202023] bg-[#111113]"
       }`}
     >
       {/* Header */}
