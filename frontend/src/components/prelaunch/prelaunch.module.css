@@ -1,0 +1,946 @@
+.viewport {
+  --tg-theme-bg: var(--background);
+  --tg-theme-text: var(--foreground);
+  --tg-theme-hint: var(--muted);
+  --tg-theme-secondary-bg: var(--surface);
+  min-height: 100dvh;
+  max-width: 480px;
+  margin: 0 auto;
+  overflow-x: hidden;
+  background: var(--tg-theme-bg);
+  color: var(--tg-theme-text);
+  font-family: var(--font-archivo), sans-serif;
+}
+
+.topBar {
+  position: relative;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 68px;
+  padding: max(12px, env(safe-area-inset-top)) 16px 12px;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--tg-theme-bg) 94%, transparent);
+}
+
+.brand,
+.profileRow,
+.brand > div,
+.profileRow > div {
+  display: flex;
+  align-items: center;
+}
+
+.brand {
+  flex: 0 0 auto;
+  gap: 9px;
+}
+
+.brand > span,
+.loadingMark > span {
+  display: grid;
+  width: 30px;
+  height: 36px;
+  place-items: center;
+  border: 2px solid var(--color-brand-accent);
+  color: var(--color-brand-accent);
+  font-family: var(--font-big-shoulders), sans-serif;
+  font-size: 22px;
+  font-weight: 900;
+}
+
+.brand > div,
+.profileRow > div {
+  min-width: 0;
+  align-items: flex-start;
+  flex-direction: column;
+}
+
+.brand strong,
+.loadingMark strong {
+  font-family: var(--font-big-shoulders), sans-serif;
+  font-size: 22px;
+  font-weight: 900;
+  line-height: 0.9;
+  letter-spacing: 0.02em;
+}
+
+.brand small,
+.profileRow small {
+  color: var(--tg-theme-hint);
+  font-family: var(--font-martian-mono), monospace;
+  font-size: 7px;
+  line-height: 1.5;
+  letter-spacing: 0.12em;
+}
+
+.profileRow {
+  min-width: 0;
+  justify-content: flex-end;
+  gap: 7px;
+}
+
+.profileRow strong {
+  max-width: 96px;
+  overflow: hidden;
+  font-family: var(--font-martian-mono), monospace;
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.profileInitial {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid var(--border-strong);
+  background: var(--surface-muted);
+  font-family: var(--font-big-shoulders), sans-serif;
+  font-size: 18px;
+  font-weight: 900;
+}
+
+.clubBadge {
+  flex: 0 0 auto;
+  padding: 5px 6px;
+  background: var(--color-brand-accent);
+  color: var(--inverse-text);
+  font-family: var(--font-martian-mono), monospace;
+  font-size: 8px;
+  letter-spacing: 0.08em;
+}
+
+.hero {
+  position: relative;
+  padding: 42px 16px 34px;
+  border-bottom: 1px solid var(--border);
+  background:
+    linear-gradient(90deg, var(--color-brand-accent) 3px, transparent 3px),
+    var(--tg-theme-bg);
+}
+
+.hero::after {
+  position: absolute;
+  right: -42px;
+  top: 18px;
+  width: 132px;
+  height: 132px;
+  border: 1px solid var(--border);
+  content: "";
+  transform: rotate(45deg);
+}
+
+.eyebrow {
+  position: relative;
+  z-index: 1;
+  color: var(--color-brand-accent);
+  font-family: var(--font-martian-mono), monospace;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+}
+
+.countdown {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 17px 0 31px;
+  border-left: 1px solid var(--border-strong);
+  border-top: 1px solid var(--border-strong);
+}
+
+.countdownUnit {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: center;
+  padding: 14px 4px 12px;
+  border-bottom: 1px solid var(--border-strong);
+  border-right: 1px solid var(--border-strong);
+  background: var(--surface);
+}
+
+.countdownUnit strong {
+  font-family: var(--font-big-shoulders), sans-serif;
+  font-size: clamp(34px, 11vw, 48px);
+  font-weight: 900;
+  line-height: 0.9;
+  font-variant-numeric: tabular-nums;
+}
+
+.countdownUnit span {
+  margin-top: 8px;
+  color: var(--tg-theme-hint);
+  font-family: var(--font-martian-mono), monospace;
+  font-size: 7px;
+  letter-spacing: 0.15em;
+}
+
+.countdownLive {
+  position: relative;
+  z-index: 1;
+  margin: 17px 0 31px;
+  padding: 20px;
+  border: 1px solid var(--color-brand-accent);
+  color: var(--color-brand-accent);
+  font-family: var(--font-big-shoulders), sans-serif;
+  font-size: 30px;
+  font-weight: 900;
+  text-align: center;
+}
+
+.hero h1,
+.section h2,
+.modalHeader h2,
+.duelTeaser h2,
+.launchError h1 {
+  margin: 0;
+  font-family: var(--font-big-shoulders), sans-serif;
+  font-weight: 900;
+  letter-spacing: 0.01em;
+}
+
+.hero h1 {
+  position: relative;
+  z-index: 1;
+  max-width: 390px;
+  font-size: clamp(44px, 14vw, 68px);
+  line-height: 0.86;
+}
+
+.hero > p {
+  position: relative;
+  z-index: 1;
+  max-width: 390px;
+  margin: 18px 0 0;
+  color: var(--tg-theme-text);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.hero .heroLaunchLine {
+  margin-top: 8px;
+  color: var(--tg-theme-hint);
+  font-size: 12px;
+}
+
+.primaryButton,
+.secondaryButton,
+.duelButton {
+  display: inline-flex;
+  min-height: 52px;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  border: 1px solid var(--color-brand-accent);
+  border-radius: 0;
+  font-family: var(--font-martian-mono), monospace;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.07em;
+}
+
+.primaryButton {
+  background: var(--color-brand-accent);
+  color: var(--inverse-text);
+}
+
+.secondaryButton {
+  background: var(--surface);
+  color: var(--foreground);
+}
+
+.primaryButton svg,
+.secondaryButton svg,
+.duelButton svg {
+  width: 17px;
+  height: 17px;
+}
+
+.hero .primaryButton {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  margin-top: 24px;
+}
+
+.section {
+  scroll-margin-top: 10px;
+  padding: 32px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--tg-theme-bg);
+}
+
+.sectionHeading,
+.sectionHeading > div {
+  display: flex;
+  align-items: center;
+}
+
+.sectionHeading {
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.sectionHeading > div {
+  gap: 11px;
+}
+
+.sectionHeading > svg {
+  width: 20px;
+  color: var(--color-brand-accent);
+}
+
+.sectionNumber {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  background: var(--color-brand-accent);
+  color: var(--inverse-text);
+  font-family: var(--font-martian-mono), monospace;
+  font-size: 9px;
+  font-weight: 900;
+}
+
+.section h2,
+.duelTeaser h2,
+.modalHeader h2 {
+  font-size: 30px;
+  line-height: 0.95;
+}
+
+.sectionIntro {
+  margin: 12px 0 21px;
+  color: var(--tg-theme-hint);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.clubGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  border-left: 1px solid var(--border);
+  border-top: 1px solid var(--border);
+}
+
+.clubGrid button {
+  position: relative;
+  display: grid;
+  min-height: 58px;
+  cursor: pointer;
+  grid-template-columns: 38px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  padding: 9px;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--foreground);
+  text-align: left;
+}
+
+.clubGrid button:disabled {
+  cursor: wait;
+}
+
+.clubGrid button b {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border: 1px solid var(--border-strong);
+  color: var(--tg-theme-hint);
+  font-family: var(--font-martian-mono), monospace;
+  font-size: 8px;
+}
+
+.clubGrid button span {
+  font-family: var(--font-archivo), sans-serif;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1.15;
+}
+
+.clubGrid button i {
+  position: absolute;
+  right: 6px;
+  top: 4px;
+  color: var(--color-brand-accent);
+  font-family: var(--font-martian-mono), monospace;
+  font-size: 8px;
+  font-style: normal;
+}
+
+.clubGrid .clubSelected {
+  background: color-mix(in srgb, var(--color-brand-accent) 20%, var(--surface));
+  box-shadow: inset 3px 0 0 var(--color-brand-accent);
+}
+
+.clubGrid .clubSelected b {
+  border-color: var(--color-brand-accent);
+  background: var(--color-brand-accent);
+  color: var(--inverse-text);
+}
+
+.referralLink {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 50px;
+  padding: 7px 7px 7px 12px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+}
+
+.referralLink > span {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  color: var(--tg-theme-hint);
+  font-family: var(--font-martian-mono), monospace;
+  font-size: 8px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.referralLink button,
+.ticketHeadline button,
+.iconButton {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 auto;
+  cursor: pointer;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 0;
+  background: var(--surface-muted);
+  color: var(--foreground);
+}
+
+.referralLink svg,
+.ticketHeadline button svg,
+.iconButton svg {
+  width: 16px;
+  height: 16px;
+}
+
+.shareActions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.shareActions button {
+  width: 100%;
+}
+
+.referralCounts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  margin-top: 20px;
+  border-left: 1px solid var(--border);
+  border-top: 1px solid var(--border);
+}
+
+.referralCounts > div {
+  display: flex;
+  min-height: 76px;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 12px;
+  border-bottom: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.referralCounts span,
+.ticketHeadline span,
+.ticketBreakdown span,
+.ticketBreakdown small {
+  color: var(--tg-theme-hint);
+  font-family: var(--font-martian-mono), monospace;
+  font-size: 7px;
+  letter-spacing: 0.08em;
+}
+
+.referralCounts strong {
+  color: var(--color-brand-accent);
+  font-family: var(--font-big-shoulders), sans-serif;
+  font-size: 31px;
+  line-height: 0.9;
+}
+
+.ticketPanel {
+  margin-top: 8px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+}
+
+.ticketHeadline {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.ticketHeadline > svg {
+  width: 24px;
+  color: var(--color-brand-accent);
+}
+
+.ticketHeadline > div {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+}
+
+.ticketHeadline strong {
+  font-family: var(--font-big-shoulders), sans-serif;
+  font-size: 29px;
+  line-height: 1;
+}
+
+.ticketBreakdown {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+
+.ticketBreakdown > div {
+  display: grid;
+  min-height: 90px;
+  grid-template-columns: 1fr auto;
+  align-content: center;
+  gap: 5px;
+  padding: 13px;
+  border-right: 1px solid var(--border);
+}
+
+.ticketBreakdown > div:last-child {
+  border-right: 0;
+}
+
+.ticketBreakdown strong {
+  grid-row: span 2;
+  color: var(--color-brand-accent);
+  font-family: var(--font-big-shoulders), sans-serif;
+  font-size: 40px;
+  line-height: 0.9;
+}
+
+.progressTrack {
+  height: 7px;
+  margin: 0 13px 13px;
+  overflow: hidden;
+  background: var(--surface-muted);
+}
+
+.progressTrack span {
+  display: block;
+  width: var(--progress);
+  height: 100%;
+  background: var(--color-brand-accent);
+  transition: width 180ms ease-out;
+}
+
+.duelTeaser {
+  background: var(--surface);
+}
+
+.duelTeaser > div p {
+  margin: 8px 0 19px;
+  color: var(--tg-theme-hint);
+  font-size: 12px;
+}
+
+.duelButton {
+  width: 100%;
+  justify-content: space-between;
+  padding: 0 14px;
+  background: var(--background);
+  color: var(--foreground);
+}
+
+.duelButton svg:first-child {
+  color: var(--color-brand-accent);
+}
+
+.inlineError {
+  margin: 12px 16px;
+  padding: 12px;
+  border: 1px solid var(--color-brand-accent);
+  color: var(--color-brand-accent);
+  font-family: var(--font-martian-mono), monospace;
+  font-size: 8px;
+  line-height: 1.5;
+}
+
+.footer {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 24px 16px calc(24px + env(safe-area-inset-bottom));
+  color: var(--tg-theme-hint);
+}
+
+.footer svg {
+  width: 15px;
+  flex: 0 0 auto;
+}
+
+.footer p {
+  margin: 0;
+  font-family: var(--font-martian-mono), monospace;
+  font-size: 7px;
+  line-height: 1.6;
+  letter-spacing: 0.04em;
+}
+
+.modalBackdrop {
+  position: fixed;
+  z-index: 50;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: color-mix(in srgb, var(--background) 82%, transparent);
+}
+
+.modalSheet {
+  width: min(100%, 480px);
+  max-height: 92dvh;
+  overflow-y: auto;
+  border: 1px solid var(--border-strong);
+  border-bottom: 0;
+  background: var(--surface-solid);
+  color: var(--foreground);
+  box-shadow: 0 -16px 50px
+    color-mix(in srgb, var(--background) 80%, transparent);
+}
+
+.modalHandle {
+  width: 38px;
+  height: 3px;
+  margin: 8px auto 2px;
+  background: var(--border-strong);
+}
+
+.modalHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 19px 16px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.modalHeader > div {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ruleSteps {
+  border-bottom: 1px solid var(--border);
+}
+
+.ruleSteps article {
+  display: grid;
+  grid-template-columns: 47px 1fr;
+  gap: 13px;
+  padding: 17px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.ruleSteps article:last-child {
+  border-bottom: 0;
+}
+
+.ruleSteps article > strong {
+  color: var(--color-brand-accent);
+  font-family: var(--font-big-shoulders), sans-serif;
+  font-size: 31px;
+  line-height: 0.9;
+}
+
+.ruleSteps h3 {
+  margin: 0 0 5px;
+  font-family: var(--font-martian-mono), monospace;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+}
+
+.ruleSteps p,
+.plainWarning p,
+.modalFootnote {
+  margin: 0;
+  color: var(--tg-theme-hint);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.plainWarning {
+  margin: 16px;
+  padding: 14px;
+  border: 1px solid var(--color-brand-accent);
+  background: color-mix(in srgb, var(--color-brand-accent) 12%, var(--surface));
+}
+
+.plainWarning strong {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--color-brand-accent);
+  font-family: var(--font-martian-mono), monospace;
+  font-size: 8px;
+  letter-spacing: 0.1em;
+}
+
+.plainWarning p {
+  color: var(--foreground);
+}
+
+.modalFootnote {
+  padding: 0 16px calc(20px + env(safe-area-inset-bottom));
+  font-family: var(--font-martian-mono), monospace;
+  font-size: 7px;
+  text-align: center;
+}
+
+.duelScoreboard {
+  display: grid;
+  grid-template-columns: 1fr 80px 1fr;
+  align-items: center;
+  padding: 18px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--background);
+}
+
+.duelPlayer {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.duelPlayerRight {
+  align-items: flex-end;
+  text-align: right;
+}
+
+.playerAvatar {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border: 1px solid var(--color-brand-accent);
+  font-family: var(--font-big-shoulders), sans-serif;
+  font-size: 19px;
+  font-weight: 900;
+}
+
+.duelPlayer strong {
+  max-width: 110px;
+  overflow: hidden;
+  font-family: var(--font-martian-mono), monospace;
+  font-size: 8px;
+  text-overflow: ellipsis;
+}
+
+.duelPlayer small {
+  color: var(--tg-theme-hint);
+  font-family: var(--font-martian-mono), monospace;
+  font-size: 7px;
+}
+
+.scoreBlock {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.scoreBlock svg {
+  width: 17px;
+  color: var(--color-brand-accent);
+}
+
+.scoreBlock strong {
+  font-family: var(--font-big-shoulders), sans-serif;
+  font-size: 31px;
+  line-height: 0.9;
+}
+
+.scoreBlock span {
+  color: var(--tg-theme-hint);
+  font-family: var(--font-martian-mono), monospace;
+  font-size: 7px;
+}
+
+.duelPicks article {
+  padding: 13px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.duelMarket {
+  display: block;
+  margin-bottom: 9px;
+  color: var(--tg-theme-hint);
+  font-family: var(--font-martian-mono), monospace;
+  font-size: 7px;
+  letter-spacing: 0.1em;
+  text-align: center;
+}
+
+.duelPickRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.duelPickRow > div {
+  display: flex;
+  min-height: 36px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 7px;
+  padding: 8px;
+  background: var(--surface-muted);
+  font-size: 10px;
+}
+
+.duelPickRow svg {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 auto;
+}
+
+.correctMark {
+  color: var(--color-brand-secondary);
+}
+
+.incorrectMark {
+  color: var(--color-brand-accent);
+}
+
+.winnerStrip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 14px;
+  padding: 13px;
+  background: var(--color-brand-accent);
+  color: var(--inverse-text);
+}
+
+.winnerStrip > svg {
+  width: 22px;
+}
+
+.winnerStrip span {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  font-family: var(--font-martian-mono), monospace;
+  font-size: 7px;
+}
+
+.winnerStrip span strong {
+  font-size: 9px;
+}
+
+.winnerStrip b {
+  font-family: var(--font-big-shoulders), sans-serif;
+  font-size: 21px;
+}
+
+.loadingMark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding-top: max(34px, env(safe-area-inset-top));
+}
+
+.loadingState {
+  display: flex;
+  min-height: 65dvh;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+}
+
+.loadingState span {
+  width: 6px;
+  height: 6px;
+  background: var(--color-brand-accent);
+  animation: loading-pulse 900ms ease-in-out infinite alternate;
+}
+
+.loadingState span:nth-child(2) {
+  animation-delay: 150ms;
+}
+
+.loadingState span:nth-child(3) {
+  animation-delay: 300ms;
+}
+
+.launchError {
+  display: flex;
+  min-height: 68dvh;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  text-align: center;
+}
+
+.launchError svg {
+  width: 32px;
+  height: 32px;
+  margin-bottom: 15px;
+  color: var(--color-brand-accent);
+}
+
+.launchError h1 {
+  font-size: 36px;
+}
+
+.launchError p {
+  max-width: 300px;
+  color: var(--tg-theme-hint);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+@keyframes loading-pulse {
+  from {
+    opacity: 0.25;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(-5px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .loadingState span {
+    animation: none;
+  }
+
+  .progressTrack span {
+    transition: none;
+  }
+}
