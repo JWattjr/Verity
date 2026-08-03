@@ -11,8 +11,19 @@ async function bootstrap() {
   // Enable CORS
   const clientOrigin = process.env.CLIENT_ORIGIN || "http://localhost:3000"
   const adminOrigin = process.env.ADMIN_ORIGIN || "http://localhost:3001"
+  const tmaOrigin = process.env.TMA_ORIGIN || "http://localhost:3002"
+
+  const allowedOrigins = [
+    ...clientOrigin.split(",").map((o) => o.trim()),
+    ...adminOrigin.split(",").map((o) => o.trim()),
+    ...tmaOrigin.split(",").map((o) => o.trim()),
+    "https://web.telegram.org",
+    "https://webk.telegram.org",
+    "https://webz.telegram.org",
+  ].filter(Boolean)
+
   app.enableCors({
-    origin: [clientOrigin, adminOrigin],
+    origin: allowedOrigins,
     credentials: true,
   })
 
