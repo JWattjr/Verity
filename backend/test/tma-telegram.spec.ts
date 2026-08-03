@@ -1,5 +1,5 @@
 import { createHmac } from "crypto"
-import { verifyTelegramInitData } from "../src/modules/prelaunch/telegram-init-data"
+import { verifyTelegramInitData } from "../src/modules/tma/telegram-init-data"
 
 describe("Telegram Mini App initData verification", () => {
   const botToken = "123456:test-token"

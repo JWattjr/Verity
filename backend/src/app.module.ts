@@ -20,7 +20,7 @@ import { PvpModule } from "./modules/pvp/pvp.module"
 import { CouponsModule } from "./modules/coupons/coupons.module"
 import { MissionsModule } from "./modules/missions/missions.module"
 import { CategoriesModule } from "./modules/categories/categories.module"
-import { PrelaunchModule } from "./modules/prelaunch/prelaunch.module"
+import { TmaModule } from "./modules/tma/tma.module"
 
 @Module({
   imports: [
@@ -58,8 +58,9 @@ import { PrelaunchModule } from "./modules/prelaunch/prelaunch.module"
     CouponsModule,
     MissionsModule,
     CategoriesModule,
-    PrelaunchModule,
+    TmaModule,
   ],
+
   controllers: [AppController],
   providers: [
     AppService,

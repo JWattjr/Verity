@@ -1,6 +1,5 @@
 # Verity
 
-Telegram pre-launch Mini App setup: [TG_MINIAPP_README.md](TG_MINIAPP_README.md)
 
 ![Arc Testnet](https://img.shields.io/badge/Arc-Testnet-blue)
 ![Prediction Markets](https://img.shields.io/badge/Protocol-Prediction_Markets-emerald)
