@@ -312,7 +312,11 @@ export class TmaService {
       "TELEGRAM_BOT_USERNAME",
       "verity_bot",
     )
-    return `https://t.me/${username}?start=ref_${telegramId}`
+    // `startapp` opens the Mini App directly and populates
+    // initDataUnsafe.start_param, which is what the client reads. `start` would
+    // instead open the bot chat and send /start to a bot that does not exist,
+    // leaving the referral unattributed.
+    return `https://t.me/${username}?startapp=ref_${telegramId}`
   }
 
   private assertAdminKey(value?: string) {
