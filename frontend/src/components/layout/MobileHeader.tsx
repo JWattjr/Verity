@@ -6,6 +6,7 @@ import { Bell } from "lucide-react"
 import ThemeToggle from "./ThemeToggle"
 import { useWalletProfile } from "@/hooks/useWalletProfile"
 import { useNotificationsQuery } from "@/store/verity/verityQueries"
+import VerityMark from "@/components/brand/VerityMark"
 
 export default function MobileHeader() {
   const { authenticated, loading, login } = useAuth()
@@ -16,10 +17,7 @@ export default function MobileHeader() {
   return (
     <div className="verity-card sticky top-0 z-20 mt-3 flex items-center justify-between p-3 sm:hidden border border-border/60 bg-surface-solid/80 backdrop-blur shadow-subtle">
       <Link href="/" className="flex items-center">
-        <div className="verity-blob flex h-8 w-8 items-center justify-center bg-sunburst-yellow text-sm font-semibold text-midnight">
-          V
-          <span className="verity-blob-smile scale-75" />
-        </div>
+        <VerityMark className="h-8 w-8" priority size={32} />
         <span className="ml-2.5 text-lg font-semibold tracking-[-0.25px] text-charcoal-primary">
           Verity
         </span>

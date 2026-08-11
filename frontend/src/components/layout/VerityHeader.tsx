@@ -14,6 +14,7 @@ import {
   UserRound,
 } from "lucide-react"
 import { useAuth } from "@/components/providers/AuthModals"
+import VerityMark from "@/components/brand/VerityMark"
 import { useWalletProfile } from "@/hooks/useWalletProfile"
 import { useNotificationsQuery } from "@/store/verity/verityQueries"
 
@@ -70,9 +71,7 @@ export default function VerityHeader() {
     <header className="verity-site-header">
       <div className="verity-site-header__row">
         <Link className="verity-wordmark" href="/" aria-label="Verity home">
-          <span className="verity-wordmark__mark" aria-hidden="true">
-            V
-          </span>
+          <VerityMark className="verity-wordmark__mark" priority size={36} />
           <span className="verity-wordmark__copy">
             <strong>VERITY</strong>
             <small>PREDICTION MARKETS</small>

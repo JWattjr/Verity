@@ -18,6 +18,7 @@ import SidebarProfile from "@/components/layout/SidebarProfile"
 import { useWalletProfile } from "@/hooks/useWalletProfile"
 import { useNotificationsQuery, useMissionsQuery } from "@/store/verity/verityQueries"
 import { useAuth } from "@/components/providers/AuthModals"
+import VerityMark from "@/components/brand/VerityMark"
 
 const NAV_ITEMS = [
   { icon: Home, label: "Home", href: "/" },
@@ -47,10 +48,11 @@ export default function Sidebar() {
           href="/"
           className="clickable-surface group flex w-fit items-center gap-3 rounded-[12px] py-4 xl:px-4"
         >
-          <div className="verity-blob flex h-10 w-10 items-center justify-center bg-sunburst-yellow text-lg font-semibold text-midnight transition-transform group-hover:-translate-y-0.5">
-            V
-            <span className="verity-blob-smile" />
-          </div>
+          <VerityMark
+            className="h-10 w-10 transition-transform group-hover:-translate-y-0.5"
+            priority
+            size={40}
+          />
           <span className="hidden text-[23px] font-semibold leading-none tracking-[-0.44px] text-charcoal-primary xl:block">
             Verity
           </span>
