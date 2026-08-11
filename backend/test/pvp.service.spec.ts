@@ -17,6 +17,8 @@ import { AgentService } from "../src/modules/agent/agent.service"
 import { BadRequestException } from "@nestjs/common"
 import { ConfigService } from "@nestjs/config"
 import { CouponsService } from "../src/modules/coupons/coupons.service"
+import { TmaService } from "../src/modules/tma/tma.service"
+import { LpFeeLedger } from "../src/modules/liquidity/liquidity.model"
 
 import { Types } from "mongoose"
 import { calculatePvpResultXp } from "../src/modules/pvp/pvp-scoring"
@@ -26,6 +28,7 @@ describe("PvpService", () => {
   let marketModel: any
   let pvpTicketModel: any
   let userModel: any
+  let tmaService: { recordResolvedDuel: jest.Mock }
 
   beforeEach(async () => {
     const mockModel = {
@@ -49,6 +52,7 @@ describe("PvpService", () => {
         { provide: getModelToken(MarketTrade.name), useValue: mockModel },
         { provide: getModelToken(Post.name), useValue: mockModel },
         { provide: getModelToken(User.name), useValue: mockModel },
+        { provide: getModelToken(LpFeeLedger.name), useValue: mockModel },
         {
           provide: SocketGateway,
           useValue: { broadcastToRoom: jest.fn() },
@@ -93,6 +97,12 @@ describe("PvpService", () => {
             validateCoupon: jest.fn(),
           },
         },
+        {
+          provide: TmaService,
+          useValue: {
+            recordResolvedDuel: jest.fn().mockResolvedValue({ recorded: false }),
+          },
+        },
       ],
     }).compile()
 
@@ -100,6 +110,7 @@ describe("PvpService", () => {
     marketModel = module.get(getModelToken(Market.name))
     pvpTicketModel = module.get(getModelToken(PvpTicket.name))
     userModel = module.get(getModelToken(User.name))
+    tmaService = module.get(TmaService)
   })
 
   describe("submitTicket lockTime validation", () => {
@@ -225,6 +236,17 @@ describe("PvpService", () => {
       // XP for draw is 50. Neither gets perfect bonus (2 < 5).
       expect(mockUser1.arenaXp).toBe(150) // 100 + 50
       expect(mockUser2.arenaXp).toBe(150) // 100 + 50
+      expect(tmaService.recordResolvedDuel).toHaveBeenCalledTimes(2)
+      expect(tmaService.recordResolvedDuel).toHaveBeenNthCalledWith(
+        1,
+        mockUser1._id,
+        mockMatch._id,
+      )
+      expect(tmaService.recordResolvedDuel).toHaveBeenNthCalledWith(
+        2,
+        mockUser2._id,
+        mockMatch._id,
+      )
     })
 
     it("should declare winner based on more correct predictions (e.g. 3/5 beats 2/3)", async () => {

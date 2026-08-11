@@ -1,12 +1,23 @@
-import { Body, Controller, Get, Headers, Patch, Post } from "@nestjs/common"
-import { ApiOperation, ApiTags } from "@nestjs/swagger"
 import {
+  Body,
+  Controller,
+  Get,
+  Headers,
+  Patch,
+  Post,
+  Request,
+  UseGuards,
+} from "@nestjs/common"
+import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger"
+import {
+  LinkTmaAccountDto,
   OpenTmaSessionDto,
   RecordTmaDuelDto,
   SelectClubDto,
   TrackShareClickDto,
 } from "./tma.dto"
 import { TmaService } from "./tma.service"
+import { JwtAuthGuard } from "../../common/guards/jwt-auth.guard"
 
 @ApiTags("tma")
 @Controller("tma")
@@ -25,6 +36,16 @@ export class TmaController {
   })
   openSession(@Body() dto: OpenTmaSessionDto) {
     return this.tmaService.openSession(dto.initData, dto.referralCode)
+  }
+
+  @Post("link-account")
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: "Link a verified Telegram identity to the authenticated account",
+  })
+  linkAccount(@Body() dto: LinkTmaAccountDto, @Request() req: any) {
+    return this.tmaService.linkMainAccount(req.user.id, dto.initData)
   }
 
   @Patch("club")
@@ -55,6 +76,7 @@ export class TmaController {
   ) {
     return this.tmaService.recordPostLaunchDuel(
       dto.telegramId,
+      dto.matchId,
       internalSecret,
     )
   }

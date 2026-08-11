@@ -34,6 +34,9 @@ export class ActiveBoost {
 
 @Schema({ timestamps: true, versionKey: false })
 export class User {
+  @Prop({ type: String, default: null, trim: true })
+  telegramId: string | null
+
   @Prop({ type: String, trim: true, lowercase: true, default: null })
   walletAddress: string | null
 
@@ -133,6 +136,13 @@ UserSchema.index(
 UserSchema.index(
   { email: 1 },
   { unique: true, partialFilterExpression: { email: { $type: "string" } } },
+)
+UserSchema.index(
+  { telegramId: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { telegramId: { $type: "string" } },
+  },
 )
 // Compound index for PvP leaderboard queries (sort by arenaXp descending, filter by isOnboarded)
 UserSchema.index({ isOnboarded: 1, arenaXp: -1 })

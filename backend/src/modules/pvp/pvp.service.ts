@@ -34,6 +34,7 @@ import type { PvpResult } from "./pvp-scoring"
 import { AgentService } from "../agent/agent.service"
 import { ConfigService } from "@nestjs/config"
 import { CouponsService } from "../coupons/coupons.service"
+import { TmaService } from "../tma/tma.service"
 
 export const BOT_PROFILES = [
   { username: "alex_g", displayName: "Alex Green" },
@@ -211,6 +212,7 @@ export class PvpService {
     private readonly agentService: AgentService,
     private readonly configService: ConfigService,
     private readonly couponsService: CouponsService,
+    private readonly tmaService: TmaService,
   ) {}
 
   async createPvpEvent(adminId: string, dto: CreatePvpEventDto) {
@@ -1671,6 +1673,13 @@ export class PvpService {
     ticket2.score = score2
     ticket2.xpEarned = xp2
     await ticket2.save()
+
+    // A unique (matchId, Telegram user) event makes this safe if market
+    // resolution retries or two workers attempt to resolve the same match.
+    await Promise.all([
+      this.tmaService.recordResolvedDuel(user1._id, match._id),
+      this.tmaService.recordResolvedDuel(user2._id, match._id),
+    ])
 
     // Broadcast Socket events
     if (!isBot1) {

@@ -1,9 +1,10 @@
 import { Prop, Schema, SchemaFactory } from "@nestjs/mongoose"
-import { Document } from "mongoose"
+import { Document, Schema as MongooseSchema, Types } from "mongoose"
 
 export type TmaUserDocument = TmaUser & Document
 export type TmaReferralDocument = TmaReferral & Document
 export type TmaShareClickDocument = TmaShareClick & Document
+export type TmaDuelEventDocument = TmaDuelEvent & Document
 
 @Schema({ timestamps: true, collection: "tma_users" })
 export class TmaUser {
@@ -21,6 +22,9 @@ export class TmaUser {
 
   @Prop({ type: Number, default: 0 })
   postLaunchDuels: number
+
+  @Prop({ type: Number, default: 0, min: 0 })
+  activatedTicketCount: number
 }
 
 export const TmaUserSchema = SchemaFactory.createForClass(TmaUser)
@@ -50,6 +54,13 @@ export class TmaReferral {
 
 export const TmaReferralSchema = SchemaFactory.createForClass(TmaReferral)
 TmaReferralSchema.index({ referrerId: 1, status: 1 })
+TmaReferralSchema.index(
+  { referrerId: 1, ticketSlot: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { ticketSlot: { $type: "number" } },
+  },
+)
 
 @Schema({ timestamps: true, collection: "tma_share_clicks" })
 export class TmaShareClick {
@@ -61,3 +72,23 @@ export class TmaShareClick {
 }
 
 export const TmaShareClickSchema = SchemaFactory.createForClass(TmaShareClick)
+
+@Schema({ timestamps: true, collection: "tma_duel_events" })
+export class TmaDuelEvent {
+  @Prop({ required: true })
+  matchId: string
+
+  @Prop({ required: true, index: true })
+  telegramId: string
+
+  @Prop({
+    type: MongooseSchema.Types.ObjectId,
+    ref: "User",
+    required: true,
+    index: true,
+  })
+  mainUserId: Types.ObjectId
+}
+
+export const TmaDuelEventSchema = SchemaFactory.createForClass(TmaDuelEvent)
+TmaDuelEventSchema.index({ matchId: 1, telegramId: 1 }, { unique: true })

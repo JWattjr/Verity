@@ -1,5 +1,11 @@
 import { ApiProperty } from "@nestjs/swagger"
-import { IsIn, IsNotEmpty, IsOptional, IsString } from "class-validator"
+import {
+  IsIn,
+  IsMongoId,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+} from "class-validator"
 
 export class OpenTmaSessionDto {
   @ApiProperty({ description: "Signed Telegram initData string" })
@@ -37,8 +43,19 @@ export class TrackShareClickDto {
 }
 
 export class RecordTmaDuelDto {
-  @ApiProperty()
+  @ApiProperty({ description: "Telegram user ID that completed the duel" })
   @IsString()
   @IsNotEmpty()
   telegramId: string
+
+  @ApiProperty({ description: "Unique resolved PvP match ID" })
+  @IsMongoId()
+  matchId: string
+}
+
+export class LinkTmaAccountDto {
+  @ApiProperty({ description: "Signed Telegram initData string" })
+  @IsString()
+  @IsNotEmpty()
+  initData: string
 }

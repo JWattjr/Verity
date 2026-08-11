@@ -1,15 +1,17 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
   ServiceUnavailableException,
-  UnauthorizedException,
 } from "@nestjs/common"
 import { ConfigService } from "@nestjs/config"
-import { InjectModel } from "@nestjs/mongoose"
-import { Model } from "mongoose"
+import { InjectConnection, InjectModel } from "@nestjs/mongoose"
+import { Connection, Model, Types } from "mongoose"
 import {
+  TmaDuelEvent,
+  TmaDuelEventDocument,
   TmaReferral,
   TmaReferralDocument,
   TmaShareClick,
@@ -17,6 +19,7 @@ import {
   TmaUser,
   TmaUserDocument,
 } from "./tma.model"
+import { User, UserDocument } from "../users/users.model"
 import { getPublicTmaConfig, TMA_CONFIG } from "./tma.config"
 import {
   VerifiedTelegramUser,
@@ -29,11 +32,17 @@ type ShareMethod = "copy" | "share"
 export class TmaService {
   constructor(
     @InjectModel(TmaUser.name)
-    private readonly userModel: Model<TmaUserDocument>,
+    private readonly tmaUserModel: Model<TmaUserDocument>,
     @InjectModel(TmaReferral.name)
     private readonly referralModel: Model<TmaReferralDocument>,
     @InjectModel(TmaShareClick.name)
     private readonly shareClickModel: Model<TmaShareClickDocument>,
+    @InjectModel(TmaDuelEvent.name)
+    private readonly duelEventModel: Model<TmaDuelEventDocument>,
+    @InjectModel(User.name)
+    private readonly mainUserModel: Model<UserDocument>,
+    @InjectConnection()
+    private readonly connection: Connection,
     private readonly configService: ConfigService,
   ) {}
 
@@ -51,18 +60,18 @@ export class TmaService {
 
     let validReferrerId: string | null = null
     if (referrerId) {
-      const referrerExists = await this.userModel.exists({
+      const referrerExists = await this.tmaUserModel.exists({
         telegramId: referrerId,
       })
       if (referrerExists) validReferrerId = referrerId
     }
 
-    let user = await this.userModel.findOne({ telegramId: telegramUser.id })
+    let user = await this.tmaUserModel.findOne({ telegramId: telegramUser.id })
     let created = false
 
     if (!user) {
       try {
-        user = await this.userModel.create({
+        user = await this.tmaUserModel.create({
           telegramId: telegramUser.id,
           username: telegramUser.username,
           referredBy: validReferrerId,
@@ -70,7 +79,9 @@ export class TmaService {
         created = true
       } catch (error: any) {
         if (error?.code === 11000) {
-          user = await this.userModel.findOne({ telegramId: telegramUser.id })
+          user = await this.tmaUserModel.findOne({
+            telegramId: telegramUser.id,
+          })
         } else {
           throw error
         }
@@ -102,6 +113,111 @@ export class TmaService {
     return this.buildSession(user)
   }
 
+  async linkMainAccount(mainUserId: string, initData: string) {
+    const telegramUser = this.authenticate(initData)
+    const session = await this.connection.startSession()
+
+    try {
+      let linkedUser: UserDocument | null = null
+      let incomingReferralLinked = false
+      let waitingReferralsLinked = 0
+
+      await session.withTransaction(async () => {
+        const [mainUser, tmaUser, existingTelegramOwner] = await Promise.all([
+          this.mainUserModel.findById(mainUserId).session(session),
+          this.tmaUserModel
+            .findOne({ telegramId: telegramUser.id })
+            .session(session),
+          this.mainUserModel
+            .findOne({ telegramId: telegramUser.id })
+            .session(session),
+        ])
+
+        if (!mainUser) {
+          throw new NotFoundException("The Verity account does not exist.")
+        }
+        if (!tmaUser) {
+          throw new NotFoundException(
+            "Open the Telegram Mini App before linking your account.",
+          )
+        }
+        if (mainUser.telegramId && mainUser.telegramId !== telegramUser.id) {
+          throw new ConflictException(
+            "This Verity account is already linked to another Telegram account.",
+          )
+        }
+        if (
+          existingTelegramOwner &&
+          existingTelegramOwner._id.toString() !== mainUserId
+        ) {
+          throw new ConflictException(
+            "This Telegram account is already linked to another Verity account.",
+          )
+        }
+
+        if (tmaUser.referredBy && !mainUser.referredById) {
+          const referrerMainAccount = await this.mainUserModel
+            .findOne({ telegramId: tmaUser.referredBy })
+            .session(session)
+          if (
+            referrerMainAccount &&
+            referrerMainAccount._id.toString() !== mainUserId
+          ) {
+            mainUser.referredById = referrerMainAccount._id
+            incomingReferralLinked = true
+          }
+        }
+
+        mainUser.telegramId = telegramUser.id
+        linkedUser = await mainUser.save({ session })
+
+        // Linking order must not matter. If this user referred people before
+        // linking their own account, connect any already-linked invitees now.
+        const waitingTmaUsers = await this.tmaUserModel
+          .find({
+            referredBy: telegramUser.id,
+            telegramId: { $ne: telegramUser.id },
+          })
+          .select("telegramId")
+          .session(session)
+        const waitingTelegramIds = waitingTmaUsers.map(
+          (waitingUser) => waitingUser.telegramId,
+        )
+
+        if (waitingTelegramIds.length > 0) {
+          const updateResult = await this.mainUserModel.updateMany(
+            {
+              telegramId: { $in: waitingTelegramIds },
+              referredById: null,
+            },
+            { $set: { referredById: mainUser._id } },
+            { session },
+          )
+          waitingReferralsLinked = updateResult.modifiedCount
+        }
+      })
+
+      return {
+        linked: true as const,
+        telegramId: telegramUser.id,
+        mainUserId: linkedUser!._id.toString(),
+        referrals: {
+          incomingLinked: incomingReferralLinked,
+          waitingLinked: waitingReferralsLinked,
+        },
+      }
+    } catch (error: any) {
+      if (error?.code === 11000) {
+        throw new ConflictException(
+          "This Telegram account is already linked to another Verity account.",
+        )
+      }
+      throw error
+    } finally {
+      await session.endSession()
+    }
+  }
+
   async selectClub(initData: string, club: string) {
     const telegramUser = this.authenticate(initData)
     const normalizedClub = club.trim()
@@ -112,7 +228,7 @@ export class TmaService {
       throw new BadRequestException("Select a current Premier League club.")
     }
 
-    const user = await this.userModel.findOneAndUpdate(
+    const user = await this.tmaUserModel.findOneAndUpdate(
       { telegramId: telegramUser.id },
       { $set: { club: normalizedClub, username: telegramUser.username } },
       { new: true },
@@ -126,7 +242,9 @@ export class TmaService {
 
   async trackShareClick(initData: string, method: ShareMethod) {
     const telegramUser = this.authenticate(initData)
-    const exists = await this.userModel.exists({ telegramId: telegramUser.id })
+    const exists = await this.tmaUserModel.exists({
+      telegramId: telegramUser.id,
+    })
     if (!exists) {
       throw new NotFoundException("Open the Mini App before sharing.")
     }
@@ -149,10 +267,10 @@ export class TmaService {
       clubStats,
       shareStats,
     ] = await Promise.all([
-      this.userModel.countDocuments(),
+      this.tmaUserModel.countDocuments(),
       this.referralModel.countDocuments(),
       this.referralModel.countDocuments({ status: "activated" }),
-      this.userModel.aggregate<{ _id: string | null; count: number }>([
+      this.tmaUserModel.aggregate<{ _id: string | null; count: number }>([
         { $group: { _id: "$club", count: { $sum: 1 } } },
       ]),
       this.shareClickModel.aggregate<{ _id: ShareMethod; count: number }>([
@@ -197,56 +315,165 @@ export class TmaService {
     }
   }
 
-  async recordPostLaunchDuel(telegramId: string, internalSecret?: string) {
+  async recordPostLaunchDuel(
+    telegramId: string,
+    matchId: string,
+    internalSecret?: string,
+  ) {
     this.assertInternalSecret(internalSecret)
-
-    const user = await this.userModel.findOne({ telegramId })
-    if (!user) {
-      return { telegramId, postLaunchDuels: 0, referralActivated: false }
+    const mainUser = await this.mainUserModel.findOne({ telegramId })
+    if (!mainUser) {
+      throw new NotFoundException(
+        "Link this Telegram identity to a Verity account before recording duels.",
+      )
     }
+    return this.recordResolvedDuel(mainUser._id, matchId)
+  }
 
-    user.postLaunchDuels += 1
-    await user.save()
+  async recordResolvedDuel(
+    mainUserId: Types.ObjectId | string,
+    matchId: Types.ObjectId | string,
+  ) {
+    const normalizedMainUserId = new Types.ObjectId(mainUserId.toString())
+    const normalizedMatchId = matchId.toString()
+    const mainUser = await this.mainUserModel.findById(normalizedMainUserId)
 
-    let activated = false
-
-    if (user.postLaunchDuels >= 2 && user.referredBy) {
-      const referral = await this.referralModel.findOne({
-        referredId: telegramId,
-        referrerId: user.referredBy,
-      })
-
-      if (referral && referral.status === "pending") {
-        const activeCount = await this.referralModel.countDocuments({
-          referrerId: user.referredBy,
-          status: "activated",
-        })
-
-        if (activeCount < TMA_CONFIG.MAX_TICKETS_PER_USER) {
-          const nextSlot = activeCount + 1
-          const updated = await this.referralModel.findOneAndUpdate(
-            {
-              _id: referral._id,
-              status: "pending",
-            },
-            {
-              $set: {
-                status: "activated",
-                ticketSlot: nextSlot,
-                activatedAt: new Date(),
-              },
-            },
-            { new: true },
-          )
-          if (updated) activated = true
-        }
+    if (!mainUser?.telegramId) {
+      return {
+        recorded: false as const,
+        reason: "telegram_not_linked" as const,
       }
     }
 
-    return {
-      telegramId,
-      postLaunchDuels: user.postLaunchDuels,
-      referralActivated: activated,
+    const telegramId = mainUser.telegramId
+    const mongoSession = await this.connection.startSession()
+    let result:
+      | {
+          recorded: true
+          telegramId: string
+          matchId: string
+          postLaunchDuels: number
+          referralActivated: boolean
+        }
+      | undefined
+
+    try {
+      await mongoSession.withTransaction(async () => {
+        await this.duelEventModel.create(
+          [
+            {
+              matchId: normalizedMatchId,
+              telegramId,
+              mainUserId: normalizedMainUserId,
+            },
+          ],
+          { session: mongoSession },
+        )
+
+        const user = await this.tmaUserModel.findOneAndUpdate(
+          { telegramId },
+          { $inc: { postLaunchDuels: 1 } },
+          { new: true, session: mongoSession },
+        )
+
+        if (!user) {
+          result = {
+            recorded: true,
+            telegramId,
+            matchId: normalizedMatchId,
+            postLaunchDuels: 0,
+            referralActivated: false,
+          }
+          return
+        }
+
+        let referralActivated = false
+        if (user.postLaunchDuels >= 2 && user.referredBy) {
+          const pendingReferral = await this.referralModel
+            .findOne({
+              referredId: telegramId,
+              referrerId: user.referredBy,
+              status: "pending",
+            })
+            .session(mongoSession)
+
+          if (pendingReferral) {
+            const referrer = await this.tmaUserModel.findOneAndUpdate(
+              {
+                telegramId: user.referredBy,
+                $or: [
+                  {
+                    activatedTicketCount: {
+                      $lt: TMA_CONFIG.MAX_TICKETS_PER_USER,
+                    },
+                  },
+                  { activatedTicketCount: { $exists: false } },
+                ],
+              },
+              { $inc: { activatedTicketCount: 1 } },
+              { new: true, session: mongoSession },
+            )
+
+            if (!referrer) {
+              result = {
+                recorded: true,
+                telegramId,
+                matchId: normalizedMatchId,
+                postLaunchDuels: user.postLaunchDuels,
+                referralActivated: false,
+              }
+              return
+            }
+
+            const updated = await this.referralModel.findOneAndUpdate(
+              {
+                _id: pendingReferral._id,
+                status: "pending",
+              },
+              {
+                $set: {
+                  status: "activated",
+                  ticketSlot: referrer.activatedTicketCount,
+                  activatedAt: new Date(),
+                },
+              },
+              { new: true, session: mongoSession },
+            )
+            referralActivated = Boolean(updated)
+          }
+        }
+
+        result = {
+          recorded: true,
+          telegramId,
+          matchId: normalizedMatchId,
+          postLaunchDuels: user.postLaunchDuels,
+          referralActivated,
+        }
+      })
+
+      return result!
+    } catch (error: any) {
+      if (error?.code === 11000) {
+        const existingEvent = await this.duelEventModel.exists({
+          matchId: normalizedMatchId,
+          telegramId,
+        })
+        if (existingEvent) {
+          const user = await this.tmaUserModel.findOne({ telegramId })
+          return {
+            recorded: false as const,
+            reason: "duplicate_match" as const,
+            telegramId,
+            matchId: normalizedMatchId,
+            postLaunchDuels: user?.postLaunchDuels ?? 0,
+            referralActivated: false,
+          }
+        }
+      }
+      throw error
+    } finally {
+      await mongoSession.endSession()
     }
   }
 
@@ -262,13 +489,15 @@ export class TmaService {
   }
 
   private async buildSession(user: TmaUserDocument) {
-    const [rawReferrals, activatedReferrals] = await Promise.all([
-      this.referralModel.countDocuments({ referrerId: user.telegramId }),
-      this.referralModel.countDocuments({
-        referrerId: user.telegramId,
-        status: "activated",
-      }),
-    ])
+    const [rawReferrals, activatedReferrals, linkedMainAccount] =
+      await Promise.all([
+        this.referralModel.countDocuments({ referrerId: user.telegramId }),
+        this.referralModel.countDocuments({
+          referrerId: user.telegramId,
+          status: "activated",
+        }),
+        this.mainUserModel.exists({ telegramId: user.telegramId }),
+      ])
     const maxTickets = TMA_CONFIG.MAX_TICKETS_PER_USER
     const ticketsEarned = Math.min(activatedReferrals, maxTickets)
     const pendingCapacity = Math.max(0, maxTickets - ticketsEarned)
@@ -285,6 +514,7 @@ export class TmaService {
         club: user.club,
         joinedAt: (user as any).createdAt ?? new Date().toISOString(),
         referredBy: user.referredBy,
+        mainAccountLinked: Boolean(linkedMainAccount),
       },
       referrals: {
         rawReferrals,
