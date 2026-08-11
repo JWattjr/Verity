@@ -1,6 +1,6 @@
 "use client"
 
-import { Circle, CircleDot } from "lucide-react"
+import { Check } from "lucide-react"
 import { MarketPost, VoteSide, getMarketPrice } from "@/lib/verity"
 
 interface OutcomesPanelProps {
@@ -18,14 +18,28 @@ export default function OutcomesPanel({
   onSelectOptionAndSide,
   marketStatus,
 }: OutcomesPanelProps) {
+  const statusLabel = marketStatus
+    ? marketStatus.replaceAll("_", " ").toUpperCase()
+    : "SELECT AN OUTCOME"
+
   return (
-    <section className="verity-card p-5 border border-border bg-surface-solid shadow-subtle">
-      <h2 className="mb-4 font-semibold tracking-[-0.18px] text-charcoal-primary flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span>Outcomes & Options</span>
+    <section className="border border-border bg-surface">
+      <div className="flex items-end justify-between gap-3 border-b border-border bg-[#0b0b0c] px-4 py-3.5 text-white sm:px-5">
+        <div>
+          <p className="mb-1 font-mono text-[8px] font-bold uppercase tracking-[0.18em] text-accent sm:text-[9px]">
+            {statusLabel}
+          </p>
+          <h2 className="font-heading text-2xl font-black uppercase leading-none tracking-[0.02em] text-white sm:text-[28px]">
+            Outcomes &amp; Options
+          </h2>
         </div>
-      </h2>
-      <div className="grid gap-3 sm:grid-cols-2">
+        <span className="font-mono text-[9px] font-bold uppercase tracking-[0.12em] text-white/45">
+          {childMarkets.length}{" "}
+          {childMarkets.length === 1 ? "Option" : "Options"}
+        </span>
+      </div>
+
+      <div className="grid gap-px bg-border sm:grid-cols-2">
         {childMarkets.map((child) => {
           const isSelected = child.id === selectedChildId
           const isChildPreMarket = [
@@ -42,42 +56,60 @@ export default function OutcomesPanel({
 
             return (
               <div
+                aria-pressed={isSelected}
                 key={child.id}
                 onClick={() => onSelectOptionAndSide(child.id, "YES")}
-                className={`flex flex-col p-4 rounded-xl border transition-all duration-200 cursor-pointer relative ${
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault()
+                    onSelectOptionAndSide(child.id, "YES")
+                  }
+                }}
+                role="button"
+                tabIndex={0}
+                className={`relative flex cursor-pointer flex-col p-4 outline-none transition-colors focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent sm:p-5 ${
                   isSelected
-                    ? "border-sky-blue bg-sky-blue/2 dark:bg-sky-blue/4 shadow-sm"
-                    : "border-border bg-surface-muted/50 text-charcoal-primary hover:border-sky-blue/40"
+                    ? "bg-accent/[0.06]"
+                    : "bg-surface text-charcoal-primary hover:bg-surface-muted"
                 }`}
               >
-                <div className="flex items-start gap-2.5 w-full">
-                  <div className="mt-0.5 shrink-0">
-                    {isSelected ? (
-                      <CircleDot className="h-4.5 w-4.5 text-sky-blue" />
-                    ) : (
-                      <Circle className="h-4.5 w-4.5 text-ash/40 dark:text-ash/20 transition-colors" />
-                    )}
-                  </div>
-                  <div className="flex flex-col min-w-0 flex-1">
+                {isSelected && (
+                  <span
+                    aria-hidden="true"
+                    className="absolute inset-x-0 top-0 h-1 bg-accent"
+                  />
+                )}
+                <div className="flex w-full items-start gap-3">
+                  <span
+                    aria-hidden="true"
+                    className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center border ${
+                      isSelected
+                        ? "border-accent bg-accent text-black"
+                        : "border-border-strong bg-transparent text-transparent"
+                    }`}
+                  >
+                    <Check className="h-3.5 w-3.5" strokeWidth={3} />
+                  </span>
+                  <div className="flex min-w-0 flex-1 flex-col">
                     <div className="flex items-start justify-between gap-2">
-                      <span className="font-semibold text-charcoal-primary text-sm line-clamp-2">
+                      <span className="line-clamp-2 font-heading text-lg font-extrabold uppercase leading-[1.05] tracking-[0.01em] text-charcoal-primary sm:text-xl">
                         {child.optionName || child.question}
                       </span>
-                      <span className="text-[9px] font-mono text-sky-blue border border-sky-blue/20 bg-sky-blue/5 px-1.5 py-0.5 rounded shrink-0 font-medium">
-                        Group Pool
+                      <span className="shrink-0 border border-accent px-1.5 py-1 font-mono text-[8px] font-bold uppercase tracking-[0.08em] text-accent">
+                        Funding
                       </span>
                     </div>
 
-                    <div className="mt-3 flex flex-col w-full">
-                      <div className="flex items-center justify-between font-mono text-[10px] text-ash mb-1">
-                        <span>Pool Funding Progress</span>
-                        <span className="font-semibold text-charcoal-primary">
+                    <div className="mt-4 flex w-full flex-col">
+                      <div className="mb-2 flex items-center justify-between gap-3 font-mono text-[8px] font-bold uppercase tracking-[0.08em] text-ash sm:text-[9px]">
+                        <span>Pool progress</span>
+                        <span className="text-right text-charcoal-primary">
                           {currentFunding} / {minFunding} USDC
                         </span>
                       </div>
-                      <div className="h-2 w-full overflow-hidden rounded-full bg-white-surface dark:bg-zinc-900 shadow-subtle border border-stone-surface dark:border-zinc-800">
+                      <div className="h-1.5 w-full overflow-hidden bg-stone-surface">
                         <div
-                          className="h-full bg-sky-blue transition-all duration-500 rounded-full"
+                          className="h-full bg-accent transition-[width] duration-500"
                           style={{ width: `${progress}%` }}
                         />
                       </div>
@@ -107,26 +139,6 @@ export default function OutcomesPanel({
           const isYesSelected = !isMulti && isSelected && selectedSide === "YES"
           const isNoSelected = !isMulti && isSelected && selectedSide === "NO"
 
-          let borderClass =
-            "border-border bg-surface-muted/50 text-charcoal-primary hover:border-border-strong"
-          let radioColor = "text-ash/40 dark:text-ash/20"
-
-          if (isSelected) {
-            if (isMulti) {
-              borderClass =
-                "border-sky-blue bg-sky-blue/[0.02] dark:bg-sky-blue/[0.04] shadow-sm"
-              radioColor = "text-sky-blue"
-            } else if (isYesSelected) {
-              borderClass =
-                "border-meadow-green bg-meadow-green/[0.03] dark:bg-meadow-green/[0.06] shadow-sm"
-              radioColor = "text-meadow-green"
-            } else if (isNoSelected) {
-              borderClass =
-                "border-ember-orange bg-ember-orange/[0.03] dark:bg-ember-orange/[0.06] shadow-sm"
-              radioColor = "text-ember-orange"
-            }
-          }
-
           const handleCardClick = () => {
             onSelectOptionAndSide(
               child.id,
@@ -136,26 +148,50 @@ export default function OutcomesPanel({
 
           return (
             <div
+              aria-pressed={isSelected}
               key={child.id}
               onClick={handleCardClick}
-              className={`flex flex-col p-4 rounded-xl border transition-all duration-200 cursor-pointer relative ${borderClass}`}
+              onKeyDown={(event) => {
+                if (event.target !== event.currentTarget) return
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault()
+                  handleCardClick()
+                }
+              }}
+              role="button"
+              tabIndex={0}
+              className={`relative flex cursor-pointer flex-col p-4 text-charcoal-primary outline-none transition-colors focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent sm:p-5 ${
+                isSelected
+                  ? "bg-accent/[0.06]"
+                  : "bg-surface hover:bg-surface-muted"
+              }`}
             >
-              <div className="flex items-start gap-2.5 w-full">
-                <div className="mt-0.5 shrink-0">
-                  {isSelected ? (
-                    <CircleDot className={`h-4.5 w-4.5 ${radioColor}`} />
-                  ) : (
-                    <Circle className="h-4.5 w-4.5 text-ash/40 dark:text-ash/20 transition-colors" />
-                  )}
-                </div>
+              {isSelected && (
+                <span
+                  aria-hidden="true"
+                  className="absolute inset-x-0 top-0 h-1 bg-accent"
+                />
+              )}
+              <div className="flex w-full items-start gap-3">
+                <span
+                  aria-hidden="true"
+                  className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center border ${
+                    isSelected
+                      ? "border-accent bg-accent text-black"
+                      : "border-border-strong bg-transparent text-transparent"
+                  }`}
+                >
+                  <Check className="h-3.5 w-3.5" strokeWidth={3} />
+                </span>
 
-                <div className="flex flex-col min-w-0 flex-1">
+                <div className="flex min-w-0 flex-1 flex-col">
                   <div className="flex items-start justify-between w-full gap-2">
-                    <span className="font-semibold text-charcoal-primary text-sm line-clamp-2">
+                    <span className="line-clamp-2 font-heading text-lg font-extrabold uppercase leading-[1.05] tracking-[0.01em] text-charcoal-primary sm:text-xl">
                       {child.optionName || child.question}
                     </span>
-                    <span className="text-[10px] font-mono text-ash shrink-0 mt-0.5">
-                      Pool:{" "}
+                    <span className="mt-0.5 shrink-0 text-right font-mono text-[8px] font-bold uppercase tracking-[0.06em] text-ash sm:text-[9px]">
+                      Pool
+                      <br />
                       {isMulti
                         ? (child.liquidity ?? 0).toFixed(0)
                         : (
@@ -166,7 +202,7 @@ export default function OutcomesPanel({
                     </span>
                   </div>
 
-                  <div className="mt-3.5 flex flex-wrap items-center gap-3">
+                  <div className="mt-4 flex flex-wrap items-center gap-2">
                     {isMulti ? (
                       outcomes.map((outcomeName, idx) => {
                         const price =
@@ -183,10 +219,11 @@ export default function OutcomesPanel({
                               e.stopPropagation()
                               onSelectOptionAndSide(child.id, outcomeName)
                             }}
-                            className={`px-2.5 py-1 rounded-[6px] font-mono text-xs font-bold border transition-colors ${
+                            aria-pressed={isThisSelected}
+                            className={`border px-2.5 py-1.5 font-mono text-[9px] font-bold uppercase tracking-[0.04em] transition-colors sm:text-[10px] ${
                               isThisSelected
-                                ? "bg-sky-blue/10 text-sky-blue border-sky-blue/20"
-                                : "bg-stone-surface text-ash border-border hover:border-sky-blue/40"
+                                ? "border-accent bg-accent text-black"
+                                : "border-border-strong bg-transparent text-ash hover:border-accent hover:text-accent"
                             }`}
                           >
                             {outcomeName}: {priceCents}¢
@@ -196,19 +233,19 @@ export default function OutcomesPanel({
                     ) : (
                       <>
                         <span
-                          className={`px-2.5 py-1 rounded-[6px] font-mono text-xs font-bold border transition-colors ${
+                          className={`border px-2.5 py-1.5 font-mono text-[9px] font-bold uppercase tracking-[0.06em] transition-colors sm:text-[10px] ${
                             isYesSelected
-                              ? "bg-meadow-green/10 text-meadow-green border-meadow-green/20"
-                              : "bg-stone-surface text-ash border-border"
+                              ? "border-accent bg-accent text-black"
+                              : "border-accent/35 bg-accent/[0.04] text-accent"
                           }`}
                         >
                           {yesLabel}: {(yesPrice * 100).toFixed(0)}¢
                         </span>
                         <span
-                          className={`px-2.5 py-1 rounded-[6px] font-mono text-xs font-bold border transition-colors ${
+                          className={`border px-2.5 py-1.5 font-mono text-[9px] font-bold uppercase tracking-[0.06em] transition-colors sm:text-[10px] ${
                             isNoSelected
-                              ? "bg-ember-orange/10 text-ember-orange border-ember-orange/20"
-                              : "bg-stone-surface text-ash border-border"
+                              ? "border-[#0b0b0c] bg-[#0b0b0c] text-white dark:border-white dark:bg-white dark:text-black"
+                              : "border-border-strong bg-transparent text-charcoal-primary"
                           }`}
                         >
                           {noLabel}: {(noPrice * 100).toFixed(0)}¢

@@ -35,6 +35,7 @@ import {
   useCastFreeVoteMutation,
   useMarketPositionsQuery,
   usePostCommentsQuery,
+  useToggleLikeMutation,
   useToggleReshareMutation,
   useDevQualifyMutation,
   useLPPositionsQuery,
@@ -208,6 +209,7 @@ export default function MarketDetail({
   const { mutateAsync: approveMarketForTrading } =
     useApproveMarketForTradingMutation()
   const { mutateAsync: castFreeVote } = useCastFreeVoteMutation()
+  const { mutateAsync: toggleLike } = useToggleLikeMutation()
   const { mutateAsync: toggleReshare } = useToggleReshareMutation()
   const { mutateAsync: devQualifyMarket } = useDevQualifyMutation()
 
@@ -630,7 +632,8 @@ export default function MarketDetail({
             profileId={profileId}
             activeOptionName={activeOptionName}
           />
-        ) : activeMarket.status === "resolved" || activeMarket.status === "voided" ? null : (
+        ) : activeMarket.status === "resolved" ||
+          activeMarket.status === "voided" ? null : (
           <TradeTicket
             action={tradeAction}
             amount={tradeAmount}
@@ -757,7 +760,7 @@ export default function MarketDetail({
             {[1, 2].map((i) => (
               <div
                 key={i}
-                className="border border-border dark:border-zinc-800 rounded-xl p-4 space-y-4"
+                className="border border-border dark:border-zinc-800 p-4 space-y-4"
               >
                 <div className="flex items-center gap-3">
                   <div className="h-4.5 w-4.5 rounded-full bg-stone-200 dark:bg-zinc-700" />
@@ -777,7 +780,7 @@ export default function MarketDetail({
 
   if (itemError) {
     return (
-      <div className="rounded-[12px] bg-ember-orange/10 p-4 text-sm font-medium tracking-[-0.18px] text-charcoal-primary shadow-subtle">
+      <div className="bg-ember-orange/10 p-4 text-sm font-medium tracking-[-0.18px] text-charcoal-primary shadow-subtle">
         {(itemError as any).message || "Failed to load market."}
       </div>
     )
@@ -826,17 +829,24 @@ export default function MarketDetail({
           />
         )}
 
-      {/* Mobile Right Sidebar Slots */}
-      <div className="flex flex-col gap-3 lg:hidden">{sidebarPanels}</div>
-
       <SocialActions
         comments={item.commentsCount}
         freeNoVotes={market.free_no_votes}
         freeYesVotes={market.free_yes_votes}
+        likes={item.likesCount}
         dailyVotesRemaining={dailyVotes?.votesRemaining ?? 0}
         marketStatus={activeMarket.status}
         onComment={() =>
           document.getElementById("market-comment-input")?.focus()
+        }
+        onLike={() =>
+          runAction("like", () =>
+            toggleLike({
+              postId: item.id,
+              profileId: profile!.id,
+              currentlyLiked: item.viewerLiked,
+            }),
+          )
         }
         onShare={() => sharePost(item)}
         onVote={(side) =>
@@ -848,6 +858,7 @@ export default function MarketDetail({
             }),
           )
         }
+        viewerLiked={item.viewerLiked}
         viewerVote={item.viewerVote}
       />
 
@@ -859,6 +870,9 @@ export default function MarketDetail({
         onSubmit={submitComment}
         onReplyClick={setReplyingToComment}
       />
+
+      {/* Mobile Right Sidebar Slots */}
+      <div className="flex flex-col gap-3 lg:hidden">{sidebarPanels}</div>
 
       {activeMarket.status === "tradable" && (
         <ActiveMarketLPPanel

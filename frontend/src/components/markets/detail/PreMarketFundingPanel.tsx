@@ -52,13 +52,13 @@ export default function PreMarketFundingPanel({
               : `Fund this market's launch pool. Contributions convert to LP shares once the pool hits ${minPoolBalance} USDC.`}
           </p>
         </div>
-        <span className="rounded-full bg-meadow-green/10 px-3 py-1 font-mono text-xs font-semibold text-charcoal-primary shadow-subtle">
+        <span className="bg-meadow-green/10 px-3 py-1 font-mono text-xs font-semibold text-charcoal-primary shadow-subtle">
           {currentPoolBalance} / {minPoolBalance} USDC
         </span>
       </div>
 
       {activeOptionName && (
-        <div className="mb-4 rounded-[12px] bg-sky-blue/5 border border-sky-blue/10 p-3 text-[11px] leading-[1.4] text-sky-blue flex gap-2 items-start shadow-subtle">
+        <div className="mb-4 bg-sky-blue/5 border border-sky-blue/10 p-3 text-[11px] leading-[1.4] text-sky-blue flex gap-2 items-start shadow-subtle">
           <Info className="h-4 w-4 shrink-0 text-sky-blue mt-0.5" />
           <div>
             <span>
@@ -71,7 +71,7 @@ export default function PreMarketFundingPanel({
         </div>
       )}
 
-      <div className="mb-5 rounded-[12px] bg-parchment-card p-4 shadow-subtle">
+      <div className="mb-5 bg-parchment-card p-4 shadow-subtle">
         <div className="mb-1 flex justify-between font-mono text-xs text-ash">
           <span>
             {activeOptionName ? `${activeOptionName} Pool` : "Pool Funding"}
@@ -80,7 +80,7 @@ export default function PreMarketFundingPanel({
             {currentPoolBalance} USDC
           </span>
         </div>
-        <div className="h-2.5 overflow-hidden rounded-full bg-white-surface shadow-subtle">
+        <div className="h-2.5 overflow-hidden bg-white-surface shadow-subtle">
           <div
             className="h-full bg-meadow-green transition-all duration-500"
             style={{ width: `${progress}%` }}
@@ -90,7 +90,7 @@ export default function PreMarketFundingPanel({
 
       <div className="grid gap-3">
         {showCreatorEscrow ? (
-          <div className="rounded-[12px] bg-meadow-green/10 p-4 text-center shadow-subtle">
+          <div className="bg-meadow-green/10 p-4 text-center shadow-subtle">
             <h3 className="text-sm font-semibold text-charcoal-primary">
               Creator Action Required
             </h3>
@@ -112,7 +112,7 @@ export default function PreMarketFundingPanel({
             ) : null}
           </div>
         ) : currentPoolBalance >= minPoolBalance ? (
-          <div className="flex flex-col items-center justify-center rounded-[12px] bg-parchment-card py-6 text-center shadow-subtle">
+          <div className="flex flex-col items-center justify-center bg-parchment-card py-6 text-center shadow-subtle">
             <svg
               className="mb-3 h-8 w-8 animate-spin text-meadow-green"
               fill="none"
@@ -141,7 +141,7 @@ export default function PreMarketFundingPanel({
             </span>
           </div>
         ) : (
-          <div className="rounded-[12px] bg-parchment-card p-4 shadow-subtle">
+          <div className="bg-parchment-card p-4 shadow-subtle">
             <h3 className="mb-3 text-sm font-semibold text-charcoal-primary">
               {activeOptionName
                 ? `Fund the ${activeOptionName} Pool`
@@ -149,7 +149,7 @@ export default function PreMarketFundingPanel({
             </h3>
             <div className="flex gap-2">
               <Input
-                className="h-11 w-24 rounded-[10px] bg-white-surface px-3 font-mono text-sm text-charcoal-primary shadow-subtle border-0 focus-visible:ring-2 focus-visible:ring-stone-surface focus-visible:ring-offset-0 focus-visible:border-transparent"
+                className="h-11 w-24 bg-white-surface px-3 font-mono text-sm text-charcoal-primary shadow-subtle border-0 focus-visible:ring-2 focus-visible:ring-stone-surface focus-visible:ring-offset-0 focus-visible:border-transparent"
                 min="1"
                 onChange={(e) => setDepositAmount(e.target.value)}
                 step="1"

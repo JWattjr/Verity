@@ -22,7 +22,7 @@ function OutcomeButton({
   return (
     <button
       aria-pressed={active}
-      className={`rounded-[12px] px-3 py-3 text-center shadow-subtle transition-colors border ${
+      className={`px-3 py-3 text-center shadow-subtle transition-colors border ${
         active
           ? side === "YES"
             ? "bg-meadow-green/12 border-meadow-green/35 text-meadow-green"
@@ -144,7 +144,7 @@ export default function TradeTicket({
             >
               {nextAction === "BUY" ? "Buy" : "Sell"}
               {action === nextAction && (
-                <span className="absolute bottom-0 left-0 h-0.5 w-full rounded-full bg-charcoal-primary" />
+                <span className="absolute bottom-0 left-0 h-0.5 w-full bg-charcoal-primary" />
               )}
             </button>
           ))}
@@ -258,7 +258,7 @@ export default function TradeTicket({
           </div>
         )}
 
-        <div className="grid gap-1 rounded-[12px] bg-parchment-card p-3 font-mono text-[11px] text-ash shadow-subtle">
+        <div className="grid gap-1 bg-parchment-card p-3 font-mono text-[11px] text-ash shadow-subtle">
           <div className="flex justify-between">
             <span>Price</span>
             <span>{(price * 100).toFixed(1)}¢</span>

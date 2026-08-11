@@ -86,7 +86,9 @@ export default function PvpArenaTab({
   const [mounted, setMounted] = useState<boolean>(false)
   const [showBuilderOverride, setShowBuilderOverride] = useState<boolean>(false)
   const [betAmountPerSelection, setBetAmountPerSelection] = useState<number>(5)
-  const [allPvpSelections, setAllPvpSelections] = useState<Record<string, Record<string, string>>>({})
+  const [allPvpSelections, setAllPvpSelections] = useState<
+    Record<string, Record<string, string>>
+  >({})
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false)
   const [isRegisteringQueue, setIsRegisteringQueue] = useState<boolean>(false)
   const [showTooltip, setShowTooltip] = useState<boolean>(false)
@@ -209,7 +211,9 @@ export default function PvpArenaTab({
       selectedPvpEvent.status === "resolved" ||
       selectedPvpEvent.status === "closed")
 
-  const pvpSelections = selectedPvpEvent ? (allPvpSelections[selectedPvpEvent.id] || {}) : {}
+  const pvpSelections = selectedPvpEvent
+    ? allPvpSelections[selectedPvpEvent.id] || {}
+    : {}
 
   // ─── Effects ────────────────────────────────────────────────
 
@@ -224,16 +228,16 @@ export default function PvpArenaTab({
 
   const handleToggleSelection = useCallback(
     (optId: string, selection: string) => {
-      if (!selectedPvpEvent) return;
+      if (!selectedPvpEvent) return
 
       setAllPvpSelections((prevAll) => {
-        const eventId = selectedPvpEvent.id;
-        const prevEventSelections = prevAll[eventId] || {};
-        const nextEventSelections = { ...prevEventSelections };
+        const eventId = selectedPvpEvent.id
+        const prevEventSelections = prevAll[eventId] || {}
+        const nextEventSelections = { ...prevEventSelections }
 
         if (nextEventSelections[optId] === selection) {
-          delete nextEventSelections[optId];
-          return { ...prevAll, [eventId]: nextEventSelections };
+          delete nextEventSelections[optId]
+          return { ...prevAll, [eventId]: nextEventSelections }
         }
 
         const currentOpt = selectedPvpEvent?.options?.find(
@@ -249,8 +253,8 @@ export default function PvpArenaTab({
           })
         }
 
-        nextEventSelections[optId] = selection;
-        return { ...prevAll, [eventId]: nextEventSelections };
+        nextEventSelections[optId] = selection
+        return { ...prevAll, [eventId]: nextEventSelections }
       })
     },
     [selectedPvpEvent],
@@ -512,7 +516,7 @@ export default function PvpArenaTab({
     setIsSubmitting(true)
     try {
       await batchAddPoolLiquidity(deposits, profile.id)
-      
+
       // Clear selections for this event after providing liquidity
       setAllPvpSelections((prev) => {
         const next = { ...prev }
@@ -594,9 +598,6 @@ export default function PvpArenaTab({
               />
               <PvpDuelPicks
                 pvpStatus={pvpStatus}
-                onSelectChildMarketForTrade={(market) =>
-                  openTradeDrawer(market.id)
-                }
                 onAddLiquidity={(id) => setLiquidityMarketId(id)}
               />
             </div>
@@ -626,7 +627,7 @@ export default function PvpArenaTab({
                     </h3>
                     <p className="text-xs text-ash leading-relaxed font-sans max-w-xl">
                       Kickoff has passed — but the arena's still buzzing. Jump
-                      into one of these open matches and keep your streak alive.
+                      into one of these open matches and keep building Arena XP.
                     </p>
                   </div>
                 </div>

@@ -1,55 +1,35 @@
-import { Swords, Loader2 } from "lucide-react"
+import { Loader2, Swords, Trophy } from "lucide-react"
+
+interface DuelPick {
+  arenaCorrect?: boolean | null
+  isCorrect?: boolean | null
+}
+
+interface DuelStatusData {
+  event?: { question?: string }
+  match?: { divergenceScore?: number }
+  ticket?: { picks?: DuelPick[] }
+  opponent?: {
+    username?: string
+    avatar_url?: string | null
+    avatarUrl?: string | null
+    picks?: DuelPick[]
+  }
+}
+
+interface DuelProfile {
+  username?: string | null
+  displayName?: string | null
+  avatar_url?: string | null
+  avatarUrl?: string | null
+}
 
 interface PvpDuelStatusProps {
   status: "queued" | "matched" | "resolved"
-  pvpStatus: any
+  pvpStatus: DuelStatusData
   runningScoreUser: number
   runningScoreOpponent: number
-  profile?: any
-}
-
-const opponentColors = [
-  "bg-[#ffbb26]", // sunburst-yellow
-  "bg-meadow-green",
-  "bg-ember-orange",
-  "bg-coral-red",
-]
-
-function getAvatarColor(username: string): string {
-  if (!username || username.toLowerCase() === "you") return "bg-sky-blue"
-  let hash = 0
-  for (let i = 0; i < username.length; i++) {
-    hash = username.charCodeAt(i) + ((hash << 5) - hash)
-  }
-  const index = Math.abs(hash) % opponentColors.length
-  return opponentColors[index]
-}
-
-// Custom brand avatar component with blob fallback
-function DuelAvatar({
-  avatarUrl,
-  username,
-}: {
-  avatarUrl?: string
-  username: string
-}) {
-  if (avatarUrl) {
-    return (
-      <div
-        className="h-10 w-10 shrink-0 rounded-full bg-cover bg-center ring-2 ring-white dark:ring-zinc-900 shadow-sm"
-        style={{ backgroundImage: `url(${avatarUrl})` }}
-      />
-    )
-  }
-
-  const blobBg = getAvatarColor(username)
-  return (
-    <div
-      className={`verity-blob h-10 w-10 shrink-0 ${blobBg} ring-2 ring-white dark:ring-zinc-900`}
-    >
-      <span className="verity-blob-smile" />
-    </div>
-  )
+  profile?: DuelProfile | null
 }
 
 export default function PvpDuelStatus({
@@ -61,120 +41,178 @@ export default function PvpDuelStatus({
 }: PvpDuelStatusProps) {
   if (status === "queued") {
     return (
-      <div className="verity-card p-6 flex flex-col md:flex-row items-center justify-between gap-5 relative overflow-hidden bg-gradient-to-b from-stone-50/50 to-stone-100/30 dark:from-zinc-900/30 dark:to-zinc-900/10 border border-border dark:border-zinc-800">
-        <div className="absolute top-0 left-0 w-full h-1 bg-indigo-500 animate-pulse" />
-
-        <div className="flex items-center gap-4 text-center md:text-left flex-col md:flex-row">
-          <div className="relative h-14 w-14 rounded-full border border-indigo-150 dark:border-zinc-800 bg-white dark:bg-zinc-950 flex items-center justify-center shrink-0 shadow-sm">
-            <Loader2 className="h-6 w-6 text-indigo-500 animate-spin absolute" />
-            <Swords className="h-4.5 w-4.5 text-indigo-500 relative z-10" />
+      <section className="border border-border bg-surface">
+        <div className="flex min-h-9 items-center justify-between border-b border-border font-mono text-[9px] font-bold uppercase tracking-[0.16em]">
+          <span className="flex h-9 items-center gap-2 bg-accent px-3 text-black">
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            Matchmaking live
+          </span>
+          <span className="px-3 text-ash">Ticket active</span>
+        </div>
+        <div className="grid gap-5 p-5 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center">
+          <div className="flex h-14 w-14 items-center justify-center border border-accent bg-black text-accent">
+            <Swords className="h-6 w-6" />
           </div>
-          <div className="space-y-1">
-            <h3 className="text-base font-extrabold tracking-tight text-charcoal-primary dark:text-white">
-              Scanning for Opponent...
+          <div>
+            <h3 className="font-heading text-[30px] font-black uppercase leading-none tracking-[0.02em] text-charcoal-primary">
+              Finding your rival
             </h3>
-            <p className="text-xs text-ash mt-0.5 font-medium leading-normal max-w-sm">
-              Searching for a predictor with high selection divergence to pair.
+            <p className="mt-2 max-w-xl text-xs leading-5 text-graphite">
+              Verity is searching for a predictor whose card creates a strong,
+              fair head-to-head matchup.
             </p>
           </div>
+          <div className="border border-border bg-black px-4 py-3 font-mono text-[9px] font-semibold uppercase tracking-[0.12em] text-white">
+            <span className="block text-ash">Matchup</span>
+            <strong className="mt-1 block text-accent">
+              {pvpStatus.event?.question || "Arena card"}
+            </strong>
+          </div>
         </div>
-
-        <div className="bg-[#FAF9F6] dark:bg-zinc-900/40 px-4 py-3 rounded-xl border border-stone-200/20 dark:border-zinc-850/10 text-[10px] font-mono text-ash text-left space-y-1 shrink-0 w-full md:w-auto shadow-xs">
-          <p className="flex items-center gap-1.5 font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">
-            <span className="w-1.5 h-1.5 rounded-full bg-indigo-600 dark:bg-indigo-400 animate-ping" />
-            <span>Ticket Active</span>
-          </p>
-          <p className="truncate max-w-[200px]">
-            • Matchup: {pvpStatus.event?.question}
-          </p>
-        </div>
-      </div>
+      </section>
     )
   }
 
-  // Resolved or Matched — both share the H2H layout
   const isResolved = status === "resolved"
+  const result =
+    runningScoreUser > runningScoreOpponent
+      ? "won"
+      : runningScoreUser < runningScoreOpponent
+        ? "lost"
+        : "draw"
   const resultLabel =
-    runningScoreUser > runningScoreOpponent
-      ? "YOU WON 🏆"
-      : runningScoreUser < runningScoreOpponent
-        ? "YOU LOST ❌"
-        : "DRAW 🤝"
-  const resultColor =
-    runningScoreUser > runningScoreOpponent
-      ? "text-emerald-600 dark:text-emerald-400"
-      : runningScoreUser < runningScoreOpponent
-        ? "text-[#FF4D00]"
-        : "text-ash"
-
-  const userAvatarUrl = profile?.avatar_url || profile?.avatarUrl
-  const opponentAvatarUrl =
-    pvpStatus.opponent?.avatar_url || pvpStatus.opponent?.avatarUrl
+    result === "won" ? "You won" : result === "lost" ? "You lost" : "Draw"
 
   return (
-    <div className="verity-card p-5 bg-white dark:bg-zinc-900/30 border border-border dark:border-zinc-800 flex flex-col gap-4">
-      <div className="flex flex-col md:flex-row items-center justify-between gap-4 w-full">
-        {/* Left: You */}
-        <div className="w-full md:w-auto md:min-w-[180px] flex items-center gap-3.5 p-3.5 rounded-2xl bg-[#FAF9F6] dark:bg-zinc-900/40 border border-stone-200/20 dark:border-zinc-850/10 shadow-xs shrink-0">
-          <DuelAvatar avatarUrl={userAvatarUrl} username="You" />
-          <div className="text-left min-w-0 flex-1">
-            <h4 className="text-sm font-extrabold text-charcoal-primary dark:text-white leading-tight truncate">
-              You
-            </h4>
-            <span className="text-[10px] font-mono text-ash font-medium mt-0.5 block">
-              Score:{" "}
-              <strong className="text-xs font-bold text-indigo-600 dark:text-indigo-400">
-                {runningScoreUser} pts
-              </strong>
-            </span>
-          </div>
-        </div>
-
-        {/* Middle: VS / Result */}
-        <div className="flex-1 flex flex-col items-center justify-center text-center py-2 px-4">
+    <section className="border border-border bg-surface">
+      <div className="flex min-h-9 items-center justify-between border-b border-border font-mono text-[9px] font-bold uppercase tracking-[0.16em]">
+        <span className="flex h-9 items-center gap-2 bg-accent px-3 text-black">
           {isResolved ? (
-            <span
-              className={`text-sm font-black uppercase tracking-wider ${resultColor} whitespace-nowrap`}
-            >
-              {resultLabel}
-            </span>
+            <Trophy className="h-3.5 w-3.5" />
           ) : (
-            <div className="h-8 w-8 rounded-full border border-border dark:border-zinc-800 bg-[#FAF9F6] dark:bg-zinc-950 flex items-center justify-center shadow-xs">
-              <Swords className="h-3.5 w-3.5 text-indigo-500" />
-            </div>
+            <Swords className="h-3.5 w-3.5" />
           )}
-          <span className="text-[9px] font-mono text-ash font-bold uppercase tracking-wider mt-1.5">
-            Div: {pvpStatus.match?.divergenceScore ?? 0}
-          </span>
+          {isResolved ? "Final result" : "Opponent matched"}
+        </span>
+        <span className="px-3 text-ash">
+          Divergence {pvpStatus.match?.divergenceScore ?? 0}
+        </span>
+      </div>
+
+      <div className="grid md:grid-cols-[minmax(0,1fr)_150px_minmax(0,1fr)]">
+        <PlayerPanel
+          avatarUrl={profile?.avatar_url || profile?.avatarUrl}
+          label="Your card"
+          name={profile?.displayName || profile?.username || "You"}
+          score={runningScoreUser}
+        />
+
+        <div className="flex min-h-36 flex-col items-center justify-center border-y border-border bg-black px-4 text-center md:border-x md:border-y-0">
+          {isResolved ? (
+            <>
+              <span
+                className={`font-heading text-[32px] font-black uppercase leading-none ${
+                  result === "lost" ? "text-white" : "text-accent"
+                }`}
+              >
+                {resultLabel}
+              </span>
+              <span className="mt-2 font-mono text-[9px] font-semibold uppercase tracking-[0.14em] text-ash">
+                Duel settled
+              </span>
+            </>
+          ) : (
+            <>
+              <Swords className="h-7 w-7 text-accent" />
+              <span className="mt-2 font-heading text-2xl font-black uppercase text-white">
+                Head to head
+              </span>
+              <span className="mt-1 font-mono text-[9px] font-semibold uppercase tracking-[0.14em] text-ash">
+                Results pending
+              </span>
+            </>
+          )}
         </div>
 
-        {/* Right: Opponent */}
-        <div className="w-full md:w-auto md:min-w-[180px] flex items-center gap-3.5 p-3.5 rounded-2xl bg-[#FAF9F6] dark:bg-zinc-900/40 border border-stone-200/20 dark:border-zinc-850/10 shadow-xs shrink-0">
-          <div className="text-left min-w-0 flex-1 pl-1 pr-2">
-            <h4 className="text-sm font-extrabold text-charcoal-primary dark:text-white leading-tight truncate">
-              @{pvpStatus.opponent?.username || "Opponent"}
-            </h4>
-            <span className="text-[10px] font-mono text-ash font-medium mt-0.5 block">
-              Score:{" "}
-              <strong className="text-xs font-bold text-indigo-600 dark:text-indigo-400">
-                {runningScoreOpponent} pts
-              </strong>
-            </span>
-          </div>
-          <DuelAvatar
-            avatarUrl={opponentAvatarUrl}
-            username={pvpStatus.opponent?.username || "Opponent"}
-          />
-        </div>
+        <PlayerPanel
+          align="right"
+          avatarUrl={
+            pvpStatus.opponent?.avatar_url || pvpStatus.opponent?.avatarUrl
+          }
+          label="Opponent card"
+          name={`@${pvpStatus.opponent?.username || "Opponent"}`}
+          score={runningScoreOpponent}
+        />
       </div>
 
       {isResolved && (
-        <div className="pt-3 border-t border-dashed border-border dark:border-zinc-800 text-center">
-          <p className="text-[10px] font-mono font-bold uppercase tracking-wider text-ash">
-            Duel is resolved. Arena XP has been distributed.
-          </p>
+        <div className="border-t border-border px-4 py-3 text-center font-mono text-[9px] font-semibold uppercase tracking-[0.14em] text-ash">
+          Duel resolved · Arena XP and eligible boosts have been applied
         </div>
       )}
+    </section>
+  )
+}
+
+function PlayerPanel({
+  align = "left",
+  avatarUrl,
+  label,
+  name,
+  score,
+}: {
+  align?: "left" | "right"
+  avatarUrl?: string | null
+  label: string
+  name: string
+  score: number
+}) {
+  return (
+    <div
+      className={`flex min-h-36 items-center gap-4 p-5 ${
+        align === "right" ? "md:flex-row-reverse md:text-right" : ""
+      }`}
+    >
+      <DuelAvatar avatarUrl={avatarUrl} name={name} />
+      <div className="min-w-0 flex-1">
+        <span className="font-mono text-[8px] font-semibold uppercase tracking-[0.14em] text-ash">
+          {label}
+        </span>
+        <h4 className="mt-1 truncate font-heading text-[26px] font-black uppercase leading-none text-charcoal-primary">
+          {name}
+        </h4>
+        <p className="mt-3 font-mono text-[9px] font-semibold uppercase tracking-[0.12em] text-ash">
+          Score
+          <strong className="ml-2 font-heading text-2xl font-black text-accent">
+            {score}
+          </strong>
+        </p>
+      </div>
+    </div>
+  )
+}
+
+function DuelAvatar({
+  avatarUrl,
+  name,
+}: {
+  avatarUrl?: string | null
+  name: string
+}) {
+  if (avatarUrl) {
+    return (
+      <div
+        aria-label={`${name} avatar`}
+        className="h-16 w-16 shrink-0 border border-border bg-cover bg-center"
+        role="img"
+        style={{ backgroundImage: `url(${avatarUrl})` }}
+      />
+    )
+  }
+
+  return (
+    <div className="flex h-16 w-16 shrink-0 items-center justify-center border border-accent bg-accent font-heading text-2xl font-black uppercase text-black">
+      {name.replace("@", "").slice(0, 2)}
     </div>
   )
 }

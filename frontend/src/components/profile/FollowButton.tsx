@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { Check, UserPlus } from "lucide-react"
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { useWalletProfile } from "@/hooks/useWalletProfile"
 import type { Profile } from "@/lib/verity"
 import {
@@ -44,15 +44,10 @@ export default function FollowButton({
     (followerCount ?? profile.followersCount ?? 0) + localDelta,
   )
 
-  // Reset localDelta when following status updates from backend query
-  useEffect(() => {
-    setLocalDelta(0)
-  }, [following])
-
   if (isOwnProfile) {
     return (
       <Link
-        className="clickable verity-pill inline-flex h-10 items-center justify-center bg-parchment-card px-4 text-sm font-semibold tracking-[-0.18px] text-charcoal-primary shadow-subtle hover:bg-stone-surface"
+        className="inline-flex min-h-10 items-center justify-center border border-border bg-black px-4 font-sans text-[10px] font-extrabold uppercase tracking-[0.1em] text-white transition-colors hover:bg-accent hover:text-black"
         href="/profile"
       >
         Edit Profile
@@ -64,10 +59,10 @@ export default function FollowButton({
     <div className="flex items-center gap-2">
       <button
         aria-pressed={following}
-        className={`clickable verity-pill inline-flex h-10 items-center justify-center gap-2 px-4 text-sm font-semibold tracking-[-0.18px] ${
+        className={`inline-flex min-h-10 items-center justify-center gap-2 border px-4 font-sans text-[10px] font-extrabold uppercase tracking-[0.1em] transition-colors ${
           following
-            ? "bg-parchment-card text-charcoal-primary shadow-subtle hover:bg-stone-surface"
-            : "bg-inverse text-inverse-text hover:opacity-90"
+            ? "border-border bg-black text-white hover:bg-surface-muted hover:text-charcoal-primary"
+            : "border-accent bg-accent text-black hover:bg-white"
         }`}
         onClick={async () => {
           if (!viewerProfile) {
@@ -83,7 +78,7 @@ export default function FollowButton({
               await followUser(profile.id)
             }
             await refetchStatus()
-          } catch (err) {
+          } catch {
             setLocalDelta(0)
             toast.error("Failed to update follow status.")
           }

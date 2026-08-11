@@ -140,3 +140,37 @@ pnpm run test             # Unit tests
 ### API Documentation
 
 Swagger UI is served at `http://localhost:5050/api/docs` when the dev server is running.
+
+## Telegram account linking and duel events
+
+Linking requires proof of both identities. Send the signed Telegram Mini App
+`initData` while authenticated with the main Verity account:
+
+```http
+POST /api/tma/link-account
+Authorization: Bearer <verity-jwt>
+Content-Type: application/json
+
+{"initData":"<window.Telegram.WebApp.initData>"}
+```
+
+Resolved PvP matches call the TMA service directly. The internal recovery
+endpoint also requires the unique MongoDB match ID, so replaying the same match
+for the same Telegram user is a no-op:
+
+```http
+POST /api/tma/internal/duels
+x-tma-internal-secret: <TMA_INTERNAL_SECRET>
+Content-Type: application/json
+
+{"telegramId":"123456789","matchId":"<resolved-match-object-id>"}
+```
+
+Ticket activation uses MongoDB transactions. Production MongoDB must be a
+replica set (MongoDB Atlas satisfies this requirement).
+
+Account linking also mirrors the Telegram referral into the main-user
+`referredById` relationship. Linking order does not matter: a newly linked
+referred user connects immediately when the referrer is already linked, and a
+referrer who links later backfills already-linked invitees. Existing main-app
+referral attribution is preserved and never overwritten.

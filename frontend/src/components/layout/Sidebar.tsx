@@ -74,19 +74,18 @@ export default function Sidebar() {
               key={item.label}
               href={href}
               onClick={(e) => {
-                if (isAuthRequired && !authenticated) {
-                  e.preventDefault()
-                  login()
-                }
+                // if (isAuthRequired && !authenticated) {
+                //   e.preventDefault()
+                //   login()
+                // }
               }}
               className="group flex w-fit items-center xl:w-full"
             >
               <div
-                className={`flex items-center gap-3 rounded-[10px] p-3 text-[15px] transition-all duration-200 xl:w-full xl:px-4 xl:py-3 ${
-                  isActive
+                className={`flex items-center gap-3 rounded-[10px] p-3 text-[15px] transition-all duration-200 xl:w-full xl:px-4 xl:py-3 ${isActive
                     ? "bg-inverse text-inverse-text font-semibold"
                     : "clickable-surface text-graphite"
-                }`}
+                  }`}
               >
                 <div className="relative flex items-center justify-center shrink-0">
                   <item.icon className="h-6 w-6 xl:h-5 xl:w-5" />

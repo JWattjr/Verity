@@ -12,7 +12,7 @@ function SentimentRow({ label, percent, tone }: SentimentRowProps) {
   return (
     <div className="grid grid-cols-[34px_minmax(0,1fr)_52px] items-center gap-3">
       <span className="text-charcoal-primary">{label}</span>
-      <span className="h-2 overflow-hidden rounded-full bg-white-surface shadow-subtle">
+      <span className="h-2 overflow-hidden bg-white-surface shadow-subtle">
         <span
           className={`block h-full ${tone === "yes" ? "bg-meadow-green" : "bg-ember-orange"}`}
           style={{ width: `${percent}%` }}
@@ -48,14 +48,14 @@ export default function SentimentPanel({
         <BarChart3 className="h-4 w-4 text-ash" />
       </div>
 
-      <div className="rounded-[12px] bg-parchment-card p-4 shadow-subtle">
+      <div className="bg-parchment-card p-4 shadow-subtle">
         {!hasOpinions && (
-          <p className="mb-4 rounded-[10px] bg-white-surface p-3 text-sm text-ash shadow-subtle">
+          <p className="mb-4 bg-white-surface p-3 text-sm text-ash shadow-subtle">
             No USDC-backed opinions yet.
           </p>
         )}
         <div className="mb-4 grid grid-cols-2 gap-2">
-          <div className="rounded-[10px] bg-meadow-green/10 p-3 shadow-subtle">
+          <div className="bg-meadow-green/10 p-3 shadow-subtle">
             <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-meadow-green">
               Yes
             </span>
@@ -63,7 +63,7 @@ export default function SentimentPanel({
               {yesPercent.toFixed(1)}%
             </p>
           </div>
-          <div className="rounded-[10px] bg-ember-orange/10 p-3 shadow-subtle">
+          <div className="bg-ember-orange/10 p-3 shadow-subtle">
             <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-ember-orange">
               No
             </span>

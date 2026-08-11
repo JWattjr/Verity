@@ -817,10 +817,20 @@ export interface Mission {
   xpReward?: number | null
   actionUrl: string
   completed: boolean
+  isActive?: boolean
   missionType: "social" | "activity"
   verificationKey?: string | null
   rewardMultiplier?: number | null
   rewardMatchesCount?: number | null
+  marketId?: string | null
+  marketQuestion?: string | null
+}
+
+export function usePublicMissionsQuery() {
+  return useQuery({
+    queryKey: ["missions", "public"] as const,
+    queryFn: () => apiRequest<Mission[]>("/missions/public"),
+  })
 }
 
 export function useMissionsQuery(userId?: string) {

@@ -24,6 +24,14 @@ import { ApiTags, ApiOperation, ApiBearerAuth } from "@nestjs/swagger"
 export class MissionsController {
   constructor(private readonly missionsService: MissionsService) {}
 
+  @Get("public")
+  @ApiOperation({
+    summary: "Retrieve active mission definitions for public UI previews",
+  })
+  async getPublicMissions() {
+    return this.missionsService.getPublicMissions()
+  }
+
   @Get()
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()

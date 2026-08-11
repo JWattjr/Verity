@@ -1,5 +1,6 @@
 # Verity
 
+
 ![Arc Testnet](https://img.shields.io/badge/Arc-Testnet-blue)
 ![Prediction Markets](https://img.shields.io/badge/Protocol-Prediction_Markets-emerald)
 

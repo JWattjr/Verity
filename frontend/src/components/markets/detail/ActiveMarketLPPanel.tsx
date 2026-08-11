@@ -78,7 +78,7 @@ export default function ActiveMarketLPPanel({
       </p>
 
       <div className="mb-4 grid grid-cols-2 gap-2">
-        <div className="rounded-[12px] bg-parchment-card p-3 shadow-subtle">
+        <div className="bg-parchment-card p-3 shadow-subtle">
           <span className="font-mono text-[10px] font-semibold uppercase text-ash">
             My LP Shares
           </span>
@@ -86,7 +86,7 @@ export default function ActiveMarketLPPanel({
             {Number(myShares).toFixed(4)}
           </p>
         </div>
-        <div className="rounded-[12px] bg-parchment-card p-3 shadow-subtle">
+        <div className="bg-parchment-card p-3 shadow-subtle">
           <span className="font-mono text-[10px] font-semibold uppercase text-ash">
             My Value
           </span>
@@ -112,13 +112,13 @@ export default function ActiveMarketLPPanel({
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
-        <div className="rounded-[12px] bg-parchment-card p-4 shadow-subtle">
+        <div className="bg-parchment-card p-4 shadow-subtle">
           <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-charcoal-primary">
             Add Liquidity
           </h3>
           <div className="flex gap-2">
             <Input
-              className="h-10 w-20 rounded-[10px] bg-white-surface px-3 font-mono text-sm text-charcoal-primary shadow-subtle border-0 focus-visible:ring-2 focus-visible:ring-stone-surface focus-visible:ring-offset-0 focus-visible:border-transparent"
+              className="h-10 w-20 bg-white-surface px-3 font-mono text-sm text-charcoal-primary shadow-subtle border-0 focus-visible:ring-2 focus-visible:ring-stone-surface focus-visible:ring-offset-0 focus-visible:border-transparent"
               min="1"
               onChange={(e) => setAddAmount(e.target.value)}
               step="1"
@@ -138,13 +138,13 @@ export default function ActiveMarketLPPanel({
           </div>
         </div>
 
-        <div className="rounded-[12px] bg-parchment-card p-4 shadow-subtle">
+        <div className="bg-parchment-card p-4 shadow-subtle">
           <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-charcoal-primary">
             Remove Liquidity
           </h3>
           <div className="flex gap-2">
             <Input
-              className="h-10 w-20 rounded-[10px] bg-white-surface px-3 font-mono text-sm text-charcoal-primary shadow-subtle border-0 focus-visible:ring-2 focus-visible:ring-stone-surface focus-visible:ring-offset-0 focus-visible:border-transparent"
+              className="h-10 w-20 bg-white-surface px-3 font-mono text-sm text-charcoal-primary shadow-subtle border-0 focus-visible:ring-2 focus-visible:ring-stone-surface focus-visible:ring-offset-0 focus-visible:border-transparent"
               max={myShares}
               min="0.0001"
               onChange={(e) => setRemoveShares(e.target.value)}

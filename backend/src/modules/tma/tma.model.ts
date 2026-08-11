@@ -1,0 +1,94 @@
+import { Prop, Schema, SchemaFactory } from "@nestjs/mongoose"
+import { Document, Schema as MongooseSchema, Types } from "mongoose"
+
+export type TmaUserDocument = TmaUser & Document
+export type TmaReferralDocument = TmaReferral & Document
+export type TmaShareClickDocument = TmaShareClick & Document
+export type TmaDuelEventDocument = TmaDuelEvent & Document
+
+@Schema({ timestamps: true, collection: "tma_users" })
+export class TmaUser {
+  @Prop({ required: true, unique: true, index: true })
+  telegramId: string
+
+  @Prop({ type: String, default: null })
+  username: string | null
+
+  @Prop({ type: String, default: null })
+  club: string | null
+
+  @Prop({ type: String, default: null })
+  referredBy: string | null
+
+  @Prop({ type: Number, default: 0 })
+  postLaunchDuels: number
+
+  @Prop({ type: Number, default: 0, min: 0 })
+  activatedTicketCount: number
+}
+
+export const TmaUserSchema = SchemaFactory.createForClass(TmaUser)
+
+@Schema({ timestamps: true, collection: "tma_referrals" })
+export class TmaReferral {
+  @Prop({ required: true, index: true })
+  referrerId: string
+
+  @Prop({ required: true, unique: true, index: true })
+  referredId: string
+
+  @Prop({
+    required: true,
+    enum: ["pending", "activated"],
+    default: "pending",
+    index: true,
+  })
+  status: "pending" | "activated"
+
+  @Prop({ type: Number, default: null })
+  ticketSlot: number | null
+
+  @Prop({ type: Date, default: null })
+  activatedAt: Date | null
+}
+
+export const TmaReferralSchema = SchemaFactory.createForClass(TmaReferral)
+TmaReferralSchema.index({ referrerId: 1, status: 1 })
+TmaReferralSchema.index(
+  { referrerId: 1, ticketSlot: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { ticketSlot: { $type: "number" } },
+  },
+)
+
+@Schema({ timestamps: true, collection: "tma_share_clicks" })
+export class TmaShareClick {
+  @Prop({ required: true, index: true })
+  telegramId: string
+
+  @Prop({ required: true, enum: ["copy", "share"] })
+  method: "copy" | "share"
+}
+
+export const TmaShareClickSchema = SchemaFactory.createForClass(TmaShareClick)
+
+@Schema({ timestamps: true, collection: "tma_duel_events" })
+export class TmaDuelEvent {
+  @Prop({ required: true })
+  matchId: string
+
+  @Prop({ required: true, index: true })
+  telegramId: string
+
+  @Prop({
+    type: MongooseSchema.Types.ObjectId,
+    ref: "User",
+    required: true,
+    index: true,
+  })
+  mainUserId: Types.ObjectId
+}
+
+export const TmaDuelEventSchema = SchemaFactory.createForClass(TmaDuelEvent)
+TmaDuelEventSchema.index({ matchId: 1, telegramId: 1 }, { unique: true })

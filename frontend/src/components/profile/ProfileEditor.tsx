@@ -8,10 +8,11 @@ import { useAuth } from "@/components/providers/AuthModals"
 import ProfileActivityTabs, {
   type ProfileActivityTab,
 } from "@/components/social/ProfileActivityTabs"
+import ProfileOverview from "@/components/profile/ProfileOverview"
 import SocialUserListModal from "@/components/social/SocialUserListModal"
 import { useFeed } from "@/hooks/useFeed"
 import { useWalletProfile } from "@/hooks/useWalletProfile"
-import { displayHandle, displayName, type Profile } from "@/lib/verity"
+import { type Profile } from "@/lib/verity"
 import {
   useProfileActivityQuery,
   useUserPortfolioQuery,
@@ -107,15 +108,13 @@ export default function ProfileEditor() {
 
   return (
     <div className="flex flex-col gap-3 py-3 sm:py-4">
-      <section className="verity-card overflow-hidden">
-        <div className="h-24 bg-brand-primary sm:h-28" />
-
-        <div className="px-4 pb-4 sm:px-5 sm:pb-5">
-          <div className="-mt-10 flex items-end justify-between gap-3">
-            <ProfileAvatar profile={profile} />
-            <div className="mb-2 flex gap-2">
+      {profile && (
+        <ProfileOverview
+          accuracy={accuracy}
+          actions={
+            <>
               <button
-                className="clickable verity-pill hidden h-10 items-center justify-center gap-2 bg-parchment-card px-4 text-sm font-semibold tracking-[-0.18px] text-charcoal-primary shadow-subtle hover:bg-stone-surface sm:inline-flex ring-4 ring-surface-solid"
+                className="hidden min-h-10 items-center justify-center gap-2 border border-border bg-black px-4 font-sans text-[10px] font-extrabold uppercase tracking-[0.1em] text-white transition-colors hover:bg-accent hover:text-black sm:inline-flex"
                 onClick={() => {
                   if (typeof window !== "undefined") {
                     void navigator.clipboard?.writeText(window.location.href)
@@ -126,7 +125,7 @@ export default function ProfileEditor() {
                 Share profile <Share className="h-4 w-4" />
               </button>
               <button
-                className="clickable verity-pill flex h-10 items-center justify-center gap-2 bg-inverse px-4 text-sm font-semibold tracking-[-0.18px] text-inverse-text hover:opacity-90 ring-4 ring-surface-solid"
+                className="flex min-h-10 items-center justify-center gap-2 bg-accent px-4 font-sans text-[10px] font-extrabold uppercase tracking-[0.1em] text-black transition-colors hover:bg-white"
                 onClick={() => router.push("/profile/edit")}
                 type="button"
               >
@@ -135,7 +134,7 @@ export default function ProfileEditor() {
 
               <div className="relative">
                 <button
-                  className="clickable verity-pill flex h-10 w-10 items-center justify-center bg-parchment-card text-charcoal-primary shadow-subtle hover:bg-stone-surface ring-4 ring-surface-solid"
+                  className="flex h-10 w-10 items-center justify-center border border-border bg-black text-white transition-colors hover:bg-accent hover:text-black"
                   onClick={() => setOptionsOpen(!optionsOpen)}
                   type="button"
                   aria-label="Options"
@@ -144,7 +143,7 @@ export default function ProfileEditor() {
                 </button>
 
                 {optionsOpen && (
-                  <div className="absolute right-0 top-[calc(100%+8px)] z-50 w-48 rounded-[12px] border border-border bg-surface-solid p-1.5 shadow-sm">
+                  <div className="absolute right-0 top-[calc(100%+8px)] z-50 w-52 border border-border bg-surface p-1.5 shadow-sm">
                     <button
                       className="flex w-full items-center justify-between rounded-[8px] px-3 py-2 text-left text-xs font-semibold text-charcoal-primary hover:bg-stone-surface transition-colors cursor-pointer"
                       onClick={() => {
@@ -201,69 +200,17 @@ export default function ProfileEditor() {
                   </div>
                 )}
               </div>
-            </div>
-          </div>
-
-          <div className="mt-3">
-            <div className="flex items-center gap-2">
-              <h1 className="text-[28px] font-semibold leading-[1.1] tracking-[-0.7px] text-midnight">
-                {displayName(profile)}
-              </h1>
-            </div>
-            <p className="mt-1 font-mono text-sm text-ash">
-              {displayHandle(profile)}
-            </p>
-            {profile?.bio ? (
-              <p className="mt-3 max-w-[560px] text-[15px] leading-[1.47] tracking-[-0.2px] text-graphite">
-                {profile.bio}
-              </p>
-            ) : (
-              <p className="mt-3 max-w-[560px] text-[15px] leading-[1.47] tracking-[-0.2px] text-ash">
-                Add a bio so people know what markets you care about.
-              </p>
-            )}
-
-            <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm tracking-[-0.18px] text-graphite">
-              <button
-                className="hover:text-ember-orange"
-                onClick={() => setPeopleModal("following")}
-                type="button"
-              >
-                <strong className="font-semibold text-midnight">
-                  {(profile?.followingCount || 0).toLocaleString()}
-                </strong>{" "}
-                Following
-              </button>
-              <button
-                className="hover:text-ember-orange"
-                onClick={() => setPeopleModal("followers")}
-                type="button"
-              >
-                <strong className="font-semibold text-midnight">
-                  {(profile?.followersCount || 0).toLocaleString()}
-                </strong>{" "}
-                Followers
-              </button>
-              <span className="font-mono text-xs text-ash">
-                {marketItems.length} markets
-              </span>
-              <span className="font-mono text-xs text-ash">
-                {positions.length} predictions
-              </span>
-              <span className="font-mono text-xs text-ash">
-                {accuracy}% accuracy
-              </span>
-              {isConnected && profile && (
-                <span className="font-mono text-xs text-ash font-semibold dark:text-indigo-400">
-                  ⭐ {(profile.arenaXp ?? 0).toLocaleString()} XP
-                </span>
-              )}
-            </div>
-          </div>
-        </div>
-
-        <ProfileTabs activeTab={activeTab} onChange={setActiveTab} />
-      </section>
+            </>
+          }
+          activeTab={activeTab}
+          marketCount={marketItems.length}
+          onShowFollowers={() => setPeopleModal("followers")}
+          onShowFollowing={() => setPeopleModal("following")}
+          onTabChange={setActiveTab}
+          predictionCount={positions.length}
+          profile={profile}
+        />
+      )}
 
       {profile && (
         <ProfileActivityTabs
@@ -272,8 +219,14 @@ export default function ProfileEditor() {
           positions={positions}
           loading={isTabLoading}
           onOpenMarket={(market) => router.push(`/markets/${market.id}`)}
+          onOpenPvp={(market) => {
+            const parentId =
+              market.parentMarketId || market.parent_market_id || market.id
+            router.push(`/markets?tab=pvp-arena&id=${parentId}`)
+          }}
           onOpenPost={(post) => router.push(`/posts/${post.id}`)}
           profile={profile}
+          viewerProfile={profile}
         />
       )}
 
@@ -284,61 +237,6 @@ export default function ProfileEditor() {
         title={peopleModal === "followers" ? "Followers" : "Following"}
         users={knownUsers}
       />
-    </div>
-  )
-}
-
-function ProfileAvatar({ profile }: { profile: Profile | null }) {
-  const avatarUrl = profile?.avatar_url || profile?.avatarUrl
-
-  if (avatarUrl) {
-    return (
-      <div
-        className="h-20 w-20 shrink-0 rounded-[24px] bg-cover bg-center ring-4 ring-white shadow-subtle sm:h-24 sm:w-24 sm:rounded-[28px]"
-        style={{ backgroundImage: `url(${avatarUrl})` }}
-      />
-    )
-  }
-
-  return (
-    <div className="verity-blob h-20 w-20 shrink-0 bg-sky-blue ring-4 ring-white sm:h-24 sm:w-24">
-      <span className="verity-blob-smile" />
-    </div>
-  )
-}
-
-function ProfileTabs({
-  activeTab,
-  onChange,
-}: {
-  activeTab: ProfileActivityTab
-  onChange: (tab: ProfileActivityTab) => void
-}) {
-  const tabs: Array<{ id: ProfileActivityTab; label: string }> = [
-    { id: "markets", label: "Markets" },
-    { id: "predictions", label: "Predictions" },
-    { id: "activity", label: "Activity" },
-  ]
-
-  return (
-    <div className="grid grid-cols-3 border-t border-dashed border-stone-surface px-2">
-      {tabs.map((tab) => (
-        <button
-          className={`relative h-12 rounded-[10px] text-[13px] sm:text-sm font-semibold tracking-[-0.18px] ${
-            activeTab === tab.id
-              ? "text-charcoal-primary"
-              : "clickable-tab text-ash"
-          }`}
-          key={tab.id}
-          onClick={() => onChange(tab.id)}
-          type="button"
-        >
-          {tab.label}
-          {activeTab === tab.id && (
-            <span className="absolute bottom-0 left-1/2 h-1 w-9 -translate-x-1/2 rounded-full bg-ember-orange sm:w-12" />
-          )}
-        </button>
-      ))}
     </div>
   )
 }

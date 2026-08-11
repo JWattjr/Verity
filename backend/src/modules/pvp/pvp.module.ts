@@ -27,6 +27,7 @@ import { NotificationsModule } from "../notifications/notifications.module"
 import { LiquidityModule } from "../liquidity/liquidity.module"
 import { AgentModule } from "../agent/agent.module"
 import { CouponsModule } from "../coupons/coupons.module"
+import { TmaModule } from "../tma/tma.module"
 
 @Module({
   imports: [
@@ -45,6 +46,7 @@ import { CouponsModule } from "../coupons/coupons.module"
     LiquidityModule,
     AgentModule,
     CouponsModule,
+    TmaModule,
   ],
   controllers: [PvpController],
   providers: [PvpService],

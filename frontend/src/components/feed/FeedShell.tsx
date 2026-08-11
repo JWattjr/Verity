@@ -198,22 +198,20 @@ export default function FeedShell() {
   }
 
   return (
-    <div className="flex flex-col gap-3 py-4">
-      <section className="verity-card relative overflow-hidden p-4 sm:p-5">
-        <div className="absolute -right-3 -top-3 h-20 w-20 rounded-full bg-sunburst-yellow/40" />
-        <div className="absolute right-12 top-7 hidden sm:block">
-          <span className="verity-blob block h-12 w-14 rotate-6 bg-meadow-green">
-            <span className="verity-blob-smile" />
-          </span>
-        </div>
-        <div className="relative max-w-[430px]">
-          <p className="mb-2 font-mono text-[11px] font-semibold uppercase tracking-[0.16em] text-ember-orange">
-            Social prediction market
+    <div className="flex flex-col gap-4 py-10 sm:py-14">
+      <section className="relative overflow-hidden border-b border-border pb-8">
+        <div className="absolute right-0 top-2 hidden h-[118px] w-[118px] border-[18px] border-accent/10 sm:block" />
+        <div className="relative max-w-[650px]">
+          <p className="mb-4 flex items-center gap-3 text-[10px] font-bold uppercase tracking-[0.2em] text-ash">
+            <span className="h-2 w-2 bg-accent" aria-hidden="true" />
+            Verity · social prediction market
           </p>
-          <h1 className="text-[30px] font-semibold leading-[1.06] tracking-[-0.7px] text-midnight sm:text-[44px] sm:tracking-[-1.14px]">
-            Back takes. Build markets.
+          <h1 className="text-[58px] font-extrabold leading-[0.82] tracking-[0.01em] text-charcoal-primary sm:text-[76px]">
+            BACK TAKES.
+            <br />
+            <span className="text-accent">BUILD MARKETS.</span>
           </h1>
-          <p className="mt-3 text-[15px] leading-[1.47] tracking-[-0.2px] text-graphite">
+          <p className="mt-5 max-w-[580px] text-sm leading-6 text-graphite sm:text-[15px]">
             Upvote or Downvote early signals, then trade YES/NO once a market
             earns enough conviction.
           </p>
@@ -362,14 +360,14 @@ function FeedCard({
 
             <div>
               <span className="font-mono text-[10px] font-bold text-ash uppercase tracking-wider">
-                World Cup Arena
+                Verity PvP Arena
               </span>
               <h3 className="text-xl font-bold tracking-tight text-charcoal-primary dark:text-white mt-1 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
                 {item.market.question}
               </h3>
               <p className="text-xs text-graphite dark:text-zinc-400 mt-2 leading-relaxed">
-                Predict all propositions for the match. Battle head-to-head for
-                Arena XP, boosts, and bragging rights.
+                Pick at least three propositions for the match. Battle
+                head-to-head for Arena XP, boosts, and bragging rights.
               </p>
             </div>
 

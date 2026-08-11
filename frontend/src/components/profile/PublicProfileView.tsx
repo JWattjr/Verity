@@ -4,13 +4,14 @@ import { useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Share } from "lucide-react"
 import FollowButton from "@/components/profile/FollowButton"
+import ProfileOverview from "@/components/profile/ProfileOverview"
 import ProfileActivityTabs, {
   type ProfileActivityTab,
 } from "@/components/social/ProfileActivityTabs"
 import SocialUserListModal from "@/components/social/SocialUserListModal"
 import { useFeed } from "@/hooks/useFeed"
 import { useWalletProfile } from "@/hooks/useWalletProfile"
-import { displayHandle, displayName, type Profile } from "@/lib/verity"
+import { type Profile } from "@/lib/verity"
 import {
   useProfileActivityQuery,
   useUserProfileQuery,
@@ -25,7 +26,7 @@ interface PublicProfileViewProps {
 export default function PublicProfileView({ userId }: PublicProfileViewProps) {
   const router = useRouter()
   const { profile: viewerProfile } = useWalletProfile()
-  const { items, loading, error } = useFeed()
+  const { items } = useFeed()
   const [activeTab, setActiveTab] = useState<ProfileActivityTab>("markets")
   const [peopleModal, setPeopleModal] = useState<
     "followers" | "following" | null
@@ -118,7 +119,11 @@ export default function PublicProfileView({ userId }: PublicProfileViewProps) {
   if (profileError) {
     return (
       <ProfileState
-        message={(profileError as any)?.message || "Failed to load profile."}
+        message={
+          profileError instanceof Error
+            ? profileError.message
+            : "Failed to load profile."
+        }
         tone="error"
       />
     )
@@ -130,81 +135,32 @@ export default function PublicProfileView({ userId }: PublicProfileViewProps) {
 
   return (
     <div className="flex flex-col gap-3 py-3 sm:py-4">
-      <section className="verity-card overflow-hidden">
-        <div className="h-24 bg-midnight sm:h-28" />
-
-        <div className="px-4 pb-4 sm:px-5 sm:pb-5">
-          <div className="-mt-10 flex items-end justify-between gap-3">
-            <ProfileAvatar profile={profile} />
-            <div className="mb-2 flex gap-2">
-              <button
-                className="clickable verity-pill hidden h-10 items-center justify-center gap-2 bg-parchment-card px-4 text-sm font-semibold tracking-[-0.18px] text-charcoal-primary shadow-subtle hover:bg-stone-surface sm:inline-flex"
-                onClick={() => {
-                  if (typeof window !== "undefined") {
-                    void navigator.clipboard?.writeText(window.location.href)
-                  }
-                }}
-                type="button"
-              >
-                Share profile <Share className="h-4 w-4" />
-              </button>
-              <FollowButton compact profile={profile} />
-            </div>
-          </div>
-
-          <div className="mt-3">
-            <div className="flex items-center gap-2">
-              <h1 className="truncate text-[28px] font-semibold leading-[1.1] tracking-[-0.7px] text-midnight">
-                {displayName(profile)}
-              </h1>
-            </div>
-            <p className="mt-1 font-mono text-sm text-ash">
-              {displayHandle(profile)}
-            </p>
-            {profile.bio && (
-              <p className="mt-3 max-w-[560px] text-[15px] leading-[1.47] tracking-[-0.2px] text-graphite">
-                {profile.bio}
-              </p>
-            )}
-            <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm tracking-[-0.18px] text-graphite">
-              <button
-                className="hover:text-ember-orange"
-                onClick={() => setPeopleModal("following")}
-                type="button"
-              >
-                <strong className="font-semibold text-midnight">
-                  {(profile.followingCount || 0).toLocaleString()}
-                </strong>{" "}
-                Following
-              </button>
-              <button
-                className="hover:text-ember-orange"
-                onClick={() => setPeopleModal("followers")}
-                type="button"
-              >
-                <strong className="font-semibold text-midnight">
-                  {(profile.followersCount || 0).toLocaleString()}
-                </strong>{" "}
-                Followers
-              </button>
-              <span className="font-mono text-xs text-ash">
-                {marketItems.length} markets
-              </span>
-              <span className="font-mono text-xs text-ash">
-                {positions.length} predictions
-              </span>
-              <span className="font-mono text-xs text-ash">
-                {accuracy}% accuracy
-              </span>
-              <span className="font-mono text-xs text-ash font-semibold dark:text-indigo-400">
-                ⭐ {(profile.arenaXp ?? 0).toLocaleString()} XP
-              </span>
-            </div>
-          </div>
-        </div>
-
-        <ProfileTabs activeTab={activeTab} onChange={setActiveTab} />
-      </section>
+      <ProfileOverview
+        accuracy={accuracy}
+        actions={
+          <>
+            <button
+              className="hidden min-h-10 items-center justify-center gap-2 border border-border bg-black px-4 font-sans text-[10px] font-extrabold uppercase tracking-[0.1em] text-white transition-colors hover:bg-accent hover:text-black sm:inline-flex"
+              onClick={() => {
+                if (typeof window !== "undefined") {
+                  void navigator.clipboard?.writeText(window.location.href)
+                }
+              }}
+              type="button"
+            >
+              Share profile <Share className="h-4 w-4" />
+            </button>
+            <FollowButton compact profile={profile} />
+          </>
+        }
+        activeTab={activeTab}
+        marketCount={marketItems.length}
+        onShowFollowers={() => setPeopleModal("followers")}
+        onShowFollowing={() => setPeopleModal("following")}
+        onTabChange={setActiveTab}
+        predictionCount={positions.length}
+        profile={profile}
+      />
 
       <ProfileActivityTabs
         activeTab={activeTab}
@@ -212,8 +168,14 @@ export default function PublicProfileView({ userId }: PublicProfileViewProps) {
         positions={positions}
         loading={isTabLoading}
         onOpenMarket={(market) => router.push(`/markets/${market.id}`)}
+        onOpenPvp={(market) => {
+          const parentId =
+            market.parentMarketId || market.parent_market_id || market.id
+          router.push(`/markets?tab=pvp-arena&id=${parentId}`)
+        }}
         onOpenPost={(post) => router.push(`/posts/${post.id}`)}
         profile={profile}
+        viewerProfile={viewerProfile}
       />
 
       <SocialUserListModal
@@ -223,61 +185,6 @@ export default function PublicProfileView({ userId }: PublicProfileViewProps) {
         title={peopleModal === "followers" ? "Followers" : "Following"}
         users={knownUsers}
       />
-    </div>
-  )
-}
-
-function ProfileAvatar({ profile }: { profile: Profile }) {
-  const avatarUrl = profile.avatar_url || profile.avatarUrl
-
-  if (avatarUrl) {
-    return (
-      <div
-        className="h-20 w-20 shrink-0 rounded-[24px] bg-cover bg-center ring-4 ring-white shadow-subtle sm:h-24 sm:w-24 sm:rounded-[28px]"
-        style={{ backgroundImage: `url(${avatarUrl})` }}
-      />
-    )
-  }
-
-  return (
-    <div className="verity-blob h-20 w-20 shrink-0 bg-sky-blue ring-4 ring-white sm:h-24 sm:w-24">
-      <span className="verity-blob-smile" />
-    </div>
-  )
-}
-
-function ProfileTabs({
-  activeTab,
-  onChange,
-}: {
-  activeTab: ProfileActivityTab
-  onChange: (tab: ProfileActivityTab) => void
-}) {
-  const tabs: Array<{ id: ProfileActivityTab; label: string }> = [
-    { id: "markets", label: "Markets" },
-    { id: "predictions", label: "Predictions" },
-    { id: "activity", label: "Activity" },
-  ]
-
-  return (
-    <div className="grid grid-cols-3 border-t border-dashed border-stone-surface px-2">
-      {tabs.map((tab) => (
-        <button
-          className={`relative h-12 rounded-[10px] text-[13px] sm:text-sm font-semibold tracking-[-0.18px] ${
-            activeTab === tab.id
-              ? "text-charcoal-primary"
-              : "clickable-tab text-ash"
-          }`}
-          key={tab.id}
-          onClick={() => onChange(tab.id)}
-          type="button"
-        >
-          {tab.label}
-          {activeTab === tab.id && (
-            <span className="absolute bottom-0 left-1/2 h-1 w-9 -translate-x-1/2 rounded-full bg-ember-orange sm:w-12" />
-          )}
-        </button>
-      ))}
     </div>
   )
 }

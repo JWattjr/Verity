@@ -87,12 +87,12 @@ export default function MyHoldingsPanel({
             return (
               <div
                 key={pos.id}
-                className="rounded-[12px] bg-parchment-card p-3 shadow-subtle"
+                className="bg-parchment-card p-3 shadow-subtle"
               >
                 <div className="mb-2 flex items-center justify-between gap-3">
                   {isResolved ? (
                     <span
-                      className={`inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-mono font-semibold ${
+                      className={`inline-flex items-center px-2 py-0.5 text-[9px] font-mono font-semibold ${
                         isWinner
                           ? "bg-meadow-green/10 text-meadow-green shadow-subtle"
                           : "bg-stone-surface text-ash"
@@ -102,7 +102,7 @@ export default function MyHoldingsPanel({
                     </span>
                   ) : (
                     <span
-                      className={`inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-mono font-semibold shadow-subtle ${
+                      className={`inline-flex items-center px-2 py-0.5 text-[9px] font-mono font-semibold shadow-subtle ${
                         pos.side === "NO"
                           ? "bg-ember-orange/10 text-ember-orange"
                           : "bg-meadow-green/10 text-meadow-green"
@@ -186,9 +186,9 @@ export default function MyHoldingsPanel({
           })}
 
           {hasCreatorLP && (
-            <div className="rounded-[12px] bg-parchment-card p-3 shadow-subtle">
+            <div className="bg-parchment-card p-3 shadow-subtle">
               <div className="mb-2 flex items-center justify-between gap-3">
-                <span className="inline-flex items-center rounded-full bg-meadow-green/10 px-2 py-0.5 text-[9px] font-mono font-semibold text-meadow-green shadow-subtle">
+                <span className="inline-flex items-center bg-meadow-green/10 px-2 py-0.5 text-[9px] font-mono font-semibold text-meadow-green shadow-subtle">
                   Market Creator LP
                 </span>
               </div>
@@ -228,9 +228,9 @@ export default function MyHoldingsPanel({
           )}
 
           {hasNormalLP && (
-            <div className="rounded-[12px] bg-parchment-card p-3 shadow-subtle">
+            <div className="bg-parchment-card p-3 shadow-subtle">
               <div className="mb-2 flex items-center justify-between gap-3">
-                <span className="inline-flex items-center rounded-full bg-meadow-green/10 px-2 py-0.5 text-[9px] font-mono font-semibold text-meadow-green shadow-subtle">
+                <span className="inline-flex items-center bg-meadow-green/10 px-2 py-0.5 text-[9px] font-mono font-semibold text-meadow-green shadow-subtle">
                   Liquidity Provider
                 </span>
               </div>
