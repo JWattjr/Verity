@@ -3,6 +3,7 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
   ServiceUnavailableException,
 } from "@nestjs/common"
@@ -28,8 +29,12 @@ import {
 
 type ShareMethod = "copy" | "share"
 
+const TELEGRAM_CHANNEL = "@Veritysports"
+
 @Injectable()
 export class TmaService {
+  private readonly logger = new Logger(TmaService.name)
+
   constructor(
     @InjectModel(TmaUser.name)
     private readonly tmaUserModel: Model<TmaUserDocument>,
@@ -249,30 +254,72 @@ export class TmaService {
       throw new NotFoundException("Open the Mini App before joining the channel.")
     }
 
-    const botToken = this.configService.get<string>("TELEGRAM_BOT_TOKEN")
+    const botToken = this.configService.get<string>("TELEGRAM_BOT_TOKEN", "")
     if (botToken && botToken !== "123456:replace_me") {
       try {
+        const query = new URLSearchParams({
+          chat_id: TELEGRAM_CHANNEL,
+          user_id: telegramUser.id,
+        })
         const response = await fetch(
-          `https://api.telegram.org/bot${botToken}/getChatMember?chat_id=@Veritysports&user_id=${telegramUser.id}`,
+          `https://api.telegram.org/bot${botToken}/getChatMember?${query.toString()}`,
+          { signal: AbortSignal.timeout(5000) },
         )
-        const data = await response.json()
-        const validStatuses = ["creator", "administrator", "member", "restricted"]
-        if (data.ok && validStatuses.includes(data.result?.status)) {
+
+        const data = (await response.json()) as {
+          ok?: boolean
+          result?: { status?: string; is_member?: boolean }
+          error_code?: number
+          description?: string
+        }
+
+        if (!response.ok || !data.ok) {
+          this.logger.error(
+            `Telegram channel membership lookup failed for ${TELEGRAM_CHANNEL}: ${
+              data.description ?? `HTTP ${response.status}`
+            }`,
+          )
+          throw new ServiceUnavailableException(
+            "Channel verification is temporarily unavailable. Please try again later.",
+          )
+        }
+
+        const status = data.result?.status
+        const isMember =
+          status === "creator" ||
+          status === "administrator" ||
+          status === "member" ||
+          (status === "restricted" && data.result?.is_member !== false)
+
+        if (isMember) {
           user.channelJoined = true
           await user.save()
         } else {
           throw new BadRequestException(
-            "Please join the @Veritysports channel on Telegram first, then click verify.",
+            `Please join the ${TELEGRAM_CHANNEL} channel on Telegram first, then click verify.`,
           )
         }
       } catch (error) {
         if (error instanceof BadRequestException) throw error
-        // Fallback for network issues in development
-        user.channelJoined = true
-        await user.save()
+        if (error instanceof ServiceUnavailableException) throw error
+        this.logger.error(
+          `Telegram channel membership lookup failed for ${TELEGRAM_CHANNEL}.`,
+          error instanceof Error ? error.stack : undefined,
+        )
+        throw new ServiceUnavailableException(
+          "Channel verification is temporarily unavailable. Please try again later.",
+        )
       }
     } else {
-      // Fallback for development/mock mode without live bot token
+      if (this.configService.get<string>("NODE_ENV") === "production") {
+        this.logger.error(
+          "TELEGRAM_BOT_TOKEN is not configured; channel verification cannot run in production.",
+        )
+        throw new ServiceUnavailableException(
+          "Channel verification is not configured. Please try again later.",
+        )
+      }
+      // Explicit development/mock mode without a live bot token.
       user.channelJoined = true
       await user.save()
     }
