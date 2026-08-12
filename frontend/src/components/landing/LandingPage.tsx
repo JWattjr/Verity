@@ -14,6 +14,7 @@ import {
   UsersRound,
 } from "lucide-react"
 import ThemeToggle from "@/components/layout/ThemeToggle"
+import VerityMark from "@/components/brand/VerityMark"
 
 const steps = [
   {
@@ -64,10 +65,11 @@ export default function LandingPage({
           className="clickable-surface flex items-center gap-3 rounded-[14px] p-2"
           href="/"
         >
-          <span className="verity-blob landing-wiggle flex h-10 w-10 items-center justify-center bg-sunburst-yellow font-semibold text-midnight [--landing-rotate:-6deg]">
-            V
-            <span className="verity-blob-smile" />
-          </span>
+          <VerityMark
+            className="h-10 w-10"
+            priority
+            size={40}
+          />
           <span className="text-[21px] font-semibold tracking-[-0.35px]">
             Verity
           </span>

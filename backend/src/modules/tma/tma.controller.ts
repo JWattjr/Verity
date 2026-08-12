@@ -15,6 +15,7 @@ import {
   RecordTmaDuelDto,
   SelectClubDto,
   TrackShareClickDto,
+  VerifyChannelDto,
 } from "./tma.dto"
 import { TmaService } from "./tma.service"
 import { JwtAuthGuard } from "../../common/guards/jwt-auth.guard"
@@ -52,6 +53,12 @@ export class TmaController {
   @ApiOperation({ summary: "Store the verified Telegram user's club" })
   selectClub(@Body() dto: SelectClubDto) {
     return this.tmaService.selectClub(dto.initData, dto.club)
+  }
+
+  @Post("channel")
+  @ApiOperation({ summary: "Verify Telegram channel join membership" })
+  verifyChannel(@Body() dto: VerifyChannelDto) {
+    return this.tmaService.verifyChannelJoined(dto.initData)
   }
 
   @Post("share-click")

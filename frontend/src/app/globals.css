@@ -2797,16 +2797,10 @@ body {
 }
 
 .verity-wordmark__mark {
-  display: grid;
-  width: 29px;
+  width: 34px;
   height: 34px;
-  place-items: center;
-  border: 2px solid #ff3b30;
-  color: #ff3b30;
-  font-family: var(--font-big-shoulders), sans-serif;
-  font-size: 24px;
-  font-weight: 900;
-  line-height: 1;
+  border: 0;
+  object-fit: contain;
 }
 
 .verity-wordmark__copy {
@@ -3568,9 +3562,8 @@ body {
   }
 
   .verity-wordmark__mark {
-    width: 25px;
+    width: 29px;
     height: 29px;
-    font-size: 21px;
   }
 
   .verity-wordmark__copy strong {

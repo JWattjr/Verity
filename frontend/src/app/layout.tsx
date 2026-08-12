@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next"
-import { Archivo, Big_Shoulders, Martian_Mono } from "next/font/google"
+import { Archivo, Martian_Mono } from "next/font/google"
+import localFont from "next/font/local"
 import { headers } from "next/headers"
 import "./globals.css"
 import AppProviders from "@/components/providers/AppProviders"
@@ -11,9 +12,13 @@ const archivo = Archivo({
   subsets: ["latin"],
 })
 
-const bigShoulders = Big_Shoulders({
+const bigShoulders = localFont({
+  adjustFontFallback: "Arial",
+  display: "swap",
+  src: "./fonts/BigShoulders-Variable.ttf",
+  style: "normal",
   variable: "--font-big-shoulders",
-  subsets: ["latin"],
+  weight: "100 900",
 })
 
 const martianMono = Martian_Mono({
@@ -42,8 +47,8 @@ export const metadata: Metadata = {
     "community signals",
   ],
   icons: {
-    icon: [{ url: "/icon", sizes: "64x64", type: "image/png" }],
-    apple: [{ url: "/apple-icon", sizes: "180x180", type: "image/png" }],
+    icon: [{ url: "/icon.png", sizes: "512x512", type: "image/png" }],
+    apple: [{ url: "/apple-icon.png", sizes: "180x180", type: "image/png" }],
   },
   openGraph: {
     title: "Verity | PVP Arena and Prediction Markets",
