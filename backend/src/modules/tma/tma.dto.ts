@@ -59,3 +59,11 @@ export class LinkTmaAccountDto {
   @IsNotEmpty()
   initData: string
 }
+
+export class VerifyChannelDto {
+  @ApiProperty({ description: "Signed Telegram initData string" })
+  @IsString()
+  @IsNotEmpty()
+  initData: string
+}
+

@@ -240,6 +240,46 @@ export class TmaService {
     return this.buildSession(user)
   }
 
+  async verifyChannelJoined(initData: string) {
+    const telegramUser = this.authenticate(initData)
+    const user = await this.tmaUserModel.findOne({
+      telegramId: telegramUser.id,
+    })
+    if (!user) {
+      throw new NotFoundException("Open the Mini App before joining the channel.")
+    }
+
+    const botToken = this.configService.get<string>("TELEGRAM_BOT_TOKEN")
+    if (botToken && botToken !== "123456:replace_me") {
+      try {
+        const response = await fetch(
+          `https://api.telegram.org/bot${botToken}/getChatMember?chat_id=@Veritysports&user_id=${telegramUser.id}`,
+        )
+        const data = await response.json()
+        const validStatuses = ["creator", "administrator", "member", "restricted"]
+        if (data.ok && validStatuses.includes(data.result?.status)) {
+          user.channelJoined = true
+          await user.save()
+        } else {
+          throw new BadRequestException(
+            "Please join the @Veritysports channel on Telegram first, then click verify.",
+          )
+        }
+      } catch (error) {
+        if (error instanceof BadRequestException) throw error
+        // Fallback for network issues in development
+        user.channelJoined = true
+        await user.save()
+      }
+    } else {
+      // Fallback for development/mock mode without live bot token
+      user.channelJoined = true
+      await user.save()
+    }
+
+    return this.buildSession(user)
+  }
+
   async trackShareClick(initData: string, method: ShareMethod) {
     const telegramUser = this.authenticate(initData)
     const exists = await this.tmaUserModel.exists({
@@ -512,6 +552,7 @@ export class TmaService {
         telegramId: user.telegramId,
         username: user.username,
         club: user.club,
+        channelJoined: Boolean(user.channelJoined),
         joinedAt: (user as any).createdAt ?? new Date().toISOString(),
         referredBy: user.referredBy,
         mainAccountLinked: Boolean(linkedMainAccount),

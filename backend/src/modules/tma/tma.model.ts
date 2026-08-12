@@ -20,6 +20,9 @@ export class TmaUser {
   @Prop({ type: String, default: null })
   referredBy: string | null
 
+  @Prop({ type: Boolean, default: false })
+  channelJoined: boolean
+
   @Prop({ type: Number, default: 0 })
   postLaunchDuels: number
 
