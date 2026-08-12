@@ -336,4 +336,107 @@ describe("TmaService duel event processing", () => {
       expect.objectContaining({ new: true }),
     )
   })
+
+  describe("Telegram channel membership verification", () => {
+    const telegramUser = {
+      id: "99112233",
+      username: "verity_test",
+      firstName: null,
+      lastName: null,
+    }
+
+    function makeChannelService() {
+      const user = {
+        telegramId: telegramUser.id,
+        channelJoined: false,
+        save: jest.fn().mockImplementation(async function (this: any) {
+          return this
+        }),
+      }
+      const { service, tmaUserModel, referralModel, mainUserModel, configService } =
+        makeService()
+
+      jest.spyOn(service as any, "authenticate").mockReturnValue(telegramUser)
+      tmaUserModel.findOne.mockResolvedValue(user)
+      referralModel.countDocuments.mockResolvedValue(0)
+      mainUserModel.exists.mockResolvedValue(false)
+      configService.get = jest.fn((key: string, fallback?: unknown) => {
+        const values: Record<string, string> = {
+          TELEGRAM_BOT_TOKEN: "real-bot-token",
+          TELEGRAM_CHANNEL_USERNAME: "Veritysports",
+          NODE_ENV: "production",
+        }
+        return (values[key] ?? fallback) as any
+      })
+
+      return { service, user }
+    }
+
+    afterEach(() => {
+      jest.restoreAllMocks()
+    })
+
+    it("records a joined member and uses the configured channel", async () => {
+      const { service, user } = makeChannelService()
+      global.fetch = jest.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            ok: true,
+            result: { status: "member" },
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
+      )
+
+      await service.verifyChannelJoined("signed-init-data")
+
+      expect(global.fetch).toHaveBeenCalledWith(
+        expect.stringContaining(
+          "getChatMember?chat_id=%40Veritysports&user_id=99112233",
+        ),
+        expect.objectContaining({ signal: expect.any(AbortSignal) }),
+      )
+      expect(user.channelJoined).toBe(true)
+      expect(user.save).toHaveBeenCalled()
+    })
+
+    it("does not accept a restricted member when Telegram says is_member is false", async () => {
+      const { service, user } = makeChannelService()
+      global.fetch = jest.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            ok: true,
+            result: { status: "restricted", is_member: false },
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
+      )
+
+      await expect(service.verifyChannelJoined("signed-init-data")).rejects.toMatchObject({
+        status: 400,
+        message: expect.stringContaining("@Veritysports"),
+      })
+      expect(user.save).not.toHaveBeenCalled()
+    })
+
+    it("surfaces Telegram configuration or permission failures as unavailable", async () => {
+      const { service, user } = makeChannelService()
+      global.fetch = jest.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            ok: false,
+            error_code: 400,
+            description: "Bad Request: member list is inaccessible",
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
+      )
+
+      await expect(service.verifyChannelJoined("signed-init-data")).rejects.toMatchObject({
+        status: 503,
+        message: "Channel verification is temporarily unavailable. Please try again later.",
+      })
+      expect(user.save).not.toHaveBeenCalled()
+    })
+  })
 })
