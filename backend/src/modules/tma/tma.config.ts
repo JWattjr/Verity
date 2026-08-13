@@ -1,6 +1,6 @@
 export const TMA_CONFIG = {
-  // Sunday, 16 August 2026 at 3:00 PM BST (UTC+1).
-  LAUNCH_AT: "2026-08-16T14:00:00.000Z",
+  // Friday, 21 August 2026 at 8:00 PM BST (UTC+1).
+  LAUNCH_AT: "2026-08-21T19:00:00.000Z",
   // Friday, 21 August 2026 at 8:00 PM BST (UTC+1).
   SEASON_AT: "2026-08-21T19:00:00.000Z",
   MAX_TICKETS_PER_USER: 25,
