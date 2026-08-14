@@ -21,6 +21,7 @@ import { CouponsModule } from "./modules/coupons/coupons.module"
 import { MissionsModule } from "./modules/missions/missions.module"
 import { CategoriesModule } from "./modules/categories/categories.module"
 import { TmaModule } from "./modules/tma/tma.module"
+import { PolymarketModule } from "./modules/polymarket/polymarket.module"
 
 @Module({
   imports: [
@@ -59,6 +60,7 @@ import { TmaModule } from "./modules/tma/tma.module"
     MissionsModule,
     CategoriesModule,
     TmaModule,
+    PolymarketModule,
   ],
 
   controllers: [AppController],

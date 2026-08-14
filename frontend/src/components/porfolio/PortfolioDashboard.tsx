@@ -1,16 +1,22 @@
 "use client"
 
 import Link from "next/link"
-import { useMemo, useState } from "react"
+import { useMemo, useRef, useState } from "react"
 import {
   ArrowDownLeft,
-  ArrowUpRight,
   BriefcaseBusiness,
   ExternalLink,
   Loader2,
-  Sparkles,
+  RefreshCw,
+  ShieldCheck,
+  WalletCards,
 } from "lucide-react"
 import { useAuth } from "@/components/providers/AuthModals"
+import PolymarketFundingPanel from "@/features/polymarket/PolymarketFundingPanel"
+import {
+  usePolymarketAccountQuery,
+  usePolymarketFundingQuery,
+} from "@/features/polymarket/queries"
 import { useDailyVotes } from "@/hooks/useDailyVotes"
 import { useMarketResolution } from "@/hooks/useMarketResolution"
 import { useUserPortfolio } from "@/hooks/useUserPortfolio"
@@ -21,8 +27,6 @@ import {
   useClaimLpFeesMutation,
   useUserTradesQuery,
 } from "@/store/verity/verityQueries"
-import ReceiveUsdcModal from "./ReceiveUsdcModal"
-import SendUsdcModal from "./SendUsdcModal"
 import PortfolioTokenTable, {
   type PortfolioTokenRow,
 } from "./PortfolioTokenTable"
@@ -44,6 +48,11 @@ export default function PortfolioDashboard() {
     refetch,
   } = useUserPortfolio()
   const userId = profile?.id ?? ""
+  const polymarketAccount = usePolymarketAccountQuery(userId)
+  const polymarketFunding = usePolymarketFundingQuery(
+    userId,
+    polymarketAccount.data?.status === "ready",
+  )
   const { data: trades = [], isLoading: isTradesLoading } =
     useUserTradesQuery(userId)
   const { data: accruedData } = useAccruedLpFeesQuery(userId)
@@ -53,8 +62,8 @@ export default function PortfolioDashboard() {
   const { dailyVotes, isLoading: isDailyVotesLoading } = useDailyVotes(userId)
 
   const [activeTab, setActiveTab] = useState<PortfolioTab>("overview")
-  const [isSendOpen, setIsSendOpen] = useState(false)
-  const [isReceiveOpen, setIsReceiveOpen] = useState(false)
+  const [isFundingOpen, setIsFundingOpen] = useState(false)
+  const fundingButtonRef = useRef<HTMLButtonElement>(null)
   const [isClaimingAll, setIsClaimingAll] = useState(false)
 
   const accruedLpFees = accruedData?.accruedFeesUsdc ?? 0
@@ -126,6 +135,23 @@ export default function PortfolioDashboard() {
     }
   }
 
+  function closeFundingPanel() {
+    setIsFundingOpen(false)
+    window.requestAnimationFrame(() => fundingButtonRef.current?.focus())
+  }
+
+  const tradingBalance = polymarketAccount.isLoading
+    ? "—"
+    : polymarketAccount.isError
+      ? "UNAVAILABLE"
+      : polymarketAccount.data?.status !== "ready"
+        ? "SETUP REQUIRED"
+        : polymarketFunding.isError
+          ? "UNAVAILABLE"
+          : polymarketFunding.isLoading
+            ? "—"
+            : `$${polymarketFunding.data?.pusdBalance || "0"}`
+
   if (!profile) {
     return (
       <section className="verity-access-gate">
@@ -159,9 +185,6 @@ export default function PortfolioDashboard() {
     <div className="verity-product-page verity-portfolio-page">
       <header className="verity-product-hero verity-portfolio-hero">
         <div>
-          <p className="verity-product-eyebrow">
-            <i aria-hidden="true" /> Live account · USDC backed
-          </p>
           <h1>
             PORTFOLIO<span>.</span>
           </h1>
@@ -171,13 +194,15 @@ export default function PortfolioDashboard() {
           </p>
         </div>
 
-        <div className="verity-portfolio-balance">
-          <span>Total portfolio value</span>
-          <strong>${stats.netWorth.toFixed(2)}</strong>
+        <div className="verity-portfolio-balance" aria-live="polite">
+          <span>Available to trade</span>
+          <strong>{tradingBalance}</strong>
           <small>
-            {isDailyVotesLoading
-              ? "Loading daily signals…"
-              : `${dailyVotes.votesRemaining}/${dailyVotes.votesLimit} daily signals remaining`}
+            {polymarketFunding.isLoading
+              ? "Refreshing Polygon balance…"
+              : isDailyVotesLoading
+                ? "Loading daily signals…"
+                : `pUSD · ${dailyVotes.votesRemaining}/${dailyVotes.votesLimit} daily signals remaining`}
           </small>
         </div>
       </header>
@@ -187,7 +212,7 @@ export default function PortfolioDashboard() {
         aria-label="Portfolio summary"
       >
         <PortfolioStat
-          label="USDC balance"
+          label="Legacy USDC balance"
           value={`$${usdcBalance.toFixed(2)}`}
         />
         <PortfolioStat
@@ -219,35 +244,65 @@ export default function PortfolioDashboard() {
         className="verity-portfolio-actions"
         aria-label="Portfolio actions"
       >
-        <button onClick={() => setIsSendOpen(true)} type="button">
-          <ArrowUpRight aria-hidden="true" />
-          <span>SEND USDC</span>
-        </button>
-        <button onClick={() => setIsReceiveOpen(true)} type="button">
+        <button
+          aria-controls="polymarket-funding-panel"
+          aria-expanded={isFundingOpen}
+          onClick={() => setIsFundingOpen(true)}
+          ref={fundingButtonRef}
+          type="button"
+        >
           <ArrowDownLeft aria-hidden="true" />
-          <span>RECEIVE</span>
+          <span>FUND TRADING</span>
         </button>
-        <Link
-          href="https://faucet.circle.com/"
-          rel="noopener noreferrer"
-          target="_blank"
-        >
-          <Sparkles aria-hidden="true" />
-          <span>FAUCET</span>
-        </Link>
-        <Link
-          href={
-            profile.walletAddress
-              ? `https://explorer.testnet.arc.network/address/${profile.walletAddress}`
-              : "https://explorer.testnet.arc.network"
+        <button
+          disabled={
+            polymarketAccount.data?.status !== "ready" ||
+            polymarketFunding.isFetching
           }
-          rel="noopener noreferrer"
-          target="_blank"
+          onClick={() => void polymarketFunding.refetch()}
+          type="button"
         >
-          <ExternalLink aria-hidden="true" />
-          <span>EXPLORER</span>
-        </Link>
+          <RefreshCw
+            aria-hidden="true"
+            className={polymarketFunding.isFetching ? "animate-spin" : ""}
+          />
+          <span>REFRESH BALANCE</span>
+        </button>
+        {polymarketAccount.data?.depositWalletAddress ? (
+          <Link
+            href={`https://polygonscan.com/address/${polymarketAccount.data.depositWalletAddress}`}
+            rel="noopener noreferrer"
+            target="_blank"
+          >
+            <WalletCards aria-hidden="true" />
+            <span>VIEW DEPOSIT WALLET</span>
+          </Link>
+        ) : (
+          <button disabled type="button">
+            <WalletCards aria-hidden="true" />
+            <span>VIEW DEPOSIT WALLET</span>
+          </button>
+        )}
+        {polymarketAccount.data?.circleWalletAddress ? (
+          <Link
+            href={`https://polygonscan.com/address/${polymarketAccount.data.circleWalletAddress}`}
+            rel="noopener noreferrer"
+            target="_blank"
+          >
+            <ExternalLink aria-hidden="true" />
+            <span>POLYGON SIGNER</span>
+          </Link>
+        ) : (
+          <button disabled type="button">
+            <ShieldCheck aria-hidden="true" />
+            <span>POLYGON SIGNER</span>
+          </button>
+        )}
       </section>
+
+      {isFundingOpen ? (
+        <PolymarketFundingPanel onClose={closeFundingPanel} userId={userId} />
+      ) : null}
 
       <div className="verity-section-heading verity-portfolio-heading">
         <div>
@@ -343,11 +398,15 @@ export default function PortfolioDashboard() {
                 <div className="verity-overview-trade-list">
                   {trades.slice(0, 5).map((trade) => (
                     <Link href={`/markets/${trade.market_id}`} key={trade.id}>
-                      <span className={trade.action === "SELL" ? "is-sell" : ""}>
+                      <span
+                        className={trade.action === "SELL" ? "is-sell" : ""}
+                      >
                         {trade.action}
                       </span>
                       <div>
-                        <strong>{trade.market_question || "Verity market"}</strong>
+                        <strong>
+                          {trade.market_question || "Verity market"}
+                        </strong>
                         <small>{formatDate(trade.created_at)}</small>
                       </div>
                       <em>
@@ -493,18 +552,6 @@ export default function PortfolioDashboard() {
           )
         ) : null}
       </section>
-
-      <SendUsdcModal
-        isOpen={isSendOpen}
-        onClose={() => setIsSendOpen(false)}
-        onSuccess={refetch}
-        usdcBalance={usdcBalance}
-      />
-      <ReceiveUsdcModal
-        isOpen={isReceiveOpen}
-        onClose={() => setIsReceiveOpen(false)}
-        walletAddress={profile.walletAddress || ""}
-      />
     </div>
   )
 }

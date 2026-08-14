@@ -40,6 +40,10 @@ async function bootstrap() {
     .addTag("posts", "Market creation and feed operations")
     .addTag("markets", "Prediction market trading, voting, and resolution")
     .addTag(
+      "polymarket",
+      "Polymarket sports discovery, account provisioning, and trading",
+    )
+    .addTag(
       "liquidity",
       "Liquidity pool funding, deposits, withdrawals, and states",
     )

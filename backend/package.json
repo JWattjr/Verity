@@ -15,7 +15,6 @@
     "seed": "ts-node src/seed.ts",
     "seed:admin": "ts-node src/scripts/seed-admin.ts",
     "seed:tma": "ts-node src/scripts/seed-tma.ts",
-
     "test:backend-e2e": "ts-node src/scripts/test-backend-e2e.ts",
     "test:pyth-live": "ts-node src/scripts/test-pyth-live.ts",
     "test:resolver-live": "ts-node src/scripts/test-resolver-live.ts",
@@ -41,6 +40,9 @@
     "@nestjs/swagger": "^11.4.3",
     "@nestjs/throttler": "^6.5.0",
     "@nestjs/websockets": "^11.1.17",
+    "@polymarket/builder-relayer-client": "^0.0.10",
+    "@polymarket/builder-signing-sdk": "^0.0.8",
+    "@polymarket/clob-client-v2": "^1.1.0",
     "bcryptjs": "^2.4.3",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.1",

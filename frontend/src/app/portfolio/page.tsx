@@ -7,8 +7,5 @@ import { useShowcaseMode } from "@/hooks/useShowcaseMode"
 export default function WalletPage() {
   const showcaseMode = useShowcaseMode()
 
-  // Temporarily force preview for testing
-  return <LivePortfolioPreview />
-
-  return <PortfolioDashboard />
+  return showcaseMode ? <LivePortfolioPreview /> : <PortfolioDashboard />
 }

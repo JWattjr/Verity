@@ -11,9 +11,5 @@
     "build:backend": "pnpm --filter verity-backend build",
     "install:all": "pnpm install",
     "wagmi:generate": "pnpm --filter verity wagmi"
-
-  },
-  "devDependencies": {
-    "@pythnetwork/pyth-sdk-solidity": "^4.3.1"
   }
 }

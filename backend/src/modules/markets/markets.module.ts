@@ -15,7 +15,6 @@ import {
 import { User, UserSchema } from "../users/users.model"
 import { Post, PostSchema } from "../posts/posts.model"
 import { MarketsService } from "./markets.service"
-import { MarketsKeeperService } from "./marketskeeper.service"
 import { MarketsController } from "./markets.controller"
 import { PostsModule } from "../posts/posts.module"
 import { AgentModule } from "../agent/agent.module"
@@ -42,7 +41,7 @@ import { CircleWalletModule } from "../circle-wallet/circle-wallet.module"
     CircleWalletModule,
   ],
   controllers: [MarketsController],
-  providers: [MarketsService, MarketsKeeperService, RoyaltyService],
-  exports: [MarketsService, MarketsKeeperService, RoyaltyService],
+  providers: [MarketsService, RoyaltyService],
+  exports: [MarketsService, RoyaltyService],
 })
 export class MarketsModule {}

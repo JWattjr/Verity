@@ -85,19 +85,13 @@ Verity utilizes an off-chain/on-chain hybrid micro-payout engine (Nanopayments) 
 - **Trading Fees**: Every buy/sell transaction incurs a `2.0%` fee (200 BPS).
   - **60%** goes to the pool's Liquidity Providers (LPs).
   - **40%** goes to the Creator Royalties / Treasury.
-- **LP Fee Payouts**: LP fees are calculated off-chain and accumulated in the `LpFeeLedger` model in MongoDB. When a user's accrued fees cross the auto-push threshold (configured via `LP_FEE_AUTOPUSH_THRESHOLD_USDC`), or when they manually trigger a claim, a Circle WaaS transaction is submitted via the `NanopaymentsService` to pay out the USDC.
+- **Legacy LP Fee Payouts**: The old custom-market path calculated LP fees off-chain and submitted Circle WaaS payouts through `NanopaymentsService`. This path is disabled during the Polymarket migration.
 - **Creator Royalties**: Creator royalties are similarly tracked and batched from trade fees, then sent directly to the creator's wallet address via the Circle Gateway Client.
 
 ## Architecture
 
 ```plaintext
 Verity/
-├── contracts/           # Foundry Smart Contracts (Solidity)
-│   └── src/
-│       ├── ConditionalTokenVault.sol   # USDC escrow + outcome token minting
-│       ├── VerityMarketFactory.sol     # Market registry + pool deployment
-│       ├── VerityFPMM.sol              # Fixed Product Market Maker (AMM)
-│       └── VerityOptimisticResolver.sol # Dispute-window resolution system
 ├── backend/             # NestJS 11 API Server
 │   └── src/
 │       ├── modules/
@@ -127,9 +121,9 @@ Verity/
 
 ## Core Components
 
-### Smart Contracts (Foundry / Solidity 0.8.24)
+### Trading and settlement
 
-Four contracts deployed on Arc Testnet handle the full market lifecycle: a **ConditionalTokenVault** for USDC escrow and outcome token minting, a **VerityMarketFactory** for market registration and automatic pool deployment, a **VerityFPMM** for AMM trading, and a **VerityOptimisticResolver** for dispute-window based resolution.
+The target architecture uses Polymarket on Polygon for sports discovery, liquidity, execution, settlement, and redemption. See `polymarket_llm.md` for the verified wallet proof and migration plan.
 
 ### Backend API (NestJS 11)
 
@@ -145,7 +139,6 @@ A premium social prediction interface with automatic smart wallet provisioning (
 
 - **Node.js 18+** & **pnpm**
 - **MongoDB** (local or remote)
-- **Foundry** (for contract development)
 
 ### 2. Setup Environment
 
@@ -167,20 +160,7 @@ cd backend && cp .env.example .env
 cd ../frontend && cp .env.example .env
 ```
 
-### 3. Build & Deploy Contracts
-
-If you wish to deploy your own instance of the contracts:
-
-```bash
-cd contracts
-forge build
-forge script script/Deploy.s.sol:Deploy \
-  --rpc-url https://rpc.testnet.arc.network \
-  --private-key <YOUR_PRIVATE_KEY> \
-  --broadcast
-```
-
-### 4. Boot the Ecosystem
+### 3. Boot the Ecosystem
 
 Run the frontend and backend concurrently:
 

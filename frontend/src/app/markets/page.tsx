@@ -1,8 +1,7 @@
 "use client"
 
-import { useState, useEffect, useMemo, Suspense, useCallback } from "react"
+import { useState, useMemo, Suspense, useCallback } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { useFeed } from "@/hooks/useFeed"
 import { useWalletProfile } from "@/hooks/useWalletProfile"
 import {
   useActivePvpEventsQuery,
@@ -12,39 +11,28 @@ import {
 } from "@/store/verity/verityQueries"
 
 // Extracted subcomponents
-import StandardMarketsFeed from "@/components/markets/StandardMarketsFeed"
 import PvpArenaTab from "@/components/markets/PvpArenaTab"
 import PvpSidebarStats from "@/components/markets/PvpSidebarStats"
 import DuelHistory from "@/components/markets/DuelHistory"
 import LiveArenaPreview from "@/components/preview/LiveArenaPreview"
-import { useShowcaseMode } from "@/hooks/useShowcaseMode"
+import PolymarketSportsCatalogue from "@/features/polymarket/PolymarketSportsCatalogue"
 
 type MarketsTab = "general" | "pvp-arena"
 type MobilePvpTab = "markets" | "history" | "stats"
+type LegacyPvpEvent = {
+  id: string
+  createdAt?: string | null
+  [key: string]: unknown
+}
 
 function MarketsContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const tabQuery = searchParams.get("tab") as MarketsTab | null
-  const [activeTab, setActiveTab] = useState<MarketsTab>(
-    tabQuery === "general" || tabQuery === "pvp-arena" ? tabQuery : "general",
-  )
+  const activeTab: MarketsTab =
+    tabQuery === "general" || tabQuery === "pvp-arena" ? tabQuery : "general"
   const [mobilePvpTab, setMobilePvpTab] = useState<MobilePvpTab>("markets")
   const { profile } = useWalletProfile()
-  const showcaseMode = useShowcaseMode()
-
-  useEffect(() => {
-    if (tabQuery === "general" || tabQuery === "pvp-arena") {
-      setActiveTab(tabQuery)
-    }
-  }, [tabQuery])
-
-  // Standard feed markets (excludes pvp)
-  const {
-    items: feedItems,
-    loading: feedLoading,
-    reload: reloadFeed,
-  } = useFeed(profile?.id, true)
 
   // PvP API queries
   const { data: pvpEventsRaw = [], isLoading: pvpEventsLoading } =
@@ -55,14 +43,14 @@ function MarketsContent() {
   // Merge active events + events where user has active tickets (dedup by id)
   const pvpEvents = useMemo(() => {
     const seen = new Set<string>()
-    const merged: any[] = []
-    for (const evt of pvpEventsRaw) {
+    const merged: LegacyPvpEvent[] = []
+    for (const evt of pvpEventsRaw as LegacyPvpEvent[]) {
       if (!seen.has(evt.id)) {
         seen.add(evt.id)
         merged.push(evt)
       }
     }
-    for (const evt of myActiveTicketEvents) {
+    for (const evt of myActiveTicketEvents as LegacyPvpEvent[]) {
       if (!seen.has(evt.id)) {
         seen.add(evt.id)
         merged.push(evt)
@@ -76,10 +64,7 @@ function MarketsContent() {
     })
   }, [pvpEventsRaw, myActiveTicketEvents])
 
-  const [selectedPvpEventId, setSelectedPvpEventId] = useState<string | null>(
-    null,
-  )
-  const [hasManuallySelected, setHasManuallySelected] = useState<boolean>(false)
+  const [manualPvpEventId, setManualPvpEventId] = useState<string | null>(null)
   const [claimedMarketIds, setClaimedMarketIds] = useState<Set<string>>(
     new Set(),
   )
@@ -92,39 +77,21 @@ function MarketsContent() {
     })
   }, [])
 
-  // Sync selected event to query param or the most recent one
-  useEffect(() => {
-    const queryId = searchParams.get("id")
-    if (queryId && pvpEvents.some((e: any) => e.id === queryId)) {
-      setSelectedPvpEventId(queryId)
-      setHasManuallySelected(true)
-
-      // Clear id from URL
-      const params = new URLSearchParams(window.location.search)
-      params.delete("id")
-      router.replace(`/markets?${params.toString()}`)
-      return
-    }
-
-    if (pvpEvents && pvpEvents.length > 0) {
-      if (!hasManuallySelected) {
-        setSelectedPvpEventId(pvpEvents[0].id)
-      }
-    } else {
-      setSelectedPvpEventId(null)
-    }
-  }, [pvpEvents, hasManuallySelected, searchParams, router])
+  const queryPvpEventId = searchParams.get("id")
+  const selectedPvpEventId =
+    pvpEvents.find((event) => event.id === queryPvpEventId)?.id ||
+    pvpEvents.find((event) => event.id === manualPvpEventId)?.id ||
+    pvpEvents[0]?.id ||
+    null
 
   const handleSelectPvpEvent = (id: string | null) => {
-    setHasManuallySelected(true)
-    setSelectedPvpEventId(id)
+    setManualPvpEventId(id)
     const params = new URLSearchParams(window.location.search)
     params.set("tab", "pvp-arena")
     router.push(`/markets?${params.toString()}`)
   }
 
   const handleTabChange = (tab: MarketsTab) => {
-    setActiveTab(tab)
     const params = new URLSearchParams(window.location.search)
     params.set("tab", tab)
     router.push(`/markets?${params.toString()}`)
@@ -136,52 +103,18 @@ function MarketsContent() {
     isLoading: pvpStatusLoading,
   } = usePvpStatusQuery(selectedPvpEventId)
   const { data: referralsData } = useReferralsQuery()
-  const liveMarketCount = feedItems.filter((item) => item.market).length
-
   return (
     <div className="w-full py-10 font-sans sm:py-14">
       <header className="mb-9 border-b border-border pb-8">
-        <p className="mb-4 flex items-center gap-3 text-[10px] font-bold uppercase tracking-[0.2em] text-ash">
-          <span className="h-2 w-2 bg-accent" aria-hidden="true" />
-          Verity · live markets
-        </p>
-        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_300px] lg:items-end">
-          <div>
-            <h1 className="font-heading text-[52px] font-extrabold leading-[0.82] tracking-[0.01em] text-charcoal-primary min-[360px]:text-[58px] sm:text-[78px]">
-              PREDICTION <span className="text-accent">MARKETS</span>
-            </h1>
-            <p className="mt-5 max-w-[670px] text-sm leading-6 text-graphite sm:text-[15px]">
-              Read the signal, choose a side, and build a public prediction
-              record. Every market is transparent, USDC-backed, and resolved
-              against a stated source.
-            </p>
-          </div>
-          <dl className="grid grid-cols-3 border border-border bg-surface lg:grid-cols-1">
-            <div className="border-r border-border p-3 lg:border-b lg:border-r-0">
-              <dt className="text-[9px] font-bold uppercase tracking-[0.16em] text-ash">
-                Live
-              </dt>
-              <dd className="mt-1 font-heading text-2xl font-extrabold text-charcoal-primary">
-                {liveMarketCount}
-              </dd>
-            </div>
-            <div className="border-r border-border p-3 lg:border-b lg:border-r-0">
-              <dt className="text-[9px] font-bold uppercase tracking-[0.16em] text-ash">
-                Arena cards
-              </dt>
-              <dd className="mt-1 font-heading text-2xl font-extrabold text-charcoal-primary">
-                {pvpEvents.length}
-              </dd>
-            </div>
-            <div className="p-3">
-              <dt className="text-[9px] font-bold uppercase tracking-[0.16em] text-ash">
-                Settlement
-              </dt>
-              <dd className="mt-1 font-heading text-2xl font-extrabold text-accent">
-                USDC
-              </dd>
-            </div>
-          </dl>
+        <div>
+          <h1 className="font-heading text-[52px] font-extrabold leading-[0.82] tracking-[0.01em] text-charcoal-primary min-[360px]:text-[58px] sm:text-[78px]">
+            PREDICTION <span className="text-accent">MARKETS</span>
+          </h1>
+          <p className="mt-5 max-w-[670px] text-sm leading-6 text-graphite sm:text-[15px]">
+            Browse current sports markets, inspect prices, and choose an
+            outcome. Polymarket supplies liquidity and resolution; Verity keeps
+            the experience social and competitive.
+          </p>
         </div>
       </header>
 
@@ -189,7 +122,7 @@ function MarketsContent() {
       <div className="mb-7 grid grid-cols-2 border-b border-border">
         <button
           onClick={() => {
-            setHasManuallySelected(false)
+            setManualPvpEventId(null)
             handleTabChange("general")
           }}
           className={`relative min-w-0 border-x border-t border-border px-3 py-3 text-left font-heading text-[15px] font-extrabold uppercase tracking-[0.05em] transition-colors cursor-pointer sm:px-5 sm:text-lg ${
@@ -198,11 +131,11 @@ function MarketsContent() {
               : "bg-surface text-ash hover:bg-surface-muted hover:text-charcoal-primary"
           }`}
         >
-          Market feed
+          Sports markets
         </button>
         <button
           onClick={() => {
-            setHasManuallySelected(false)
+            setManualPvpEventId(null)
             handleTabChange("pvp-arena")
           }}
           className={`relative min-w-0 border-r border-t border-border px-3 py-3 text-left font-heading text-[15px] font-extrabold uppercase tracking-[0.05em] transition-colors cursor-pointer sm:px-5 sm:text-lg ${
@@ -216,18 +149,7 @@ function MarketsContent() {
       </div>
 
       {/* Prediction Markets Tab */}
-      {activeTab === "general" && (
-        <StandardMarketsFeed
-          feedItems={feedItems}
-          feedLoading={feedLoading}
-          reloadFeed={reloadFeed}
-          profile={profile}
-          setActiveTab={handleTabChange}
-          pvpEvents={pvpEvents}
-          pvpEventsLoading={pvpEventsLoading}
-          setSelectedPvpEventId={handleSelectPvpEvent}
-        />
-      )}
+      {activeTab === "general" && <PolymarketSportsCatalogue />}
 
       {/* PvP Arena Tab */}
       {activeTab === "pvp-arena" && <LiveArenaPreview />}

@@ -4,7 +4,7 @@ The NestJS 11 API server powering Verity's social sports prediction arena. Handl
 
 ## Module Overview
 
-The backend is organized into 16 domain modules under `src/modules/`:
+The backend is organized into domain modules under `src/modules/`:
 
 | Module            | Purpose                                                                                                  |
 | ----------------- | -------------------------------------------------------------------------------------------------------- |
@@ -23,6 +23,7 @@ The backend is organized into 16 domain modules under `src/modules/`:
 | **coupons**       | Handles promotional duel boost coupons                                                                   |
 | **missions**      | Database onboarding milestones rewarding Arena XP                                                        |
 | **categories**    | System-wide tag groupings for prediction feeds                                                           |
+| **polymarket**    | Typed public sports metadata and active-event discovery through Polymarket's Gamma API                    |
 
 ### Cross-Cutting (`src/common/`)
 
@@ -30,7 +31,9 @@ The backend is organized into 16 domain modules under `src/modules/`:
 - **`HttpExceptionFilter`**: Standardized error response formatting.
 - **`ResponseInterceptor`**: Wraps all successful responses in a consistent envelope.
 
-## Market Resolution Keeper
+## Legacy Market Resolution Keeper
+
+> Disabled for the Polymarket migration. The Arc/custom-contract environment settings used by this path have been removed from this branch.
 
 The `MarketsKeeperService` runs a background loop every **30 seconds** that:
 
@@ -38,7 +41,7 @@ The `MarketsKeeperService` runs a background loop every **30 seconds** that:
 2. **Resolves Pyth markets** — fetches historical price VAAs from the Pyth Benchmarks API and submits resolution transactions.
 3. **Resolves subjective markets** — invokes the AI agent to search the web, analyze evidence, and propose YES/NO outcomes. Monitors the dispute window and auto-finalizes undisputed proposals.
 
-## On-Chain Integration
+## Legacy On-Chain Integration
 
 The `BlockchainService` uses **Viem** to interact with four smart contracts on Arc Testnet:
 
@@ -46,7 +49,7 @@ The `BlockchainService` uses **Viem** to interact with four smart contracts on A
 - Writes: market registration, resolution proposals, finalization (via admin wallet)
 - **AA/Safe decoder**: `getCallSequence()` recursively unwraps nested calldata from EntryPoint `handleOps`, Smart Account `execute`/`executeBatch`, and Safe `execTransaction` to correctly verify transactions from smart wallets
 
-## Nanopayments & Fee Distribution (Circle Batching)
+## Legacy Nanopayments & Fee Distribution (Circle Batching)
 
 Verity implements a hybrid database/on-chain micro-fee routing system utilizing the **Circle Gateway Client (`@circle-fin/x402-batching/client`)** to payout accumulated fees to Liquidity Providers and Creator/Treasury addresses.
 
@@ -60,7 +63,7 @@ Verity implements a hybrid database/on-chain micro-fee routing system utilizing 
 2. **LP Fee Payouts (`LpFeeService`)**:
    - A background queue (`processPendingLpFees()`) regularly scans for trades with pending fees.
    - It updates users' accrued balances in the `LpFeeLedger` collection.
-   - If an LP's accrued fees meet the auto-push threshold (`LP_FEE_AUTOPUSH_THRESHOLD_USDC`, e.g. `1.0 USDC`), the service calls the `NanopaymentsService` to execute a payout.
+   - When an LP's accrued fees meet the configured threshold, the service calls the `NanopaymentsService` to execute a payout.
    - LPs can also trigger a manual claim via the `/liquidity/claim-fees` endpoint.
 
 3. **Creator Royalties (`RoyaltyService`)**:
@@ -69,7 +72,7 @@ Verity implements a hybrid database/on-chain micro-fee routing system utilizing 
 
 4. **Circle Gateway Batching (`NanopaymentsService`)**:
    - Interacts with Circle's X402 Batching client.
-   - Checks the Gateway balance. If the balance is insufficient to cover the payout, it automatically triggers a developer-controlled top-up deposit from the main treasury wallet (configured via `ADMIN_PRIVATE_KEY` / `KEEPER_PRIVATE_KEY`) to the batching gateway.
+   - Historically checked the Gateway balance and used a developer-controlled treasury signer to top up the batching gateway.
    - Executes off-chain batched withdrawals to target user wallets, completing the gas-efficient distribution of USDC micro-payouts.
 
 ## Getting Started
@@ -92,15 +95,6 @@ MONGODB_URI=mongodb://localhost:27017/verity
 PORT=5050
 JWT_SECRET=<secure-secret>
 
-# Arc Testnet contract addresses
-ARC_RPC_URL=https://rpc.testnet.arc.network
-USDC_ADDRESS=0x3600000000000000000000000000000000000000
-PYTH_ADDRESS=
-CONDITIONAL_TOKEN_VAULT_ADDRESS=
-FPMM_ADDRESS=
-FACTORY_ADDRESS=
-RESOLVER_ADDRESS=
-
 # PvP Welcome Boost Configuration
 NEW_USER_CUTOFF_DATE=
 
@@ -108,9 +102,20 @@ NEW_USER_CUTOFF_DATE=
 CIRCLE_API_KEY=
 CIRCLE_ENTITY_SECRET=
 CIRCLE_WALLET_SET_ID=
-CIRCLE_BLOCKCHAIN=ARC-TESTNET
+CIRCLE_BLOCKCHAIN=MATIC
 RESEND_API_KEY=
 RESEND_FROM_EMAIL=
+
+# Polymarket public sports catalogue
+POLYMARKET_GAMMA_API_URL=https://gamma-api.polymarket.com
+POLYMARKET_REQUEST_TIMEOUT_MS=10000
+POLYMARKET_PUBLIC_CACHE_TTL_MS=15000
+POLYGON_RPC_URL=
+POLYMARKET_CREDENTIAL_ENCRYPTION_KEY=
+POLYMARKET_BUILDER_API_KEY=
+POLYMARKET_BUILDER_SECRET=
+POLYMARKET_BUILDER_PASSPHRASE=
+POLYMARKET_BUILDER_CODE=
 
 # AI Agent (optional — defaults to mock)
 LLM_PROVIDER=claude   # Options: claude | gemini | openai | deepseek | mock
@@ -121,10 +126,6 @@ OPENAI_API_KEY=
 DEEPSEEK_API_KEY=
 DEEPSEEK_MODEL=
 
-# Gas Escrow & Signer (Admin / Keeper / E2E testing)
-ADMIN_PRIVATE_KEY=
-KEEPER_PRIVATE_KEY=
-DISPUTE_WINDOW_SECONDS=
 ```
 
 ### Available Scripts
@@ -133,7 +134,7 @@ DISPUTE_WINDOW_SECONDS=
 pnpm run dev              # Start in watch mode (http://localhost:5050/api)
 pnpm run build            # Production build
 pnpm run seed             # Populate DB with mock data
-pnpm run extract-abis     # Copy contract ABIs from Foundry artifacts
+pnpm run extract-abis     # Retained legacy diagnostic script; requires archived contract artifacts
 pnpm run test             # Unit tests
 ```
 
