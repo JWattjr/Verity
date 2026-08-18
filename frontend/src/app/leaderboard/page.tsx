@@ -80,10 +80,6 @@ export default function LeaderboardPage() {
       {/* Header Banner */}
       <section className="border-b border-border pb-8">
         <div className="max-w-[720px]">
-          <p className="mb-4 flex items-center gap-3 font-mono text-[10px] font-bold uppercase tracking-[0.18em] text-ash">
-            <span className="h-2 w-2 bg-accent" aria-hidden="true" />
-            Verity · PvP Arena · All players
-          </p>
           <h1 className="font-heading text-[58px] font-black uppercase leading-[0.82] tracking-[0.01em] text-charcoal-primary sm:text-[78px]">
             ARENA <span className="text-accent">LEADERBOARD</span>
           </h1>

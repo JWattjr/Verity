@@ -360,12 +360,11 @@ export default function CreateMarketDrawer({
         <DrawerHeader className="px-0">
           <DrawerTitle className="text-lg font-bold text-stone-900 flex items-center gap-2">
             <Swords className="h-5 w-5 text-indigo-600" />
-            Deploy PvP World Cup Matchup
+            Deploy EPL PvP Matchup
           </DrawerTitle>
           <DrawerDescription className="text-xs text-stone-500">
-            Create a parent matchup event and launch multiple corresponding
-            child prediction markets automatically funded with escrow
-            pre-deposits.
+            Create an English Premier League matchup event and launch multiple
+            child proposition prediction markets.
           </DrawerDescription>
         </DrawerHeader>
 
@@ -381,7 +380,7 @@ export default function CreateMarketDrawer({
             <input
               type="text"
               required
-              placeholder="e.g. Paraguay vs Japan"
+              placeholder="e.g. Arsenal vs Chelsea"
               value={pvpQuestion}
               onChange={(e) => setPvpQuestion(e.target.value)}
               className="w-full h-11 px-3 border border-stone-200 bg-transparent text-sm rounded-[10px] outline-none focus:border-indigo-500 transition-colors"
@@ -405,7 +404,7 @@ export default function CreateMarketDrawer({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <label className="block text-[10px] font-bold uppercase tracking-wider text-stone-500">
-                Lock Time (Optional)
+                Lock Time (Kickoff)
               </label>
               <input
                 type="datetime-local"
@@ -441,12 +440,12 @@ export default function CreateMarketDrawer({
           {/* Resolution Source */}
           <div className="space-y-1.5">
             <label className="block text-[10px] font-bold uppercase tracking-wider text-stone-500">
-              Resolution Oracle Source
+              Resolution Source
             </label>
             <input
               type="text"
               required
-              placeholder="World Cup Match Stats API"
+              placeholder="Premier League Official / BBC Sport"
               value={pvpResolutionSource}
               onChange={(e) => setPvpResolutionSource(e.target.value)}
               className="w-full h-11 px-3 border border-stone-200 bg-transparent text-sm rounded-[10px] outline-none focus:border-indigo-500 transition-colors"

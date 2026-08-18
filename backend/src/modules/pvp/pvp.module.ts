@@ -14,17 +14,12 @@ import {
   MarketTrade,
   MarketTradeSchema,
 } from "../markets/markets.model"
-import {
-  LpFeeLedger,
-  LpFeeLedgerSchema,
-} from "../liquidity/liquidity.model"
 import { Post, PostSchema } from "../posts/posts.model"
 import { User, UserSchema } from "../users/users.model"
 import { PvpService } from "./pvp.service"
 import { PvpController } from "./pvp.controller"
 import { SocketModule } from "../socket/socket.module"
 import { NotificationsModule } from "../notifications/notifications.module"
-import { LiquidityModule } from "../liquidity/liquidity.module"
 import { AgentModule } from "../agent/agent.module"
 import { CouponsModule } from "../coupons/coupons.module"
 import { TmaModule } from "../tma/tma.module"
@@ -39,11 +34,9 @@ import { TmaModule } from "../tma/tma.module"
       { name: User.name, schema: UserSchema },
       { name: MarketPosition.name, schema: MarketPositionSchema },
       { name: MarketTrade.name, schema: MarketTradeSchema },
-      { name: LpFeeLedger.name, schema: LpFeeLedgerSchema },
     ]),
     SocketModule,
     NotificationsModule,
-    LiquidityModule,
     AgentModule,
     CouponsModule,
     TmaModule,

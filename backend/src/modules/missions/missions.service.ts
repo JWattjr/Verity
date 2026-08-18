@@ -12,11 +12,6 @@ import { CreateMissionDto, UpdateMissionDto } from "./missions.dto"
 import { Vote, Market, MarketTrade } from "../markets/markets.model"
 import { Comment } from "../comments/comments.model"
 import { Like } from "../interactions/interactions.model"
-import {
-  LPPosition,
-  LiquidityPool,
-  LiquidityEvent,
-} from "../liquidity/liquidity.model"
 import { Post } from "../posts/posts.model"
 import { TwitterVerifyService } from "./twitter-verify.service"
 
@@ -34,12 +29,6 @@ export class MissionsService {
     private readonly marketTradeModel: Model<MarketTrade>,
     @InjectModel(Comment.name) private readonly commentModel: Model<Comment>,
     @InjectModel(Like.name) private readonly likeModel: Model<Like>,
-    @InjectModel(LPPosition.name)
-    private readonly lpPositionModel: Model<LPPosition>,
-    @InjectModel(LiquidityPool.name)
-    private readonly liquidityPoolModel: Model<LiquidityPool>,
-    @InjectModel(LiquidityEvent.name)
-    private readonly liquidityEventModel: Model<LiquidityEvent>,
     @InjectModel(Post.name) private readonly postModel: Model<Post>,
     private readonly twitterVerifyService: TwitterVerifyService,
   ) {}
@@ -258,27 +247,7 @@ export class MissionsService {
             break
           }
           case "has_added_liquidity": {
-            const query: any = {
-              userId: new Types.ObjectId(userId),
-              type: { $in: ["creator_deposit", "lp_deposit"] },
-              createdAt: { $gt: missionCreatedAt },
-            }
-            if (mission.marketId) {
-              const pool = await this.liquidityPoolModel.findOne({
-                marketId: mission.marketId,
-              })
-              if (pool) {
-                query.poolId = pool._id
-              } else {
-                throw new BadRequestException(
-                  "No liquidity pool exists for this market.",
-                )
-              }
-            }
-            const hasLP = await this.liquidityEventModel.findOne(query)
-            if (!hasLP) {
-              throw new BadRequestException("You must add liquidity first.")
-            }
+            // Legacy condition - automatically pass in pure Web2 arena
             break
           }
           case "has_created_market": {

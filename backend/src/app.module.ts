@@ -11,11 +11,8 @@ import { CommentsModule } from "./modules/comments/comments.module"
 import { InteractionsModule } from "./modules/interactions/interactions.module"
 import { PostsModule } from "./modules/posts/posts.module"
 import { MarketsModule } from "./modules/markets/markets.module"
-import { BlockchainModule } from "./modules/blockchain/blockchain.module"
-import { LiquidityModule } from "./modules/liquidity/liquidity.module"
 import { SocketModule } from "./modules/socket/socket.module"
 import { NotificationsModule } from "./modules/notifications/notifications.module"
-import { CircleWalletModule } from "./modules/circle-wallet/circle-wallet.module"
 import { PvpModule } from "./modules/pvp/pvp.module"
 import { CouponsModule } from "./modules/coupons/coupons.module"
 import { MissionsModule } from "./modules/missions/missions.module"
@@ -49,11 +46,8 @@ import { TmaModule } from "./modules/tma/tma.module"
     InteractionsModule,
     PostsModule,
     MarketsModule,
-    BlockchainModule,
-    LiquidityModule,
     SocketModule,
     NotificationsModule,
-    CircleWalletModule,
     PvpModule,
     CouponsModule,
     MissionsModule,

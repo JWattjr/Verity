@@ -17,9 +17,13 @@ export default function StandardAppShell({
   const pathname = usePathname()
   const isFullWidthPage =
     pathname === "/" ||
+    pathname === "/arena" ||
     pathname === "/markets" ||
-    pathname === "/portfolio" ||
+    pathname === "/leaderboard" ||
     pathname === "/missions" ||
+    pathname === "/profile" ||
+    Boolean(pathname?.startsWith("/profile/")) ||
+    pathname === "/portfolio" ||
     pathname === "/portfolio-preview" ||
     pathname === "/missions-preview" ||
     pathname === "/notifications-preview"

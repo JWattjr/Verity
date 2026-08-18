@@ -60,6 +60,17 @@
 
   --shadow-subtle: var(--shadow-subtle);
   --shadow-sm: var(--shadow-sm);
+
+  /* ── Corner radii — 2px across board, full for avatars/pills ── */
+  --radius-xs: 2px;
+  --radius-sm: 2px;
+  --radius-md: 2px;
+  --radius-lg: 2px;
+  --radius-xl: 2px;
+  --radius-2xl: 2px;
+  --radius-3xl: 2px;
+  --radius-4xl: 2px;
+  --radius: 2px;
 }
 
 /* ───────────────────────────────────────────────────────────────────────────
@@ -119,10 +130,10 @@
   --chart-3: oklch(0.439 0 0);
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
-  --radius-card: 10px;
-  --radius-card-lg: 24px;
-  --radius-pill: 32px;
+  --radius: 2px;
+  --radius-card: 2px;
+  --radius-card-lg: 2px;
+  --radius-pill: 9999px;
   --shadow-subtle: color(display-p3 0.94902 0.941176 0.929412) 0px 0px 0px 1px
     inset;
   --shadow-sm:
@@ -221,40 +232,40 @@ body {
   background: var(--background);
 }
 
-/* Verity's dark, editorial, squared-off visual system. */
+/* Verity's dark editorial, balanced visual system */
 :root,
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --warm-canvas: #0b0b0c;
-  --stone-surface: #161618;
-  --parchment-card: #111113;
-  --graphite: #aaa6a1;
-  --charcoal-primary: #f4f1ea;
-  --midnight: #f4f1ea;
-  --ash: #777478;
-  --fog: #343438;
-  --smoke: #57575c;
-  --white-surface: #111113;
-  --background: #0b0b0c;
-  --foreground: #f4f1ea;
-  --surface: #111113;
-  --surface-solid: #111113;
-  --surface-muted: #151517;
-  --surface-hover: #1a1a1d;
-  --border: #202023;
-  --border-strong: #343438;
-  --muted: #777478;
-  --inverse: #f4f1ea;
-  --inverse-text: #0b0b0c;
+  --warm-canvas: #090a0d;
+  --stone-surface: #111217;
+  --parchment-card: #0d0e12;
+  --graphite: #9ca3af;
+  --charcoal-primary: #f3f4f6;
+  --midnight: #f3f4f6;
+  --ash: #6b7280;
+  --fog: #374151;
+  --smoke: #4b5563;
+  --white-surface: #0d0e12;
+  --background: #090a0d;
+  --foreground: #f3f4f6;
+  --surface: #0d0e12;
+  --surface-solid: #0d0e12;
+  --surface-muted: #13151b;
+  --surface-hover: #181a21;
+  --border: #1a1c24;
+  --border-strong: #272a35;
+  --muted: #9ca3af;
+  --inverse: #f3f4f6;
+  --inverse-text: #090a0d;
   --panel-shadow: none;
   --panel-shadow-hover: none;
-  --radius: 0;
-  --radius-card: 0;
-  --radius-card-lg: 0;
-  --radius-pill: 0;
-  --color-ember-orange: #ff3b30;
-  --color-brand-accent: #ff3b30;
-  --color-coral-red: #ff3b30;
+  --radius: 2px;
+  --radius-card: 2px;
+  --radius-card-lg: 2px;
+  --radius-pill: 9999px;
+  --color-ember-orange: #ff473e;
+  --color-brand-accent: #ff473e;
+  --color-coral-red: #ff473e;
 }
 
 /* ───────────────────────────────────────────────────────────────────────────
@@ -281,7 +292,7 @@ body {
 }
 ::-webkit-scrollbar-thumb {
   background: var(--border-strong);
-  border-radius: 4px;
+  border-radius: 2px;
 }
 ::-webkit-scrollbar-thumb:hover {
   background: var(--muted);
@@ -308,7 +319,7 @@ body {
 .verity-card {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 0;
+  border-radius: 2px;
   box-shadow: none;
 }
 
@@ -326,8 +337,18 @@ body {
 }
 
 /* ───────────────────────────────────────────────────────────────────────────
-   VERITY UTILITIES
+   VERITY UTILITIES & GLOBAL RADIUS CONSTRAINT (2px across board, full for avatars/pills)
    ─────────────────────────────────────────────────────────────────────────── */
+[class*="rounded"]:not([class*="rounded-full"]) {
+  border-radius: 2px !important;
+}
+
+[class*="rounded-full"],
+.rounded-full,
+.verity-pill {
+  border-radius: 9999px !important;
+}
+
 .verity-pill {
   border-radius: var(--radius-pill);
 }
@@ -2791,7 +2812,6 @@ body {
   min-width: 144px;
   align-items: center;
   gap: 12px;
-  border-left: 4px solid #ff3b30;
   border-right: 1px solid #202023;
   padding: 0 22px 0 16px;
 }
@@ -2951,16 +2971,16 @@ body {
 }
 
 /* Pick'ems-first product experience */
-.pickems-page {
+.arena-page {
   width: 100%;
   padding: 34px 0 78px;
 }
 
-.pickems-hero {
+.arena-hero {
   margin-bottom: 24px;
 }
 
-.pickems-eyebrow {
+.arena-eyebrow {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -2973,13 +2993,13 @@ body {
   text-transform: uppercase;
 }
 
-.pickems-eyebrow span {
+.arena-eyebrow span {
   width: 7px;
   height: 7px;
   background: #ff3b30;
 }
 
-.pickems-hero h1 {
+.arena-hero h1 {
   margin: 0;
   color: #f4f1ea;
   font-family: var(--font-big-shoulders), var(--font-archivo), sans-serif;
@@ -2991,12 +3011,12 @@ body {
   text-transform: uppercase;
 }
 
-.pickems-hero h1 em {
+.arena-hero h1 em {
   color: #ff3b30;
   font-style: normal;
 }
 
-.pickems-hero-copy > p {
+.arena-hero-copy > p {
   max-width: 650px;
   margin: 18px 0 0;
   color: #aaa6a1;
@@ -3004,18 +3024,18 @@ body {
   line-height: 1.65;
 }
 
-.pickems-layout {
+.arena-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 300px;
+  grid-template-columns: minmax(0, 1fr);
   gap: 24px;
   align-items: start;
 }
 
-.pickems-slate {
+.arena-slate {
   min-width: 0;
 }
 
-.pickems-tabs-row {
+.arena-tabs-row {
   display: flex;
   min-height: 50px;
   align-items: end;
@@ -3023,13 +3043,13 @@ body {
   border-bottom: 1px solid #202023;
 }
 
-.pickems-tabs {
+.arena-tabs {
   display: flex;
   height: 50px;
   gap: 28px;
 }
 
-.pickems-tabs button {
+.arena-tabs button {
   position: relative;
   border: 0;
   background: transparent;
@@ -3042,7 +3062,7 @@ body {
   cursor: pointer;
 }
 
-.pickems-tabs button::after {
+.arena-tabs button::after {
   position: absolute;
   right: 0;
   bottom: -1px;
@@ -3052,15 +3072,15 @@ body {
   content: "";
 }
 
-.pickems-tabs button.is-active {
+.arena-tabs button.is-active {
   color: #f4f1ea;
 }
 
-.pickems-tabs button.is-active::after {
+.arena-tabs button.is-active::after {
   background: #ff3b30;
 }
 
-.pickems-tabs sup {
+.arena-tabs sup {
   margin-left: 4px;
   color: #777478;
   font-family: var(--font-martian-mono), monospace;
@@ -3068,7 +3088,7 @@ body {
   vertical-align: super;
 }
 
-.pickems-tabs-row > span {
+.arena-tabs-row > span {
   padding-bottom: 17px;
   color: #777478;
   font-family: var(--font-martian-mono), monospace;
@@ -3077,23 +3097,23 @@ body {
   letter-spacing: 0.16em;
 }
 
-.pickems-match-list {
+.arena-match-list {
   display: flex;
   flex-direction: column;
   gap: 16px;
   padding-top: 16px;
 }
 
-.pickems-match-card {
+.arena-match-card {
   border: 1px solid #202023;
   background: #0e0e10;
 }
 
-.pickems-match-card.has-pick {
+.arena-match-card.has-pick {
   border-color: #64302d;
 }
 
-.pickems-match-meta {
+.arena-match-meta {
   display: flex;
   min-height: 46px;
   align-items: center;
@@ -3108,7 +3128,7 @@ body {
   text-transform: uppercase;
 }
 
-.pickems-match-meta strong {
+.arena-match-meta strong {
   margin-left: auto;
   border: 1px solid #29292c;
   padding: 3px 7px;
@@ -3116,12 +3136,12 @@ body {
   font-size: 8px;
 }
 
-.pickems-match-meta strong.is-open {
+.arena-match-meta strong.is-open {
   border-color: #51302e;
   color: #ff3b30;
 }
 
-.pickems-versus {
+.arena-versus {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 54px minmax(0, 1fr);
   align-items: center;
@@ -3129,7 +3149,7 @@ body {
   padding: 14px 16px 12px;
 }
 
-.pickems-versus > :is(button, .pickems-team) {
+.arena-versus > :is(button, .arena-team) {
   display: grid;
   min-height: 122px;
   place-items: center;
@@ -3143,13 +3163,13 @@ body {
     background 150ms ease;
 }
 
-.pickems-versus > button:hover:not(:disabled),
-.pickems-versus > button[aria-pressed="true"] {
+.arena-versus > button:hover:not(:disabled),
+.arena-versus > button[aria-pressed="true"] {
   border-color: #ff3b30;
   background: #1b1111;
 }
 
-.pickems-versus > :is(button, .pickems-team) b {
+.arena-versus > :is(button, .arena-team) b {
   display: grid;
   width: 36px;
   height: 36px;
@@ -3160,7 +3180,7 @@ body {
   font-size: 10px;
 }
 
-.pickems-versus > :is(button, .pickems-team) span {
+.arena-versus > :is(button, .arena-team) span {
   margin-top: 7px;
   font-family: var(--font-big-shoulders), sans-serif;
   font-size: 26px;
@@ -3170,7 +3190,7 @@ body {
   text-transform: uppercase;
 }
 
-.pickems-versus > :is(button, .pickems-team) small {
+.arena-versus > :is(button, .arena-team) small {
   margin-top: 7px;
   color: #777478;
   font-family: var(--font-martian-mono), monospace;
@@ -3179,7 +3199,7 @@ body {
   letter-spacing: 0.18em;
 }
 
-.pickems-versus > i {
+.arena-versus > i {
   color: #5e5c5e;
   font-family: var(--font-big-shoulders), sans-serif;
   font-size: 18px;
@@ -3188,7 +3208,7 @@ body {
   text-align: center;
 }
 
-.pickems-score-row {
+.arena-score-row {
   display: flex;
   min-height: 58px;
   align-items: center;
@@ -3196,7 +3216,7 @@ body {
   padding: 0 16px 14px;
 }
 
-.pickems-score-row > span {
+.arena-score-row > span {
   color: #777478;
   font-family: var(--font-martian-mono), monospace;
   font-size: 8px;
@@ -3205,12 +3225,12 @@ body {
   text-transform: uppercase;
 }
 
-.pickems-score-row > div {
+.arena-score-row > div {
   display: flex;
   gap: 8px;
 }
 
-.pickems-score-row button {
+.arena-score-row button {
   display: flex;
   min-width: 116px;
   height: 38px;
@@ -3222,22 +3242,22 @@ body {
   color: #777478;
   font-family: var(--font-big-shoulders), sans-serif;
   font-size: 16px;
-  font-weight: 800;
+  font-weight: 850;
   cursor: pointer;
 }
 
-.pickems-score-row button:disabled {
+.arena-score-row button:disabled {
   opacity: 0.35;
   cursor: not-allowed;
 }
 
-.pickems-score-row button[aria-pressed="true"] {
+.arena-score-row button[aria-pressed="true"] {
   border-color: #ff3b30;
   background: #ff3b30;
   color: #fff;
 }
 
-.pickems-mobile-call {
+.arena-mobile-call {
   display: none;
   width: 100%;
   border: 0;
@@ -3245,12 +3265,12 @@ body {
   cursor: pointer;
 }
 
-.pickems-mobile-call:disabled {
+.arena-mobile-call:disabled {
   cursor: default;
   opacity: 0.65;
 }
 
-.pickems-empty-state {
+.arena-empty-state {
   display: grid;
   min-height: 180px;
   place-items: center;
@@ -3265,7 +3285,7 @@ body {
   text-transform: uppercase;
 }
 
-.pickems-submit-bar {
+.arena-submit-bar {
   display: flex;
   min-height: 84px;
   align-items: center;
@@ -3277,12 +3297,12 @@ body {
   background: #1a0f0f;
 }
 
-.pickems-submit-bar > div {
+.arena-submit-bar > div {
   display: flex;
   flex-direction: column;
 }
 
-.pickems-submit-bar strong {
+.arena-submit-bar strong {
   color: #f4f1ea;
   font-family: var(--font-big-shoulders), sans-serif;
   font-size: 24px;
@@ -3290,7 +3310,7 @@ body {
   line-height: 1;
 }
 
-.pickems-submit-bar span {
+.arena-submit-bar span {
   margin-top: 7px;
   color: #777478;
   font-family: var(--font-martian-mono), monospace;
@@ -3299,7 +3319,7 @@ body {
   letter-spacing: 0.13em;
 }
 
-.pickems-submit-bar button {
+.arena-submit-bar button {
   display: flex;
   min-height: 48px;
   align-items: center;
@@ -3314,18 +3334,18 @@ body {
   cursor: pointer;
 }
 
-.pickems-submit-bar button:disabled {
+.arena-submit-bar button:disabled {
   opacity: 0.7;
 }
 
-.pickems-submit-bar svg,
-.pickems-week-link svg,
-.pickems-mobile-call svg {
+.arena-submit-bar svg,
+.arena-week-link svg,
+.arena-mobile-call svg {
   width: 14px;
   height: 14px;
 }
 
-.pickems-week-link {
+.arena-week-link {
   display: flex;
   width: 100%;
   align-items: center;
@@ -3343,7 +3363,7 @@ body {
   cursor: pointer;
 }
 
-.pickems-week-link strong {
+.arena-week-link strong {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -3354,30 +3374,30 @@ body {
   letter-spacing: 0;
 }
 
-.pickems-rail {
+.arena-rail {
   display: flex;
   flex-direction: column;
   gap: 16px;
 }
 
-.pickems-desktop-stats,
-.pickems-mobile-stats {
+.arena-desktop-stats,
+.arena-mobile-stats {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   border-top: 1px solid #202023;
   border-left: 1px solid #202023;
 }
 
-.pickems-desktop-stats > div,
-.pickems-mobile-stats > div {
+.arena-desktop-stats > div,
+.arena-mobile-stats > div {
   min-height: 74px;
   padding: 15px 18px;
   border-right: 1px solid #202023;
   border-bottom: 1px solid #202023;
 }
 
-.pickems-desktop-stats span,
-.pickems-mobile-stats span {
+.arena-desktop-stats span,
+.arena-mobile-stats span {
   display: block;
   color: #777478;
   font-family: var(--font-martian-mono), monospace;
@@ -3387,8 +3407,8 @@ body {
   text-transform: uppercase;
 }
 
-.pickems-desktop-stats strong,
-.pickems-mobile-stats strong {
+.arena-desktop-stats strong,
+.arena-mobile-stats strong {
   display: block;
   margin-top: 8px;
   color: #f4f1ea;
@@ -3398,26 +3418,26 @@ body {
   line-height: 1;
 }
 
-.pickems-mobile-stats {
+.arena-mobile-stats {
   display: none;
 }
 
-.pickems-info-card,
-.pickems-more-card {
+.arena-info-card,
+.arena-more-card {
   border: 1px solid #202023;
   background: #121214;
 }
 
-.pickems-info-card h2,
-.pickems-info-heading {
+.arena-info-card h2,
+.arena-info-heading {
   min-height: 43px;
   margin: 0;
   padding: 0 15px;
   border-bottom: 1px solid #202023;
 }
 
-.pickems-info-card h2,
-.pickems-info-heading h2 {
+.arena-info-card h2,
+.arena-info-heading h2 {
   display: flex;
   align-items: center;
   margin: 0;
@@ -3428,11 +3448,11 @@ body {
   letter-spacing: 0.15em;
 }
 
-.pickems-info-card dl {
+.arena-info-card dl {
   margin: 0;
 }
 
-.pickems-info-card dl > div {
+.arena-info-card dl > div {
   display: flex;
   min-height: 52px;
   align-items: center;
@@ -3441,39 +3461,39 @@ body {
   border-bottom: 1px solid #202023;
 }
 
-.pickems-info-card dl > div:last-child {
+.arena-info-card dl > div:last-child {
   border-bottom: 0;
 }
 
-.pickems-info-card dt {
+.arena-info-card dt {
   color: #aaa6a1;
   font-size: 12px;
   font-weight: 700;
 }
 
-.pickems-info-card dd {
+.arena-info-card dd {
   color: #f4f1ea;
   font-family: var(--font-big-shoulders), sans-serif;
   font-size: 20px;
   font-weight: 900;
 }
 
-.pickems-info-card dd.is-accent {
+.arena-info-card dd.is-accent {
   color: #ff3b30;
 }
 
-.pickems-info-heading {
+.arena-info-heading {
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
 
-.pickems-info-heading h2 {
+.arena-info-heading h2 {
   padding: 0;
   border: 0;
 }
 
-.pickems-info-heading button {
+.arena-info-heading button {
   border: 0;
   background: transparent;
   color: #ff3b30;
@@ -3482,13 +3502,13 @@ body {
   cursor: pointer;
 }
 
-.pickems-leaders ol {
+.arena-leaders ol {
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-.pickems-leaders li {
+.arena-leaders li {
   display: grid;
   grid-template-columns: 24px 1fr auto;
   min-height: 44px;
@@ -3498,47 +3518,47 @@ body {
   font-size: 11px;
 }
 
-.pickems-leaders li:last-child {
+.arena-leaders li:last-child {
   border-bottom: 0;
 }
 
-.pickems-leaders li span {
+.arena-leaders li span {
   color: #ff3b30;
   font-family: var(--font-martian-mono), monospace;
   font-size: 9px;
 }
 
-.pickems-leaders li b {
+.arena-leaders li b {
   color: #aaa6a1;
   font-weight: 700;
 }
 
-.pickems-leaders li strong {
+.arena-leaders li strong {
   color: #f4f1ea;
   font-family: var(--font-martian-mono), monospace;
   font-size: 9px;
 }
 
-.pickems-more-card {
+.arena-more-card {
   display: flex;
   gap: 12px;
   padding: 16px;
 }
 
-.pickems-more-card svg {
+.arena-more-card svg {
   width: 18px;
   height: 18px;
   color: #ff3b30;
 }
 
-.pickems-more-card strong {
+.arena-more-card strong {
   color: #f4f1ea;
   font-family: var(--font-martian-mono), monospace;
   font-size: 9px;
   letter-spacing: 0.13em;
 }
 
-.pickems-more-card p {
+.arena-more-card p {
   margin: 6px 0 0;
   color: #777478;
   font-size: 11px;
@@ -3681,17 +3701,17 @@ body {
     display: none;
   }
 
-  .pickems-page {
+  .arena-page {
     padding: 0 0 40px;
   }
 
-  .pickems-hero {
+  .arena-hero {
     margin: 0 -16px;
     padding: 13px 16px 12px;
     border-bottom: 1px solid #202023;
   }
 
-  .pickems-eyebrow {
+  .arena-eyebrow {
     justify-content: space-between;
     margin: 0;
     font-family: var(--font-big-shoulders), sans-serif;
@@ -3699,78 +3719,78 @@ body {
     letter-spacing: 0.06em;
   }
 
-  .pickems-eyebrow span {
+  .arena-eyebrow span {
     display: none;
   }
 
-  .pickems-hero-copy {
+  .arena-hero-copy {
     display: none;
   }
 
-  .pickems-mobile-stats {
+  .arena-mobile-stats {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
     margin: 0 -16px;
     border-left: 0;
   }
 
-  .pickems-mobile-stats > div {
+  .arena-mobile-stats > div {
     min-width: 0;
     min-height: 68px;
     padding: 13px 15px;
   }
 
-  .pickems-mobile-stats strong {
+  .arena-mobile-stats strong {
     font-size: 24px;
   }
 
-  .pickems-layout {
+  .arena-layout {
     display: block;
     margin: 0 -1px;
   }
 
-  .pickems-tabs-row {
+  .arena-tabs-row {
     flex-wrap: wrap;
     margin: 0 -15px;
     padding: 0 16px;
   }
 
-  .pickems-tabs {
+  .arena-tabs {
     gap: 24px;
   }
 
-  .pickems-tabs button {
+  .arena-tabs button {
     font-size: 15px;
   }
 
-  .pickems-tabs-row > span {
+  .arena-tabs-row > span {
     flex: 0 0 100%;
     padding: 12px 0 0;
     text-align: right;
   }
 
-  .pickems-match-list {
+  .arena-match-list {
     gap: 12px;
     padding-top: 14px;
   }
 
-  .pickems-match-meta {
+  .arena-match-meta {
     min-height: 39px;
     padding: 0 11px;
     font-size: 8px;
   }
 
-  .pickems-match-meta span:nth-child(2) {
+  .arena-match-meta span:nth-child(2) {
     display: none;
   }
 
-  .pickems-versus {
+  .arena-versus {
     grid-template-columns: minmax(0, 1fr) 32px minmax(0, 1fr);
     gap: 4px;
     padding: 13px 11px;
   }
 
-  .pickems-versus > :is(button, .pickems-team) {
+  .arena-versus > :is(button, .arena-team) {
     display: flex;
     min-height: 58px;
     align-items: center;
@@ -3780,14 +3800,14 @@ body {
     text-align: left;
   }
 
-  .pickems-versus > :is(button, .pickems-team) b {
+  .arena-versus > :is(button, .arena-team) b {
     flex: 0 0 32px;
     width: 32px;
     height: 32px;
     font-size: 9px;
   }
 
-  .pickems-versus > :is(button, .pickems-team) span {
+  .arena-versus > :is(button, .arena-team) span {
     margin: 0;
     overflow: hidden;
     font-size: 18px;
@@ -3795,31 +3815,31 @@ body {
     white-space: nowrap;
   }
 
-  .pickems-versus > :is(button, .pickems-team) small {
+  .arena-versus > :is(button, .arena-team) small {
     display: none;
   }
 
-  .pickems-score-row {
+  .arena-score-row {
     display: none;
     min-height: 50px;
     padding: 0 11px 12px;
   }
 
-  .pickems-score-row.is-open {
+  .arena-score-row.is-open {
     display: flex;
   }
 
-  .pickems-score-row > span {
+  .arena-score-row > span {
     max-width: 130px;
     line-height: 1.4;
   }
 
-  .pickems-score-row button {
+  .arena-score-row button {
     min-width: 40px;
     height: 34px;
   }
 
-  .pickems-mobile-call {
+  .arena-mobile-call {
     display: flex;
     min-height: 43px;
     align-items: center;
@@ -3834,7 +3854,7 @@ body {
     text-transform: uppercase;
   }
 
-  .pickems-mobile-call strong {
+  .arena-mobile-call strong {
     display: flex;
     align-items: center;
     gap: 3px;
@@ -3843,41 +3863,41 @@ body {
     font-size: 15px;
   }
 
-  .pickems-submit-bar {
+  .arena-submit-bar {
     display: block;
     padding: 17px 18px;
   }
 
-  .pickems-submit-bar strong {
+  .arena-submit-bar strong {
     font-size: 25px;
   }
 
-  .pickems-submit-bar span {
+  .arena-submit-bar span {
     max-width: 280px;
     line-height: 1.5;
   }
 
-  .pickems-submit-bar button {
+  .arena-submit-bar button {
     width: auto;
     margin-top: 16px;
     justify-content: center;
   }
 
-  .pickems-week-link {
+  .arena-week-link {
     display: block;
     padding: 17px 15px;
     line-height: 1.5;
   }
 
-  .pickems-week-link strong {
+  .arena-week-link strong {
     margin-top: 8px;
   }
 
-  .pickems-rail {
+  .arena-rail {
     margin-top: 24px;
   }
 
-  .pickems-desktop-stats {
+  .arena-desktop-stats {
     display: none;
   }
 }

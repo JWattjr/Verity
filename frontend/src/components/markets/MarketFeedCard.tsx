@@ -44,7 +44,7 @@ export default function MarketFeedCard({
 
   if (isPvp) {
     return (
-      <article className="group relative flex min-h-[238px] flex-col border-b border-r border-border bg-surface transition-colors hover:bg-surface-muted">
+      <article className="group relative flex min-h-[238px] flex-col rounded-[6px] border border-border bg-surface transition-colors hover:bg-surface-muted overflow-hidden">
         <div className="flex items-center justify-between border-b border-border font-mono text-[9px] font-bold uppercase tracking-[0.16em]">
           <span className="flex items-center gap-2 bg-accent px-3 py-2 text-white">
             <Swords className="h-3.5 w-3.5" />
@@ -98,7 +98,7 @@ export default function MarketFeedCard({
     Number(market.usdc_yes_amount || 0) + Number(market.usdc_no_amount || 0)
 
   return (
-    <article className="group flex min-h-[300px] flex-col border-b border-r border-border bg-surface transition-colors hover:bg-surface-muted">
+    <article className="group flex min-h-[300px] flex-col rounded-[6px] border border-border bg-surface transition-colors hover:bg-surface-muted overflow-hidden">
       <div className="flex min-h-9 items-stretch justify-between border-b border-border font-mono text-[9px] font-bold uppercase tracking-[0.14em]">
         <span className="flex items-center border-r border-border px-3 text-charcoal-primary">
           {market.category || "General"}

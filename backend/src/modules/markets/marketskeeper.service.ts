@@ -7,13 +7,9 @@ import {
 import { InjectModel } from "@nestjs/mongoose"
 import { Model } from "mongoose"
 import { Market, MarketDocument } from "./markets.model"
-import { User, UserDocument } from "../users/users.model"
-import { BlockchainService } from "../blockchain/blockchain.service"
 import { AgentService } from "../agent/agent.service"
 import { SocketGateway } from "../socket/socket.gateway"
-import { ConfigService } from "@nestjs/config"
 import { PvpService } from "../pvp/pvp.service"
-import { LiquidityService } from "../liquidity/liquidity.service"
 
 @Injectable()
 export class MarketsKeeperService implements OnModuleInit, OnModuleDestroy {
@@ -23,17 +19,13 @@ export class MarketsKeeperService implements OnModuleInit, OnModuleDestroy {
 
   constructor(
     @InjectModel(Market.name) private marketModel: Model<MarketDocument>,
-    @InjectModel(User.name) private userModel: Model<UserDocument>,
-    private readonly blockchainService: BlockchainService,
     private readonly agentService: AgentService,
-    private readonly configService: ConfigService,
     private readonly socketGateway: SocketGateway,
     private readonly pvpService: PvpService,
-    private readonly liquidityService: LiquidityService,
   ) {}
 
   onModuleInit() {
-    this.logger.log("Initializing Market Resolution Keeper...")
+    this.logger.log("Initializing EPL PvP Market Resolution Keeper...")
     // Run the keeper loop every 30 seconds
     this.intervalId = setInterval(() => this.processExpiredMarkets(), 30000)
   }
@@ -51,9 +43,7 @@ export class MarketsKeeperService implements OnModuleInit, OnModuleDestroy {
     this.isProcessing = true
 
     try {
-      await this.liquidityService.voidExpiredPools()
-      await this.promoteQualifiedMarkets()
-      await this.processPythMarkets()
+      await this.processLockTimes()
       await this.processSubjectiveMarkets()
     } catch (error) {
       this.logger.error(`Error in keeper loop: ${error.message}`)
@@ -62,559 +52,171 @@ export class MarketsKeeperService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  async promoteQualifiedMarkets() {
-    const qualifiedMarkets = await this.marketModel.find({
-      status: "qualified",
-    })
-    for (const market of qualifiedMarkets) {
-      try {
-        const marketIdStr = market._id.toString()
-        const escrowBalanceBig =
-          await this.blockchainService.readEscrowBalance(marketIdStr)
-        const escrowBalance = Number(escrowBalanceBig) / 1e6
-
-        if (escrowBalance >= market.minimumPoolBalance) {
-          this.logger.log(
-            `Qualified market ${marketIdStr} has reached ${escrowBalance} USDC LP. Automatically promoting to on-chain trading...`,
-          )
-
-          const creator = await this.userModel.findById(market.authorId)
-          if (!creator || !creator.walletAddress) {
-            this.logger.error(
-              `Creator for market ${marketIdStr} has no linked wallet.`,
-            )
-            continue
-          }
-
-          const now = new Date()
-          const sevenDaysFromNow = new Date(
-            now.getTime() + 7 * 24 * 60 * 60 * 1000,
-          )
-          const fundingDeadline =
-            market.deadline < sevenDaysFromNow
-              ? market.deadline
-              : sevenDaysFromNow
-
-          const deadlineUnix = Math.floor(market.deadline.getTime() / 1000)
-          const fundingDeadlineUnix = Math.floor(
-            fundingDeadline.getTime() / 1000,
-          )
-
-          if (
-            market.isPythMarket &&
-            market.priceFeedId &&
-            market.targetPrice != null
-          ) {
-            await this.blockchainService.registerPythMarket(
-              marketIdStr,
-              creator.walletAddress,
-              deadlineUnix,
-              fundingDeadlineUnix,
-              market.priceFeedId,
-              market.targetPrice,
-              market.resolveAbove ?? true,
-            )
-          } else {
-            this.logger.log(
-              `[Keeper] Registering market ${marketIdStr} on-chain with outcomeCount=${market.outcomeCount}`,
-            )
-            await this.blockchainService.registerMarket(
-              marketIdStr,
-              creator.walletAddress,
-              deadlineUnix,
-              fundingDeadlineUnix,
-              market.outcomeCount,
-            )
-          }
-
-          // Since sufficient escrow balance was already present, the contract automatically deployed the pool!
-          // So we transition status to tradable directly
-          market.status = "tradable"
-          market.fundingDeadline = fundingDeadline
-          await market.save()
-
-          this.logger.log(
-            `Market ${marketIdStr} successfully promoted to tradable.`,
-          )
-
-          // Emit Socket events to update UI in real-time
-          this.socketGateway.broadcastToRoom("feed", "feed-updated", {})
-          this.socketGateway.broadcastToRoom(
-            `market:${marketIdStr}`,
-            "market-updated",
-            {
-              marketId: marketIdStr,
-            },
-          )
-          this.socketGateway.broadcastToRoom(
-            `post:${market.postId}`,
-            "post-updated",
-            { postId: market.postId.toString() },
-          )
-        }
-      } catch (error) {
-        this.logger.error(
-          `Failed to promote market ${market._id}: ${error.message}`,
-        )
-      }
-    }
-  }
-
-  async processPythMarkets() {
-    const delayCutoff = new Date(Date.now() - 30000) // 30-second delay for Pyth VAA publishing indexer
-    // Find unresolved Pyth markets that have passed their deadline plus the delay cutoff
-    const expiredMarkets = await this.marketModel.find({
-      isPythMarket: true,
+  /**
+   * Automatically locks PvP events that have passed their lockTime (kickoff)
+   * and matches any remaining queued tickets with bot profiles.
+   */
+  async processLockTimes() {
+    const now = new Date()
+    const activeParents = await this.marketModel.find({
+      category: "pvp",
+      marketType: "parent",
       status: "tradable",
-      deadline: { $lte: delayCutoff },
+      lockTime: { $lte: now },
     })
 
-    if (expiredMarkets.length > 0) {
-      let blockTimestamp: number | null = null
+    for (const parent of activeParents) {
       try {
-        blockTimestamp = await this.blockchainService.getCurrentBlockTimestamp()
-      } catch (err) {
-        this.logger.warn(
-          `Could not fetch block timestamp for Pyth resolution checks: ${err.message}`,
+        const parentIdStr = parent._id.toString()
+        this.logger.log(
+          `LockTime reached for EPL match: ${parent.question} (${parentIdStr}). Locking and pairing queued tickets...`,
         )
-      }
 
-      this.logger.log(
-        `Found ${expiredMarkets.length} expired Pyth markets to resolve.`,
-      )
+        // Match any tickets still queued with bots
+        await this.pvpService.matchRemainingTicketsWithBot(parentIdStr)
 
-      for (const market of expiredMarkets) {
-        if (blockTimestamp !== null) {
-          const deadlineUnix = Math.floor(market.deadline.getTime() / 1000)
-          if (blockTimestamp <= deadlineUnix) {
-            this.logger.log(
-              `Skipping Pyth market ${market._id} because on-chain block.timestamp (${blockTimestamp}) has not yet passed market deadline (${deadlineUnix}).`,
-            )
-            continue
-          }
-        }
+        // Mark parent as closed/locked
+        parent.status = "closed"
+        await parent.save()
 
-        try {
-          await this.resolveMarket(market)
-        } catch (error) {
-          this.logger.error(
-            `Failed to auto-resolve market ${market._id}: ${error.message}`,
-          )
-        }
+        // Also update child markets
+        await this.marketModel.updateMany(
+          { parentMarketId: parent._id, status: "tradable" },
+          { $set: { status: "closed" } },
+        )
+
+        this.socketGateway.broadcastToRoom("feed", "feed-updated", {})
+        this.socketGateway.broadcastToRoom(
+          `market:${parentIdStr}`,
+          "market-updated",
+          { marketId: parentIdStr },
+        )
+      } catch (err: any) {
+        this.logger.error(
+          `Error locking EPL match ${parent._id}: ${err.message}`,
+        )
       }
     }
   }
 
+  /**
+   * Resolves expired EPL proposition markets using AI agent search.
+   */
   async processSubjectiveMarkets() {
     const now = new Date()
-    // Find unresolved non-Pyth markets that have passed their deadline
-    // Exclude parent markets (PvP parents are DB-only containers, not registered on-chain)
+    // Find unresolved child markets or single markets that have passed their deadline
     const expiredMarkets = await this.marketModel.find({
-      isPythMarket: { $ne: true },
-      marketType: { $ne: "parent" },
-      status: { $in: ["tradable", "resolving", "closed"] },
+      status: { $in: ["tradable", "closed", "resolving"] },
       deadline: { $lte: now },
     })
 
-    if (expiredMarkets.length > 0) {
-      let blockTimestamp: number | null = null
-      try {
-        blockTimestamp = await this.blockchainService.getCurrentBlockTimestamp()
-      } catch (err) {
-        this.logger.warn(
-          `Could not fetch block timestamp for subjective resolution checks: ${err.message}`,
-        )
-      }
-
-      this.logger.log(
-        `Found ${expiredMarkets.length} expired subjective markets for AI resolution.`,
-      )
-
-      for (const market of expiredMarkets) {
-        try {
-          const marketIdStr = market._id.toString()
-          const proposal =
-            await this.blockchainService.readProposal(marketIdStr)
-
-          if (
-            proposal.proposer === "0x0000000000000000000000000000000000000000"
-          ) {
-            if (blockTimestamp !== null) {
-              const deadlineUnix = Math.floor(market.deadline.getTime() / 1000)
-              if (blockTimestamp <= deadlineUnix) {
-                this.logger.log(
-                  `Skipping proposing resolution for market ${marketIdStr} because on-chain block.timestamp (${blockTimestamp}) has not yet passed market deadline (${deadlineUnix}).`,
-                )
-                continue
-              }
-            }
-
-            // No proposal yet -> AI agent investigates and proposes one
-            this.logger.log(
-              `No active proposal found for market ${marketIdStr}. Invoking AI Agent...`,
-            )
-
-            const result = await this.agentService.resolveMarket(
-              market.question,
-              market.yesCondition,
-              market.noCondition,
-              market.resolutionSource,
-              market.category,
-              market.outcomes,
-              market.deadline,
-            )
-
-            if (result.outcome === "INVALID") {
-              this.logger.warn(
-                `AI Agent resolved market ${marketIdStr} as INVALID. Skipping automated proposal (requires manual intervention).`,
-              )
-              continue
-            }
-
-            let proposedIndex: number
-            if (
-              market.outcomeCount &&
-              market.outcomeCount >= 2 &&
-              market.outcomes &&
-              market.outcomes.length > 0
-            ) {
-              const idx = market.outcomes.findIndex(
-                (o) =>
-                  o.toLowerCase().trim() ===
-                  result.outcome.toLowerCase().trim(),
-              )
-              if (idx === -1) {
-                // If it's a binary market (outcomeCount === 2) and LLM returned YES/NO instead of the string, try mapping YES/NO
-                if (market.outcomeCount === 2) {
-                  if (result.outcome === "YES") {
-                    proposedIndex = 0
-                  } else if (result.outcome === "NO") {
-                    proposedIndex = 1
-                  } else {
-                    this.logger.warn(
-                      `AI returned invalid outcome for binary market: ${result.outcome}. Skipping proposal.`,
-                    )
-                    continue
-                  }
-                } else {
-                  this.logger.warn(
-                    `AI returned invalid outcome name: ${result.outcome}. Skipping proposal.`,
-                  )
-                  continue
-                }
-              } else {
-                proposedIndex = idx
-              }
-            } else {
-              if (result.outcome === "YES") {
-                proposedIndex = 0
-              } else if (result.outcome === "NO") {
-                proposedIndex = 1
-              } else {
-                this.logger.warn(
-                  `AI returned invalid binary outcome: ${result.outcome}. Skipping proposal.`,
-                )
-                continue
-              }
-            }
-
-            this.logger.log(
-              `AI Agent proposed outcome: ${result.outcome} (Index: ${proposedIndex}). Submitting proposeResolution transaction...`,
-            )
-
-            const txHash = await this.blockchainService.proposeResolution(
-              marketIdStr,
-              proposedIndex,
-            )
-            await this.blockchainService.getTransactionReceipt(
-              txHash as `0x${string}`,
-            )
-
-            // Save proposal info to DB
-            market.proposalReasoning = result.reasoning
-            market.proposalCitations = result.citations
-            market.proposedOutcome = proposedIndex === 0
-            market.proposedOutcomeIndex = proposedIndex
-            market.proposalProposer = "0xKeeper" // Mark keeper as proposer
-            market.proposedAt = new Date()
-            market.status = "resolving"
-            await market.save()
-
-            this.logger.log(
-              `Successfully proposed resolution for market ${marketIdStr} (Outcome: ${result.outcome}, Index: ${proposedIndex})`,
-            )
-
-            // Emit Socket events
-            this.socketGateway.broadcastToRoom("feed", "feed-updated", {})
-            this.socketGateway.broadcastToRoom(
-              `market:${marketIdStr}`,
-              "market-updated",
-              {
-                marketId: marketIdStr,
-              },
-            )
-          } else {
-            // Proposal already exists -> check if disputed or finalized
-            if (proposal.finalized) {
-              // Read on-chain state to get ground truth winning index
-              const onChainState =
-                await this.blockchainService.readOnChainMarketState(marketIdStr)
-              const winIdx = Number(onChainState.winningOutcomeIndex)
-
-              // Check if we need to sync: either DB is not resolved, OR winning index differs
-              const needsSync =
-                market.status !== "resolved" ||
-                market.winningOutcomeIndex !== winIdx
-
-              if (needsSync) {
-                if (market.status === "resolved") {
-                  this.logger.warn(
-                    `Discrepancy detected for market ${marketIdStr}! DB has index ${market.winningOutcomeIndex}, but contract ground truth is ${winIdx}. Overriding DB to sync with contract...`,
-                  )
-                }
-
-                market.status = "resolved"
-                market.winningOutcomeIndex = winIdx
-                if (market.outcomeCount && market.outcomeCount > 2) {
-                  market.resolvedOutcome = market.outcomes[winIdx] as any
-                } else {
-                  market.resolvedOutcome = (winIdx === 0 ? "YES" : "NO") as any
-                }
-                market.resolvedByAdmin = "0xKeeper"
-                await market.save()
-                await this.pvpService.resolvePvpMatchesForMarket(
-                  marketIdStr,
-                  market.resolvedOutcome as string,
-                )
-                this.logger.log(
-                  `Synced finalized market ${marketIdStr} in database with on-chain ground truth (winning index: ${winIdx}).`,
-                )
-
-                // Emit Socket events
-                this.socketGateway.broadcastToRoom("feed", "feed-updated", {})
-                this.socketGateway.broadcastToRoom(
-                  `market:${marketIdStr}`,
-                  "market-updated",
-                  {
-                    marketId: marketIdStr,
-                  },
-                )
-              }
-            } else if (proposal.disputed) {
-              // Disputed but not finalized -> mark as disputed in DB
-              if (!market.disputed) {
-                market.disputed = true
-                market.proposalDisputer = proposal.disputer
-                market.status = "resolving"
-                await market.save()
-                this.logger.log(
-                  `Market ${marketIdStr} flagged as DISPUTED in database.`,
-                )
-
-                // Emit Socket events
-                this.socketGateway.broadcastToRoom("feed", "feed-updated", {})
-                this.socketGateway.broadcastToRoom(
-                  `market:${marketIdStr}`,
-                  "market-updated",
-                  {
-                    marketId: marketIdStr,
-                  },
-                )
-              }
-            } else {
-              // Active proposal, undisputed -> check if dispute window has expired
-              let disputeWindowExpired = false
-              const disputeWindowSeconds = Number(
-                this.configService.get<number>("DISPUTE_WINDOW_SECONDS") || 120,
-              )
-
-              if (blockTimestamp !== null) {
-                disputeWindowExpired =
-                  blockTimestamp >
-                  Number(proposal.proposalTime) + disputeWindowSeconds
-              } else {
-                const elapsed =
-                  Math.floor(Date.now() / 1000) - Number(proposal.proposalTime)
-                disputeWindowExpired = elapsed > disputeWindowSeconds
-              }
-
-              if (disputeWindowExpired) {
-                this.logger.log(
-                  `Dispute window for market ${marketIdStr} has elapsed. Finalizing resolution...`,
-                )
-                const txHash =
-                  await this.blockchainService.finalizeResolution(marketIdStr)
-                await this.blockchainService.getTransactionReceipt(
-                  txHash as `0x${string}`,
-                )
-
-                market.status = "resolved"
-                const winIdx = proposal.proposedOutcomeIndex
-                market.winningOutcomeIndex = winIdx
-                if (market.outcomeCount && market.outcomeCount > 2) {
-                  market.resolvedOutcome = market.outcomes[winIdx] as any
-                } else {
-                  market.resolvedOutcome = (winIdx === 0 ? "YES" : "NO") as any
-                }
-                market.resolvedByAdmin = "0xKeeper"
-                await market.save()
-                await this.pvpService.resolvePvpMatchesForMarket(
-                  marketIdStr,
-                  market.resolvedOutcome as string,
-                )
-
-                this.logger.log(
-                  `Successfully finalized resolution for market ${marketIdStr}.`,
-                )
-
-                // Emit Socket events
-                this.socketGateway.broadcastToRoom("feed", "feed-updated", {})
-                this.socketGateway.broadcastToRoom(
-                  `market:${marketIdStr}`,
-                  "market-updated",
-                  {
-                    marketId: marketIdStr,
-                  },
-                )
-              }
-            }
-          }
-        } catch (error) {
-          this.logger.error(
-            `Error processing subjective market ${market._id}: ${error.message}`,
-          )
-        }
-      }
-    }
-  }
-
-  private async resolveMarket(market: MarketDocument) {
-    // 0. Defense check: is it already resolved on-chain?
-    const onChainStateBefore =
-      await this.blockchainService.readOnChainMarketState(market._id.toString())
-    if (onChainStateBefore.resolved) {
-      this.logger.log(
-        `Market ${market._id} is already resolved on-chain. Syncing database state...`,
-      )
-      const winIdx = onChainStateBefore.winningOutcomeIndex
-      market.winningOutcomeIndex = winIdx
-      let winningOutcome: string
-      if (market.outcomeCount && market.outcomeCount > 2) {
-        winningOutcome = market.outcomes[winIdx]
-      } else {
-        winningOutcome = winIdx === 0 ? "YES" : "NO"
-      }
-      market.status = "resolved"
-      market.resolvedOutcome = winningOutcome
-      market.resolvedByAdmin = "0xKeeper"
-      await market.save()
-      await this.pvpService.resolvePvpMatchesForMarket(
-        market._id.toString(),
-        winningOutcome,
-      )
-
-      // Emit Socket events
-      this.socketGateway.broadcastToRoom("feed", "feed-updated", {})
-      this.socketGateway.broadcastToRoom(
-        `market:${market._id.toString()}`,
-        "market-updated",
-        {
-          marketId: market._id.toString(),
-        },
-      )
+    if (expiredMarkets.length === 0) {
       return
     }
 
     this.logger.log(
-      `Auto-resolving Pyth market ${market._id} (${market.question})...`,
+      `Found ${expiredMarkets.length} expired markets to resolve via AI...`,
     )
 
-    // 1. Fetch price update VAA from Pyth Benchmarks API
-    const timestamp = Math.floor(market.deadline.getTime() / 1000)
-    const feedId = market.priceFeedId || ""
-    if (!feedId) {
-      throw new Error(
-        `Market ${market._id} is marked as Pyth market but has no priceFeedId.`,
-      )
+    for (const market of expiredMarkets) {
+      const marketIdStr = market._id.toString()
+      try {
+        this.logger.log(
+          `Invoking AI Agent to resolve market: "${market.question}" (${marketIdStr})`,
+        )
+
+        const result = await this.agentService.resolveMarket(
+          market.question,
+          market.yesCondition,
+          market.noCondition,
+          market.resolutionSource,
+          market.category,
+          market.outcomes,
+          market.deadline,
+        )
+
+        if (result.outcome === "INVALID") {
+          this.logger.warn(
+            `AI Agent returned INVALID for market ${marketIdStr}. Keeping open for manual admin resolution.`,
+          )
+          continue
+        }
+
+        let winningOutcome: any = result.outcome
+        let winningIndex = 0
+
+        if (
+          market.outcomeCount &&
+          market.outcomeCount >= 2 &&
+          market.outcomes &&
+          market.outcomes.length > 0
+        ) {
+          const idx = market.outcomes.findIndex(
+            (o) =>
+              o.toLowerCase().trim() === result.outcome.toLowerCase().trim(),
+          )
+          if (idx !== -1) {
+            winningIndex = idx
+            winningOutcome = market.outcomes[idx]
+          } else if (market.outcomeCount === 2) {
+            if (result.outcome === "YES") {
+              winningIndex = 0
+              winningOutcome = market.outcomes[0] || "YES"
+            } else if (result.outcome === "NO") {
+              winningIndex = 1
+              winningOutcome = market.outcomes[1] || "NO"
+            }
+          }
+        } else {
+          winningOutcome = result.outcome === "NO" ? "NO" : "YES"
+          winningIndex = winningOutcome === "YES" ? 0 : 1
+        }
+
+        // Update market in DB
+        market.status = "resolved"
+        market.resolvedOutcome = winningOutcome as any
+        market.winningOutcomeIndex = winningIndex
+        market.proposalReasoning = result.reasoning
+        market.proposalCitations = result.citations
+        market.resolvedByAdmin = "AI_Agent"
+        await market.save()
+
+        this.logger.log(
+          `Market ${marketIdStr} resolved as "${winningOutcome}" (Index: ${winningIndex}). Resolving PvP duels...`,
+        )
+
+        // Resolve PvP duels associated with this market
+        await this.pvpService.resolvePvpMatchesForMarket(
+          marketIdStr,
+          winningOutcome,
+        )
+
+        // If all child markets of a parent are resolved, mark parent as resolved too
+        if (market.parentMarketId) {
+          const unresolvedChildren = await this.marketModel.countDocuments({
+            parentMarketId: market.parentMarketId,
+            status: { $ne: "resolved" },
+          })
+          if (unresolvedChildren === 0) {
+            await this.marketModel.findByIdAndUpdate(market.parentMarketId, {
+              status: "resolved",
+              resolvedOutcome: "RESOLVED",
+            })
+          }
+        }
+
+        // Broadcast real-time updates
+        this.socketGateway.broadcastToRoom("feed", "feed-updated", {})
+        this.socketGateway.broadcastToRoom(
+          `market:${marketIdStr}`,
+          "market-updated",
+          { marketId: marketIdStr },
+        )
+      } catch (error: any) {
+        this.logger.error(
+          `Failed to resolve market ${marketIdStr}: ${error.message}`,
+        )
+      }
     }
-    const cleanFeedId = feedId.startsWith("0x") ? feedId.slice(2) : feedId
-    const url = `https://benchmarks.pyth.network/v1/updates/price/${timestamp}?ids=${cleanFeedId}`
-
-    this.logger.log(`Fetching historical VAA from Benchmarks API: ${url}`)
-    const response = await fetch(url)
-    if (!response.ok) {
-      throw new Error(
-        `Benchmarks API returned status ${response.status}: ${await response.text()}`,
-      )
-    }
-
-    const data = (await response.json()) as { binary?: { data?: string[] } }
-    const priceUpdate = data.binary?.data
-    if (!priceUpdate || priceUpdate.length === 0) {
-      throw new Error(
-        "No price update binary found in Benchmarks API response.",
-      )
-    }
-
-    this.logger.log(
-      `VAA retrieved successfully. Submitting resolution transaction...`,
-    )
-
-    // 2. Submit resolution transaction on-chain
-    const txHash = await this.blockchainService.resolveMarketWithPyth(
-      market._id.toString(),
-      priceUpdate,
-    )
-    this.logger.log(
-      `Submitted resolution transaction: ${txHash}. Waiting for confirmation...`,
-    )
-
-    // 3. Wait for confirmation
-    const receipt = await this.blockchainService.getTransactionReceipt(
-      txHash as `0x${string}`,
-    )
-    this.logger.log(
-      `Transaction confirmed in block ${receipt.blockNumber}. Fetching on-chain state...`,
-    )
-
-    // 4. Query the resolved status and winner from the smart contract
-    const onChainState = await this.blockchainService.readOnChainMarketState(
-      market._id.toString(),
-    )
-    if (!onChainState.resolved) {
-      throw new Error("On-chain state indicates market is still unresolved.")
-    }
-
-    // 5. Update database status
-    const winIdx = onChainState.winningOutcomeIndex
-    market.winningOutcomeIndex = winIdx
-    let winningOutcome: string
-    if (market.outcomeCount && market.outcomeCount > 2) {
-      winningOutcome = market.outcomes[winIdx]
-    } else {
-      winningOutcome = winIdx === 0 ? "YES" : "NO"
-    }
-    market.status = "resolved"
-    market.resolvedOutcome = winningOutcome
-    market.resolvedByAdmin = "0xKeeper" // Identifier for auto-resolution
-    await market.save()
-    await this.pvpService.resolvePvpMatchesForMarket(
-      market._id.toString(),
-      winningOutcome,
-    )
-
-    this.logger.log(
-      `Successfully resolved market ${market._id} to ${winningOutcome} on-chain & database.`,
-    )
-
-    // Emit Socket events
-    this.socketGateway.broadcastToRoom("feed", "feed-updated", {})
-    this.socketGateway.broadcastToRoom(
-      `market:${market._id.toString()}`,
-      "market-updated",
-      {
-        marketId: market._id.toString(),
-      },
-    )
   }
 }

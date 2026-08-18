@@ -9,8 +9,6 @@ import {
 } from "@nestjs/common"
 import { InjectModel } from "@nestjs/mongoose"
 import { ConfigService } from "@nestjs/config"
-import { BlockchainService } from "../blockchain/blockchain.service"
-import { LiquidityService } from "../liquidity/liquidity.service"
 import { Model, Types } from "mongoose"
 import { Post, PostDocument } from "./posts.model"
 import { User, UserDocument } from "../users/users.model"
@@ -158,8 +156,6 @@ export class PostsService {
     @InjectModel(Reshare.name) private reshareModel: Model<ReshareDocument>,
     @InjectModel(Vote.name) private voteModel: Model<VoteDocument>,
     @InjectModel(Comment.name) private commentModel: Model<CommentDocument>,
-    private blockchainService: BlockchainService,
-    private liquidityService: LiquidityService,
     private socketGateway: SocketGateway,
     private readonly configService: ConfigService,
   ) {}
@@ -741,19 +737,7 @@ export class PostsService {
       )
     }
 
-    // Check if the transaction hash has already been used by any existing market
-    const existingMarket = await this.marketModel.findOne({
-      creationFeeTxHash: input.creationFeeTxHash.trim(),
-    })
-    if (existingMarket) {
-      throw new BadRequestException(
-        "This transaction hash has already been used to create a market.",
-      )
-    }
-
     this.validateMarketHeuristics(input)
-
-    const minPoolBalance = await this.blockchainService.getMinPoolBalance()
 
     const mId = input.marketId
       ? new Types.ObjectId(input.marketId)
@@ -776,7 +760,7 @@ export class PostsService {
     if (isMultiOption) {
       // 1. Create parent market in DB
       const parentMarketId = mId
-      const parentMarket = await this.marketModel.create({
+      await this.marketModel.create({
         _id: parentMarketId,
         postId: post._id,
         authorId: new Types.ObjectId(profileId),
@@ -786,15 +770,15 @@ export class PostsService {
         resolutionSource: input.resolutionSource.trim(),
         yesCondition: "Any of the options wins",
         noCondition: "None of the options wins",
-        marketCreationFeeUsdc: 1,
-        creationFeeTxHash: input.creationFeeTxHash.trim(),
-        feeCollectorAddress: input.feeCollectorAddress.trim(),
-        status: "qualified",
+        marketCreationFeeUsdc: 0,
+        creationFeeTxHash: null,
+        feeCollectorAddress: null,
+        status: "tradable",
         isPythMarket: false,
         marketType: "parent",
         parentMarketId: null,
         optionName: null,
-        minimumPoolBalance: minPoolBalance,
+        minimumPoolBalance: 0,
       })
 
       // 2. Loop and create child markets
@@ -802,20 +786,6 @@ export class PostsService {
         const option = input.options![i]
         const childMarketIdStr = input.optionMarketIds![i]
         const childMarketId = new Types.ObjectId(childMarketIdStr)
-
-        // Verify pre-deposit for each child market
-        const childAmountBigint =
-          await this.blockchainService.verifyCreateMarketPreDeposit(
-            input.creationFeeTxHash.trim(),
-            childMarketIdStr,
-          )
-
-        if (childAmountBigint === null) {
-          throw new BadRequestException(
-            `Failed to verify createMarketPreDeposit transaction on-chain for option ${option} (${childMarketIdStr}).`,
-          )
-        }
-        const childCreatorDepositUsdc = Number(childAmountBigint) / 1e6
 
         await this.marketModel.create({
           _id: childMarketId,
@@ -827,40 +797,19 @@ export class PostsService {
           resolutionSource: input.resolutionSource.trim(),
           yesCondition: `${option.trim()} resolves to YES`,
           noCondition: `${option.trim()} resolves to NO`,
-          marketCreationFeeUsdc: 1,
-          creationFeeTxHash: input.creationFeeTxHash.trim(),
-          feeCollectorAddress: input.feeCollectorAddress.trim(),
-          status: "qualified",
+          marketCreationFeeUsdc: 0,
+          creationFeeTxHash: null,
+          feeCollectorAddress: null,
+          status: "tradable",
           isPythMarket: false,
           marketType: "child",
           parentMarketId: parentMarketId,
           optionName: option.trim(),
-          minimumPoolBalance: minPoolBalance,
+          minimumPoolBalance: 0,
         })
-
-        // Initialize liquidity pool in DB for the child market
-        await this.liquidityService.initializePoolFromPreDeposit(
-          childMarketIdStr,
-          profileId,
-          author.walletAddress,
-          input.creationFeeTxHash.trim(),
-          childCreatorDepositUsdc,
-        )
       }
     } else {
-      // Binary (original single option flow)
-      const amountBigint =
-        await this.blockchainService.verifyCreateMarketPreDeposit(
-          input.creationFeeTxHash,
-          mId.toString(),
-        )
-      if (amountBigint === null) {
-        throw new BadRequestException(
-          "Invalid or failed createMarketPreDeposit transaction on-chain.",
-        )
-      }
-      const creatorDepositUsdc = Number(amountBigint) / 1e6
-
+      // Binary / Single option flow
       await this.marketModel.create({
         _id: mId,
         postId: post._id,
@@ -871,10 +820,10 @@ export class PostsService {
         resolutionSource: input.resolutionSource.trim(),
         yesCondition: input.yesCondition?.trim() || "YES",
         noCondition: input.noCondition?.trim() || "NO",
-        marketCreationFeeUsdc: 1,
-        creationFeeTxHash: input.creationFeeTxHash.trim(),
-        feeCollectorAddress: input.feeCollectorAddress.trim(),
-        status: "qualified",
+        marketCreationFeeUsdc: 0,
+        creationFeeTxHash: null,
+        feeCollectorAddress: null,
+        status: "tradable",
         priceFeedId: isPythMarket ? input.priceFeedId!.trim() : null,
         targetPrice: isPythMarket ? input.targetPrice : null,
         resolveAbove: isPythMarket ? input.resolveAbove : null,
@@ -890,17 +839,8 @@ export class PostsService {
           ? new Types.ObjectId(input.parentMarketId)
           : null,
         optionName: input.optionName || null,
-        minimumPoolBalance: minPoolBalance,
+        minimumPoolBalance: 0,
       })
-
-      // Automatically initialize liquidity pool in DB from the pre-deposit
-      await this.liquidityService.initializePoolFromPreDeposit(
-        mId.toString(),
-        profileId,
-        author.walletAddress,
-        input.creationFeeTxHash.trim(),
-        creatorDepositUsdc,
-      )
     }
 
     const createdPost = await this.findPostById(post.id, profileId)

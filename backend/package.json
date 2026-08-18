@@ -15,8 +15,7 @@
     "seed": "ts-node src/seed.ts",
     "seed:admin": "ts-node src/scripts/seed-admin.ts",
     "seed:tma": "ts-node src/scripts/seed-tma.ts",
-
-    "test:backend-e2e": "ts-node src/scripts/test-backend-e2e.ts",
+    "clone:users": "ts-node src/scripts/clone-users-to-new-db.ts",
     "test:pyth-live": "ts-node src/scripts/test-pyth-live.ts",
     "test:resolver-live": "ts-node src/scripts/test-resolver-live.ts",
     "extract-abis": "ts-node src/scripts/extract-abis.ts",
@@ -28,8 +27,6 @@
     "test:e2e": "jest --config ./test/jest-e2e.json"
   },
   "dependencies": {
-    "@circle-fin/developer-controlled-wallets": "^10.6.0",
-    "@circle-fin/x402-batching": "^3.2.0",
     "@nestjs/common": "^11.0.1",
     "@nestjs/config": "^4.0.0",
     "@nestjs/core": "^11.0.1",
@@ -54,8 +51,7 @@
     "resend": "^6.12.4",
     "rxjs": "^7.8.1",
     "socket.io": "^4.8.3",
-    "swagger-ui-express": "^5.0.1",
-    "viem": "^2.49.3"
+    "swagger-ui-express": "^5.0.1"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.2.0",

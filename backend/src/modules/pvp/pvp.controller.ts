@@ -119,27 +119,6 @@ export class PvpController {
     return this.pvpService.getMatchHistory(req.user.id)
   }
 
-  @Get("claimable-winnings")
-  @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
-  @ApiOperation({
-    summary:
-      "Retrieve all unclaimed winning picks across all resolved PvP events for the authenticated user",
-  })
-  async getClaimableWinnings(@Request() req: any) {
-    return this.pvpService.getClaimableWinnings(req.user.id)
-  }
-
-  @Get("admin-status")
-  @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
-  @ApiOperation({
-    summary: "Admin-only: Get admin wallet balances and market fee details",
-  })
-  async getAdminStatus(@Request() req: any) {
-    return this.pvpService.getAdminStatus(req.user.id)
-  }
-
   @Get("admin-metrics")
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
@@ -156,30 +135,5 @@ export class PvpController {
   })
   async getPublicMetrics(@Query("timeframe") timeframe?: string) {
     return this.pvpService.getPublicMetrics(timeframe)
-  }
-
-  @Get("contract-balances")
-  @UseGuards(JwtAuthGuard, AdminGuard)
-  @ApiBearerAuth()
-  @ApiOperation({
-    summary: "Admin-only: Get USDC balances held by FPMM and Factory contracts",
-  })
-  async getContractBalances(@Request() req: any) {
-    return this.pvpService.getContractBalances(req.user.id)
-  }
-
-  @Post("admin/claim-creator-liquidity")
-  @UseGuards(JwtAuthGuard, AdminGuard)
-  @ApiBearerAuth()
-  @ApiOperation({
-    summary:
-      "Admin-only: Batch claim creator liquidity from all resolved PvP markets",
-  })
-  @ApiResponse({
-    status: 200,
-    description: "Returns per-market claim results and summary",
-  })
-  async batchClaimCreatorLiquidity(@Request() req: any) {
-    return this.pvpService.batchClaimCreatorLiquidity(req.user.id)
   }
 }

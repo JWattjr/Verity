@@ -15,14 +15,6 @@ import {
 } from "../markets/markets.model"
 import { Comment, CommentSchema } from "../comments/comments.model"
 import { Like, LikeSchema } from "../interactions/interactions.model"
-import {
-  LPPosition,
-  LPPositionSchema,
-  LiquidityPool,
-  LiquidityPoolSchema,
-  LiquidityEvent,
-  LiquidityEventSchema,
-} from "../liquidity/liquidity.model"
 import { Post, PostSchema } from "../posts/posts.model"
 
 @Module({
@@ -35,9 +27,6 @@ import { Post, PostSchema } from "../posts/posts.model"
       { name: MarketTrade.name, schema: MarketTradeSchema },
       { name: Comment.name, schema: CommentSchema },
       { name: Like.name, schema: LikeSchema },
-      { name: LPPosition.name, schema: LPPositionSchema },
-      { name: LiquidityPool.name, schema: LiquidityPoolSchema },
-      { name: LiquidityEvent.name, schema: LiquidityEventSchema },
       { name: Post.name, schema: PostSchema },
     ]),
   ],

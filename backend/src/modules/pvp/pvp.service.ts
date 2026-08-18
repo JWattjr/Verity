@@ -23,12 +23,9 @@ import {
   MarketTradeDocument,
 } from "../markets/markets.model"
 import { Post, PostDocument } from "../posts/posts.model"
-import { LpFeeLedger, LpFeeLedgerDocument } from "../liquidity/liquidity.model"
 import { SocketGateway } from "../socket/socket.gateway"
 import { NotificationsService } from "../notifications/notifications.service"
 import { CreatePvpEventDto, SubmitTicketDto } from "./pvp.dto"
-import { BlockchainService } from "../blockchain/blockchain.service"
-import { LiquidityService } from "../liquidity/liquidity.service"
 import { calculatePvpResultXp, calculatePvpScore } from "./pvp-scoring"
 import type { PvpResult } from "./pvp-scoring"
 import { AgentService } from "../agent/agent.service"
@@ -203,12 +200,8 @@ export class PvpService {
     private userModel: Model<UserDocument>,
     @InjectModel(Post.name)
     private postModel: Model<PostDocument>,
-    @InjectModel(LpFeeLedger.name)
-    private lpLedgerModel: Model<LpFeeLedgerDocument>,
     private socketGateway: SocketGateway,
     private readonly notificationsService: NotificationsService,
-    private readonly blockchainService: BlockchainService,
-    private readonly liquidityService: LiquidityService,
     private readonly agentService: AgentService,
     private readonly configService: ConfigService,
     private readonly couponsService: CouponsService,
@@ -221,7 +214,6 @@ export class PvpService {
       throw new ForbiddenException("Only admins can create PvP events.")
     }
 
-    // Parse teamA and teamB from the question (e.g. "Mexico vs Southafrica")
     let teamA = "YES"
     let teamB = "NO"
     const question = dto.question.trim()
@@ -237,319 +229,169 @@ export class PvpService {
       }
     }
 
-    const adminWalletAddress =
-      this.blockchainService.getAdminAddress() || admin.walletAddress || ""
-    if (!adminWalletAddress) {
-      throw new BadRequestException(
-        "Admin wallet address is not configured/available.",
+    let optionGroupsMap: Record<string, string> = {}
+    try {
+      optionGroupsMap = await this.agentService.categorizeOptions(
+        dto.question,
+        dto.options,
       )
+    } catch (err: any) {
+      this.logger.error(`Failed to categorize options with AI: ${err.message}`)
     }
 
-    const minPoolBalance = await this.blockchainService.getMinPoolBalance()
+    const cleanGroupsMap: Record<string, string> = {}
+    for (const [opt, grp] of Object.entries(optionGroupsMap)) {
+      cleanGroupsMap[opt] =
+        grp === "match_winner" || grp === "moneyline" ? "major" : grp
+    }
 
-    let post: PostDocument | null = null
-    let parentMarket: MarketDocument | null = null
-    const childMarketIds: Types.ObjectId[] = []
+    const groups: Record<string, string[]> = {}
+    for (let i = 0; i < dto.options.length; i++) {
+      const optionName = dto.options[i]
+      let optionGroup = determineOptionGroup(optionName, teamA, teamB)
+      if (optionGroup.startsWith("unique_")) {
+        optionGroup = cleanGroupsMap[optionName] || optionGroup
+      }
+      if (optionGroup === "match_winner" || optionGroup === "moneyline") {
+        optionGroup = "major"
+      }
+      if (!groups[optionGroup]) {
+        groups[optionGroup] = []
+      }
+      groups[optionGroup].push(optionName)
+    }
 
-    try {
-      const childMarkets: MarketDocument[] = []
-      const deadlineUnix = Math.floor(new Date(dto.deadline).getTime() / 1000)
-      const now = new Date()
-      const sevenDaysFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)
-      const fundingDeadline =
-        new Date(dto.deadline) < sevenDaysFromNow
-          ? new Date(dto.deadline)
-          : sevenDaysFromNow
-      const fundingDeadlineUnix = Math.floor(fundingDeadline.getTime() / 1000)
+    const postId = new Types.ObjectId()
+    const parentMarketId = new Types.ObjectId()
+    const lockTime = dto.lockTime
+      ? new Date(dto.lockTime)
+      : new Date(dto.deadline)
 
-      let optionGroupsMap: Record<string, string> = {}
-      try {
-        optionGroupsMap = await this.agentService.categorizeOptions(
-          dto.question,
-          dto.options,
-        )
-      } catch (err) {
-        this.logger.error(
-          `Failed to categorize options with AI: ${err.message}`,
-        )
+    // Create Post
+    await this.postModel.create({
+      _id: postId,
+      authorId: new Types.ObjectId(adminId),
+      type: "market",
+      content: dto.question.trim(),
+    })
+
+    // Create Parent Market
+    const parentMarket = await this.marketModel.create({
+      _id: parentMarketId,
+      postId: postId,
+      authorId: new Types.ObjectId(adminId),
+      question: dto.question.trim(),
+      category: "pvp",
+      deadline: new Date(dto.deadline),
+      lockTime,
+      resolutionSource: dto.resolutionSource
+        ? dto.resolutionSource.trim()
+        : "Premier League Official / BBC Sport",
+      yesCondition: teamA,
+      noCondition: teamB,
+      status: "tradable",
+      marketType: "parent",
+    })
+
+    const childMarkets: MarketDocument[] = []
+
+    for (const [optionGroup, groupOptions] of Object.entries(groups)) {
+      const outcomeCount = groupOptions.length === 1 ? 2 : groupOptions.length
+      let questionSuffix = ""
+      let optionName = ""
+      if (optionGroup === "major") {
+        questionSuffix = "Match Winner"
+        optionName = "Match Winner"
+      } else if (optionGroup === "spread") {
+        questionSuffix = "Spread"
+        optionName = "Spread"
+      } else if (optionGroup === "totals") {
+        questionSuffix = "Total Goals"
+        optionName = "Total Goals"
+      } else if (optionGroup === "btts") {
+        questionSuffix = "Both Teams To Score"
+        optionName = "BTTS"
+      } else if (optionGroup === "first_goal") {
+        questionSuffix = "First Team To Score"
+        optionName = "First Goal"
+      } else if (optionGroup === "halftime_leader") {
+        questionSuffix = "Halftime Leader"
+        optionName = "Halftime Leader"
+      } else if (optionGroup === "clean_sheet") {
+        questionSuffix = "Clean Sheet"
+        optionName = "Clean Sheet"
+      } else if (optionGroup === "yellow_cards") {
+        questionSuffix = "Total Yellow Cards"
+        optionName = "Yellow Cards"
+      } else if (optionGroup === "red_card") {
+        questionSuffix = "Red Card in Match"
+        optionName = "Red Card"
+      } else if (optionGroup === "corners") {
+        questionSuffix = "Total Corners"
+        optionName = "Corners"
+      } else {
+        const capitalized = optionGroup
+          .split("_")
+          .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+          .join(" ")
+        questionSuffix = capitalized
+        optionName = capitalized
       }
 
-      // Map option groups to their clean names (and make sure match_winner/moneyline becomes major)
-      const cleanGroupsMap: Record<string, string> = {}
-      for (const [opt, grp] of Object.entries(optionGroupsMap)) {
-        cleanGroupsMap[opt] =
-          grp === "match_winner" || grp === "moneyline" ? "major" : grp
+      let handicap: number | null = null
+      for (const opt of groupOptions) {
+        const numMatch = opt.match(/([+-]?\d+(?:\.\d+)?)/)
+        if (numMatch) {
+          handicap = Math.abs(parseFloat(numMatch[1]))
+          break
+        }
       }
 
-      const groups: Record<string, string[]> = {}
-      for (let i = 0; i < dto.options.length; i++) {
-        const optionName = dto.options[i]
-        let optionGroup = determineOptionGroup(optionName, teamA, teamB)
-        if (optionGroup.startsWith("unique_")) {
-          // If our deterministic check did not find a standard group, fall back to AI categorization
-          optionGroup = cleanGroupsMap[optionName] || optionGroup
-        }
-        if (optionGroup === "match_winner" || optionGroup === "moneyline") {
-          optionGroup = "major"
-        }
-        if (!groups[optionGroup]) {
-          groups[optionGroup] = []
-        }
-        groups[optionGroup].push(optionName)
-      }
+      const outcomes =
+        groupOptions.length === 1
+          ? [groupOptions[0].trim(), "NO"]
+          : groupOptions.map((opt) => opt.trim())
 
-      // We will loop over each option group to register and fund them on-chain first
-      const deployedMarkets: Array<{
-        childMarketId: Types.ObjectId
-        questionSuffix: string
-        optionName: string
-        outcomes: string[]
-        handicap: number | null
-        optionGroup: string
-        outcomeCount: number
-        preDepositTxHash: string
-      }> = []
-
-      const lockTime = dto.lockTime
-        ? new Date(dto.lockTime)
-        : new Date(dto.deadline)
-
-      for (const [optionGroup, groupOptions] of Object.entries(groups)) {
-        const outcomeCount = groupOptions.length === 1 ? 2 : groupOptions.length
-
-        // Formulate question and optionName
-        let questionSuffix = ""
-        let optionName = ""
-        if (optionGroup === "major") {
-          questionSuffix = "Major"
-          optionName = "Major"
-        } else if (optionGroup === "spread") {
-          questionSuffix = "Spread"
-          optionName = "Spread"
-        } else if (optionGroup === "totals") {
-          questionSuffix = "Totals"
-          optionName = "Totals"
-        } else if (optionGroup === "btts") {
-          questionSuffix = "BTTS"
-          optionName = "BTTS"
-        } else if (optionGroup === "offsides") {
-          questionSuffix = "Offsides"
-          optionName = "Offsides"
-        } else if (optionGroup === "extra_time_penalties") {
-          questionSuffix = "Extra Time / Penalties Winner"
-          optionName = "Extra Time / Penalties"
-        } else {
-          const capitalized = optionGroup
-            .split("_")
-            .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-            .join(" ")
-          questionSuffix = capitalized
-          optionName = capitalized
-        }
-
-        // Determine handicap if applicable
-        let handicap: number | null = null
-        if (
-          optionGroup === "spread" ||
-          optionGroup === "totals" ||
-          optionGroup === "offsides" ||
-          optionGroup === "yellow_cards" ||
-          optionGroup === "cards"
-        ) {
-          // Try to extract from the first option containing a number
-          for (const opt of groupOptions) {
-            const numMatch = opt.match(/([+-]?\d+(?:\.\d+)?)/)
-            if (numMatch) {
-              handicap = Math.abs(parseFloat(numMatch[1]))
-              break
-            }
-          }
-        }
-
-        // Generate clean outcomes (e.g. for Major, draw or win team names)
-        const outcomes =
-          groupOptions.length === 1
-            ? [groupOptions[0].trim(), "NO"]
-            : groupOptions.map((opt) => opt.trim())
-
-        const childMarketId = new Types.ObjectId()
-        childMarketIds.push(childMarketId)
-
-        // Pre-deposit USDC on-chain based on contract minPoolBalance
-        const preDepositTxHash =
-          await this.blockchainService.adminCreateMarketPreDeposit(
-            childMarketId.toString(),
-            minPoolBalance,
-          )
-
-        // Register on-chain with outcomeCount
-        try {
-          await this.blockchainService.registerMarket(
-            childMarketId.toString(),
-            adminWalletAddress,
-            deadlineUnix,
-            fundingDeadlineUnix,
-            outcomeCount,
-          )
-        } catch (error) {
-          const msg = error?.message || ""
-          if (!msg.includes("MarketAlreadyRegistered")) {
-            throw error
-          }
-        }
-
-        deployedMarkets.push({
-          childMarketId,
-          questionSuffix,
-          optionName,
-          outcomes,
-          handicap,
-          optionGroup,
-          outcomeCount,
-          preDepositTxHash,
-        })
-      }
-
-      // 4. All on-chain transactions succeeded! Write everything to MongoDB.
-      const postId = new Types.ObjectId()
-      const parentMarketId = new Types.ObjectId()
-
-      // Create Post
-      post = await this.postModel.create({
-        _id: postId,
-        authorId: new Types.ObjectId(adminId),
-        type: "market",
-        content: dto.question.trim(),
-      })
-
-      // Create Parent Market
-      parentMarket = await this.marketModel.create({
-        _id: parentMarketId,
+      const child = await this.marketModel.create({
+        _id: new Types.ObjectId(),
         postId: postId,
         authorId: new Types.ObjectId(adminId),
-        question: dto.question.trim(),
+        question: `${dto.question.trim()} - ${questionSuffix}`,
         category: "pvp",
         deadline: new Date(dto.deadline),
         lockTime,
-        resolutionSource: dto.resolutionSource.trim(),
-        yesCondition: teamA,
-        noCondition: teamB,
+        resolutionSource: dto.resolutionSource
+          ? dto.resolutionSource.trim()
+          : "Premier League Official / BBC Sport",
+        yesCondition: outcomes[0] || "YES",
+        noCondition: outcomes[1] || "NO",
         status: "tradable",
-        marketType: "parent",
+        marketType: "child",
+        parentMarketId: parentMarketId,
+        optionName: optionName,
+        teamName: teamA,
+        optionGroup: optionGroup,
+        outcomeCount: outcomeCount,
+        outcomes: outcomes,
+        handicap: handicap,
       })
+      childMarkets.push(child)
+    }
 
-      // Create Child Markets & Pools in DB
-      for (const item of deployedMarkets) {
-        const child = await this.marketModel.create({
-          _id: item.childMarketId,
-          postId: postId,
-          authorId: new Types.ObjectId(adminId),
-          question: `${dto.question.trim()} - ${item.questionSuffix}`,
-          category: "pvp",
-          deadline: new Date(dto.deadline),
-          lockTime,
-          resolutionSource: dto.resolutionSource.trim(),
-          yesCondition: item.outcomes[0] || "YES",
-          noCondition: item.outcomes[1] || "NO",
-          status: "funding_pool", // temporary status while funding
-          marketType: "child",
-          parentMarketId: parentMarketId,
-          optionName: item.optionName,
-          teamName: teamA, // Keep teamA as primary associated team
-          optionGroup: item.optionGroup,
-          outcomeCount: item.outcomeCount,
-          outcomes: item.outcomes,
-          handicap: item.handicap,
-        })
+    this.logger.log(
+      `Admin ${adminId} successfully created EPL PvP Event: ${parentMarket._id} with ${childMarkets.length} propositions.`,
+    )
 
-        // Initialize database pool from pre-deposit (which will sync and transition status to "tradable")
-        await this.liquidityService.initializePoolFromPreDeposit(
-          item.childMarketId.toString(),
-          adminId,
-          adminWalletAddress,
-          item.preDepositTxHash,
-          minPoolBalance,
-        )
+    this.socketGateway.broadcastToRoom("feed", "feed-updated", {})
 
-        const updatedChild = await this.marketModel.findById(item.childMarketId)
-        if (updatedChild) {
-          childMarkets.push(updatedChild)
-        } else {
-          childMarkets.push(child)
-        }
-      }
-
-      this.logger.log(
-        `Admin ${adminId} successfully deployed PvP Event: ${parentMarket._id} with ${childMarkets.length} child options and pre-deposited USDC.`,
-      )
-
-      // Broadcast updates
-      this.socketGateway.broadcastToRoom("feed", "feed-updated", {})
-
-      return {
-        parentMarketId: parentMarket._id.toString(),
-        question: parentMarket.question,
-        childMarkets: childMarkets.map((c) => ({
-          id: c._id.toString(),
-          optionName: c.optionName,
-          status: c.status,
-        })),
-      }
-    } catch (error) {
-      this.logger.error(
-        `Failed to deploy PvP Event. Rolling back created database documents: ${error.message}`,
-      )
-
-      // Rollback child markets (and their liquidity pools/positions)
-      for (const childId of childMarketIds) {
-        try {
-          await this.liquidityService.deletePoolAndPositions(childId.toString())
-        } catch (poolErr) {
-          this.logger.error(
-            `Rollback error cleaning pool for child market ${childId}: ${poolErr.message}`,
-          )
-        }
-        try {
-          const res = await this.marketModel.findByIdAndDelete(childId)
-          this.logger.log(
-            `Rollback: Deleted child market ${childId}. Result: ${JSON.stringify(res)}`,
-          )
-        } catch (dbErr) {
-          this.logger.error(
-            `Rollback error deleting child market ${childId}: ${dbErr.message}`,
-          )
-        }
-      }
-
-      // Rollback parent market
-      if (parentMarket) {
-        try {
-          const res = await this.marketModel.findByIdAndDelete(parentMarket._id)
-          this.logger.log(
-            `Rollback: Deleted parent market ${parentMarket._id}. Result: ${JSON.stringify(res)}`,
-          )
-        } catch (dbErr) {
-          this.logger.error(
-            `Rollback error deleting parent market ${parentMarket._id}: ${dbErr.message}`,
-          )
-        }
-      }
-
-      // Rollback post
-      if (post) {
-        try {
-          const res = await this.postModel.findByIdAndDelete(post._id)
-          this.logger.log(
-            `Rollback: Deleted post ${post._id}. Result: ${JSON.stringify(res)}`,
-          )
-        } catch (dbErr) {
-          this.logger.error(
-            `Rollback error deleting post ${post._id}: ${dbErr.message}`,
-          )
-        }
-      }
-
-      throw error
+    return {
+      parentMarketId: parentMarket._id.toString(),
+      question: parentMarket.question,
+      childMarkets: childMarkets.map((c) => ({
+        id: c._id.toString(),
+        optionName: c.optionName,
+        status: c.status,
+      })),
     }
   }
 
@@ -1743,135 +1585,7 @@ export class PvpService {
     }
   }
 
-  /**
-   * Syncs on-chain balances for a user's child markets in the background.
-   * This is intentionally called as fire-and-forget from getPvpStatus().
-   */
-  private async syncOnChainBalances(
-    userId: string,
-    walletAddress: string,
-    children: any[],
-  ) {
-    // Pre-fetch on-chain balances for all child markets in a single batch query
-    const batchQueries = children.map((child) => {
-      const outcomes =
-        child.outcomes && child.outcomes.length > 0
-          ? child.outcomes
-          : ["YES", "NO"]
-      return {
-        marketId: child._id.toString(),
-        outcomes,
-      }
-    })
 
-    let balancesMap: Record<string, Record<string, number>> = {}
-    try {
-      balancesMap = await this.blockchainService.getUserOnChainBalancesBatch(
-        batchQueries,
-        walletAddress,
-      )
-    } catch (err) {
-      this.logger.error(
-        `Error syncing position batch in syncOnChainBalances: ${err.message}`,
-      )
-      return
-    }
-
-    // Fetch existing positions in db to avoid redundant database writes
-    const existingPositions = await this.marketPositionModel.find({
-      userId: new Types.ObjectId(userId),
-      marketId: { $in: children.map((c) => c._id) },
-    })
-
-    for (const child of children) {
-      try {
-        const outcomes =
-          child.outcomes && child.outcomes.length > 0
-            ? child.outcomes
-            : ["YES", "NO"]
-
-        const onChain = balancesMap[child._id.toString()] || {}
-
-        const isResolved = child.status === "resolved" || child.resolvedOutcome
-        const winningOutcome = child.resolvedOutcome
-        const isMulti = child.outcomeCount && child.outcomeCount > 2
-
-        let normalizedWinningOutcome = winningOutcome
-        if (!isMulti && winningOutcome && outcomes.length >= 2) {
-          if (
-            winningOutcome.toUpperCase() === outcomes[0].toUpperCase() ||
-            winningOutcome.toUpperCase() === "YES"
-          ) {
-            normalizedWinningOutcome = "YES"
-          } else if (
-            winningOutcome.toUpperCase() === outcomes[1].toUpperCase() ||
-            winningOutcome.toUpperCase() === "NO"
-          ) {
-            normalizedWinningOutcome = "NO"
-          }
-        }
-
-        for (let idx = 0; idx < outcomes.length; idx++) {
-          const outcome = outcomes[idx]
-          const normalizedSide = isMulti ? outcome : idx === 0 ? "YES" : "NO"
-
-          const balance = onChain[outcome] ?? 0
-          const isLosing =
-            isResolved && normalizedWinningOutcome !== normalizedSide
-
-          // Find if we already have this position in DB matching normalizedSide
-          const dbPos = existingPositions.find(
-            (p) =>
-              p.marketId.toString() === child._id.toString() &&
-              p.side === normalizedSide,
-          )
-
-          if (!isLosing && balance > 0) {
-            // If there's no matching position, or the shares count differs, update/upsert
-            if (!dbPos || dbPos.shares !== balance) {
-              await this.marketPositionModel.updateOne(
-                {
-                  marketId: child._id,
-                  userId: new Types.ObjectId(userId),
-                  side: normalizedSide,
-                },
-                {
-                  $set: { shares: balance },
-                  $setOnInsert: {
-                    avgPrice: 0.5,
-                    investedUsdc: balance * 0.5,
-                    realizedPnl: 0,
-                  },
-                },
-                { upsert: true },
-              )
-            }
-          } else {
-            // If there's a matching position, archive it
-            if (dbPos) {
-              await this.marketPositionModel.updateOne(
-                {
-                  marketId: child._id,
-                  userId: new Types.ObjectId(userId),
-                  side: normalizedSide,
-                },
-                {
-                  $set: {
-                    shares: 0,
-                    isArchived: true,
-                  },
-                },
-              )
-            }
-          }
-        }
-      } catch (err) {
-        this.logger.error(
-          `Error syncing position in syncOnChainBalances for child ${child._id}: ${err.message}`,
-        )
-      }
-    }
-  }
 
   private async awardReferrerFirstWinBoosts(referredPlayer: UserDocument) {
     const referrer = await this.userModel.findById(referredPlayer.referredById)
@@ -1998,21 +1712,6 @@ export class PvpService {
     const children = allMarkets.filter(
       (m) => m.parentMarketId?.toString() === parentId.toString(),
     )
-
-    // Fire-and-forget on-chain balance sync (non-blocking)
-    if (user && user.walletAddress) {
-      const syncKey = `${userId}:${parentMarketId || ""}`
-      const lastSync = this.lastSyncMap.get(syncKey) || 0
-      if (Date.now() - lastSync > 10000) {
-        this.lastSyncMap.set(syncKey, Date.now())
-        this.syncOnChainBalances(userId, user.walletAddress, children).catch(
-          (err) =>
-            this.logger.error(
-              `Background on-chain sync failed: ${err.message}`,
-            ),
-        )
-      }
-    }
 
     // Fetch user positions, trade volume, and opponent in parallel (aggregation for volume)
     const childMarketIds = children.map((c) => c._id)
@@ -2615,103 +2314,10 @@ export class PvpService {
       parentMap.set(parent._id.toString(), parent)
     }
 
-    // Verify on-chain balances to find truly claimable picks
-    if (!user.walletAddress) {
-      return {
-        claimableMarketIds: [],
-        totalWinningsUsdc: 0,
-        claimablePicks: [],
-      }
-    }
-
-    // Build batch queries for on-chain balance check
-    // We only need the winning outcome's balance for each market
-    const batchQueries: { marketId: string; outcomes: string[] }[] = []
-    for (const marketIdStr of uniqueMarketIds) {
-      const child = childMap.get(marketIdStr)
-      if (!child) continue
-
-      const outcomes =
-        child.outcomes && child.outcomes.length > 0
-          ? child.outcomes
-          : ["YES", "NO"]
-      batchQueries.push({ marketId: marketIdStr, outcomes })
-    }
-
-    let balancesMap: Record<string, Record<string, number>> = {}
-    try {
-      balancesMap = await this.blockchainService.getUserOnChainBalancesBatch(
-        batchQueries,
-        user.walletAddress,
-      )
-    } catch (err) {
-      this.logger.error(
-        `Failed to batch read on-chain balances for claimable winnings: ${err.message}`,
-      )
-      return {
-        claimableMarketIds: [],
-        totalWinningsUsdc: 0,
-        claimablePicks: [],
-      }
-    }
-
-    // Filter to only picks where the user still holds tokens on-chain
-    const claimablePicks: any[] = []
-    const claimableMarketIds: string[] = []
-    let totalWinningsUsdc = 0
-
-    for (const pick of winningPicks) {
-      const marketIdStr = pick.marketId.toString()
-      const child = childMap.get(marketIdStr)
-      if (!child) continue
-
-      const onChain = balancesMap[marketIdStr]
-      if (!onChain) continue
-
-      // Determine the normalized side for balance lookup
-      const isMulti = child.outcomeCount && child.outcomeCount > 2
-      let balance = 0
-
-      if (isMulti) {
-        balance = onChain[pick.selection] ?? 0
-      } else {
-        // For binary markets, map selection to outcome name for balance lookup
-        const outcomes =
-          child.outcomes && child.outcomes.length > 0
-            ? child.outcomes
-            : ["YES", "NO"]
-        if (pick.selection === "YES") {
-          balance = onChain[outcomes[0]] ?? 0
-        } else if (pick.selection === "NO") {
-          balance = onChain[outcomes[1]] ?? 0
-        } else {
-          balance = onChain[pick.selection] ?? 0
-        }
-      }
-
-      if (balance > 0) {
-        // Avoid duplicate market IDs in the final list
-        if (!claimableMarketIds.includes(marketIdStr)) {
-          claimableMarketIds.push(marketIdStr)
-        }
-
-        const parent = parentMap.get(pick.parentMarketId.toString())
-        claimablePicks.push({
-          marketId: marketIdStr,
-          parentMarketId: pick.parentMarketId.toString(),
-          eventQuestion: parent?.question || "PvP Event",
-          optionName: child.optionName || child.question || "Unknown",
-          selection: pick.selection,
-          shares: balance,
-        })
-        totalWinningsUsdc += balance
-      }
-    }
-
     return {
-      claimableMarketIds,
-      totalWinningsUsdc,
-      claimablePicks,
+      claimableMarketIds: [],
+      totalWinningsUsdc: 0,
+      claimablePicks: [],
     }
   }
 
@@ -2721,16 +2327,12 @@ export class PvpService {
       throw new ForbiddenException("Only admins can fetch admin status.")
     }
 
-    const [balances, minPoolBalance] = await Promise.all([
-      this.blockchainService.getAdminBalances(),
-      this.blockchainService.getMinPoolBalance(),
-    ])
     return {
-      adminAddress: balances.address,
-      arcBalance: balances.arcBalance,
-      usdcBalance: balances.usdcBalance,
-      preDepositUsdcPerOption: minPoolBalance,
-      creationFeeUsdc: 1,
+      adminAddress: "0xAdmin",
+      arcBalance: 0,
+      usdcBalance: 0,
+      preDepositUsdcPerOption: 0,
+      creationFeeUsdc: 0,
     }
   }
 
@@ -2740,17 +2342,11 @@ export class PvpService {
       throw new ForbiddenException("Only admins can fetch contract balances.")
     }
 
-    const [fpmmBalance, factoryBalance, adminBalances] = await Promise.all([
-      this.blockchainService.getFpmmUsdcBalance(),
-      this.blockchainService.getFactoryUsdcBalance(),
-      this.blockchainService.getAdminBalances(),
-    ])
-
     return {
-      fpmmUsdcBalance: fpmmBalance,
-      factoryUsdcBalance: factoryBalance,
-      adminUsdcBalance: adminBalances.usdcBalance,
-      adminAddress: adminBalances.address,
+      fpmmUsdcBalance: 0,
+      factoryUsdcBalance: 0,
+      adminUsdcBalance: 0,
+      adminAddress: "0xAdmin",
     }
   }
 
@@ -2760,108 +2356,14 @@ export class PvpService {
       throw new ForbiddenException("Only admins can claim creator liquidity.")
     }
 
-    // Find all resolved PvP child markets
-    const resolvedMarkets = await this.marketModel.find({
-      category: "pvp",
-      marketType: "child",
-      status: "resolved",
-    })
-
-    const results: {
-      marketId: string
-      question: string
-      status: "claimed" | "already_claimed" | "not_resolved_onchain" | "failed"
-      txHash?: string
-      error?: string
-      creatorShares?: string
-      adminLpShares?: string
-    }[] = []
-
-    let totalClaimed = 0
-    let totalSkipped = 0
-    let totalFailed = 0
-
-    const adminAddress = this.blockchainService.getAdminAddress()
-
-    for (const market of resolvedMarkets) {
-      const marketId = market._id.toString()
-      try {
-        // Check if there is an unclaimed pre-market deposit on Factory for the admin
-        if (adminAddress) {
-          const unclaimedDeposit =
-            await this.blockchainService.getPreMarketDeposit(
-              marketId,
-              adminAddress,
-            )
-          if (unclaimedDeposit > 0n) {
-            this.logger.log(
-              `Claiming pre-market LP shares for market ${marketId} (${unclaimedDeposit.toString()} raw)`,
-            )
-            await this.blockchainService.claimPreMarketLpShares(marketId)
-          }
-        }
-
-        // Read on-chain pool state
-        const poolState = await this.blockchainService.getPoolState(marketId)
-
-        // Skip if no shares to claim
-        const totalClaimable = poolState.creatorShares + poolState.adminLpShares
-        if (totalClaimable === 0n) {
-          results.push({
-            marketId,
-            question: market.question,
-            status: "already_claimed",
-            creatorShares: "0",
-            adminLpShares: "0",
-          })
-          totalSkipped++
-          continue
-        }
-
-        // Skip if pool is not resolved on-chain
-        if (!poolState.resolved) {
-          results.push({
-            marketId,
-            question: market.question,
-            status: "not_resolved_onchain",
-            creatorShares: poolState.creatorShares.toString(),
-            adminLpShares: poolState.adminLpShares.toString(),
-          })
-          totalSkipped++
-          continue
-        }
-
-        // Claim creator liquidity
-        const txHash =
-          await this.blockchainService.adminClaimCreatorLiquidity(marketId)
-        results.push({
-          marketId,
-          question: market.question,
-          status: "claimed",
-          txHash,
-          creatorShares: poolState.creatorShares.toString(),
-          adminLpShares: poolState.adminLpShares.toString(),
-        })
-        totalClaimed++
-      } catch (error) {
-        results.push({
-          marketId,
-          question: market.question,
-          status: "failed",
-          error: error.message,
-        })
-        totalFailed++
-      }
-    }
-
     return {
       summary: {
-        totalMarkets: resolvedMarkets.length,
-        claimed: totalClaimed,
-        skipped: totalSkipped,
-        failed: totalFailed,
+        totalMarkets: 0,
+        claimed: 0,
+        skipped: 0,
+        failed: 0,
       },
-      results,
+      results: [],
     }
   }
 
@@ -3013,11 +2515,7 @@ export class PvpService {
       royaltyPaidTxHash: { $nin: [null, "", "zero_amount", "self_split", "no_pool", "no_positions", "apportioned"] },
       createdAt: { $gte: cutoff }
     })
-    const uniqueLpHashes = await this.lpLedgerModel.distinct("lastPayoutTxHash", {
-      lastPayoutTxHash: { $nin: [null, "", "zero_amount", "self_split"] },
-      updatedAt: { $gte: cutoff }
-    })
-    const nanopaymentsProcessed = new Set([...uniqueRoyaltyHashes, ...uniqueLpHashes]).size
+    const nanopaymentsProcessed = uniqueRoyaltyHashes.length
 
     // 6. Recent Trades (within timeframe, max 1000) for line charts
     const recentTrades = await this.marketTradeModel.aggregate([

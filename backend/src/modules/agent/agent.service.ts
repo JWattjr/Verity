@@ -18,7 +18,7 @@ export class AgentService {
    * Completely free, keyless, and does not require external libraries.
    */
   async searchWeb(query: string): Promise<string> {
-    const url = `https://duckduckgo.com/html/?q=${encodeURIComponent(query)}`
+    const url = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`
     const headers = {
       "User-Agent":
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",

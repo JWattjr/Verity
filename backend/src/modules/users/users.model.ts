@@ -127,13 +127,6 @@ export class User {
 export const UserSchema = SchemaFactory.createForClass(User)
 
 UserSchema.index(
-  { walletAddress: 1 },
-  {
-    unique: true,
-    partialFilterExpression: { walletAddress: { $type: "string" } },
-  },
-)
-UserSchema.index(
   { email: 1 },
   { unique: true, partialFilterExpression: { email: { $type: "string" } } },
 )
