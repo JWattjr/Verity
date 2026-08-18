@@ -136,4 +136,12 @@ export class PvpController {
   async getPublicMetrics(@Query("timeframe") timeframe?: string) {
     return this.pvpService.getPublicMetrics(timeframe)
   }
+
+  @Get("schedule/premier-league")
+  @ApiOperation({
+    summary: "Fetch live official upcoming Premier League fixture schedule",
+  })
+  async getPremierLeagueSchedule() {
+    return this.pvpService.getPremierLeagueSchedule()
+  }
 }

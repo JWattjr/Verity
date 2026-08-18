@@ -39,8 +39,6 @@ interface MarketsTableProps {
   markets: Market[]
   searchQuery: string
   setSearchQuery: (val: string) => void
-  categoryFilter: string
-  setCategoryFilter: (val: string) => void
   statusFilter: string
   setStatusFilter: (val: string) => void
   sortBy: string
@@ -50,7 +48,6 @@ interface MarketsTableProps {
   itemsPerPage: number
   fetchMarkets: () => void
   handleApproveTrading: (id: string) => void
-  openAddLiquidityModal: (id: string) => void
   handleOpenArbitrateResolve: (market: Market) => void
 }
 
@@ -101,8 +98,6 @@ export default function MarketsTable({
   markets,
   searchQuery,
   setSearchQuery,
-  categoryFilter,
-  setCategoryFilter,
   statusFilter,
   setStatusFilter,
   sortBy,
@@ -112,35 +107,26 @@ export default function MarketsTable({
   itemsPerPage,
   fetchMarkets,
   handleApproveTrading,
-  openAddLiquidityModal,
   handleOpenArbitrateResolve,
 }: MarketsTableProps) {
-  // Markets sorting, filtering, searching and pagination computations
+  // Filter and sort markets
   const filteredAndSortedMarkets = useMemo(() => {
     let result = [...markets]
 
-    // Searching
+    // Text search
     if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase().trim()
+      const q = searchQuery.toLowerCase().trim()
       result = result.filter(
         (m) =>
-          m.question.toLowerCase().includes(query) ||
-          m.id.toLowerCase().includes(query),
+          m.question.toLowerCase().includes(q) ||
+          m.id.toLowerCase().includes(q) ||
+          (m.resolutionSource && m.resolutionSource.toLowerCase().includes(q)),
       )
     }
 
     // Status filtering
     if (statusFilter !== "all") {
       result = result.filter((m) => m.status === statusFilter)
-    }
-
-    // Category filtering
-    if (categoryFilter !== "all") {
-      if (categoryFilter === "pvp") {
-        result = result.filter((m) => m.category === "pvp")
-      } else {
-        result = result.filter((m) => m.category !== "pvp")
-      }
     }
 
     // Sorting
@@ -162,7 +148,7 @@ export default function MarketsTable({
     })
 
     return result
-  }, [markets, searchQuery, statusFilter, categoryFilter, sortBy])
+  }, [markets, searchQuery, statusFilter, sortBy])
 
   // Paginated subset
   const paginatedMarkets = useMemo(() => {
@@ -176,18 +162,17 @@ export default function MarketsTable({
   )
 
   return (
-    <div className="verity-card bg-white border border-stone-200 shadow-xs overflow-hidden flex flex-col">
+    <div className="verity-card bg-white border border-stone-200 shadow-xs overflow-hidden flex flex-col rounded-[2px]">
       {/* Header with Search and Filter panel */}
       <div className="p-5 border-b border-stone-200 bg-stone-50/50 flex flex-col gap-4">
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div>
             <h3 className="text-base font-bold text-stone-900 flex items-center gap-2">
               <TrendingUp className="h-5 w-5 text-indigo-600" />
-              Prediction Market Moderation
+              Prediction & Duel Moderation
             </h3>
             <p className="text-xs text-stone-500 mt-0.5">
-              Moderate user generated prediction markets, fund escrow pools, and
-              settle resolutions.
+              Moderate active prediction markets, monitor live matches, and settle outcomes.
             </p>
           </div>
 
@@ -195,7 +180,7 @@ export default function MarketsTable({
             <button
               onClick={fetchMarkets}
               disabled={marketsLoading}
-              className="h-9 w-9 rounded-lg hover:bg-stone-100 bg-white border border-stone-200 flex items-center justify-center text-stone-500 hover:text-stone-950 transition-colors shadow-2xs cursor-pointer"
+              className="h-9 w-9 rounded-[2px] hover:bg-stone-100 bg-white border border-stone-200 flex items-center justify-center text-stone-500 hover:text-stone-950 transition-colors shadow-2xs cursor-pointer"
             >
               <RefreshCw
                 className={`h-4 w-4 ${marketsLoading ? "animate-spin" : ""}`}
@@ -205,7 +190,7 @@ export default function MarketsTable({
         </div>
 
         {/* Filter controls row */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {/* Search query input */}
           <div className="relative">
             <Search className="absolute left-3 top-2.5 h-4 w-4 text-stone-400" />
@@ -214,26 +199,12 @@ export default function MarketsTable({
               placeholder="Search markets question or ID..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full h-9 pl-9 pr-3 border border-stone-200 bg-white text-xs rounded-lg outline-none focus:border-indigo-500 transition-colors placeholder:text-stone-400"
+              className="w-full h-9 pl-9 pr-3 border border-stone-200 bg-white text-xs rounded-[2px] outline-none focus:border-indigo-500 transition-colors placeholder:text-stone-400"
             />
           </div>
 
-          {/* Category filter */}
-          <div className="flex items-center gap-2 bg-white border border-stone-200 px-2.5 rounded-lg h-9">
-            <Filter className="h-3.5 w-3.5 text-stone-400" />
-            <select
-              value={categoryFilter}
-              onChange={(e) => setCategoryFilter(e.target.value)}
-              className="flex-1 bg-transparent text-xs outline-none text-stone-700 cursor-pointer"
-            >
-              <option value="all">All Categories</option>
-              <option value="standard">Standard Markets</option>
-              <option value="pvp">PvP Arena Markets</option>
-            </select>
-          </div>
-
           {/* Status filter */}
-          <div className="flex items-center gap-2 bg-white border border-stone-200 px-2.5 rounded-lg h-9">
+          <div className="flex items-center gap-2 bg-white border border-stone-200 px-2.5 rounded-[2px] h-9">
             <Filter className="h-3.5 w-3.5 text-stone-400" />
             <select
               value={statusFilter}
@@ -241,10 +212,8 @@ export default function MarketsTable({
               className="flex-1 bg-transparent text-xs outline-none text-stone-700 cursor-pointer"
             >
               <option value="all">All Statuses</option>
+              <option value="tradable">Tradable / Active</option>
               <option value="open_for_votes">Open For Votes</option>
-              <option value="qualified">Qualified</option>
-              <option value="funding_pool">Funding Pool</option>
-              <option value="tradable">Tradable</option>
               <option value="resolving">Resolving</option>
               <option value="resolved">Resolved</option>
               <option value="closed">Closed</option>
@@ -252,7 +221,7 @@ export default function MarketsTable({
           </div>
 
           {/* Sorting */}
-          <div className="flex items-center gap-2 bg-white border border-stone-200 px-2.5 rounded-lg h-9">
+          <div className="flex items-center gap-2 bg-white border border-stone-200 px-2.5 rounded-[2px] h-9">
             <ArrowUpDown className="h-3.5 w-3.5 text-stone-400" />
             <select
               value={sortBy}
@@ -283,7 +252,7 @@ export default function MarketsTable({
             <thead>
               <tr className="border-b border-stone-200 bg-stone-50 text-stone-500 font-bold uppercase tracking-wider text-[10px]">
                 <th className="p-4">Market Details</th>
-                <th className="p-4">Category</th>
+                <th className="p-4">Type</th>
                 <th className="p-4">Status</th>
                 <th className="p-4">Oracle Source</th>
                 <th className="p-4">Deadline</th>
@@ -306,29 +275,27 @@ export default function MarketsTable({
                   </td>
                   <td className="p-4 align-middle">
                     <span
-                      className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                      className={`inline-flex px-2 py-0.5 rounded-[2px] text-[10px] font-bold uppercase ${
                         market.category === "pvp"
                           ? "bg-purple-50 text-purple-700 border border-purple-100"
                           : "bg-indigo-50 text-indigo-700 border border-indigo-100"
                       }`}
                     >
-                      {market.category}
+                      {market.category === "pvp" ? "PvP Duel" : "Standard"}
                     </span>
                   </td>
                   <td className="p-4 align-middle">
                     <span
-                      className={`inline-flex px-2 py-0.5 rounded-md text-[10px] font-bold uppercase ${
-                        market.status === "qualified"
-                          ? "bg-amber-100 text-amber-855"
-                          : market.status === "tradable"
-                            ? "bg-emerald-100 text-emerald-855"
-                            : market.status === "open_for_votes"
-                              ? "bg-blue-100 text-blue-800"
-                              : market.status === "resolving"
-                                ? "bg-rose-100 text-rose-800"
-                                : market.status === "resolved"
-                                  ? "bg-stone-200 text-stone-700"
-                                  : "bg-stone-100 text-stone-500"
+                      className={`inline-flex px-2 py-0.5 rounded-[2px] text-[10px] font-bold uppercase ${
+                        market.status === "tradable"
+                          ? "bg-emerald-100 text-emerald-800"
+                          : market.status === "open_for_votes"
+                            ? "bg-blue-100 text-blue-800"
+                            : market.status === "resolving"
+                              ? "bg-rose-100 text-rose-800"
+                              : market.status === "resolved"
+                                ? "bg-stone-200 text-stone-700"
+                                : "bg-stone-100 text-stone-500"
                       }`}
                     >
                       {market.status}
@@ -346,57 +313,28 @@ export default function MarketsTable({
                         <Button
                           onClick={() => handleApproveTrading(market.id)}
                           size="sm"
-                          className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-md text-xs cursor-pointer shadow-xs transition-colors"
+                          className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-[2px] text-xs cursor-pointer shadow-xs transition-colors"
                         >
                           Approve Trading
                         </Button>
                       )}
-                      {market.status === "funding_pool" && (
-                        <Button
-                          onClick={() => openAddLiquidityModal(market.id)}
-                          size="sm"
-                          className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-md text-xs cursor-pointer shadow-xs transition-colors"
-                        >
-                          Add Liquidity
-                        </Button>
-                      )}
-                      {market.status === "tradable" && (
-                        <>
-                          <Button
-                            onClick={() => openAddLiquidityModal(market.id)}
-                            variant="outline"
-                            size="sm"
-                            className="border-indigo-200 text-indigo-600 hover:bg-indigo-50 font-semibold rounded-md text-xs cursor-pointer transition-colors"
-                          >
-                            Add Liquidity
-                          </Button>
-                          <Button
-                            onClick={() => handleOpenArbitrateResolve(market)}
-                            size="sm"
-                            className="bg-amber-500 hover:bg-amber-600 text-white font-semibold rounded-md text-xs cursor-pointer shadow-xs transition-colors"
-                          >
-                            Arbitrate Settle
-                          </Button>
-                        </>
-                      )}
-                      {market.status === "resolving" && (
+                      {(market.status === "tradable" || market.status === "resolving") && (
                         <Button
                           onClick={() => handleOpenArbitrateResolve(market)}
                           size="sm"
-                          className="bg-amber-500 hover:bg-amber-600 text-white font-semibold rounded-md text-xs cursor-pointer shadow-xs transition-colors"
+                          className="bg-amber-500 hover:bg-amber-600 text-white font-semibold rounded-[2px] text-xs cursor-pointer shadow-xs transition-colors"
                         >
-                          Settle Dispute
+                          Settle Market
                         </Button>
                       )}
                       {![
                         "qualified",
-                        "funding_pool",
                         "tradable",
                         "resolving",
                       ].includes(market.status) && (
                         <span className="text-[10px] text-stone-400 font-mono uppercase pr-2">
                           {market.status === "resolved"
-                            ? `${formatResolvedOutcome(market)}`
+                            ? `Resolved (${formatResolvedOutcome(market)})`
                             : "No Actions"}
                         </span>
                       )}
@@ -409,46 +347,47 @@ export default function MarketsTable({
         </div>
       )}
 
-      {/* Pagination Panel */}
+      {/* Pagination Footer */}
       {filteredAndSortedMarkets.length > 0 && (
-        <div className="p-4 border-t border-stone-200 bg-stone-50 flex items-center justify-between">
-          <span className="text-xs text-stone-500">
+        <div className="p-4 border-t border-stone-200 bg-stone-50/50 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs">
+          <span className="text-stone-500">
             Showing{" "}
-            <span className="font-semibold text-stone-800">
-              {(currentPage - 1) * itemsPerPage + 1}
-            </span>{" "}
-            to{" "}
-            <span className="font-semibold text-stone-800">
+            <strong>
+              {(currentPage - 1) * itemsPerPage + 1} -{" "}
               {Math.min(
                 currentPage * itemsPerPage,
                 filteredAndSortedMarkets.length,
               )}
-            </span>{" "}
-            of{" "}
-            <span className="font-semibold text-stone-800">
-              {filteredAndSortedMarkets.length}
-            </span>{" "}
-            markets
+            </strong>{" "}
+            of <strong>{filteredAndSortedMarkets.length}</strong> markets
           </span>
 
-          <div className="flex items-center gap-1">
-            <button
-              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+          <div className="flex items-center gap-1.5">
+            <Button
+              variant="outline"
+              size="sm"
               disabled={currentPage === 1}
-              className="h-8 w-8 rounded bg-white border border-stone-200 flex items-center justify-center text-stone-600 hover:bg-stone-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors shadow-2xs"
+              onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+              className="h-8 px-2 rounded-[2px] text-xs cursor-pointer border border-stone-200 bg-white"
             >
-              <ChevronLeft className="h-4 w-4" />
-            </button>
-            <span className="text-xs font-mono px-3 text-stone-700">
+              <ChevronLeft className="h-3.5 w-3.5 mr-1" /> Prev
+            </Button>
+
+            <span className="px-3 py-1 font-mono font-semibold text-stone-700">
               Page {currentPage} of {totalPages}
             </span>
-            <button
-              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-              disabled={currentPage === totalPages}
-              className="h-8 w-8 rounded bg-white border border-stone-200 flex items-center justify-center text-stone-600 hover:bg-stone-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors shadow-2xs"
+
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={currentPage >= totalPages}
+              onClick={() =>
+                setCurrentPage((prev) => Math.min(prev + 1, totalPages))
+              }
+              className="h-8 px-2 rounded-[2px] text-xs cursor-pointer border border-stone-200 bg-white"
             >
-              <ChevronRight className="h-4 w-4" />
-            </button>
+              Next <ChevronRight className="h-3.5 w-3.5 ml-1" />
+            </Button>
           </div>
         </div>
       )}

@@ -4,6 +4,7 @@ import {
   BadRequestException,
   Logger,
   ForbiddenException,
+  InternalServerErrorException,
 } from "@nestjs/common"
 import { InjectModel } from "@nestjs/mongoose"
 import { Model, Types } from "mongoose"
@@ -2710,5 +2711,73 @@ export class PvpService {
 
   async getPublicMetrics(timeframe?: string) {
     return this.calculateSystemMetrics(timeframe)
+  }
+
+  async getPremierLeagueSchedule() {
+    try {
+      const [fixturesRes, bootstrapRes] = await Promise.all([
+        fetch("https://fantasy.premierleague.com/api/fixtures/?future=1", {
+          headers: { "User-Agent": "Verity/1.0" },
+        }),
+        fetch("https://fantasy.premierleague.com/api/bootstrap-static/", {
+          headers: { "User-Agent": "Verity/1.0" },
+        }),
+      ])
+
+      if (!fixturesRes.ok || !bootstrapRes.ok) {
+        throw new Error(
+          `Official Premier League API returned status ${fixturesRes.status} / ${bootstrapRes.status}`,
+        )
+      }
+
+      const fixtures = await fixturesRes.json()
+      const bootstrap = await bootstrapRes.json()
+
+      const teamsMap = new Map<number, { name: string; shortName: string }>()
+      if (Array.isArray(bootstrap.teams)) {
+        for (const t of bootstrap.teams) {
+          teamsMap.set(t.id, { name: t.name, shortName: t.short_name })
+        }
+      }
+
+      const scheduled = (fixtures || [])
+        .filter((f: any) => f.kickoff_time && !f.finished)
+        .slice(0, 30)
+        .map((f: any) => {
+          const homeTeam = teamsMap.get(f.team_h)?.name || `Team ${f.team_h}`
+          const awayTeam = teamsMap.get(f.team_a)?.name || `Team ${f.team_a}`
+          const kickoff = new Date(f.kickoff_time)
+          const deadline = new Date(kickoff.getTime() + 2 * 60 * 60 * 1000)
+
+          return {
+            id: f.id,
+            code: f.code,
+            gameweek: f.event,
+            homeTeam,
+            awayTeam,
+            homeTeamShort: teamsMap.get(f.team_h)?.shortName || "",
+            awayTeamShort: teamsMap.get(f.team_a)?.shortName || "",
+            question: `${homeTeam} vs ${awayTeam}`,
+            kickoffTime: kickoff.toISOString(),
+            lockTime: kickoff.toISOString(),
+            deadline: deadline.toISOString(),
+            resolutionSource: "Premier League Official / BBC Sport",
+          }
+        })
+
+      return {
+        league: "Premier League",
+        count: scheduled.length,
+        fixtures: scheduled,
+      }
+    } catch (err: any) {
+      this.logger.error(
+        `Failed to fetch live Premier League schedule: ${err.message}`,
+        err.stack,
+      )
+      throw new InternalServerErrorException(
+        `Failed to fetch live Premier League schedule from official feed: ${err.message}`,
+      )
+    }
   }
 }
