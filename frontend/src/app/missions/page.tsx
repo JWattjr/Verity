@@ -40,10 +40,6 @@ function getMissionDescription(mission: MissionWithContext) {
       return question
         ? `Buy shares on “${question}”.`
         : "Trade on any open market today."
-    case "has_added_liquidity":
-      return question
-        ? `Provide liquidity to “${question}”.`
-        : "Provide liquidity to any market pool."
     case "has_created_market":
       return "Propose and create a new prediction market."
     case "has_set_profile":

@@ -26,6 +26,7 @@ export default function StandardAppShell({
     pathname === "/portfolio" ||
     pathname === "/portfolio-preview" ||
     pathname === "/missions-preview" ||
+    pathname === "/notifications" ||
     pathname === "/notifications-preview"
 
   useEffect(() => {

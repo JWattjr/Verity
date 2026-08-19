@@ -25,7 +25,7 @@ export default function ProfileEditor() {
   const { profile } = useWalletProfile()
   const { items } = useFeed()
   const { data: referralsData } = useReferralsQuery()
-  const [activeTab, setActiveTab] = useState<ProfileActivityTab>("markets")
+  const [activeTab, setActiveTab] = useState<ProfileActivityTab>("predictions")
   const [peopleModal, setPeopleModal] = useState<
     "followers" | "following" | null
   >(null)
@@ -39,11 +39,7 @@ export default function ProfileEditor() {
   const { data: tabItems = [], isLoading: isActivityLoading } =
     useProfileActivityQuery(
       profile?.id || "",
-      activeTab === "markets"
-        ? "markets"
-        : activeTab === "activity"
-          ? "comments"
-          : "posts",
+      "markets",
       profile?.id,
     )
 
@@ -67,9 +63,7 @@ export default function ProfileEditor() {
       ? isActivityLoading
       : activeTab === "predictions"
         ? isPositionsLoading
-        : activeTab === "activity"
-          ? isActivityLoading
-          : false
+        : false
 
   const localProfileItems = useMemo(
     () =>
@@ -145,7 +139,7 @@ export default function ProfileEditor() {
                 {optionsOpen && (
                   <div className="absolute right-0 top-[calc(100%+8px)] z-50 w-52 border border-border bg-surface p-1.5 shadow-sm">
                     <button
-                      className="flex w-full items-center justify-between rounded-[8px] px-3 py-2 text-left text-xs font-semibold text-charcoal-primary hover:bg-stone-surface transition-colors cursor-pointer"
+                      className="flex w-full items-center justify-between rounded-[2px] px-3 py-2 text-left text-xs font-semibold text-charcoal-primary hover:bg-stone-surface transition-colors cursor-pointer"
                       onClick={() => {
                         setTheme(isDark ? "light" : "dark")
                         setOptionsOpen(false)
@@ -170,7 +164,7 @@ export default function ProfileEditor() {
                         <div className="my-1 h-px bg-border/60" />
                         {referralsData?.referralLink && (
                           <button
-                            className="flex w-full items-center gap-2 rounded-[8px] px-3 py-2 text-left text-xs font-semibold text-charcoal-primary hover:bg-stone-surface transition-colors cursor-pointer"
+                            className="flex w-full items-center gap-2 rounded-[2px] px-3 py-2 text-left text-xs font-semibold text-charcoal-primary hover:bg-stone-surface transition-colors cursor-pointer"
                             onClick={() => {
                               const link = `${window.location.origin}/?ref=${referralsData.referralLink}`
                               void navigator.clipboard.writeText(link)
@@ -184,7 +178,7 @@ export default function ProfileEditor() {
                           </button>
                         )}
                         <button
-                          className="flex w-full items-center gap-2 rounded-[8px] px-3 py-2 text-left text-xs font-semibold text-coral-red hover:bg-red-500/10 transition-colors cursor-pointer"
+                          className="flex w-full items-center gap-2 rounded-[2px] px-3 py-2 text-left text-xs font-semibold text-coral-red hover:bg-red-500/10 transition-colors cursor-pointer"
                           onClick={() => {
                             logout()
                             setOptionsOpen(false)
@@ -222,9 +216,8 @@ export default function ProfileEditor() {
           onOpenPvp={(market) => {
             const parentId =
               market.parentMarketId || market.parent_market_id || market.id
-            router.push(`/markets?tab=pvp-arena&id=${parentId}`)
+            router.push(`/arena?id=${parentId}`)
           }}
-          onOpenPost={(post) => router.push(`/posts/${post.id}`)}
           profile={profile}
           viewerProfile={profile}
         />

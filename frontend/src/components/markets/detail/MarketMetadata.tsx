@@ -2,14 +2,11 @@
 
 import { ReactNode } from "react"
 import {
-  ArrowDown,
-  ArrowUp,
   Heart,
-  MessageCircle,
   Share,
   ShieldCheck,
 } from "lucide-react"
-import { VoteSide, formatTradingFee } from "@/lib/verity"
+import { formatTradingFee } from "@/lib/verity"
 
 interface RulesPanelProps {
   noCondition: string
@@ -126,37 +123,78 @@ export function CreatorPanel({
 }: CreatorPanelProps) {
   return (
     <section className="border border-border bg-surface p-4">
-      <div className="mb-4 flex items-center gap-2">
-        <ShieldCheck className="h-4 w-4 text-accent" />
-        <h2 className="font-heading text-xl font-extrabold uppercase tracking-[0.04em] text-charcoal-primary">
-          Creator Stats
-        </h2>
+      <h2 className="mb-4 font-heading text-xl font-extrabold uppercase tracking-[0.04em] text-charcoal-primary">
+        Creator
+      </h2>
+      <div className="flex items-center gap-3">
+        <div className="flex h-9 w-9 items-center justify-center border border-border bg-black font-heading text-base font-black text-white">
+          {creatorName.charAt(0).toUpperCase()}
+        </div>
+        <div>
+          <span className="block font-heading text-base font-extrabold uppercase text-charcoal-primary">
+            {creatorName}
+          </span>
+          <span className="font-mono text-[9px] uppercase tracking-[0.08em] text-ash">
+            {creator.slice(0, 6)}...{creator.slice(-4)}
+          </span>
+        </div>
       </div>
-      <StatRow label="Creator" value={creatorName} />
-      <StatRow label="Handle" value={creator} />
-      <StatRow
-        label="Markets created"
-        value={marketsCreated.toLocaleString()}
-      />
-      <StatRow
-        label="Visible volume"
-        value={`${totalVolume.toLocaleString(undefined, { maximumFractionDigits: 2 })} USDC`}
-      />
-      <p className="mt-3 border-l-2 border-accent pl-2 font-mono text-[10px] font-bold uppercase tracking-[0.1em] text-accent">
-        Wallet-created market
-      </p>
+      <div className="mt-4 border-t border-border pt-3">
+        <StatRow
+          label="Markets created"
+          value={marketsCreated.toLocaleString()}
+        />
+        <StatRow
+          label="Total volume"
+          value={`${totalVolume.toLocaleString(undefined, { maximumFractionDigits: 2 })} USDC`}
+        />
+      </div>
     </section>
   )
 }
 
-interface IconActionProps {
-  active?: boolean
-  ariaLabel: string
-  disabled?: boolean
-  icon: ReactNode
-  label?: number
-  onClick: () => void
-  tone?: "yes" | "no" | "like"
+export function ResolutionDetailsPanel({
+  disputePeriodHours,
+  oracleAddress,
+  resolverAddress,
+}: {
+  disputePeriodHours?: number
+  oracleAddress?: string
+  resolverAddress?: string
+}) {
+  return (
+    <section className="border border-border bg-surface p-4">
+      <h2 className="mb-4 font-heading text-xl font-extrabold uppercase tracking-[0.04em] text-charcoal-primary">
+        Resolution Details
+      </h2>
+      <StatRow
+        label="Resolver"
+        value={
+          resolverAddress
+            ? `${resolverAddress.slice(0, 6)}...${resolverAddress.slice(-4)}`
+            : "Platform Default"
+        }
+      />
+      <StatRow
+        label="Oracle"
+        value={
+          oracleAddress
+            ? `${oracleAddress.slice(0, 6)}...${oracleAddress.slice(-4)}`
+            : "UMA Optimistic Oracle"
+        }
+      />
+      <StatRow
+        label="Dispute window"
+        value={`${disputePeriodHours ?? 2} hours`}
+      />
+      <div className="mt-3 border-t border-border pt-3">
+        <div className="flex items-center gap-2 font-mono text-[9px] font-semibold uppercase tracking-[0.08em] text-ash">
+          <ShieldCheck className="h-4 w-4 text-meadow-green" />
+          <span>Secured by optimistic dispute bonds</span>
+        </div>
+      </div>
+    </section>
+  )
 }
 
 function IconAction({
@@ -166,76 +204,58 @@ function IconAction({
   icon,
   label,
   onClick,
-  tone = "yes",
-}: IconActionProps) {
+  tone = "default",
+}: {
+  active?: boolean
+  ariaLabel: string
+  disabled?: boolean
+  icon: ReactNode
+  label?: number | string
+  onClick?: () => void
+  tone?: "default" | "like" | "no"
+}) {
+  const activeClass =
+    tone === "like"
+      ? "bg-accent text-white"
+      : tone === "no"
+        ? "bg-black text-white"
+        : "bg-accent text-white"
+
   return (
     <button
       aria-label={ariaLabel}
-      className={`flex min-h-12 items-center justify-center gap-1.5 px-2 font-mono text-[10px] font-bold transition-colors hover:bg-surface-muted hover:text-charcoal-primary disabled:cursor-not-allowed disabled:opacity-40 ${
-        active
-          ? tone === "no"
-            ? "bg-charcoal-primary text-white"
-            : "bg-accent/10 text-accent"
-          : "text-ash"
+      className={`flex min-h-12 items-center justify-center gap-2 font-mono text-[9px] font-semibold uppercase tracking-[0.08em] transition-colors hover:bg-black hover:text-white disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer ${
+        active ? activeClass : "text-ash"
       }`}
       disabled={disabled}
       onClick={onClick}
       type="button"
     >
-      <span>{icon}</span>
-      {typeof label === "number" && <span className="text-xs">{label}</span>}
+      {icon}
+      {label !== undefined && <span>{label}</span>}
     </button>
   )
 }
 
-interface SocialActionsProps {
-  comments: number
-  dailyVotesRemaining: number
-  freeNoVotes: number
-  freeYesVotes: number
+interface MarketActionsProps {
   likes: number
-  marketStatus: string
-  onComment: () => void
   onLike: () => void
   onShare: () => void
-  onVote: (side: VoteSide) => void
   viewerLiked: boolean
-  viewerVote: VoteSide | null
 }
 
 export function SocialActions({
-  comments,
-  dailyVotesRemaining,
-  freeNoVotes,
-  freeYesVotes,
   likes,
-  marketStatus,
-  onComment,
   onLike,
   onShare,
-  onVote,
   viewerLiked,
-  viewerVote,
-}: SocialActionsProps) {
-  const votingDisabled =
-    !["open_for_votes", "qualified", "funding_pool", "tradable"].includes(
-      marketStatus,
-    ) ||
-    Boolean(viewerVote) ||
-    dailyVotesRemaining <= 0
-
+}: MarketActionsProps) {
   return (
     <section
-      aria-label="Market community actions"
+      aria-label="Market actions"
       className="border border-border bg-surface"
     >
-      <div className="grid grid-cols-5 divide-x divide-border">
-        <IconAction
-          ariaLabel={`Open ${comments} comments`}
-          icon={<MessageCircle className="h-4 w-4" />}
-          label={comments}
-          onClick={onComment}
-        />
+      <div className="grid grid-cols-2 divide-x divide-border">
         <IconAction
           active={viewerLiked}
           ariaLabel={
@@ -249,23 +269,6 @@ export function SocialActions({
           label={likes}
           onClick={onLike}
           tone="like"
-        />
-        <IconAction
-          active={viewerVote === "YES"}
-          ariaLabel={`Signal yes, ${freeYesVotes} votes`}
-          disabled={votingDisabled}
-          icon={<ArrowUp className="h-4 w-4" />}
-          label={freeYesVotes}
-          onClick={() => onVote("YES")}
-        />
-        <IconAction
-          active={viewerVote === "NO"}
-          ariaLabel={`Signal no, ${freeNoVotes} votes`}
-          disabled={votingDisabled}
-          icon={<ArrowDown className="h-4 w-4" />}
-          label={freeNoVotes}
-          onClick={() => onVote("NO")}
-          tone="no"
         />
         <IconAction
           ariaLabel="Share market"

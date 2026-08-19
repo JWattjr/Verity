@@ -1,4 +1,4 @@
-import { Module, forwardRef } from "@nestjs/common"
+import { Module } from "@nestjs/common"
 import { MongooseModule } from "@nestjs/mongoose"
 import { Post, PostSchema } from "./posts.model"
 import { User, UserSchema } from "../users/users.model"
@@ -14,10 +14,8 @@ import {
   Reshare,
   ReshareSchema,
 } from "../interactions/interactions.model"
-import { Comment, CommentSchema } from "../comments/comments.model"
 import { PostsService } from "./posts.service"
 import { PostsController } from "./posts.controller"
-import { CommentsModule } from "../comments/comments.module"
 import { InteractionsModule } from "../interactions/interactions.module"
 
 @Module({
@@ -29,9 +27,7 @@ import { InteractionsModule } from "../interactions/interactions.module"
       { name: Like.name, schema: LikeSchema },
       { name: Reshare.name, schema: ReshareSchema },
       { name: Vote.name, schema: VoteSchema },
-      { name: Comment.name, schema: CommentSchema },
     ]),
-    forwardRef(() => CommentsModule),
     InteractionsModule,
   ],
   controllers: [PostsController],

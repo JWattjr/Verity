@@ -6,6 +6,7 @@ import { Share } from "lucide-react"
 import FollowButton from "@/components/profile/FollowButton"
 import ProfileOverview from "@/components/profile/ProfileOverview"
 import ProfileActivityTabs, {
+  ProfileSkeleton,
   type ProfileActivityTab,
 } from "@/components/social/ProfileActivityTabs"
 import SocialUserListModal from "@/components/social/SocialUserListModal"
@@ -17,7 +18,6 @@ import {
   useUserProfileQuery,
   useUserPortfolioQuery,
 } from "@/store/verity/verityQueries"
-import { FeedSkeleton } from "@/components/feed/FeedShell"
 
 interface PublicProfileViewProps {
   userId: string
@@ -27,7 +27,7 @@ export default function PublicProfileView({ userId }: PublicProfileViewProps) {
   const router = useRouter()
   const { profile: viewerProfile } = useWalletProfile()
   const { items } = useFeed()
-  const [activeTab, setActiveTab] = useState<ProfileActivityTab>("markets")
+  const [activeTab, setActiveTab] = useState<ProfileActivityTab>("predictions")
   const [peopleModal, setPeopleModal] = useState<
     "followers" | "following" | null
   >(null)
@@ -42,11 +42,7 @@ export default function PublicProfileView({ userId }: PublicProfileViewProps) {
   const { data: tabItems = [], isLoading: isActivityLoading } =
     useProfileActivityQuery(
       profile?.id || "",
-      activeTab === "markets"
-        ? "markets"
-        : activeTab === "activity"
-          ? "comments"
-          : "posts",
+      "markets",
       viewerProfile?.id,
     )
 
@@ -58,9 +54,7 @@ export default function PublicProfileView({ userId }: PublicProfileViewProps) {
       ? isActivityLoading
       : activeTab === "predictions"
         ? isPositionsLoading
-        : activeTab === "activity"
-          ? isActivityLoading
-          : false
+        : false
 
   const localProfileItems = useMemo(() => {
     if (!profile) return []
@@ -95,23 +89,23 @@ export default function PublicProfileView({ userId }: PublicProfileViewProps) {
           <div className="h-24 bg-stone-surface sm:h-28" />
           <div className="px-4 pb-4 sm:px-5 sm:pb-5">
             <div className="-mt-10 flex items-end justify-between gap-3">
-              <div className="h-20 w-20 shrink-0 rounded-[24px] bg-stone-surface ring-4 ring-white sm:h-24 sm:w-24 sm:rounded-[28px]" />
-              <div className="mb-2 h-10 w-28 rounded-full bg-stone-surface" />
+              <div className="h-20 w-20 shrink-0 rounded-[2px] bg-stone-surface ring-4 ring-white sm:h-24 sm:w-24 sm:rounded-[2px]" />
+              <div className="mb-2 h-10 w-28 rounded-[2px] bg-stone-surface" />
             </div>
             <div className="mt-3">
-              <div className="h-6 w-48 rounded bg-stone-surface" />
-              <div className="mt-2 h-4 w-32 rounded bg-stone-surface" />
-              <div className="mt-4 h-4 w-full max-w-[480px] rounded bg-stone-surface" />
-              <div className="mt-2 h-4 w-full max-w-[360px] rounded bg-stone-surface" />
+              <div className="h-6 w-48 rounded-[2px] bg-stone-surface" />
+              <div className="mt-2 h-4 w-32 rounded-[2px] bg-stone-surface" />
+              <div className="mt-4 h-4 w-full max-w-[480px] rounded-[2px] bg-stone-surface" />
+              <div className="mt-2 h-4 w-full max-w-[360px] rounded-[2px] bg-stone-surface" />
               <div className="mt-5 flex gap-4">
-                <div className="h-4 w-20 rounded bg-stone-surface" />
-                <div className="h-4 w-20 rounded bg-stone-surface" />
+                <div className="h-4 w-20 rounded-[2px] bg-stone-surface" />
+                <div className="h-4 w-20 rounded-[2px] bg-stone-surface" />
               </div>
             </div>
           </div>
           <div className="h-12 border-t border-dashed border-stone-surface bg-stone-surface/10" />
         </section>
-        <FeedSkeleton />
+        <ProfileSkeleton />
       </div>
     )
   }
@@ -171,9 +165,8 @@ export default function PublicProfileView({ userId }: PublicProfileViewProps) {
         onOpenPvp={(market) => {
           const parentId =
             market.parentMarketId || market.parent_market_id || market.id
-          router.push(`/markets?tab=pvp-arena&id=${parentId}`)
+          router.push(`/arena?id=${parentId}`)
         }}
-        onOpenPost={(post) => router.push(`/posts/${post.id}`)}
         profile={profile}
         viewerProfile={viewerProfile}
       />
@@ -199,7 +192,7 @@ function ProfileState({
   return (
     <div className="py-4">
       <section
-        className={`rounded-[12px] p-8 text-center text-sm font-medium tracking-[-0.18px] shadow-subtle ${
+        className={`rounded-[2px] p-8 text-center text-sm font-medium tracking-[-0.18px] shadow-subtle ${
           tone === "error"
             ? "bg-ember-orange/10 text-charcoal-primary"
             : "bg-white text-ash"

@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { History, X, Swords, Award } from "lucide-react"
 import { parseEventTeams } from "./PvpMatchupCarousel"
+import TeamBadge from "@/components/common/TeamBadge"
 import { usePvpMatchHistoryQuery } from "@/store/verity/verityQueries"
 
 export default function DuelHistory() {
@@ -29,13 +30,19 @@ export default function DuelHistory() {
               <div
                 key={item.matchId}
                 onClick={() => setSelectedMatch(item)}
-                className="flex items-center justify-between p-3.5 rounded-2xl bg-[#FAF9F6] dark:bg-zinc-900/40 border border-stone-200/20 dark:border-zinc-850/10 hover:bg-[#F3F1EC] dark:hover:bg-zinc-800/45 transition-all cursor-pointer text-left shadow-xs hover:shadow-sm"
+                className="flex items-center justify-between p-3.5 rounded-[2px] bg-surface-muted border border-border hover:bg-surface transition-colors cursor-pointer text-left"
               >
                 {/* Left Column: Match Details */}
                 <div className="space-y-1 min-w-0 flex-1 pr-3">
-                  <h4 className="text-xs font-bold tracking-tight text-charcoal-primary dark:text-white truncate">
-                    {teamA} vs {teamB}
-                  </h4>
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <div className="flex items-center -space-x-1 shrink-0">
+                      <TeamBadge team={teamA} className="h-4 w-4" />
+                      <TeamBadge team={teamB} className="h-4 w-4" />
+                    </div>
+                    <h4 className="text-xs font-bold tracking-tight text-charcoal-primary dark:text-white truncate">
+                      {teamA} vs {teamB}
+                    </h4>
+                  </div>
                   <div className="flex items-center gap-1.5 text-[10px] font-medium text-ash">
                     <span className="truncate max-w-[90px]">
                       @{item.opponent?.username || "opponent"}
@@ -50,7 +57,7 @@ export default function DuelHistory() {
                 {/* Right Column: Status & XP Pills */}
                 <div className="flex flex-col items-end gap-1 shrink-0">
                   <span
-                    className={`px-2 py-0.5 rounded-md text-[9px] font-bold font-mono uppercase tracking-wider ${
+                    className={`px-2 py-0.5 rounded-[2px] text-[9px] font-bold font-mono uppercase tracking-wider ${
                       item.outcome === "WIN"
                         ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/20 dark:text-emerald-400"
                         : item.outcome === "LOSS"
@@ -73,7 +80,7 @@ export default function DuelHistory() {
       {/* Duel Details Modal */}
       {selectedMatch && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-zinc-950 border border-border dark:border-zinc-800 rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col shadow-2xl animate-in fade-in zoom-in-95 duration-200 text-left">
+          <div className="bg-surface border border-border rounded-[2px] max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col shadow-2xl animate-in fade-in zoom-in-95 duration-200 text-left">
             {/* Modal Header */}
             <div className="p-4 border-b border-border dark:border-zinc-800 flex items-center justify-between bg-stone-50 dark:bg-zinc-900/50">
               <div className="flex items-center gap-2">
@@ -107,7 +114,7 @@ export default function DuelHistory() {
               </div>
 
               {/* Outcome Banner & Stats Summary */}
-              <div className="p-4 rounded-xl border flex flex-col md:flex-row items-center justify-between gap-4 bg-linear-to-br from-indigo-50/10 via-transparent to-transparent border-border dark:border-zinc-800">
+              <div className="p-4 rounded-[2px] border flex flex-col md:flex-row items-center justify-between gap-4 bg-surface-muted border-border">
                 <div className="flex items-center gap-3 w-full md:w-auto">
                   <div
                     className={`h-11 w-11 rounded-full flex items-center justify-center shrink-0 border ${
@@ -143,7 +150,7 @@ export default function DuelHistory() {
                 </div>
 
                 <div className="grid grid-cols-3 gap-2 w-full md:w-auto flex-1 md:justify-end">
-                  <div className="bg-stone-50 dark:bg-zinc-900/60 p-2.5 rounded-lg border border-border dark:border-zinc-900 text-center">
+                  <div className="bg-surface p-2.5 rounded-[2px] border border-border text-center">
                     <span className="text-[9px] font-mono text-ash block">
                       Score
                     </span>
@@ -151,7 +158,7 @@ export default function DuelHistory() {
                       {selectedMatch.myScore} - {selectedMatch.oppScore}
                     </strong>
                   </div>
-                  <div className="bg-stone-50 dark:bg-zinc-900/60 p-2.5 rounded-lg border border-border dark:border-zinc-900 text-center">
+                  <div className="bg-surface p-2.5 rounded-[2px] border border-border text-center">
                     <span className="text-[9px] font-mono text-ash block">
                       XP Earned
                     </span>
@@ -159,7 +166,7 @@ export default function DuelHistory() {
                       +{selectedMatch.xpEarned} XP
                     </strong>
                   </div>
-                  <div className="bg-stone-50 dark:bg-zinc-900/60 p-2.5 rounded-lg border border-border dark:border-zinc-900 text-center">
+                  <div className="bg-surface p-2.5 rounded-[2px] border border-border text-center">
                     <span className="text-[9px] font-mono text-ash block">
                       Profit/Loss
                     </span>
@@ -240,7 +247,7 @@ export default function DuelHistory() {
                         </div>
 
                         <div className="grid grid-cols-3 gap-2 mt-1">
-                          <div className="bg-white-surface dark:bg-zinc-950 p-2 rounded-[8px] border border-border/80 dark:border-zinc-900/80">
+                          <div className="bg-surface p-2 rounded-[2px] border border-border">
                             <span className="text-[8px] font-mono text-ash uppercase block">
                               You Picked
                             </span>
@@ -261,7 +268,7 @@ export default function DuelHistory() {
                             </span>
                           </div>
 
-                          <div className="bg-white-surface dark:bg-zinc-950 p-2 rounded-[8px] border border-border/80 dark:border-zinc-900/80">
+                          <div className="bg-surface p-2 rounded-[2px] border border-border">
                             <span className="text-[8px] font-mono text-ash uppercase block">
                               Opponent Picked
                             </span>
@@ -284,7 +291,7 @@ export default function DuelHistory() {
                             </span>
                           </div>
 
-                          <div className="bg-white-surface dark:bg-zinc-950 p-2 rounded-[8px] border border-border/80 dark:border-zinc-900/80">
+                          <div className="bg-surface p-2 rounded-[2px] border border-border">
                             <span className="text-[8px] font-mono text-ash uppercase block">
                               Outcome
                             </span>
@@ -315,7 +322,7 @@ export default function DuelHistory() {
             <div className="p-4 border-t border-border dark:border-zinc-800 flex justify-end bg-stone-50 dark:bg-zinc-900/50">
               <button
                 onClick={() => setSelectedMatch(null)}
-                className="px-4 py-2 rounded-[10px] bg-charcoal-primary hover:bg-charcoal-primary/95 text-white dark:bg-white dark:text-zinc-950 dark:hover:bg-white/90 text-xs font-bold transition-all shadow-sm cursor-pointer"
+                className="px-4 py-2 rounded-[2px] bg-charcoal-primary hover:bg-charcoal-primary/95 text-white dark:bg-white dark:text-zinc-950 dark:hover:bg-white/90 text-xs font-bold transition-all shadow-sm cursor-pointer"
               >
                 Close Details
               </button>

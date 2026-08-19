@@ -119,7 +119,7 @@ export default function MobileNav() {
           <div className="grid grid-cols-2 gap-3 px-2">
             <button
               onClick={() => navigateTo("/arena")}
-              className="flex flex-col items-center justify-center p-4 rounded-2xl bg-stone-surface hover:bg-stone-surface/70 border border-border text-center transition-all group active:scale-98 cursor-pointer"
+              className="flex flex-col items-center justify-center p-4 rounded-[2px] bg-stone-surface hover:bg-stone-surface/70 border border-border text-center transition-all group active:scale-98 cursor-pointer"
             >
               <div className="h-10 w-10 rounded-full bg-ember-orange/10 text-ember-orange flex items-center justify-center mb-2 group-hover:scale-105 transition-transform">
                 <Swords className="h-5 w-5" />
@@ -134,7 +134,7 @@ export default function MobileNav() {
 
             <button
               onClick={() => navigateTo("/leaderboard")}
-              className="flex flex-col items-center justify-center p-4 rounded-2xl bg-stone-surface hover:bg-stone-surface/70 border border-border text-center transition-all group active:scale-98 cursor-pointer"
+              className="flex flex-col items-center justify-center p-4 rounded-[2px] bg-stone-surface hover:bg-stone-surface/70 border border-border text-center transition-all group active:scale-98 cursor-pointer"
             >
               <div className="h-10 w-10 rounded-full bg-amber-500/10 text-amber-500 flex items-center justify-center mb-2 group-hover:scale-105 transition-transform">
                 <Trophy className="h-5 w-5" />
@@ -149,7 +149,7 @@ export default function MobileNav() {
 
             <button
               onClick={() => navigateTo("/missions")}
-              className="flex flex-col items-center justify-center p-4 rounded-2xl bg-stone-surface hover:bg-stone-surface/70 border border-border text-center transition-all group active:scale-98 cursor-pointer"
+              className="flex flex-col items-center justify-center p-4 rounded-[2px] bg-stone-surface hover:bg-stone-surface/70 border border-border text-center transition-all group active:scale-98 cursor-pointer"
             >
               <div className="h-10 w-10 rounded-full bg-sunburst-yellow/10 text-sunburst-yellow flex items-center justify-center mb-2 group-hover:scale-105 transition-transform">
                 <Sparkles className="h-5 w-5" />
@@ -166,7 +166,7 @@ export default function MobileNav() {
 
             <button
               onClick={() => navigateTo("/profile")}
-              className="flex flex-col items-center justify-center p-4 rounded-2xl bg-stone-surface hover:bg-stone-surface/70 border border-border text-center transition-all group active:scale-98 cursor-pointer"
+              className="flex flex-col items-center justify-center p-4 rounded-[2px] bg-stone-surface hover:bg-stone-surface/70 border border-border text-center transition-all group active:scale-98 cursor-pointer"
             >
               <div className="h-10 w-10 rounded-full bg-meadow-green/10 text-meadow-green flex items-center justify-center mb-2 group-hover:scale-105 transition-transform">
                 <User className="h-5 w-5" />

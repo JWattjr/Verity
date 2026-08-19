@@ -384,7 +384,6 @@ export default function MissionsTab() {
                     <option value="has_commented">has_commented (Posted Comment)</option>
                     <option value="has_liked">has_liked (Liked Post)</option>
                     <option value="has_traded">has_traded (Traded Share)</option>
-                    <option value="has_added_liquidity">has_added_liquidity (Added LP)</option>
                     <option value="has_created_market">has_created_market (Created Market)</option>
                     <option value="has_set_profile">has_set_profile (Completed Onboarding)</option>
                   </>
@@ -552,7 +551,6 @@ export default function MissionsTab() {
                                   <option value="has_commented">has_commented</option>
                                   <option value="has_liked">has_liked</option>
                                   <option value="has_traded">has_traded</option>
-                                  <option value="has_added_liquidity">has_added_liquidity</option>
                                   <option value="has_created_market">has_created_market</option>
                                   <option value="has_set_profile">has_set_profile</option>
                                 </>

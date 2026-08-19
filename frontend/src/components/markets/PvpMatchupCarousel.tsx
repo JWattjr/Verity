@@ -254,7 +254,7 @@ export default function PvpMatchupCarousel({
   }, [eventFilter, pvpEvents, searchQuery, selectedPvpEventId])
 
   return (
-    <section className="overflow-hidden rounded-2xl border border-[#252525] bg-[#080808] text-white shadow-subtle">
+    <section className="overflow-hidden rounded-[2px] border border-[#252525] bg-[#080808] text-white shadow-subtle">
       <div className="relative overflow-hidden bg-[#080808] px-5 py-5 text-white sm:px-6 sm:py-6">
         <div className="absolute -right-16 -top-20 h-56 w-56 rounded-full border border-white/10" />
         <div className="absolute -right-5 top-5 h-28 w-28 rounded-full border border-white/10" />
@@ -269,18 +269,14 @@ export default function PvpMatchupCarousel({
               Build your arena card
             </h2>
             <p className="mt-3 max-w-lg text-xs leading-relaxed text-zinc-400 sm:text-sm">
-              Choose a fixture, call at least three markets, and enter a
-              head-to-head duel backed by USDC.
+              Choose a fixture, make your proposition calls, and enter a
+              head-to-head duel for Arena XP.
             </p>
           </div>
 
-          <div className="grid w-full grid-cols-3 border border-white/10">
-            <ArenaStat label="Open" value={eventSummary.open} accent />
+          <div className="grid w-full grid-cols-2 border border-white/10">
+            <ArenaStat label="Open Matches" value={eventSummary.open} accent />
             <ArenaStat label="Settled" value={eventSummary.settled} />
-            <ArenaStat
-              label="Volume"
-              value={formatCompactCurrency(eventSummary.volume)}
-            />
           </div>
         </div>
       </div>

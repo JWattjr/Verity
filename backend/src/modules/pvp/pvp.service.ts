@@ -2714,6 +2714,10 @@ export class PvpService {
   }
 
   async getPremierLeagueSchedule() {
+    if (process.env.NODE_ENV === "development" || !process.env.NODE_ENV) {
+      return this.getMockPremierLeagueSchedule()
+    }
+
     try {
       const [fixturesRes, bootstrapRes] = await Promise.all([
         fetch("https://fantasy.premierleague.com/api/fixtures/?future=1", {
@@ -2778,6 +2782,135 @@ export class PvpService {
       throw new InternalServerErrorException(
         `Failed to fetch live Premier League schedule from official feed: ${err.message}`,
       )
+    }
+  }
+
+  getMockPremierLeagueSchedule() {
+    const now = new Date()
+    const buildKickoffMinutes = (minutesAhead: number) =>
+      new Date(now.getTime() + minutesAhead * 60 * 1000)
+
+    const mockFixtures = [
+      // Gameweek 1 (Immediate development testing)
+      {
+        id: 9001,
+        code: 9001,
+        gameweek: 1,
+        homeTeam: "Arsenal",
+        awayTeam: "Chelsea",
+        homeTeamShort: "ARS",
+        awayTeamShort: "CHE",
+        question: "Arsenal vs Chelsea",
+        kickoffTime: buildKickoffMinutes(30).toISOString(),
+        lockTime: buildKickoffMinutes(30).toISOString(),
+        deadline: buildKickoffMinutes(150).toISOString(),
+        resolutionSource: "Premier League Official / BBC Sport",
+      },
+      {
+        id: 9002,
+        code: 9002,
+        gameweek: 1,
+        homeTeam: "Liverpool",
+        awayTeam: "Manchester City",
+        homeTeamShort: "LIV",
+        awayTeamShort: "MCI",
+        question: "Liverpool vs Manchester City",
+        kickoffTime: buildKickoffMinutes(60).toISOString(),
+        lockTime: buildKickoffMinutes(60).toISOString(),
+        deadline: buildKickoffMinutes(180).toISOString(),
+        resolutionSource: "Premier League Official / BBC Sport",
+      },
+      {
+        id: 9003,
+        code: 9003,
+        gameweek: 1,
+        homeTeam: "Manchester United",
+        awayTeam: "Tottenham Hotspur",
+        homeTeamShort: "MUN",
+        awayTeamShort: "TOT",
+        question: "Manchester United vs Tottenham Hotspur",
+        kickoffTime: buildKickoffMinutes(120).toISOString(),
+        lockTime: buildKickoffMinutes(120).toISOString(),
+        deadline: buildKickoffMinutes(240).toISOString(),
+        resolutionSource: "Premier League Official / BBC Sport",
+      },
+      {
+        id: 9004,
+        code: 9004,
+        gameweek: 1,
+        homeTeam: "Aston Villa",
+        awayTeam: "Newcastle United",
+        homeTeamShort: "AVL",
+        awayTeamShort: "NEW",
+        question: "Aston Villa vs Newcastle United",
+        kickoffTime: buildKickoffMinutes(180).toISOString(),
+        lockTime: buildKickoffMinutes(180).toISOString(),
+        deadline: buildKickoffMinutes(300).toISOString(),
+        resolutionSource: "Premier League Official / BBC Sport",
+      },
+      // Gameweek 2
+      {
+        id: 9005,
+        code: 9005,
+        gameweek: 2,
+        homeTeam: "Chelsea",
+        awayTeam: "Manchester United",
+        homeTeamShort: "CHE",
+        awayTeamShort: "MUN",
+        question: "Chelsea vs Manchester United",
+        kickoffTime: buildKickoffMinutes(1440).toISOString(),
+        lockTime: buildKickoffMinutes(1440).toISOString(),
+        deadline: buildKickoffMinutes(1560).toISOString(),
+        resolutionSource: "Premier League Official / BBC Sport",
+      },
+      {
+        id: 9006,
+        code: 9006,
+        gameweek: 2,
+        homeTeam: "Manchester City",
+        awayTeam: "Arsenal",
+        homeTeamShort: "MCI",
+        awayTeamShort: "ARS",
+        question: "Manchester City vs Arsenal",
+        kickoffTime: buildKickoffMinutes(1500).toISOString(),
+        lockTime: buildKickoffMinutes(1500).toISOString(),
+        deadline: buildKickoffMinutes(1620).toISOString(),
+        resolutionSource: "Premier League Official / BBC Sport",
+      },
+      {
+        id: 9007,
+        code: 9007,
+        gameweek: 2,
+        homeTeam: "Tottenham Hotspur",
+        awayTeam: "Liverpool",
+        homeTeamShort: "TOT",
+        awayTeamShort: "LIV",
+        question: "Tottenham Hotspur vs Liverpool",
+        kickoffTime: buildKickoffMinutes(1560).toISOString(),
+        lockTime: buildKickoffMinutes(1560).toISOString(),
+        deadline: buildKickoffMinutes(1680).toISOString(),
+        resolutionSource: "Premier League Official / BBC Sport",
+      },
+      {
+        id: 9008,
+        code: 9008,
+        gameweek: 2,
+        homeTeam: "Brighton & Hove Albion",
+        awayTeam: "West Ham United",
+        homeTeamShort: "BHA",
+        awayTeamShort: "WHU",
+        question: "Brighton & Hove Albion vs West Ham United",
+        kickoffTime: buildKickoffMinutes(1620).toISOString(),
+        lockTime: buildKickoffMinutes(1620).toISOString(),
+        deadline: buildKickoffMinutes(1740).toISOString(),
+        resolutionSource: "Premier League Official / BBC Sport",
+      },
+    ]
+
+    return {
+      league: "Premier League (Mock Dev Schedule)",
+      count: mockFixtures.length,
+      fixtures: mockFixtures,
     }
   }
 }

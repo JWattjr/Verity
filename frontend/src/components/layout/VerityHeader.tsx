@@ -6,7 +6,6 @@ import { usePathname } from "next/navigation"
 import { useTheme } from "next-themes"
 import {
   Bell,
-  Search,
   Sparkles,
   User,
   Settings,
@@ -128,13 +127,6 @@ export default function VerityHeader() {
         </nav>
 
         <div className="verity-header-actions">
-          <Link
-            aria-label="Search markets"
-            className="verity-header-icon"
-            href="/explore"
-          >
-            <Search aria-hidden="true" />
-          </Link>
           {mounted && (
             <Link
               aria-label="Notifications"

@@ -7,7 +7,6 @@ import { AppController } from "./app.controller"
 import { AppService } from "./app.service"
 import { AuthModule } from "./modules/auth/auth.module"
 import { UsersModule } from "./modules/users/users.module"
-import { CommentsModule } from "./modules/comments/comments.module"
 import { InteractionsModule } from "./modules/interactions/interactions.module"
 import { PostsModule } from "./modules/posts/posts.module"
 import { MarketsModule } from "./modules/markets/markets.module"
@@ -42,7 +41,6 @@ import { TmaModule } from "./modules/tma/tma.module"
     ]),
     AuthModule,
     UsersModule,
-    CommentsModule,
     InteractionsModule,
     PostsModule,
     MarketsModule,

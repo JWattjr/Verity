@@ -144,4 +144,12 @@ export class PvpController {
   async getPremierLeagueSchedule() {
     return this.pvpService.getPremierLeagueSchedule()
   }
+
+  @Get("schedule/mock")
+  @ApiOperation({
+    summary: "Fetch mock upcoming Premier League fixture schedule for development testing",
+  })
+  async getMockPremierLeagueSchedule() {
+    return this.pvpService.getMockPremierLeagueSchedule()
+  }
 }

@@ -10,7 +10,6 @@ import { User, UserDocument } from "../users/users.model"
 import { Mission, MissionDocument } from "./missions.model"
 import { CreateMissionDto, UpdateMissionDto } from "./missions.dto"
 import { Vote, Market, MarketTrade } from "../markets/markets.model"
-import { Comment } from "../comments/comments.model"
 import { Like } from "../interactions/interactions.model"
 import { Post } from "../posts/posts.model"
 import { TwitterVerifyService } from "./twitter-verify.service"
@@ -27,7 +26,6 @@ export class MissionsService {
     @InjectModel(Market.name) private readonly marketModel: Model<any>,
     @InjectModel(MarketTrade.name)
     private readonly marketTradeModel: Model<MarketTrade>,
-    @InjectModel(Comment.name) private readonly commentModel: Model<Comment>,
     @InjectModel(Like.name) private readonly likeModel: Model<Like>,
     @InjectModel(Post.name) private readonly postModel: Model<Post>,
     private readonly twitterVerifyService: TwitterVerifyService,
@@ -195,23 +193,7 @@ export class MissionsService {
             }
             break
           }
-          case "has_commented": {
-            const query: any = {
-              authorId: new Types.ObjectId(userId),
-              createdAt: { $gt: missionCreatedAt },
-            }
-            if (mission.marketId) {
-              const m = await this.marketModel.findById(mission.marketId)
-              if (m) {
-                query.postId = m.postId
-              }
-            }
-            const hasCommented = await this.commentModel.findOne(query)
-            if (!hasCommented) {
-              throw new BadRequestException("You must post a comment first.")
-            }
-            break
-          }
+
           case "has_liked": {
             const query: any = {
               userId: new Types.ObjectId(userId),
@@ -244,10 +226,6 @@ export class MissionsService {
                 "You must place a trade (buy share) first.",
               )
             }
-            break
-          }
-          case "has_added_liquidity": {
-            // Legacy condition - automatically pass in pure Web2 arena
             break
           }
           case "has_created_market": {

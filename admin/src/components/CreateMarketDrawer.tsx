@@ -115,7 +115,7 @@ export default function CreateMarketDrawer({
   const [customOptions, setCustomOptions] = useState<string[]>([])
   const [customOptionText, setCustomOptionText] = useState("")
 
-  // Fetch live EPL schedule when drawer opens
+  // Fetch EPL schedule when drawer opens
   async function loadEplSchedule() {
     setFixturesLoading(true)
     try {
@@ -126,7 +126,7 @@ export default function CreateMarketDrawer({
       }>("/pvp/schedule/premier-league")
       setFixtures(data.fixtures || [])
     } catch (err: any) {
-      toast.error(err.message || "Failed to load live Premier League schedule.")
+      toast.error(err.message || "Failed to load Premier League schedule.")
     } finally {
       setFixturesLoading(false)
     }

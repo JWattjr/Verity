@@ -7,10 +7,6 @@ export interface CatMeta {
   title: string
   subtitle: string
   icon: React.ReactNode
-  accent: string
-  selectedBg: string
-  ring: string
-  unselectedBg: string
 }
 
 export function getCategoryMeta(groupKey: string): CatMeta {
@@ -19,131 +15,91 @@ export function getCategoryMeta(groupKey: string): CatMeta {
       title: "Match Winner",
       subtitle: "3-way: Win / Draw / Win",
       icon: <Trophy className="h-4 w-4" />,
-      accent: "emerald",
-      selectedBg: "bg-emerald-600",
-      ring: "ring-emerald-400/30",
-      unselectedBg:
-        "bg-emerald-50/80 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-300 border border-emerald-100 dark:border-emerald-900/40",
     },
     match_winner: {
       title: "Match Winner",
       subtitle: "3-way: Win / Draw / Win",
       icon: <Trophy className="h-4 w-4" />,
-      accent: "emerald",
-      selectedBg: "bg-emerald-600",
-      ring: "ring-emerald-400/30",
-      unselectedBg:
-        "bg-emerald-50/80 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-300 border border-emerald-100 dark:border-emerald-900/40",
     },
     first_goal: {
       title: "First Team to Score",
       subtitle: "First to Score",
       icon: <Target className="h-4 w-4" />,
-      accent: "emerald",
-      selectedBg: "bg-emerald-600",
-      ring: "ring-emerald-400/30",
-      unselectedBg:
-        "bg-emerald-50/80 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-300 border border-emerald-100 dark:border-emerald-900/40",
     },
     red_card: {
       title: "Red Card",
       subtitle: "Red card shown in match",
       icon: <RectangleVertical className="h-4 w-4 fill-current rotate-12" />,
-      accent: "emerald",
-      selectedBg: "bg-emerald-600",
-      ring: "ring-emerald-400/30",
-      unselectedBg:
-        "bg-red-50/80 dark:bg-red-950/20 text-red-700 dark:text-red-300 border border-red-100 dark:border-red-900/40",
     },
     red_cards: {
       title: "Red Card",
       subtitle: "Red card shown in match",
       icon: <RectangleVertical className="h-4 w-4 fill-current rotate-12" />,
-      accent: "emerald",
-      selectedBg: "bg-emerald-600",
-      ring: "ring-emerald-400/30",
-      unselectedBg:
-        "bg-red-50/80 dark:bg-red-950/20 text-red-700 dark:text-red-300 border border-red-100 dark:border-red-900/40",
     },
     corners: {
       title: "Corners",
       subtitle: "Over / Under",
       icon: <Flag className="h-4 w-4" />,
-      accent: "emerald",
-      selectedBg: "bg-emerald-600",
-      ring: "ring-emerald-400/30",
-      unselectedBg:
-        "bg-emerald-50/80 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-300 border border-emerald-100 dark:border-emerald-900/40",
     },
     total_corners: {
       title: "Corners",
       subtitle: "Over / Under",
       icon: <Flag className="h-4 w-4" />,
-      accent: "emerald",
-      selectedBg: "bg-emerald-600",
-      ring: "ring-emerald-400/30",
-      unselectedBg:
-        "bg-emerald-50/80 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-300 border border-emerald-100 dark:border-emerald-900/40",
     },
     goals: {
       title: "Goals",
       subtitle: "Over / Under",
       icon: <Target className="h-4 w-4" />,
-      accent: "emerald",
-      selectedBg: "bg-emerald-600",
-      ring: "ring-emerald-400/30",
-      unselectedBg:
-        "bg-amber-50/80 dark:bg-amber-950/20 text-amber-700 dark:text-amber-300 border border-amber-100 dark:border-amber-900/40",
     },
     total_goals: {
       title: "Goals",
       subtitle: "Over / Under",
       icon: <Target className="h-4 w-4" />,
-      accent: "emerald",
-      selectedBg: "bg-emerald-600",
-      ring: "ring-emerald-400/30",
-      unselectedBg:
-        "bg-amber-50/80 dark:bg-amber-950/20 text-amber-700 dark:text-amber-300 border border-amber-100 dark:border-amber-900/40",
     },
     cards: {
       title: "Yellow Cards",
       subtitle: "Over / Under",
       icon: <RectangleVertical className="h-4 w-4 fill-current rotate-12" />,
-      accent: "emerald",
-      selectedBg: "bg-emerald-600",
-      ring: "ring-emerald-400/30",
-      unselectedBg:
-        "bg-yellow-50/80 dark:bg-yellow-950/20 text-yellow-700 dark:text-yellow-300 border border-yellow-100 dark:border-yellow-900/40",
     },
     yellow_cards: {
       title: "Yellow Cards",
       subtitle: "Over / Under",
       icon: <RectangleVertical className="h-4 w-4 fill-current rotate-12" />,
-      accent: "emerald",
-      selectedBg: "bg-emerald-600",
-      ring: "ring-emerald-400/30",
-      unselectedBg:
-        "bg-yellow-50/80 dark:bg-yellow-950/20 text-yellow-700 dark:text-yellow-300 border border-yellow-100 dark:border-yellow-900/40",
     },
     total_yellow_cards: {
       title: "Yellow Cards",
       subtitle: "Over / Under",
       icon: <RectangleVertical className="h-4 w-4 fill-current rotate-12" />,
-      accent: "emerald",
-      selectedBg: "bg-emerald-600",
-      ring: "ring-emerald-400/30",
-      unselectedBg:
-        "bg-yellow-50/80 dark:bg-yellow-950/20 text-yellow-700 dark:text-yellow-300 border border-yellow-100 dark:border-yellow-900/40",
     },
-    extra_time_penalties: {
-      title: "Extra Time / Penalties Winner",
-      subtitle: "3-way: Shootout / Decided in ET / Shootout",
+    btts: {
+      title: "Both Teams to Score",
+      subtitle: "Yes / No",
       icon: <Swords className="h-4 w-4" />,
-      accent: "emerald",
-      selectedBg: "bg-emerald-600",
-      ring: "ring-emerald-400/30",
-      unselectedBg:
-        "bg-emerald-50/80 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-300 border border-emerald-100 dark:border-emerald-900/40",
+    },
+    both_teams_to_score: {
+      title: "Both Teams to Score",
+      subtitle: "Yes / No",
+      icon: <Swords className="h-4 w-4" />,
+    },
+    offsides: {
+      title: "Offsides",
+      subtitle: "Over / Under",
+      icon: <Flag className="h-4 w-4" />,
+    },
+    total_offsides: {
+      title: "Offsides",
+      subtitle: "Over / Under",
+      icon: <Flag className="h-4 w-4" />,
+    },
+    fouls: {
+      title: "Fouls",
+      subtitle: "Over / Under",
+      icon: <Swords className="h-4 w-4" />,
+    },
+    penalties: {
+      title: "Penalties",
+      subtitle: "Penalty Awarded in Match",
+      icon: <Target className="h-4 w-4" />,
     },
   }
 
@@ -154,19 +110,9 @@ export function getCategoryMeta(groupKey: string): CatMeta {
       .join(" "),
     subtitle: "Proposition",
     icon: <Swords className="h-4 w-4" />,
-    accent: "emerald",
-    selectedBg: "bg-emerald-600",
-    ring: "ring-emerald-400/30",
-    unselectedBg:
-      "bg-stone-100/80 dark:bg-zinc-800/40 text-stone-700 dark:text-zinc-300 border border-stone-200 dark:border-zinc-700/60",
   }
 
-  const meta = map[groupKey] || fallback
-  return {
-    ...meta,
-    unselectedBg:
-      "bg-stone-50/50 dark:bg-zinc-900/20 text-stone-600 dark:text-zinc-400 border border-stone-200/80 dark:border-zinc-800/60 hover:bg-stone-100/60 dark:hover:bg-zinc-800/40",
-  }
+  return map[groupKey] || fallback
 }
 
 /* ──────────────────────────────────────────────
@@ -176,10 +122,7 @@ interface ArenaCategoryProps {
   title: string
   subtitle: string
   icon: React.ReactNode
-  accentColor: string
-  volume: number
   hasSelection: boolean
-  onAddLiquidity: () => void
   children: React.ReactNode
 }
 
@@ -187,97 +130,53 @@ export default function ArenaCategory({
   title,
   subtitle,
   icon,
-  accentColor,
-  volume,
   hasSelection,
-  onAddLiquidity,
   children,
 }: ArenaCategoryProps) {
-  const accentMap: Record<
-    string,
-    { bg: string; border: string; iconBg: string; iconActive: string }
-  > = {
-    indigo: {
-      bg: "bg-indigo-50/30 dark:bg-indigo-950/10",
-      border: "border-indigo-200 dark:border-indigo-900/50",
-      iconBg:
-        "bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400",
-      iconActive: "bg-indigo-600 text-white",
-    },
-    emerald: {
-      bg: "bg-emerald-50/30 dark:bg-emerald-950/10",
-      border: "border-emerald-200 dark:border-emerald-900/50",
-      iconBg:
-        "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400",
-      iconActive: "bg-emerald-600 text-white",
-    },
-    amber: {
-      bg: "bg-amber-50/30 dark:bg-amber-950/10",
-      border: "border-amber-200 dark:border-amber-900/50",
-      iconBg:
-        "bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400",
-      iconActive: "bg-amber-500 text-white",
-    },
-    yellow: {
-      bg: "bg-yellow-50/30 dark:bg-yellow-950/10",
-      border: "border-yellow-200 dark:border-yellow-900/50",
-      iconBg:
-        "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400",
-      iconActive: "bg-yellow-500 text-white",
-    },
-    stone: {
-      bg: "bg-stone-50/30 dark:bg-zinc-900/20",
-      border: "border-stone-200 dark:border-zinc-700/60",
-      iconBg: "bg-stone-100 dark:bg-zinc-800 text-stone-500 dark:text-zinc-400",
-      iconActive: "bg-stone-600 text-white",
-    },
-  }
-
-  const colors = accentMap[accentColor] || accentMap.stone
-
   return (
     <div
-      className={`overflow-hidden border transition-all ${
+      className={`border transition-colors ${
         hasSelection
-          ? "bg-[#111113] border-[#303033] shadow-subtle"
-          : "border-[#202023] bg-[#111113]"
+          ? "border-[#3e2323] bg-[#101012]"
+          : "border-[#222226] bg-[#101012]"
       }`}
     >
       {/* Header */}
-      <div className="flex items-center justify-between gap-3 border-b border-border p-3 dark:border-zinc-800/80">
-        <div className="flex items-center gap-2.5 min-w-0">
+      <div className="flex items-center justify-between gap-3 border-b border-[#222226] bg-[#141417] px-4 py-3">
+        <div className="flex items-center gap-3 min-w-0">
           <div
-            className={`flex h-8 w-8 shrink-0 items-center justify-center transition-colors ${
-              hasSelection ? colors.iconActive : colors.iconBg
+            className={`flex h-8 w-8 shrink-0 items-center justify-center border transition-colors ${
+              hasSelection
+                ? "border-[#ff3b30] bg-[#1e1212] text-[#ff3b30]"
+                : "border-[#28282e] bg-[#18181b] text-[#aaa6a1]"
             }`}
           >
             {icon}
           </div>
           <div className="text-left min-w-0">
-            <span className="block font-heading text-sm font-black uppercase leading-tight text-charcoal-primary dark:text-white">
+            <span className="block font-heading text-sm font-black uppercase leading-tight text-[#f4f1ea]">
               {title}
             </span>
-            <span className="block truncate font-mono text-[9px] uppercase tracking-wider text-ash">
+            <span className="block truncate font-mono text-[9px] uppercase tracking-wider text-[#8e8a85]">
               {subtitle}
             </span>
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <span className="text-[10px] text-ash font-mono">
-            ${volume.toLocaleString()} Vol.
-          </span>
-          <button
-            type="button"
-            onClick={onAddLiquidity}
-            className="cursor-pointer border border-border bg-stone-50/50 px-2.5 py-1.5 text-[9px] font-bold uppercase tracking-wider text-stone-600 shadow-xs transition-all hover:border-brand-accent hover:bg-orange-50 hover:text-brand-accent dark:border-zinc-800 dark:bg-zinc-900/20 dark:text-zinc-400 dark:hover:bg-orange-950/20"
-          >
-            + LP
-          </button>
+          {hasSelection ? (
+            <span className="inline-flex items-center gap-1 font-mono text-[9px] font-bold uppercase tracking-wider text-[#ff3b30] bg-[#ff3b30]/10 border border-[#ff3b30]/30 px-2 py-0.5">
+              Selected
+            </span>
+          ) : (
+            <span className="font-mono text-[9px] uppercase tracking-wider text-[#8e8a85]">
+              Pick 1
+            </span>
+          )}
         </div>
       </div>
 
       {/* Body */}
-      <div className="p-3">{children}</div>
+      <div className="p-3.5">{children}</div>
     </div>
   )
 }
