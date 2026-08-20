@@ -80,7 +80,7 @@ export default function MarketsHomeView() {
   }
 
   return (
-    <div className="w-full py-8 font-sans sm:py-12">
+    <div className="w-full pt-6 pb-24 font-sans sm:py-12">
       {/* Editorial Header */}
       <header className="mb-8 border-b border-border pb-8">
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-end">

@@ -2,6 +2,7 @@
 
 import RightPanel from "@/components/layout/RightPanel"
 import VerityHeader from "@/components/layout/VerityHeader"
+import MobileNav from "@/components/layout/MobileNav"
 import { useSocket } from "@/hooks/useSocket"
 import { useWalletProfile } from "@/hooks/useWalletProfile"
 import { Suspense, useEffect } from "react"
@@ -58,6 +59,7 @@ export default function StandardAppShell({
           </aside>
         )}
       </div>
+      <MobileNav />
     </>
   )
 }

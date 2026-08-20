@@ -139,15 +139,6 @@ export default function VerityHeader() {
               )}
             </Link>
           )}
-          <Link
-            aria-label="Missions"
-            className={`verity-header-icon verity-mobile-missions-shortcut ${
-              pathname?.startsWith("/missions") ? "is-active" : ""
-            }`}
-            href="/missions"
-          >
-            <Sparkles aria-hidden="true" />
-          </Link>
 
           {!mounted || loading ? (
             <div className="h-9 w-24 rounded-lg bg-stone-surface animate-pulse" />

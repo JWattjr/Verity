@@ -511,6 +511,54 @@ export default function PvpArenaTab({
         </>
       )}
 
+      {/* Sticky Mobile Duel Submission Bar */}
+      {(!hasActiveDuel || showBuilderOverride) && !isEventEnded && (
+        <div className="fixed bottom-[58px] inset-x-0 z-30 border-t border-[#202023] bg-[#0e0e10]/95 backdrop-blur-md px-4 py-2.5 md:hidden shadow-[0_-4px_16px_rgba(0,0,0,0.5)]">
+          <div className="flex items-center justify-between gap-3 max-w-md mx-auto">
+            <div className="flex flex-col min-w-0">
+              <div className="flex items-center gap-1.5">
+                <span className="font-mono text-xs font-black text-[#f4f1ea]">
+                  {Object.keys(pvpSelections).length}/3
+                </span>
+                <span className="text-[11px] font-medium text-[#8e8a85]">
+                  {Object.keys(pvpSelections).length >= 3
+                    ? "Card complete"
+                    : "Picks chosen"}
+                </span>
+              </div>
+              <span className="text-[9px] font-mono text-[#8e8a85] truncate">
+                {Object.keys(pvpSelections).length >= 3
+                  ? "Ready to queue match"
+                  : `Need ${3 - Object.keys(pvpSelections).length} more pick${3 - Object.keys(pvpSelections).length === 1 ? "" : "s"}`}
+              </span>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => void handleSubmitPvpTicket()}
+              disabled={Object.keys(pvpSelections).length < 3 || isSubmitting}
+              className={`flex items-center justify-center gap-2 px-4 py-2 rounded-[2px] font-heading uppercase text-xs font-black tracking-wider transition-all select-none cursor-pointer ${
+                Object.keys(pvpSelections).length >= 3 && !isSubmitting
+                  ? "bg-[#ff3b30] text-white hover:bg-[#e0342a] active:scale-95 shadow-[0_0_12px_rgba(255,59,48,0.3)]"
+                  : "bg-[#1c1c1f] text-[#5a5651] cursor-not-allowed border border-[#28282e]"
+              }`}
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  Queueing...
+                </>
+              ) : (
+                <>
+                  <Swords className="h-3.5 w-3.5" />
+                  Submit Duel
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Dynamic Trade Drawer for PvP Picks */}
       <Drawer
         open={isTradeDrawerOpen}
