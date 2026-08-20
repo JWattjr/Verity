@@ -8,6 +8,7 @@ import { InjectModel } from "@nestjs/mongoose"
 import { Model } from "mongoose"
 import { Market, MarketDocument } from "./markets.model"
 import { AgentService } from "../agent/agent.service"
+import { SportsOracleService } from "../agent/sports-oracle.service"
 import { SocketGateway } from "../socket/socket.gateway"
 import { PvpService } from "../pvp/pvp.service"
 
@@ -20,6 +21,7 @@ export class MarketsKeeperService implements OnModuleInit, OnModuleDestroy {
   constructor(
     @InjectModel(Market.name) private marketModel: Model<MarketDocument>,
     private readonly agentService: AgentService,
+    private readonly sportsOracleService: SportsOracleService,
     private readonly socketGateway: SocketGateway,
     private readonly pvpService: PvpService,
   ) {}
@@ -100,7 +102,7 @@ export class MarketsKeeperService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
-   * Resolves expired EPL proposition markets using AI agent search.
+   * Resolves expired EPL proposition markets using deterministic sports statistics.
    */
   async processSubjectiveMarkets() {
     const now = new Date()
@@ -115,61 +117,92 @@ export class MarketsKeeperService implements OnModuleInit, OnModuleDestroy {
     }
 
     this.logger.log(
-      `Found ${expiredMarkets.length} expired markets to resolve via AI...`,
+      `Found ${expiredMarkets.length} expired markets to resolve via Sports Oracle...`,
     )
 
     for (const market of expiredMarkets) {
       const marketIdStr = market._id.toString()
       try {
         this.logger.log(
-          `Invoking AI Agent to resolve market: "${market.question}" (${marketIdStr})`,
+          `Invoking Sports Oracle to resolve market: "${market.question}" (${marketIdStr})`,
         )
 
-        const result = await this.agentService.resolveMarket(
-          market.question,
-          market.yesCondition,
-          market.noCondition,
-          market.resolutionSource,
-          market.category,
-          market.outcomes,
-          market.deadline,
-        )
+        let result: {
+          outcome: string
+          outcomeIndex?: number
+          reasoning: string
+          citations: string[]
+        }
+
+        if (
+          market.category?.toLowerCase() === "pvp" ||
+          market.marketType === "child"
+        ) {
+          const stats = await this.sportsOracleService.fetchMatchStats(
+            market.question,
+            market.deadline,
+            market.apiFootballFixtureId || undefined,
+          )
+          const evaluation = this.sportsOracleService.evaluateProposition(
+            {
+              question: market.question,
+              yesCondition: market.yesCondition,
+              noCondition: market.noCondition,
+              optionName: market.optionName,
+              optionGroup: market.optionGroup,
+              handicap: market.handicap,
+              outcomes: market.outcomes,
+            },
+            stats,
+          )
+          result = {
+            outcome: evaluation.outcome,
+            outcomeIndex: evaluation.outcomeIndex,
+            reasoning: evaluation.reasoning,
+            citations: evaluation.citations,
+          }
+        } else {
+          result = await this.agentService.resolveMarket(
+            market.question,
+            market.yesCondition,
+            market.noCondition,
+            market.resolutionSource,
+            market.category,
+            market.outcomes,
+            market.deadline,
+          )
+        }
 
         if (result.outcome === "INVALID") {
           this.logger.warn(
-            `AI Agent returned INVALID for market ${marketIdStr}. Keeping open for manual admin resolution.`,
+            `Oracle returned INVALID for market ${marketIdStr}: ${result.reasoning} Keeping open for manual admin resolution.`,
           )
           continue
         }
 
         let winningOutcome: any = result.outcome
-        let winningIndex = 0
+        let winningIndex = result.outcomeIndex ?? -1
 
-        if (
-          market.outcomeCount &&
-          market.outcomeCount >= 2 &&
-          market.outcomes &&
-          market.outcomes.length > 0
-        ) {
-          const idx = market.outcomes.findIndex(
-            (o) =>
-              o.toLowerCase().trim() === result.outcome.toLowerCase().trim(),
+        if (market.outcomes && market.outcomes.length > 0) {
+          winningIndex = market.outcomes.findIndex(
+            (outcome) =>
+              outcome.toLowerCase().trim() ===
+              result.outcome.toLowerCase().trim(),
           )
-          if (idx !== -1) {
-            winningIndex = idx
-            winningOutcome = market.outcomes[idx]
-          } else if (market.outcomeCount === 2) {
-            if (result.outcome === "YES") {
-              winningIndex = 0
-              winningOutcome = market.outcomes[0] || "YES"
-            } else if (result.outcome === "NO") {
-              winningIndex = 1
-              winningOutcome = market.outcomes[1] || "NO"
-            }
+          if (winningIndex < 0) {
+            this.logger.warn(
+              `Oracle outcome "${result.outcome}" is not an exact stored outcome for market ${marketIdStr}.`,
+            )
+            continue
           }
+          winningOutcome = market.outcomes[winningIndex]
+        } else if (result.outcome === "YES" || result.outcome === "NO") {
+          winningIndex = result.outcome === "YES" ? 0 : 1
         } else {
-          winningOutcome = result.outcome === "NO" ? "NO" : "YES"
-          winningIndex = winningOutcome === "YES" ? 0 : 1
+          this.logger.warn(
+            `Market ${marketIdStr} has no outcome set for oracle result "${result.outcome}".`,
+          )
+          continue
         }
 
         // Update market in DB

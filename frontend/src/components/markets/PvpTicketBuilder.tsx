@@ -22,18 +22,6 @@ export const cleanOutcomeName = (
   const lowerB = teamB.toLowerCase().trim()
 
   if (
-    lowerName.includes("wins on penalties") ||
-    lowerName.includes("wins shootout")
-  ) {
-    if (lowerName.includes(lowerA)) return teamA
-    if (lowerName.includes(lowerB)) return teamB
-  }
-
-  if (lowerName === "no penalties" || lowerName.includes("no penalties")) {
-    return "No Penalty"
-  }
-
-  if (
     lowerName === "both teams to score - yes" ||
     lowerName === "both teams to score-yes" ||
     lowerName === "btts - yes" ||
@@ -164,7 +152,8 @@ export default function PvpTicketBuilder({
               <Swords className="h-5 w-5 text-[#8e8a85]/60 mb-1" />
               <p className="font-bold text-[#f4f1ea]">No picks selected yet</p>
               <p className="text-[11px] text-[#8e8a85] max-w-[220px]">
-                Choose at least 3 propositions across different categories to build your duel card.
+                Choose at least 3 propositions across different categories to
+                build your duel card.
               </p>
             </div>
           )}
@@ -656,7 +645,9 @@ function BinaryOutcomes({
             : "bg-[#161619] border-[#222226] hover:border-[#333338] text-[#aaa6a1] hover:text-[#f4f1ea] font-medium"
         }`}
       >
-        <span className="text-xs font-bold text-center leading-tight">{yesLabel}</span>
+        <span className="text-xs font-bold text-center leading-tight">
+          {yesLabel}
+        </span>
 
         {/* Red Indicator Badge */}
         {isYesSelected && (
@@ -686,7 +677,9 @@ function BinaryOutcomes({
             : "bg-[#161619] border-[#222226] hover:border-[#333338] text-[#aaa6a1] hover:text-[#f4f1ea] font-medium"
         }`}
       >
-        <span className="text-xs font-bold text-center leading-tight">{noLabel}</span>
+        <span className="text-xs font-bold text-center leading-tight">
+          {noLabel}
+        </span>
 
         {/* Red Indicator Badge */}
         {isNoSelected && (

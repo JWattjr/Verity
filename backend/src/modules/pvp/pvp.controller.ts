@@ -125,7 +125,10 @@ export class PvpController {
   @ApiOperation({
     summary: "Admin-only: Get system database metrics and platform statistics",
   })
-  async getAdminMetrics(@Request() req: any, @Query("timeframe") timeframe?: string) {
+  async getAdminMetrics(
+    @Request() req: any,
+    @Query("timeframe") timeframe?: string,
+  ) {
     return this.pvpService.getAdminMetrics(req.user.id, timeframe)
   }
 
@@ -139,15 +142,25 @@ export class PvpController {
 
   @Get("schedule/premier-league")
   @ApiOperation({
-    summary: "Fetch live official upcoming Premier League fixture schedule",
+    summary:
+      "Fetch live official upcoming or finished Premier League fixture schedule",
   })
-  async getPremierLeagueSchedule() {
-    return this.pvpService.getPremierLeagueSchedule()
+  async getPremierLeagueSchedule(
+    @Query("type") type?: "upcoming" | "finished" | "live",
+    @Query("league") league?: string,
+    @Query("season") season?: string,
+  ) {
+    return this.pvpService.getPremierLeagueSchedule(
+      type,
+      league ? Number(league) : undefined,
+      season ? Number(season) : undefined,
+    )
   }
 
   @Get("schedule/mock")
   @ApiOperation({
-    summary: "Fetch mock upcoming Premier League fixture schedule for development testing",
+    summary:
+      "Fetch mock upcoming Premier League fixture schedule for development testing",
   })
   async getMockPremierLeagueSchedule() {
     return this.pvpService.getMockPremierLeagueSchedule()

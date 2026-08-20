@@ -96,11 +96,6 @@ export function getCategoryMeta(groupKey: string): CatMeta {
       subtitle: "Over / Under",
       icon: <Swords className="h-4 w-4" />,
     },
-    penalties: {
-      title: "Penalties",
-      subtitle: "Penalty Awarded in Match",
-      icon: <Target className="h-4 w-4" />,
-    },
   }
 
   const fallback: CatMeta = {

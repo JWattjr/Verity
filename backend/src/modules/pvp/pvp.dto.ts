@@ -7,6 +7,8 @@ import {
   IsEnum,
   IsNotEmpty,
   IsOptional,
+  IsInt,
+  Min,
 } from "class-validator"
 import { Type } from "class-transformer"
 import { ApiProperty } from "@nestjs/swagger"
@@ -45,6 +47,17 @@ export class CreatePvpEventDto {
   @IsString()
   @IsNotEmpty()
   resolutionSource: string
+
+  @ApiProperty({
+    description:
+      "Optional API-Football official fixture ID for deterministic resolution",
+    example: 1035291,
+    required: false,
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  apiFootballFixtureId?: number
 
   @ApiProperty({
     description: "Proposition questions/options (minimum 3)",

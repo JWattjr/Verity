@@ -38,11 +38,16 @@ interface EplFixture {
   awayTeam: string
   homeTeamShort: string
   awayTeamShort: string
+  homeTeamLogo?: string
+  awayTeamLogo?: string
   question: string
+  score?: string | null
+  status?: string
   kickoffTime: string
   lockTime: string
   deadline: string
   resolutionSource: string
+  leagueName?: string
 }
 
 interface CreateMarketDrawerProps {
@@ -90,23 +95,28 @@ export default function CreateMarketDrawer({
   const [pvpQuestion, setPvpQuestion] = useState("")
   const [pvpDeadline, setPvpDeadline] = useState("")
   const [pvpLockTime, setPvpLockTime] = useState("")
-  const [pvpResolutionSource, setPvpResolutionSource] =
-    useState("Premier League Official / BBC Sport")
+  const [pvpResolutionSource, setPvpResolutionSource] = useState(
+    "Premier League Official / BBC Sport",
+  )
 
   // EPL Schedule state
+  const [scheduleType, setScheduleType] = useState<"upcoming" | "finished">(
+    "upcoming",
+  )
   const [fixtures, setFixtures] = useState<EplFixture[]>([])
   const [fixturesLoading, setFixturesLoading] = useState(false)
-  const [selectedFixtureId, setSelectedFixtureId] = useState<number | null>(null)
+  const [selectedFixtureId, setSelectedFixtureId] = useState<number | null>(
+    null,
+  )
 
   // 9 Category-based proposition builder state
   const [categories, setCategories] = useState<Record<string, CategoryState>>({
     winner: { enabled: true },
-    extraTimePenalties: { enabled: false },
     firstScore: { enabled: true },
-    redCard: { enabled: false },
+    redCard: { enabled: true },
     corners: { enabled: false, line: 9.5 },
     goals: { enabled: true, line: 2.5 },
-    cards: { enabled: false, line: 3.5 },
+    cards: { enabled: true, line: 3.5 },
     btts: { enabled: true },
     offsides: { enabled: false, line: 3.5 },
   })
@@ -115,28 +125,28 @@ export default function CreateMarketDrawer({
   const [customOptions, setCustomOptions] = useState<string[]>([])
   const [customOptionText, setCustomOptionText] = useState("")
 
-  // Fetch EPL schedule when drawer opens
-  async function loadEplSchedule() {
+  // Fetch EPL schedule when drawer opens or type changes
+  async function loadEplSchedule(type: "upcoming" | "finished" = scheduleType) {
     setFixturesLoading(true)
     try {
       const data = await apiRequest<{
         league: string
         count: number
         fixtures: EplFixture[]
-      }>("/pvp/schedule/premier-league")
+      }>(`/pvp/schedule/premier-league?type=${type}`)
       setFixtures(data.fixtures || [])
     } catch (err: any) {
-      toast.error(err.message || "Failed to load Premier League schedule.")
+      toast.error(err.message || "Failed to load the API-Football schedule.")
     } finally {
       setFixturesLoading(false)
     }
   }
 
   useEffect(() => {
-    if (isOpen && fixtures.length === 0) {
-      void loadEplSchedule()
+    if (isOpen) {
+      void loadEplSchedule(scheduleType)
     }
-  }, [isOpen])
+  }, [isOpen, scheduleType])
 
   // Select fixture from live schedule
   function handleSelectFixture(fixture: EplFixture) {
@@ -144,15 +154,16 @@ export default function CreateMarketDrawer({
     setPvpQuestion(fixture.question)
     setPvpLockTime(toLocalDatetimeInputString(fixture.lockTime))
     setPvpDeadline(toLocalDatetimeInputString(fixture.deadline))
-    setPvpResolutionSource(fixture.resolutionSource || "Premier League Official / BBC Sport")
+    setPvpResolutionSource(
+      fixture.resolutionSource || "Premier League Official / BBC Sport",
+    )
     setCategories({
       winner: { enabled: true },
-      extraTimePenalties: { enabled: false },
       firstScore: { enabled: true },
-      redCard: { enabled: false },
-      corners: { enabled: true, line: 9.5 },
+      redCard: { enabled: true },
+      corners: { enabled: false, line: 9.5 },
       goals: { enabled: true, line: 2.5 },
-      cards: { enabled: false, line: 3.5 },
+      cards: { enabled: true, line: 3.5 },
       btts: { enabled: true },
       offsides: { enabled: false, line: 3.5 },
     })
@@ -185,13 +196,6 @@ export default function CreateMarketDrawer({
       opts.push(`${a} wins the match`)
       opts.push(`Match ends in a draw`)
       opts.push(`${b} wins the match`)
-    }
-
-    // 2. Extra Time / Penalties Winner (3 options)
-    if (categories.extraTimePenalties?.enabled) {
-      opts.push(`${a} on penalties`)
-      opts.push(`Match decided in extra time or 90m`)
-      opts.push(`${b} on penalties`)
     }
 
     // 3. First Team to Score (3 options)
@@ -247,7 +251,6 @@ export default function CreateMarketDrawer({
   const actualMarketsCount = useMemo(() => {
     let count = 0
     if (categories.winner?.enabled) count += 1
-    if (categories.extraTimePenalties?.enabled) count += 1
     if (categories.firstScore?.enabled) count += 1
     if (categories.redCard?.enabled) count += 1
     if (categories.corners?.enabled) count += 1
@@ -315,6 +318,7 @@ export default function CreateMarketDrawer({
             ? new Date(pvpLockTime).toISOString()
             : undefined,
           resolutionSource: pvpResolutionSource.trim(),
+          apiFootballFixtureId: selectedFixtureId || undefined,
           options: generatedOptions.map((opt) => opt.trim()),
         }),
       })
@@ -338,24 +342,29 @@ export default function CreateMarketDrawer({
   }
 
   return (
-    <Drawer direction="right" open={isOpen} onOpenChange={(open) => !open && onClose()}>
+    <Drawer
+      direction="right"
+      open={isOpen}
+      onOpenChange={(open) => !open && onClose()}
+    >
       <DrawerContent className="fixed inset-y-0 right-0 z-50 flex h-full flex-col bg-white border-l border-stone-200 shadow-2xl overflow-y-auto w-full sm:w-[750px] sm:min-w-[700px] p-6 rounded-none">
         <DrawerHeader className="px-0 pt-0 pb-4 border-b border-stone-150">
           <div className="flex items-center justify-between">
             <div>
               <DrawerTitle className="text-lg font-bold text-stone-900 flex items-center gap-2">
                 <Swords className="h-5 w-5 text-indigo-600" />
-                Create Premier League Duel Match
+                Create Football Duel Match
               </DrawerTitle>
               <DrawerDescription className="text-xs text-stone-500 mt-1">
-                Select an upcoming fixture from the Premier League schedule or enter custom details.
+                Select a genuine API-Football fixture from the seven-day window
+                or enter custom details.
               </DrawerDescription>
             </div>
             <Button
               type="button"
               variant="outline"
               size="sm"
-              onClick={loadEplSchedule}
+              onClick={() => void loadEplSchedule(scheduleType)}
               disabled={fixturesLoading}
               className="h-8 px-2.5 rounded text-xs border border-stone-200 cursor-pointer"
             >
@@ -367,26 +376,53 @@ export default function CreateMarketDrawer({
           </div>
         </DrawerHeader>
 
-        <form onSubmit={handleDeployPvpEvent} className="flex flex-col gap-5 py-4">
+        <form
+          onSubmit={handleDeployPvpEvent}
+          className="flex flex-col gap-5 py-4"
+        >
           {/* Live Premier League Schedule Selector */}
           <div className="flex flex-col gap-2.5 p-3.5 bg-indigo-50/40 border border-indigo-100 rounded-lg">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-900 flex items-center gap-1.5">
                 <Calendar className="h-3.5 w-3.5 text-indigo-600" />
-                Upcoming Premier League Fixtures
+                API-Football Fixture Schedule Feed
               </span>
-              <span className="text-[10px] font-mono text-indigo-600">
-                {fixturesLoading ? "Fetching official feed..." : `${fixtures.length} matches available`}
-              </span>
+
+              {/* Feed Type Switcher */}
+              <div className="flex items-center gap-1 bg-white/80 p-0.5 rounded border border-indigo-200">
+                <button
+                  type="button"
+                  onClick={() => setScheduleType("upcoming")}
+                  className={`px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider rounded transition-colors cursor-pointer ${
+                    scheduleType === "upcoming"
+                      ? "bg-indigo-600 text-white shadow-2xs font-black"
+                      : "text-stone-500 hover:text-stone-900"
+                  }`}
+                >
+                  Upcoming (7 Days)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setScheduleType("finished")}
+                  className={`px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider rounded transition-colors cursor-pointer ${
+                    scheduleType === "finished"
+                      ? "bg-emerald-600 text-white shadow-2xs font-black"
+                      : "text-stone-500 hover:text-stone-900"
+                  }`}
+                >
+                  Finished (Instant Oracle Test)
+                </button>
+              </div>
             </div>
 
             {fixturesLoading && fixtures.length === 0 ? (
-              <div className="py-6 text-center text-xs text-stone-400 font-medium animate-pulse">
-                Loading official Premier League schedule...
+              <div className="py-6 text-center text-xs text-stone-400 font-medium animate-pulse font-mono">
+                Loading fixtures from API-Football feed...
               </div>
             ) : fixtures.length === 0 ? (
               <div className="py-4 text-center text-xs text-stone-500">
-                No scheduled fixtures found. Click refresh or enter match details manually below.
+                No fixtures found in this category. Click refresh or enter match
+                details manually below.
               </div>
             ) : (
               <div className="flex flex-col gap-3.5 max-h-60 overflow-y-auto pr-1">
@@ -394,11 +430,14 @@ export default function CreateMarketDrawer({
                   <div key={gw} className="flex flex-col gap-2">
                     <div className="flex items-center gap-2 px-0.5">
                       <span className="text-[10px] font-black uppercase tracking-wider text-indigo-700 bg-indigo-100/70 px-2 py-0.5 rounded">
-                        Gameweek {gw}
+                        {scheduleType === "finished"
+                          ? `Finished · Round ${gw}`
+                          : `Round ${gw}`}
                       </span>
                       <div className="h-px bg-indigo-100 flex-1" />
                       <span className="text-[10px] text-stone-400 font-mono">
-                        {gwFixtures.length} {gwFixtures.length === 1 ? "match" : "matches"}
+                        {gwFixtures.length}{" "}
+                        {gwFixtures.length === 1 ? "match" : "matches"}
                       </span>
                     </div>
 
@@ -406,13 +445,16 @@ export default function CreateMarketDrawer({
                       {gwFixtures.map((f) => {
                         const isSelected = selectedFixtureId === f.id
                         const kickDate = new Date(f.kickoffTime)
-                        const timeFormatted = kickDate.toLocaleDateString(undefined, {
-                          weekday: "short",
-                          month: "short",
-                          day: "numeric",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })
+                        const timeFormatted = kickDate.toLocaleDateString(
+                          undefined,
+                          {
+                            weekday: "short",
+                            month: "short",
+                            day: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          },
+                        )
 
                         return (
                           <button
@@ -428,14 +470,49 @@ export default function CreateMarketDrawer({
                             <div className="min-w-0 flex-1">
                               <div className="flex items-center gap-1.5 font-bold text-xs">
                                 <span className="truncate">{f.homeTeam}</span>
-                                <span className={isSelected ? "text-indigo-200 text-[10px]" : "text-stone-400 text-[10px]"}>vs</span>
+                                <span
+                                  className={
+                                    isSelected
+                                      ? "text-indigo-200 text-[10px]"
+                                      : "text-stone-400 text-[10px]"
+                                  }
+                                >
+                                  vs
+                                </span>
                                 <span className="truncate">{f.awayTeam}</span>
+                                {f.score && (
+                                  <span
+                                    className={`px-1.5 py-0.2 rounded text-[10px] font-mono font-black ${isSelected ? "bg-white/20 text-white" : "bg-emerald-100 text-emerald-800"}`}
+                                  >
+                                    {f.score}
+                                  </span>
+                                )}
                               </div>
-                              <span className={`block text-[10px] mt-0.5 font-mono ${isSelected ? "text-indigo-100" : "text-stone-400"}`}>
-                                {timeFormatted}
-                              </span>
+                              <div className="flex items-center gap-2 mt-0.5">
+                                <span
+                                  className={`max-w-28 truncate text-[10px] font-semibold ${
+                                    isSelected
+                                      ? "text-indigo-100"
+                                      : "text-stone-500"
+                                  }`}
+                                >
+                                  {f.leagueName || "Competition"}
+                                </span>
+                                <span
+                                  className={`text-[10px] font-mono ${isSelected ? "text-indigo-100" : "text-stone-400"}`}
+                                >
+                                  {timeFormatted}
+                                </span>
+                                <span
+                                  className={`text-[9px] font-mono px-1 rounded ${isSelected ? "bg-white/10 text-white" : "bg-stone-100 text-stone-500"}`}
+                                >
+                                  ID #{f.id}
+                                </span>
+                              </div>
                             </div>
-                            <ChevronRight className={`h-4 w-4 shrink-0 ${isSelected ? "text-white" : "text-stone-300"}`} />
+                            <ChevronRight
+                              className={`h-4 w-4 shrink-0 ${isSelected ? "text-white" : "text-stone-300"}`}
+                            />
                           </button>
                         )
                       })}
@@ -514,7 +591,8 @@ export default function CreateMarketDrawer({
                 </p>
               </div>
               <span className="text-[10px] font-bold font-mono px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded border border-indigo-100">
-                {actualMarketsCount} Markets Configured ({generatedOptions.length} Options)
+                {actualMarketsCount} Markets Configured (
+                {generatedOptions.length} Options)
               </span>
             </div>
 
@@ -550,43 +628,6 @@ export default function CreateMarketDrawer({
                   </span>
                   <span className="text-xs font-bold text-indigo-700 text-center truncate w-full">
                     {hasTeams ? teamB : "Team B"}
-                  </span>
-                </div>
-              </div>
-            </CategoryCard>
-
-            {/* 2. Extra Time / Penalties Winner */}
-            <CategoryCard
-              title="Extra Time / Penalties Winner"
-              subtitle="Shootout / Decided in ET / Shootout"
-              icon={<Swords className="h-4 w-4" />}
-              enabled={categories.extraTimePenalties.enabled}
-              onToggle={() => toggleCategory("extraTimePenalties")}
-              accentColor="indigo"
-            >
-              <div className="grid grid-cols-3 gap-2">
-                <div className="flex flex-col items-center gap-1.5 p-2 rounded-lg bg-indigo-50/30 border border-indigo-100">
-                  <span className="text-[9px] font-bold uppercase text-stone-400">
-                    Penalties
-                  </span>
-                  <span className="text-xs font-bold text-indigo-700 text-center truncate w-full">
-                    {hasTeams ? `${teamA} Pens` : "Team A"}
-                  </span>
-                </div>
-                <div className="flex flex-col items-center gap-1.5 p-2 rounded-lg bg-stone-50 border border-stone-200">
-                  <span className="text-[9px] font-bold uppercase text-stone-400">
-                    Regular / ET
-                  </span>
-                  <span className="text-xs font-bold text-stone-600 text-center leading-tight">
-                    Decided in Match
-                  </span>
-                </div>
-                <div className="flex flex-col items-center gap-1.5 p-2 rounded-lg bg-indigo-50/30 border border-indigo-100">
-                  <span className="text-[9px] font-bold uppercase text-stone-400">
-                    Penalties
-                  </span>
-                  <span className="text-xs font-bold text-indigo-700 text-center truncate w-full">
-                    {hasTeams ? `${teamB} Pens` : "Team B"}
                   </span>
                 </div>
               </div>
@@ -866,7 +907,10 @@ export default function CreateMarketDrawer({
                 Match Deployment Summary
               </span>
               <div>
-                Will create <strong>{actualMarketsCount} duel propositions</strong> ({generatedOptions.length} total betting outcomes) ready for predictors.
+                Will create{" "}
+                <strong>{actualMarketsCount} duel propositions</strong> (
+                {generatedOptions.length} total betting outcomes) ready for
+                predictors.
               </div>
             </div>
           )}
@@ -885,7 +929,9 @@ export default function CreateMarketDrawer({
               disabled={loading || generatedOptions.length < 3}
               className="flex-2 h-11 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold uppercase tracking-wider rounded shadow-xs disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
             >
-              {loading ? "Deploying Match..." : `Deploy Match (${actualMarketsCount} Propositions)`}
+              {loading
+                ? "Deploying Match..."
+                : `Deploy Match (${actualMarketsCount} Propositions)`}
             </Button>
           </div>
         </form>

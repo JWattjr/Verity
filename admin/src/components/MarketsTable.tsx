@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo } from "react"
+import { useState, useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import {
   TrendingUp,
@@ -10,9 +10,32 @@ import {
   ArrowUpDown,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
+  Trophy,
+  Swords,
+  CheckCircle2,
+  Clock,
+  Layers,
+  Sparkles,
 } from "lucide-react"
 
-interface Market {
+export interface ChildMarket {
+  id: string
+  question: string
+  optionName?: string
+  category: string
+  status: string
+  deadline: string
+  yesCondition?: string
+  noCondition?: string
+  outcomes?: string[]
+  outcomeCount?: number
+  resolvedOutcome?: string | null
+  liquidity: number
+}
+
+export interface FixtureMarket {
   id: string
   question: string
   category: string
@@ -23,20 +46,17 @@ interface Market {
   noCondition?: string
   outcomes?: string[]
   outcomeCount?: number
-  proposalReasoning?: string | null
-  proposalCitations?: string[] | null
-  proposalProposer?: string | null
-  proposalDisputer?: string | null
-  disputed?: boolean
-  proposedOutcome?: boolean | null
-  proposedAt?: string | null
-  disputeWindowSeconds?: number
   resolvedOutcome?: string | null
+  liquidity: number
+  propositionsCount: number
+  resolvedPropositionsCount: number
+  marketType: "parent" | "binary" | "child"
+  childMarkets?: ChildMarket[]
 }
 
 interface MarketsTableProps {
   marketsLoading: boolean
-  markets: Market[]
+  markets: FixtureMarket[]
   searchQuery: string
   setSearchQuery: (val: string) => void
   statusFilter: string
@@ -48,49 +68,20 @@ interface MarketsTableProps {
   itemsPerPage: number
   fetchMarkets: () => void
   handleApproveTrading: (id: string) => void
-  handleOpenArbitrateResolve: (market: Market) => void
+  handleOpenBatchResolve: (fixtureId: string) => void
+  handleOpenSingleResolve?: (marketId: string) => void
 }
 
-function formatResolvedOutcome(market: Market): string {
-  if (!market.resolvedOutcome) return "None"
-  const outcome = market.resolvedOutcome.trim()
-  if (outcome !== "YES" && outcome !== "NO") {
-    return outcome
-  }
-
-  const condition = outcome === "YES" ? market.yesCondition : market.noCondition
-  if (!condition) return outcome
-
-  const overMatch = condition.match(/over\s+(\d+(?:\.\d+)?)/i)
-  if (overMatch) {
-    return `Over ${overMatch[1]}`
-  }
-
-  const underMatch = condition.match(/under\s+(\d+(?:\.\d+)?)/i)
-  if (underMatch) {
-    return `Under ${underMatch[1]}`
-  }
-
-  const lowerCond = condition.toLowerCase()
-  if (lowerCond.includes("red card")) {
-    if (lowerCond.includes("at least one") || lowerCond.includes("yes")) {
-      return "Red card shown"
-    }
-    if (lowerCond.includes("no red card") || lowerCond.includes("no red cards")) {
-      return "No red card"
+function parseFixtureTeams(question: string): { teamA: string; teamB: string } {
+  const clean = question.split("-")[0].split(":")[0].trim()
+  const vsMatch = clean.match(/^(.+?)\s+(?:vs\.?|v)\s+(.+?)$/i)
+  if (vsMatch) {
+    return {
+      teamA: vsMatch[1].trim(),
+      teamB: vsMatch[2].trim(),
     }
   }
-
-  if (lowerCond.includes("both teams to score") || lowerCond.includes("btts")) {
-    if (lowerCond.endsWith("yes") || lowerCond.includes("- yes") || lowerCond.includes(" - yes")) {
-      return "BTTS - Yes"
-    }
-    if (lowerCond.endsWith("no") || lowerCond.includes("- no") || lowerCond.includes(" - no")) {
-      return "BTTS - No"
-    }
-  }
-
-  return condition
+  return { teamA: "Team A", teamB: "Team B" }
 }
 
 export default function MarketsTable({
@@ -107,9 +98,18 @@ export default function MarketsTable({
   itemsPerPage,
   fetchMarkets,
   handleApproveTrading,
-  handleOpenArbitrateResolve,
+  handleOpenBatchResolve,
 }: MarketsTableProps) {
-  // Filter and sort markets
+  const [expandedIds, setExpandedIds] = useState<Record<string, boolean>>({})
+
+  const toggleExpand = (id: string) => {
+    setExpandedIds((prev) => ({
+      ...prev,
+      [id]: !prev[id],
+    }))
+  }
+
+  // Filter and sort grouped fixture markets
   const filteredAndSortedMarkets = useMemo(() => {
     let result = [...markets]
 
@@ -120,7 +120,12 @@ export default function MarketsTable({
         (m) =>
           m.question.toLowerCase().includes(q) ||
           m.id.toLowerCase().includes(q) ||
-          (m.resolutionSource && m.resolutionSource.toLowerCase().includes(q)),
+          (m.childMarkets &&
+            m.childMarkets.some(
+              (c) =>
+                c.question.toLowerCase().includes(q) ||
+                (c.optionName && c.optionName.toLowerCase().includes(q)),
+            )),
       )
     }
 
@@ -169,10 +174,10 @@ export default function MarketsTable({
           <div>
             <h3 className="text-base font-bold text-stone-900 flex items-center gap-2">
               <TrendingUp className="h-5 w-5 text-indigo-600" />
-              Prediction & Duel Moderation
+              Game Fixtures & Proposition Moderation
             </h3>
             <p className="text-xs text-stone-500 mt-0.5">
-              Moderate active prediction markets, monitor live matches, and settle outcomes.
+              All child propositions (Match Winner, Over/Under, BTTS, Corners, Cards) grouped per match fixture.
             </p>
           </div>
 
@@ -196,7 +201,7 @@ export default function MarketsTable({
             <Search className="absolute left-3 top-2.5 h-4 w-4 text-stone-400" />
             <input
               type="text"
-              placeholder="Search markets question or ID..."
+              placeholder="Search fixtures, teams, propositions..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full h-9 pl-9 pr-3 border border-stone-200 bg-white text-xs rounded-[2px] outline-none focus:border-indigo-500 transition-colors placeholder:text-stone-400"
@@ -213,10 +218,9 @@ export default function MarketsTable({
             >
               <option value="all">All Statuses</option>
               <option value="tradable">Tradable / Active</option>
-              <option value="open_for_votes">Open For Votes</option>
-              <option value="resolving">Resolving</option>
+              <option value="qualified">Qualified / Pre-Market</option>
+              <option value="closed">Closed / Live</option>
               <option value="resolved">Resolved</option>
-              <option value="closed">Closed</option>
             </select>
           </div>
 
@@ -230,120 +234,192 @@ export default function MarketsTable({
             >
               <option value="newest">Newest First</option>
               <option value="oldest">Oldest First</option>
-              <option value="deadline-soon">Deadline (Soonest)</option>
-              <option value="deadline-far">Deadline (Furthest)</option>
+              <option value="deadline-soon">Kickoff (Soonest)</option>
+              <option value="deadline-far">Kickoff (Furthest)</option>
             </select>
           </div>
         </div>
       </div>
 
-      {/* Markets table content */}
+      {/* Grouped Fixtures Table / List */}
       {marketsLoading && markets.length === 0 ? (
         <div className="p-16 text-center text-sm text-stone-500 animate-pulse font-medium">
-          Loading markets...
+          Loading game fixtures...
         </div>
       ) : filteredAndSortedMarkets.length === 0 ? (
         <div className="p-16 text-center text-sm text-stone-400 font-medium">
-          No matching markets found. Try updating your filters.
+          No matching match fixtures found.
         </div>
       ) : (
-        <div className="flex-1 overflow-x-auto">
-          <table className="w-full border-collapse text-left text-xs">
-            <thead>
-              <tr className="border-b border-stone-200 bg-stone-50 text-stone-500 font-bold uppercase tracking-wider text-[10px]">
-                <th className="p-4">Market Details</th>
-                <th className="p-4">Type</th>
-                <th className="p-4">Status</th>
-                <th className="p-4">Oracle Source</th>
-                <th className="p-4">Deadline</th>
-                <th className="p-4 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-stone-100">
-              {paginatedMarkets.map((market) => (
-                <tr
-                  key={market.id}
-                  className="hover:bg-stone-50/50 transition-colors"
-                >
-                  <td className="p-4 max-w-sm">
-                    <span className="block font-semibold text-stone-900 text-sm leading-snug">
-                      {market.question}
-                    </span>
-                    <span className="text-[10px] text-stone-400 block mt-1 font-mono uppercase">
-                      ID: {market.id}
-                    </span>
-                  </td>
-                  <td className="p-4 align-middle">
-                    <span
-                      className={`inline-flex px-2 py-0.5 rounded-[2px] text-[10px] font-bold uppercase ${
-                        market.category === "pvp"
-                          ? "bg-purple-50 text-purple-700 border border-purple-100"
-                          : "bg-indigo-50 text-indigo-700 border border-indigo-100"
-                      }`}
-                    >
-                      {market.category === "pvp" ? "PvP Duel" : "Standard"}
-                    </span>
-                  </td>
-                  <td className="p-4 align-middle">
-                    <span
-                      className={`inline-flex px-2 py-0.5 rounded-[2px] text-[10px] font-bold uppercase ${
-                        market.status === "tradable"
-                          ? "bg-emerald-100 text-emerald-800"
-                          : market.status === "open_for_votes"
-                            ? "bg-blue-100 text-blue-800"
-                            : market.status === "resolving"
-                              ? "bg-rose-100 text-rose-800"
-                              : market.status === "resolved"
-                                ? "bg-stone-200 text-stone-700"
-                                : "bg-stone-100 text-stone-500"
-                      }`}
-                    >
-                      {market.status}
-                    </span>
-                  </td>
-                  <td className="p-4 align-middle text-stone-600 text-xs max-w-[150px] truncate">
-                    {market.resolutionSource || "Oracle"}
-                  </td>
-                  <td className="p-4 align-middle text-stone-600 text-xs">
-                    {new Date(market.deadline).toLocaleString()}
-                  </td>
-                  <td className="p-4 text-right align-middle">
-                    <div className="flex items-center justify-end gap-2">
-                      {market.status === "qualified" && (
-                        <Button
-                          onClick={() => handleApproveTrading(market.id)}
-                          size="sm"
-                          className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-[2px] text-xs cursor-pointer shadow-xs transition-colors"
-                        >
-                          Approve Trading
-                        </Button>
-                      )}
-                      {(market.status === "tradable" || market.status === "resolving") && (
-                        <Button
-                          onClick={() => handleOpenArbitrateResolve(market)}
-                          size="sm"
-                          className="bg-amber-500 hover:bg-amber-600 text-white font-semibold rounded-[2px] text-xs cursor-pointer shadow-xs transition-colors"
-                        >
-                          Settle Market
-                        </Button>
-                      )}
-                      {![
-                        "qualified",
-                        "tradable",
-                        "resolving",
-                      ].includes(market.status) && (
-                        <span className="text-[10px] text-stone-400 font-mono uppercase pr-2">
-                          {market.status === "resolved"
-                            ? `Resolved (${formatResolvedOutcome(market)})`
-                            : "No Actions"}
-                        </span>
+        <div className="flex-1 divide-y divide-stone-200">
+          {paginatedMarkets.map((fixture) => {
+            const isExpanded = Boolean(expandedIds[fixture.id])
+            const { teamA, teamB } = parseFixtureTeams(fixture.question)
+            const children = fixture.childMarkets || []
+            const isPvp = fixture.category?.toLowerCase() === "pvp" || fixture.marketType === "parent"
+
+            return (
+              <div key={fixture.id} className="transition-colors bg-white hover:bg-stone-50/40">
+                {/* Master Game Row */}
+                <div className="p-4 sm:p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                  {/* Left: Match Info */}
+                  <div className="flex items-start gap-3.5 flex-1 min-w-0">
+                    <div className="h-10 w-10 shrink-0 rounded-[2px] border border-stone-200 bg-stone-100 flex items-center justify-center text-stone-700">
+                      {isPvp ? (
+                        <Swords className="h-5 w-5 text-indigo-600" />
+                      ) : (
+                        <Trophy className="h-5 w-5 text-amber-500" />
                       )}
                     </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+
+                    <div className="min-w-0 flex-1 space-y-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-mono text-[9px] font-bold uppercase tracking-[0.14em] text-stone-500 bg-stone-100 px-2 py-0.5 rounded-[2px]">
+                          {fixture.category || "Premier League"}
+                        </span>
+                        <span
+                          className={`inline-flex px-2 py-0.5 rounded-[2px] text-[10px] font-bold uppercase ${
+                            fixture.status === "tradable"
+                              ? "bg-emerald-100 text-emerald-800"
+                              : fixture.status === "qualified"
+                                ? "bg-blue-100 text-blue-800"
+                                : fixture.status === "closed"
+                                  ? "bg-amber-100 text-amber-800"
+                                  : fixture.status === "resolved"
+                                    ? "bg-stone-200 text-stone-700"
+                                    : "bg-stone-100 text-stone-600"
+                          }`}
+                        >
+                          {fixture.status}
+                        </span>
+                        {fixture.resolvedOutcome && (
+                          <span className="font-mono text-[9px] font-bold uppercase bg-stone-100 text-stone-700 px-2 py-0.5 rounded-[2px]">
+                            Winner: {fixture.resolvedOutcome}
+                          </span>
+                        )}
+                      </div>
+
+                      <h4 className="font-heading text-base font-bold text-stone-900 leading-snug truncate">
+                        {fixture.question}
+                      </h4>
+
+                      <div className="flex flex-wrap items-center gap-3 text-xs text-stone-500 font-mono">
+                        <span className="flex items-center gap-1">
+                          <Clock className="h-3 w-3" />
+                          Kickoff: {new Date(fixture.deadline).toLocaleString()}
+                        </span>
+                        <span>·</span>
+                        <span className="flex items-center gap-1 text-indigo-600 font-semibold">
+                          <Layers className="h-3 w-3" />
+                          {children.length} Propositions (
+                          {children.filter((c) => c.status === "resolved").length}/
+                          {children.length} Resolved)
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Right: Master Action Bar */}
+                  <div className="flex items-center gap-2 shrink-0 self-end lg:self-center">
+                    {children.length > 0 && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => toggleExpand(fixture.id)}
+                        className="gap-1.5 font-mono text-xs rounded-[2px] border-stone-200 bg-white cursor-pointer"
+                      >
+                        {isExpanded ? (
+                          <>
+                            <ChevronUp className="h-3.5 w-3.5" />
+                            Hide Propositions
+                          </>
+                        ) : (
+                          <>
+                            <ChevronDown className="h-3.5 w-3.5" />
+                            View Propositions ({children.length})
+                          </>
+                        )}
+                      </Button>
+                    )}
+
+                    {fixture.status === "qualified" && (
+                      <Button
+                        onClick={() => handleApproveTrading(fixture.id)}
+                        size="sm"
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-[2px] text-xs cursor-pointer shadow-xs"
+                      >
+                        Approve Trading
+                      </Button>
+                    )}
+
+                    {fixture.status !== "resolved" && (
+                      <Button
+                        onClick={() => handleOpenBatchResolve(fixture.id)}
+                        size="sm"
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold uppercase tracking-wider text-xs gap-1.5 rounded-[2px] shadow-xs cursor-pointer"
+                      >
+                        <Sparkles className="h-3.5 w-3.5 text-amber-300" />
+                        Resolve Match
+                      </Button>
+                    )}
+
+                    {fixture.status === "resolved" && (
+                      <span className="font-mono text-xs font-bold text-emerald-600 flex items-center gap-1 bg-emerald-50 px-3 py-1.5 rounded-[2px] border border-emerald-100">
+                        <CheckCircle2 className="h-3.5 w-3.5" />
+                        Settled
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Expandable Sub-Propositions Drawer List */}
+                {isExpanded && children.length > 0 && (
+                  <div className="bg-stone-50 border-t border-stone-200 p-4 space-y-2">
+                    <div className="flex items-center justify-between pb-2">
+                      <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-stone-500">
+                        Nested Sub-Propositions ({children.length})
+                      </span>
+                      <span className="text-[11px] text-stone-500 font-mono">
+                        Auto-resolved simultaneously via Match Resolution Hub
+                      </span>
+                    </div>
+
+                    <div className="rounded-[2px] border border-stone-200 bg-white divide-y divide-stone-100 overflow-hidden">
+                      {children.map((child, idx) => (
+                        <div
+                          key={child.id}
+                          className="p-3 flex items-center justify-between gap-3 text-xs hover:bg-stone-50/50"
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <span className="font-mono text-[9px] font-bold uppercase text-stone-400 bg-stone-100 px-2 py-0.5 rounded-[2px] shrink-0">
+                              #{idx + 1}
+                            </span>
+                            <span className="font-bold text-stone-800 truncate">
+                              {child.optionName || child.question}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span
+                              className={`px-2 py-0.5 font-mono text-[9px] font-bold uppercase rounded-[2px] ${
+                                child.status === "resolved"
+                                  ? "bg-emerald-100 text-emerald-800"
+                                  : "bg-amber-100 text-amber-800"
+                              }`}
+                            >
+                              {child.status === "resolved"
+                                ? `Resolved: ${child.resolvedOutcome}`
+                                : child.status}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )
+          })}
         </div>
       )}
 
@@ -359,7 +435,7 @@ export default function MarketsTable({
                 filteredAndSortedMarkets.length,
               )}
             </strong>{" "}
-            of <strong>{filteredAndSortedMarkets.length}</strong> markets
+            of <strong>{filteredAndSortedMarkets.length}</strong> game fixtures
           </span>
 
           <div className="flex items-center gap-1.5">

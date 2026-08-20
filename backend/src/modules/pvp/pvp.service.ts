@@ -30,6 +30,7 @@ import { CreatePvpEventDto, SubmitTicketDto } from "./pvp.dto"
 import { calculatePvpResultXp, calculatePvpScore } from "./pvp-scoring"
 import type { PvpResult } from "./pvp-scoring"
 import { AgentService } from "../agent/agent.service"
+import { SportsOracleService } from "../agent/sports-oracle.service"
 import { ConfigService } from "@nestjs/config"
 import { CouponsService } from "../coupons/coupons.service"
 import { TmaService } from "../tma/tma.service"
@@ -135,16 +136,6 @@ export function determineOptionGroup(
     return "offsides"
   }
 
-  if (
-    name.includes("on penalties") ||
-    name.includes("penalty shootout") ||
-    name.includes("wins shootout") ||
-    name.includes("no penalties") ||
-    name.includes("decided in extra time")
-  ) {
-    return "extra_time_penalties"
-  }
-
   return `unique_${optionName.replace(/\s+/g, "_").toLowerCase()}`
 }
 
@@ -204,6 +195,7 @@ export class PvpService {
     private socketGateway: SocketGateway,
     private readonly notificationsService: NotificationsService,
     private readonly agentService: AgentService,
+    private readonly sportsOracleService: SportsOracleService,
     private readonly configService: ConfigService,
     private readonly couponsService: CouponsService,
     private readonly tmaService: TmaService,
@@ -213,6 +205,15 @@ export class PvpService {
     const admin = await this.userModel.findById(adminId)
     if (!admin || admin.role !== "admin") {
       throw new ForbiddenException("Only admins can create PvP events.")
+    }
+    if (
+      dto.options.some((option) =>
+        /extra\s*time|penalt(?:y|ies)|shootout/i.test(option),
+      )
+    ) {
+      throw new BadRequestException(
+        "Extra-time and penalty-shootout propositions are not supported",
+      )
     }
 
     let teamA = "YES"
@@ -292,6 +293,7 @@ export class PvpService {
       noCondition: teamB,
       status: "tradable",
       marketType: "parent",
+      apiFootballFixtureId: dto.apiFootballFixtureId ?? null,
     })
 
     const childMarkets: MarketDocument[] = []
@@ -375,6 +377,7 @@ export class PvpService {
         outcomeCount: outcomeCount,
         outcomes: outcomes,
         handicap: handicap,
+        apiFootballFixtureId: dto.apiFootballFixtureId ?? null,
       })
       childMarkets.push(child)
     }
@@ -1586,8 +1589,6 @@ export class PvpService {
     }
   }
 
-
-
   private async awardReferrerFirstWinBoosts(referredPlayer: UserDocument) {
     const referrer = await this.userModel.findById(referredPlayer.referredById)
     if (!referrer) return
@@ -2372,16 +2373,16 @@ export class PvpService {
     const botUsernames = BOT_PROFILES.map((b) => b.username)
 
     // Parse timeframe
-    const tf = timeframe || "7d";
-    const cutoff = new Date();
+    const tf = timeframe || "7d"
+    const cutoff = new Date()
     if (tf === "1h") {
-      cutoff.setHours(cutoff.getHours() - 1);
+      cutoff.setHours(cutoff.getHours() - 1)
     } else if (tf === "1d") {
-      cutoff.setDate(cutoff.getDate() - 1);
+      cutoff.setDate(cutoff.getDate() - 1)
     } else if (tf === "30d") {
-      cutoff.setDate(cutoff.getDate() - 30);
+      cutoff.setDate(cutoff.getDate() - 30)
     } else {
-      cutoff.setDate(cutoff.getDate() - 7);
+      cutoff.setDate(cutoff.getDate() - 7)
     }
 
     // 1. Users count
@@ -2396,7 +2397,9 @@ export class PvpService {
     const realUsersCount = Math.max(0, totalUsers - botsCount)
 
     // Get total unique market creators within timeframe
-    const marketCreatorsList = await this.marketModel.distinct("authorId", { createdAt: { $gte: cutoff } })
+    const marketCreatorsList = await this.marketModel.distinct("authorId", {
+      createdAt: { $gte: cutoff },
+    })
     const totalMarketCreators = marketCreatorsList.length
 
     // 2. PvP User Stats
@@ -2512,10 +2515,23 @@ export class PvpService {
     const creationFeesCollected = creationFeeStatsList[0]?.total || 0
 
     // Count Nanopayments within timeframe
-    const uniqueRoyaltyHashes = await this.marketTradeModel.distinct("royaltyPaidTxHash", {
-      royaltyPaidTxHash: { $nin: [null, "", "zero_amount", "self_split", "no_pool", "no_positions", "apportioned"] },
-      createdAt: { $gte: cutoff }
-    })
+    const uniqueRoyaltyHashes = await this.marketTradeModel.distinct(
+      "royaltyPaidTxHash",
+      {
+        royaltyPaidTxHash: {
+          $nin: [
+            null,
+            "",
+            "zero_amount",
+            "self_split",
+            "no_pool",
+            "no_positions",
+            "apportioned",
+          ],
+        },
+        createdAt: { $gte: cutoff },
+      },
+    )
     const nanopaymentsProcessed = uniqueRoyaltyHashes.length
 
     // 6. Recent Trades (within timeframe, max 1000) for line charts
@@ -2555,15 +2571,21 @@ export class PvpService {
         $project: {
           marketId: {
             $cond: {
-              if: { $ne: [{ $ifNull: ["$market.parentMarketId", null] }, null] },
+              if: {
+                $ne: [{ $ifNull: ["$market.parentMarketId", null] }, null],
+              },
               then: "$market.parentMarketId",
               else: "$marketId",
             },
           },
           marketQuestion: {
             $cond: {
-              if: { $ne: [{ $ifNull: ["$market.parentMarketId", null] }, null] },
-              then: { $ifNull: ["$parentMarket.question", "Unknown Parent Market"] },
+              if: {
+                $ne: [{ $ifNull: ["$market.parentMarketId", null] }, null],
+              },
+              then: {
+                $ifNull: ["$parentMarket.question", "Unknown Parent Market"],
+              },
               else: { $ifNull: ["$market.question", "Unknown Market"] },
             },
           },
@@ -2575,12 +2597,28 @@ export class PvpService {
     ])
 
     // 7. Activity Timeline data
-    const signups = await this.userModel.find({ createdAt: { $gte: cutoff } }, { createdAt: 1 }).lean()
-    const trades = await this.marketTradeModel.find({ createdAt: { $gte: cutoff } }, { createdAt: 1 }).lean()
-    const tickets = await this.pvpTicketModel.find({ createdAt: { $gte: cutoff } }, { createdAt: 1 }).lean()
-    const markets = await this.marketModel.find({ createdAt: { $gte: cutoff } }, { createdAt: 1, authorId: 1 }).lean()
+    const signups = await this.userModel
+      .find({ createdAt: { $gte: cutoff } }, { createdAt: 1 })
+      .lean()
+    const trades = await this.marketTradeModel
+      .find({ createdAt: { $gte: cutoff } }, { createdAt: 1 })
+      .lean()
+    const tickets = await this.pvpTicketModel
+      .find({ createdAt: { $gte: cutoff } }, { createdAt: 1 })
+      .lean()
+    const markets = await this.marketModel
+      .find({ createdAt: { $gte: cutoff } }, { createdAt: 1, authorId: 1 })
+      .lean()
 
-    const timeline: { label: string; signups: number; trades: number; tickets: number; marketCreators: number; start: number; end: number }[] = []
+    const timeline: {
+      label: string
+      signups: number
+      trades: number
+      tickets: number
+      marketCreators: number
+      start: number
+      end: number
+    }[] = []
     const nowMs = Date.now()
 
     if (tf === "1h") {
@@ -2590,7 +2628,15 @@ export class PvpService {
         const end = i === 0 ? Infinity : nowMs - i * 5 * 60 * 1000
         const dateObj = new Date(start)
         const label = `${String(dateObj.getHours()).padStart(2, "0")}:${String(dateObj.getMinutes() - (dateObj.getMinutes() % 5)).padStart(2, "0")}`
-        timeline.push({ label, signups: 0, trades: 0, tickets: 0, marketCreators: 0, start, end })
+        timeline.push({
+          label,
+          signups: 0,
+          trades: 0,
+          tickets: 0,
+          marketCreators: 0,
+          start,
+          end,
+        })
       }
     } else if (tf === "1d") {
       // 24 intervals of 1 hour
@@ -2599,7 +2645,15 @@ export class PvpService {
         const end = i === 0 ? Infinity : nowMs - i * 60 * 60 * 1000
         const dateObj = new Date(start)
         const label = `${String(dateObj.getHours()).padStart(2, "0")}:00`
-        timeline.push({ label, signups: 0, trades: 0, tickets: 0, marketCreators: 0, start, end })
+        timeline.push({
+          label,
+          signups: 0,
+          trades: 0,
+          tickets: 0,
+          marketCreators: 0,
+          start,
+          end,
+        })
       }
     } else if (tf === "30d") {
       // 30 intervals of 1 day
@@ -2608,7 +2662,15 @@ export class PvpService {
         const end = i === 0 ? Infinity : nowMs - i * 24 * 60 * 60 * 1000
         const dateObj = new Date(start)
         const label = `${dateObj.getDate()} ${dateObj.toLocaleString("default", { month: "short" })}`
-        timeline.push({ label, signups: 0, trades: 0, tickets: 0, marketCreators: 0, start, end })
+        timeline.push({
+          label,
+          signups: 0,
+          trades: 0,
+          tickets: 0,
+          marketCreators: 0,
+          start,
+          end,
+        })
       }
     } else {
       // 7 intervals of 1 day (7d default)
@@ -2616,12 +2678,25 @@ export class PvpService {
         const start = nowMs - (i + 1) * 24 * 60 * 60 * 1000
         const end = i === 0 ? Infinity : nowMs - i * 24 * 60 * 60 * 1000
         const dateObj = new Date(start)
-        const label = dateObj.toLocaleDateString("default", { weekday: "short" })
-        timeline.push({ label, signups: 0, trades: 0, tickets: 0, marketCreators: 0, start, end })
+        const label = dateObj.toLocaleDateString("default", {
+          weekday: "short",
+        })
+        timeline.push({
+          label,
+          signups: 0,
+          trades: 0,
+          tickets: 0,
+          marketCreators: 0,
+          start,
+          end,
+        })
       }
     }
 
-    const fillTimeline = (items: any[], key: "signups" | "trades" | "tickets") => {
+    const fillTimeline = (
+      items: any[],
+      key: "signups" | "trades" | "tickets",
+    ) => {
       for (const item of items) {
         if (!item.createdAt) continue
         const t = new Date(item.createdAt).getTime()
@@ -2637,7 +2712,11 @@ export class PvpService {
     fillTimeline(tickets, "tickets")
 
     // Custom fill for unique market creators per bucket
-    const fillTimelineUniqueUsers = (items: any[], key: "marketCreators", userIdField: string) => {
+    const fillTimelineUniqueUsers = (
+      items: any[],
+      key: "marketCreators",
+      userIdField: string,
+    ) => {
       const bucketUsers = new Map<number, Set<string>>()
       for (const bucket of timeline) {
         bucketUsers.set(bucket.start, new Set())
@@ -2657,13 +2736,15 @@ export class PvpService {
 
     fillTimelineUniqueUsers(markets, "marketCreators", "authorId")
 
-    const activityTimeline = timeline.map(({ label, signups, trades, tickets, marketCreators }) => ({
-      label,
-      signups,
-      trades,
-      tickets,
-      marketCreators,
-    }))
+    const activityTimeline = timeline.map(
+      ({ label, signups, trades, tickets, marketCreators }) => ({
+        label,
+        signups,
+        trades,
+        tickets,
+        marketCreators,
+      }),
+    )
 
     return {
       users: {
@@ -2713,76 +2794,33 @@ export class PvpService {
     return this.calculateSystemMetrics(timeframe)
   }
 
-  async getPremierLeagueSchedule() {
-    if (process.env.NODE_ENV === "development" || !process.env.NODE_ENV) {
-      return this.getMockPremierLeagueSchedule()
+  async getPremierLeagueSchedule(
+    type: "upcoming" | "finished" | "live" = "upcoming",
+    league?: number,
+    season = new Date().getUTCFullYear(),
+  ) {
+    const fixtures = await this.sportsOracleService.fetchApiFootballFixtures(
+      type,
+      league,
+      season,
+    )
+    return {
+      league: league === 39 ? "Premier League" : "API-Football real matches",
+      count: fixtures.length,
+      fixtures,
     }
+  }
 
-    try {
-      const [fixturesRes, bootstrapRes] = await Promise.all([
-        fetch("https://fantasy.premierleague.com/api/fixtures/?future=1", {
-          headers: { "User-Agent": "Verity/1.0" },
-        }),
-        fetch("https://fantasy.premierleague.com/api/bootstrap-static/", {
-          headers: { "User-Agent": "Verity/1.0" },
-        }),
-      ])
-
-      if (!fixturesRes.ok || !bootstrapRes.ok) {
-        throw new Error(
-          `Official Premier League API returned status ${fixturesRes.status} / ${bootstrapRes.status}`,
-        )
-      }
-
-      const fixtures = await fixturesRes.json()
-      const bootstrap = await bootstrapRes.json()
-
-      const teamsMap = new Map<number, { name: string; shortName: string }>()
-      if (Array.isArray(bootstrap.teams)) {
-        for (const t of bootstrap.teams) {
-          teamsMap.set(t.id, { name: t.name, shortName: t.short_name })
-        }
-      }
-
-      const scheduled = (fixtures || [])
-        .filter((f: any) => f.kickoff_time && !f.finished)
-        .slice(0, 30)
-        .map((f: any) => {
-          const homeTeam = teamsMap.get(f.team_h)?.name || `Team ${f.team_h}`
-          const awayTeam = teamsMap.get(f.team_a)?.name || `Team ${f.team_a}`
-          const kickoff = new Date(f.kickoff_time)
-          const deadline = new Date(kickoff.getTime() + 2 * 60 * 60 * 1000)
-
-          return {
-            id: f.id,
-            code: f.code,
-            gameweek: f.event,
-            homeTeam,
-            awayTeam,
-            homeTeamShort: teamsMap.get(f.team_h)?.shortName || "",
-            awayTeamShort: teamsMap.get(f.team_a)?.shortName || "",
-            question: `${homeTeam} vs ${awayTeam}`,
-            kickoffTime: kickoff.toISOString(),
-            lockTime: kickoff.toISOString(),
-            deadline: deadline.toISOString(),
-            resolutionSource: "Premier League Official / BBC Sport",
-          }
-        })
-
-      return {
-        league: "Premier League",
-        count: scheduled.length,
-        fixtures: scheduled,
-      }
-    } catch (err: any) {
-      this.logger.error(
-        `Failed to fetch live Premier League schedule: ${err.message}`,
-        err.stack,
-      )
-      throw new InternalServerErrorException(
-        `Failed to fetch live Premier League schedule from official feed: ${err.message}`,
-      )
-    }
+  async getApiFootballSchedule(
+    type: "upcoming" | "finished" | "live" = "upcoming",
+    league = 39,
+    season = new Date().getUTCFullYear(),
+  ) {
+    return this.sportsOracleService.fetchApiFootballFixtures(
+      type,
+      Number(league),
+      Number(season),
+    )
   }
 
   getMockPremierLeagueSchedule() {

@@ -9,6 +9,7 @@ import {
   Min,
   IsIn,
   IsNotEmpty,
+  IsObject,
 } from "class-validator"
 import { Transform } from "class-transformer"
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger"
@@ -180,4 +181,32 @@ export class ResolveMarketDto {
   @IsString()
   @IsNotEmpty()
   adminAddress: string
+}
+
+export class BatchResolveFixtureDto {
+  @ApiProperty({
+    description: "Parent Fixture Market ID",
+    example: "60d0fe4f5311236168a109ca",
+  })
+  @IsMongoId()
+  parentMarketId: string
+
+  @ApiProperty({
+    description: "Map of child market IDs to winning outcome values",
+    example: {
+      "60d0fe4f5311236168a109cb": "YES",
+      "60d0fe4f5311236168a109cc": "NO",
+    },
+  })
+  @IsNotEmpty()
+  @IsObject()
+  outcomes: Record<string, string>
+
+  @ApiPropertyOptional({
+    description: "Admin address performing resolution",
+    example: "0x28738040d191ff30673f546FB6BF997E6cdA6dbF",
+  })
+  @IsOptional()
+  @IsString()
+  adminAddress?: string
 }

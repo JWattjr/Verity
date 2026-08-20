@@ -181,6 +181,9 @@ export class Market {
   @Prop({ type: String, default: null, trim: true })
   optionGroup: string | null
 
+  @Prop({ type: Number, default: null, index: true })
+  apiFootballFixtureId: number | null
+
   @Prop({ type: String, default: null })
   proposalReasoning: string | null
 

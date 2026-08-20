@@ -31,6 +31,7 @@ import { PostsService, MarketResponse } from "../posts/posts.service"
 import { SocketGateway } from "../socket/socket.gateway"
 import { NotificationsService } from "../notifications/notifications.service"
 import { PvpService } from "../pvp/pvp.service"
+import { SportsOracleService } from "../agent/sports-oracle.service"
 
 export interface DailyVotesResponse {
   votesLimit: number
@@ -127,6 +128,7 @@ export class MarketsService implements OnModuleInit {
     private readonly notificationsService: NotificationsService,
     @Inject(forwardRef(() => PvpService))
     private readonly pvpService: PvpService,
+    private readonly sportsOracleService: SportsOracleService,
   ) {}
 
   private todayKey(date = new Date()): string {
@@ -928,7 +930,8 @@ export class MarketsService implements OnModuleInit {
       const actorId = adminUser ? adminUser.id : authorId
 
       for (const pos of participants) {
-        const isWinner = pos.side.toUpperCase() === resolvedOutcome.toUpperCase()
+        const isWinner =
+          pos.side.toUpperCase() === resolvedOutcome.toUpperCase()
         const recipientId = pos.userId.toString()
 
         const title = isWinner ? "You won a prediction!" : "Market resolved"
@@ -969,7 +972,9 @@ export class MarketsService implements OnModuleInit {
     market.status = "resolving"
     await market.save()
 
-    this.logger.log(`Market ${marketId} flagged as disputed by admin ${adminAddress}.`)
+    this.logger.log(
+      `Market ${marketId} flagged as disputed by admin ${adminAddress}.`,
+    )
 
     // Emit Socket events
     this.socketGateway.broadcastToRoom("feed", "feed-updated", {})
@@ -1169,5 +1174,231 @@ export class MarketsService implements OnModuleInit {
         market_question,
       }
     })
+  }
+
+  async fetchGroupedFixtures(filters: any = {}) {
+    const query: Record<string, any> = {
+      $or: [
+        { marketType: "parent" },
+        { marketType: "binary", category: { $ne: "pvp" } },
+      ],
+    }
+    if (filters.status && filters.status !== "all") {
+      query.status = filters.status
+    }
+    if (filters.category && filters.category !== "all") {
+      query.category = filters.category
+    }
+
+    const sort: Record<string, any> = { createdAt: -1 }
+    const parents = await this.marketModel.find(query).sort(sort).limit(100)
+
+    const parentIds = parents
+      .filter((m) => m.marketType === "parent")
+      .map((m) => m._id)
+
+    const children =
+      parentIds.length > 0
+        ? await this.marketModel.find({ parentMarketId: { $in: parentIds } })
+        : []
+
+    const childMap = new Map<string, MarketDocument[]>()
+    for (const child of children) {
+      const pid = child.parentMarketId!.toString()
+      if (!childMap.has(pid)) childMap.set(pid, [])
+      childMap.get(pid)!.push(child)
+    }
+
+    return parents.map((p) => {
+      const pChildren = childMap.get(p.id) || []
+      const resolvedChildren = pChildren.filter((c) => c.status === "resolved")
+      const totalLiquidity =
+        p.liquidity + pChildren.reduce((sum, c) => sum + (c.liquidity || 0), 0)
+
+      return {
+        id: p.id,
+        question: p.question,
+        category: p.category,
+        deadline: p.deadline?.toISOString(),
+        status: p.status,
+        resolutionSource: p.resolutionSource,
+        yesCondition: p.yesCondition,
+        noCondition: p.noCondition,
+        outcomes: p.outcomes,
+        outcomeCount: p.outcomeCount,
+        resolvedOutcome: p.resolvedOutcome,
+        liquidity: totalLiquidity,
+        propositionsCount: pChildren.length,
+        resolvedPropositionsCount: resolvedChildren.length,
+        marketType: p.marketType,
+        apiFootballFixtureId: p.apiFootballFixtureId || null,
+        childMarkets: pChildren.map((c) => ({
+          id: c.id,
+          question: c.question,
+          optionName: c.optionName,
+          category: c.category,
+          status: c.status,
+          deadline: c.deadline?.toISOString(),
+          yesCondition: c.yesCondition,
+          noCondition: c.noCondition,
+          outcomes: c.outcomes,
+          outcomeCount: c.outcomeCount,
+          resolvedOutcome: c.resolvedOutcome,
+          liquidity: c.liquidity,
+          apiFootballFixtureId: c.apiFootballFixtureId || null,
+        })),
+      }
+    })
+  }
+
+  async previewFixtureResolution(parentMarketId: string) {
+    const parent = await this.marketModel.findById(parentMarketId)
+    if (!parent) {
+      throw new NotFoundException("Fixture market not found")
+    }
+
+    const children = await this.marketModel.find({ parentMarketId: parent._id })
+    const stats = await this.sportsOracleService.fetchMatchStats(
+      parent.question,
+      parent.deadline,
+      parent.apiFootballFixtureId || undefined,
+    )
+
+    const evaluations = children.map((child) => ({
+      marketId: child.id,
+      question: child.question,
+      optionName: child.optionName || child.question,
+      outcomes: child.outcomes,
+      evaluation: this.sportsOracleService.evaluateProposition(
+        {
+          question: child.question,
+          yesCondition: child.yesCondition,
+          noCondition: child.noCondition,
+          optionName: child.optionName,
+          optionGroup: child.optionGroup,
+          handicap: child.handicap,
+          outcomes: child.outcomes,
+        },
+        stats,
+      ),
+    }))
+
+    return {
+      parentMarketId: parent.id,
+      fixtureQuestion: parent.question,
+      matchStats: stats,
+      evaluations,
+      resolutionReady:
+        this.sportsOracleService.isTerminalStatus(stats.status) &&
+        evaluations.every((item) => item.evaluation.outcome !== "INVALID"),
+    }
+  }
+
+  async batchResolveFixture(
+    parentMarketId: string,
+    outcomes: Record<string, string>,
+    adminAddress = "0x0000000000000000000000000000000000000000",
+  ) {
+    const parent = await this.marketModel.findById(parentMarketId)
+    if (!parent) {
+      throw new NotFoundException("Fixture not found")
+    }
+    if (parent.marketType !== "parent" || parent.category !== "pvp") {
+      throw new BadRequestException(
+        "Batch resolution requires a PvP fixture parent",
+      )
+    }
+    const verifiedStats = await this.sportsOracleService.fetchMatchStats(
+      parent.question,
+      parent.deadline,
+      parent.apiFootballFixtureId || undefined,
+    )
+    if (!this.sportsOracleService.isTerminalStatus(verifiedStats.status)) {
+      throw new BadRequestException(
+        `Fixture ${verifiedStats.fixtureId || ""} is not final (status ${verifiedStats.status})`,
+      )
+    }
+
+    const childMarkets = await this.marketModel.find({
+      parentMarketId: parent._id,
+    })
+
+    const unresolvedChildren = childMarkets.filter(
+      (child) => child.status !== "resolved",
+    )
+    const resolutions = unresolvedChildren.map((child) => {
+      const submittedOutcome = outcomes[child.id]
+      const requestedOutcome =
+        typeof submittedOutcome === "string" ? submittedOutcome.trim() : ""
+      if (!requestedOutcome) {
+        throw new BadRequestException(
+          `Missing outcome for child market ${child.id}`,
+        )
+      }
+      let winningOutcomeIndex = child.outcomes.findIndex(
+        (outcome) =>
+          outcome.toLowerCase().trim() === requestedOutcome.toLowerCase(),
+      )
+      if (
+        winningOutcomeIndex < 0 &&
+        child.outcomes.length === 2 &&
+        ["YES", "NO"].includes(requestedOutcome.toUpperCase())
+      ) {
+        winningOutcomeIndex = requestedOutcome.toUpperCase() === "YES" ? 0 : 1
+      }
+      if (winningOutcomeIndex < 0) {
+        throw new BadRequestException(
+          `Outcome "${requestedOutcome}" is not valid for child market ${child.id}`,
+        )
+      }
+      return {
+        child,
+        winningOutcomeIndex,
+        winningOutcome: child.outcomes[winningOutcomeIndex],
+      }
+    })
+
+    // Validate the complete settlement before creating bot matches or mutating markets.
+    await this.pvpService.matchRemainingTicketsWithBot(parentMarketId)
+
+    const results: any[] = []
+    for (const resolution of resolutions) {
+      const { child, winningOutcomeIndex, winningOutcome } = resolution
+      child.status = "resolved"
+      child.resolvedOutcome = winningOutcome
+      child.winningOutcomeIndex = winningOutcomeIndex
+      child.resolvedByAdmin = adminAddress
+
+      await child.save()
+
+      await this.pvpService.resolvePvpMatchesForMarket(child.id, winningOutcome)
+
+      this.socketGateway.broadcastToRoom(
+        `market:${child.id}`,
+        "market-updated",
+        { marketId: child.id, resolvedOutcome: winningOutcome },
+      )
+
+      results.push({ marketId: child.id, outcome: winningOutcome })
+    }
+
+    // Mark parent as resolved
+    parent.status = "resolved"
+    parent.resolvedOutcome = "COMPLETED"
+    parent.resolvedByAdmin = adminAddress
+    await parent.save()
+
+    this.socketGateway.broadcastToRoom(
+      `market:${parent.id}`,
+      "market-updated",
+      { marketId: parent.id, resolvedOutcome: parent.resolvedOutcome },
+    )
+
+    return {
+      success: true,
+      parentMarketId: parent.id,
+      resolvedCount: results.length,
+      results,
+    }
   }
 }

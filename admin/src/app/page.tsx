@@ -6,32 +6,10 @@ import { io } from "socket.io-client"
 import { toast } from "react-hot-toast"
 import AdminShell from "@/components/AdminShell"
 import BalancesCard from "@/components/BalancesCard"
-import MarketsTable from "@/components/MarketsTable"
+import MarketsTable, { FixtureMarket } from "@/components/MarketsTable"
 import CreateMarketDrawer from "@/components/CreateMarketDrawer"
 import ResolveMarketDrawer from "@/components/ResolveMarketDrawer"
-
-interface Market {
-  id: string
-  question: string
-  category: string
-  deadline: string
-  status: string
-  resolutionSource?: string
-  yesCondition?: string
-  noCondition?: string
-  outcomes?: string[]
-  outcomeCount?: number
-  proposalReasoning?: string | null
-  proposalCitations?: string[] | null
-  proposalProposer?: string | null
-  proposalDisputer?: string | null
-  disputed?: boolean
-  proposedOutcome?: boolean | null
-  proposedOutcomeIndex?: number | null
-  proposedAt?: string | null
-  disputeWindowSeconds?: number
-  resolvedOutcome?: string | null
-}
+import BatchResolveDrawer from "@/components/BatchResolveDrawer"
 
 interface AdminMetrics {
   users: {
@@ -40,10 +18,9 @@ interface AdminMetrics {
     bots: number
   }
 }
-
 export default function AdminHomePage() {
-  // Markets state
-  const [markets, setMarkets] = useState<Market[]>([])
+  // Grouped Fixtures state
+  const [markets, setMarkets] = useState<FixtureMarket[]>([])
   const [marketsLoading, setMarketsLoading] = useState(false)
 
   // Filter & Search & Sort states
@@ -58,12 +35,14 @@ export default function AdminHomePage() {
   // Drawers open/close states
   const [isCreateDrawerOpen, setIsCreateDrawerOpen] = useState(false)
   const [isResolveDrawerOpen, setIsResolveDrawerOpen] = useState(false)
+  const [isBatchResolveDrawerOpen, setIsBatchResolveDrawerOpen] = useState(false)
 
   // Metrics Data State
   const [metricsData, setMetricsData] = useState<AdminMetrics | null>(null)
 
-  // Arbitration / Settle State
+  // Single Arbitration / Settle State (Legacy fallback)
   const [selectedMarketId, setSelectedMarketId] = useState<string | null>(null)
+  const [selectedFixtureId, setSelectedFixtureId] = useState<string | null>(null)
   const [winningOutcome, setWinningOutcome] = useState<string>("YES")
 
   const [now, setNow] = useState(Date.now())
@@ -85,35 +64,14 @@ export default function AdminHomePage() {
     }
   }
 
-  // Fetch standard & PvP child markets for moderation
+  // Fetch grouped game fixtures with all child propositions
   async function fetchMarkets() {
     setMarketsLoading(true)
     try {
-      const data = await apiRequest<any[]>("/markets?admin=true")
-      const parsed: Market[] = data.map((item: any) => ({
-        id: item.id || item._id,
-        question: item.question,
-        category: item.category,
-        deadline: item.deadline,
-        status: item.status,
-        resolutionSource: item.resolutionSource || item.resolution_source,
-        yesCondition: item.yesCondition || item.yes_condition,
-        noCondition: item.noCondition || item.no_condition,
-        outcomes: item.outcomes || [],
-        outcomeCount: item.outcomeCount ?? 2,
-        proposalReasoning: item.proposalReasoning || item.proposal_reasoning,
-        proposalCitations: item.proposalCitations || item.proposal_citations,
-        proposalProposer: item.proposalProposer || item.proposal_proposer,
-        proposalDisputer: item.proposalDisputer || item.proposal_disputer,
-        disputed: item.disputed ?? false,
-        proposedOutcome: item.proposedOutcome ?? null,
-        proposedAt: item.proposedAt || item.proposed_at || null,
-        disputeWindowSeconds: item.disputeWindowSeconds ?? 120,
-        resolvedOutcome: item.resolvedOutcome || item.resolved_outcome || null,
-      }))
-      setMarkets(parsed)
+      const data = await apiRequest<FixtureMarket[]>("/markets/fixtures/grouped")
+      setMarkets(data)
     } catch (err: any) {
-      toast.error(err.message || "Failed to load markets.")
+      toast.error(err.message || "Failed to load fixtures.")
     } finally {
       setMarketsLoading(false)
     }
@@ -121,13 +79,18 @@ export default function AdminHomePage() {
 
   // Real-time socket updates listener
   useEffect(() => {
-    const token = typeof window !== "undefined" ? localStorage.getItem("verity_admin_auth_token") : null
+    const token =
+      typeof window !== "undefined"
+        ? localStorage.getItem("verity_admin_auth_token")
+        : null
     if (!token) return
 
     void fetchMarkets()
     void fetchMetricsData()
 
-    const socketUrl = process.env.NEXT_PUBLIC_API_URL?.replace("/api", "") || "http://localhost:5080"
+    const socketUrl =
+      process.env.NEXT_PUBLIC_API_URL?.replace("/api", "") ||
+      "http://localhost:5080"
     const socket = io(`${socketUrl}/socket`, {
       transports: ["websocket"],
     })
@@ -160,14 +123,9 @@ export default function AdminHomePage() {
     }
   }
 
-  const handleOpenArbitrateResolve = (market: Market) => {
-    setSelectedMarketId(market.id)
-    const outcomes =
-      market.outcomes && market.outcomes.length > 0
-        ? market.outcomes
-        : ["YES", "NO"]
-    setWinningOutcome(outcomes[0])
-    setIsResolveDrawerOpen(true)
+  const handleOpenBatchResolve = (fixtureId: string) => {
+    setSelectedFixtureId(fixtureId)
+    setIsBatchResolveDrawerOpen(true)
   }
 
   return (
@@ -195,7 +153,7 @@ export default function AdminHomePage() {
         itemsPerPage={itemsPerPage}
         fetchMarkets={fetchMarkets}
         handleApproveTrading={handleApproveTrading}
-        handleOpenArbitrateResolve={handleOpenArbitrateResolve}
+        handleOpenBatchResolve={handleOpenBatchResolve}
       />
 
       {/* Create PvP Match Drawer with Live Premier League Schedule Integration */}
@@ -207,18 +165,12 @@ export default function AdminHomePage() {
         fetchMetricsData={fetchMetricsData}
       />
 
-      {/* Arbitrate Resolve Drawer */}
-      <ResolveMarketDrawer
-        isOpen={isResolveDrawerOpen}
-        onClose={() => setIsResolveDrawerOpen(false)}
-        selectedMarketId={selectedMarketId}
-        markets={markets}
-        fetchMarkets={fetchMarkets}
-        fetchAdminStatus={() => {}}
-        fetchMetricsData={fetchMetricsData}
-        winningOutcome={winningOutcome}
-        setWinningOutcome={setWinningOutcome}
-        now={now}
+      {/* Batch Match Resolution Drawer */}
+      <BatchResolveDrawer
+        isOpen={isBatchResolveDrawerOpen}
+        onClose={() => setIsBatchResolveDrawerOpen(false)}
+        selectedFixtureId={selectedFixtureId}
+        onSuccess={fetchMarkets}
       />
     </AdminShell>
   )

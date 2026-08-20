@@ -74,13 +74,13 @@ const showcasePositions: MarketPosition[] = [
     null,
   ),
   previewPosition(
-    "france-spain-extra",
-    "France vs Spain - Extra Time / Penalties",
-    "No penalties",
+    "france-spain-goals",
+    "France vs Spain - Total Goals",
+    "Under 3.5",
     41.23,
     28,
     "resolved",
-    "No penalties",
+    "Under 3.5",
   ),
   previewPosition(
     "world-cup-goat",
