@@ -766,8 +766,459 @@ export class SportsOracleService {
     }
   }
 
+  // ──────────────────────────────────────────────────────────────────────────
+  // football-data.org v4 provider
+  // ──────────────────────────────────────────────────────────────────────────
+
+  private getFootballDataOrgKey(): string | null {
+    return (
+      this.configService.get<string>("FOOTBALL_DATA_ORG_KEY") || null
+    )
+  }
+
+  private requireFootballDataOrgKey(): string {
+    const key = this.getFootballDataOrgKey()
+    if (!key) {
+      throw new ServiceUnavailableException(
+        "FOOTBALL_DATA_ORG_KEY is not configured",
+      )
+    }
+    return key
+  }
+
+  private footballDataOrgQuotaBlockedUntil = 0
+
+  private assertFootballDataOrgQuota(): void {
+    if (Date.now() < this.footballDataOrgQuotaBlockedUntil) {
+      throw new ServiceUnavailableException(
+        `football-data.org rate limit active; paused until ${new Date(this.footballDataOrgQuotaBlockedUntil).toISOString()}`,
+      )
+    }
+  }
+
+  private async fetchFootballDataOrg(url: string, apiKey: string): Promise<any> {
+    this.assertFootballDataOrgQuota()
+    const res = await fetch(url, {
+      headers: { "X-Auth-Token": apiKey },
+    })
+    if (!res.ok) {
+      if (res.status === 429) {
+        // football-data.org rate limit: 10 req/min on free tier
+        const retryAfter = Number(res.headers?.get?.("retry-after") || 60)
+        this.footballDataOrgQuotaBlockedUntil = Date.now() +
+          (Number.isFinite(retryAfter) ? retryAfter : 60) * 1000
+        throw new ServiceUnavailableException(
+          `football-data.org rate limit reached; paused until ${new Date(this.footballDataOrgQuotaBlockedUntil).toISOString()}`,
+        )
+      }
+      if (res.status === 403) {
+        throw new ServiceUnavailableException(
+          "football-data.org rejected the request (403 Forbidden). Check your API key and plan.",
+        )
+      }
+      throw new ServiceUnavailableException(
+        `football-data.org request failed with HTTP ${res.status}`,
+      )
+    }
+    const data = await res.json().catch(() => null)
+    if (!data) {
+      throw new ServiceUnavailableException(
+        "football-data.org returned an invalid response",
+      )
+    }
+    const remaining = res.headers?.get?.("x-requests-available")
+    if (remaining === "0") {
+      // Block until the counter resets (next minute for per-minute limits)
+      this.footballDataOrgQuotaBlockedUntil = Date.now() + 60_000
+      this.logger.warn(
+        "football-data.org reports zero remaining requests; pausing for 60s.",
+      )
+    }
+    return data
+  }
+
+  /**
+   * Fetch EPL schedule from football-data.org v4.
+   * Competition code PL = Premier League.
+   */
+  async fetchFootballDataOrgFixtures(
+    type: "upcoming" | "finished" | "live" = "upcoming",
+    season = new Date().getUTCFullYear(),
+  ): Promise<ApiFootballFixtureItem[]> {
+    const cacheKey = `fdo_PL_${season}_${type}`
+    const persistentCacheKey = `schedule:${cacheKey}`
+    const cached = this.scheduleCache.get(cacheKey)
+    const now = Date.now()
+    const ttl = this.scheduleTtl(type)
+
+    if (cached && cached.data.length > 0 && now - cached.cachedAt < ttl) {
+      this.logger.log(
+        `Serving football-data.org ${type} schedule from cache (${cacheKey})`,
+      )
+      return cached.data
+    }
+
+    const persisted =
+      await this.readPersistentCache<ApiFootballFixtureItem[]>(
+        persistentCacheKey,
+      )
+    if (persisted && persisted.length > 0) {
+      this.scheduleCache.set(cacheKey, { data: persisted, cachedAt: now })
+      this.logger.log(
+        `Serving football-data.org ${type} schedule from persistent cache (${cacheKey})`,
+      )
+      return persisted
+    }
+
+    const apiKey = this.requireFootballDataOrgKey()
+    let rawMatches: any[] = []
+    let competitionName = "Premier League"
+
+    if (type === "live") {
+      const url = `https://api.football-data.org/v4/competitions/PL/matches?status=LIVE`
+      this.logger.log(`Fetching football-data.org live schedule: ${url}`)
+      const data = await this.fetchFootballDataOrg(url, apiKey)
+      rawMatches = data.matches || []
+      competitionName = data.competition?.name || competitionName
+    } else if (type === "finished") {
+      // Prioritize the 2025/2026 season (season 2025) and fallback to 2024 or current requested season
+      const candidateSeasons = [2025, 2024, season, season - 1]
+      const uniqueSeasons = [...new Set(candidateSeasons)]
+
+      for (const s of uniqueSeasons) {
+        const url = `https://api.football-data.org/v4/competitions/PL/matches?season=${s}&status=FINISHED`
+        this.logger.log(`Fetching football-data.org finished schedule (season ${s}): ${url}`)
+        try {
+          const data = await this.fetchFootballDataOrg(url, apiKey)
+          if (Array.isArray(data.matches) && data.matches.length > 0) {
+            rawMatches = data.matches
+            competitionName = data.competition?.name || competitionName
+            this.logger.log(
+              `Found ${rawMatches.length} finished matches in football-data.org season ${s}`,
+            )
+            break
+          }
+        } catch (err: any) {
+          this.logger.warn(`Failed to fetch season ${s} from football-data.org: ${err.message}`)
+        }
+      }
+    } else {
+      // Upcoming matches
+      const candidateSeasons = [season, season - 1, season + 1]
+      const uniqueSeasons = [...new Set(candidateSeasons)]
+
+      for (const s of uniqueSeasons) {
+        const url = `https://api.football-data.org/v4/competitions/PL/matches?season=${s}&status=SCHEDULED,TIMED`
+        this.logger.log(`Fetching football-data.org upcoming schedule (season ${s}): ${url}`)
+        try {
+          const data = await this.fetchFootballDataOrg(url, apiKey)
+          if (Array.isArray(data.matches) && data.matches.length > 0) {
+            rawMatches = data.matches
+            competitionName = data.competition?.name || competitionName
+            break
+          }
+        } catch (err: any) {
+          this.logger.warn(`Failed to fetch upcoming season ${s} from football-data.org: ${err.message}`)
+        }
+      }
+    }
+
+    let filtered = rawMatches
+    if (type === "finished") {
+      filtered = rawMatches
+        .filter((m: any) => m.status === "FINISHED")
+        .sort(
+          (a: any, b: any) =>
+            new Date(b.utcDate || 0).getTime() -
+            new Date(a.utcDate || 0).getTime(),
+        )
+    } else if (type === "live") {
+      filtered = rawMatches.filter((m: any) =>
+        ["IN_PLAY", "PAUSED"].includes(m.status),
+      )
+    } else {
+      filtered = rawMatches
+        .filter((m: any) => ["SCHEDULED", "TIMED"].includes(m.status))
+        .sort(
+          (a: any, b: any) =>
+            new Date(a.utcDate || 0).getTime() -
+            new Date(b.utcDate || 0).getTime(),
+        )
+    }
+
+    const items: ApiFootballFixtureItem[] = filtered
+      .slice(0, 30)
+      .map((m: any) => {
+        const homeTeam = m.homeTeam?.name || "Team A"
+        const awayTeam = m.awayTeam?.name || "Team B"
+        const kickoff = new Date(m.utcDate || Date.now())
+        const deadline = new Date(kickoff.getTime() + 2 * 60 * 60 * 1000)
+        const score =
+          m.score?.fullTime?.home != null
+            ? `${m.score.fullTime.home} - ${m.score.fullTime.away}`
+            : null
+
+        return {
+          id: m.id,
+          gameweek: m.matchday || 1,
+          homeTeam,
+          awayTeam,
+          homeTeamShort: (m.homeTeam?.tla || homeTeam.slice(0, 3)).toUpperCase(),
+          awayTeamShort: (m.awayTeam?.tla || awayTeam.slice(0, 3)).toUpperCase(),
+          homeTeamLogo: m.homeTeam?.crest,
+          awayTeamLogo: m.awayTeam?.crest,
+          question: `${homeTeam} vs ${awayTeam}`,
+          score,
+          status: m.status === "FINISHED" ? "FT" : m.status === "TIMED" ? "NS" : m.status,
+          kickoffTime: kickoff.toISOString(),
+          lockTime: kickoff.toISOString(),
+          deadline: deadline.toISOString(),
+          resolutionSource: "football-data.org / Official Match Statistics",
+          leagueName: m.competition?.name || competitionName || "Premier League",
+        }
+      })
+
+    if (items.length > 0) {
+      this.scheduleCache.set(cacheKey, { data: items, cachedAt: now })
+      await this.writePersistentCache(persistentCacheKey, items, new Date(now + ttl))
+    }
+    return items
+  }
+
+  /**
+   * Fetch match statistics from football-data.org by match ID.
+   * Uses the same caching, deduplication, and retry infrastructure as API-Football.
+   */
+  async fetchMatchStatsFromFootballDataOrg(
+    fixtureTitle: string,
+    _fallbackDate?: Date,
+    matchId?: number,
+    requiredStatistics: string[] = [],
+  ): Promise<MatchStatistics> {
+    const { homeTeam, awayTeam } = this.parseTeams(fixtureTitle)
+    const cacheKey = matchId
+      ? `fdo:${matchId}`
+      : `fdo:${homeTeam.toLowerCase()}__${awayTeam.toLowerCase()}`
+    const cached = this.fixtureStatsCache.get(cacheKey)
+    const now = Date.now()
+
+    if (
+      cached &&
+      (this.isTerminalStatus(cached.stats.status) ||
+        now - cached.cachedAt < 60 * 1000) &&
+      this.cachedStatsSatisfy(cached.stats, requiredStatistics)
+    ) {
+      this.logger.log(`Serving football-data.org match stats from cache: ${cacheKey}`)
+      return cached.stats
+    }
+
+    if (!matchId) {
+      throw new ServiceUnavailableException(
+        "A genuine football-data.org match ID is required for oracle resolution",
+      )
+    }
+
+    const persistentStats = await this.readPersistentCache<MatchStatistics>(
+      `fdo-fixture:${matchId}`,
+    )
+    if (
+      persistentStats &&
+      this.isTerminalStatus(persistentStats.status) &&
+      this.cachedStatsSatisfy(persistentStats, requiredStatistics)
+    ) {
+      this.assertFixtureIdentity(homeTeam, awayTeam, persistentStats)
+      this.fixtureStatsCache.set(cacheKey, { stats: persistentStats, cachedAt: now })
+      this.logger.log(
+        `Serving finished football-data.org match from persistent cache: ${matchId}`,
+      )
+      return persistentStats
+    }
+
+    const retryKey = matchId + 1_000_000_000 // Offset to avoid collision with API-Football IDs
+    const retryState = this.fixtureRetryState.get(retryKey)
+    if (retryState && now < retryState.retryAt) {
+      throw new ServiceUnavailableException(
+        `football-data.org retry for match ${matchId} is paused until ${new Date(retryState.retryAt).toISOString()}`,
+      )
+    }
+
+    const requestKey = `fdo:${matchId}:${[...new Set(requiredStatistics)].sort().join(",")}`
+    const existingRequest = this.fixtureRequests.get(requestKey)
+    if (existingRequest) return existingRequest
+
+    const request = (async () => {
+      try {
+        const stats = await this.queryFootballDataOrgById(matchId)
+        if (!stats) {
+          throw new ServiceUnavailableException(
+            `football-data.org returned no match for ID ${matchId}`,
+          )
+        }
+        this.assertFixtureIdentity(homeTeam, awayTeam, stats)
+        this.fixtureRetryState.delete(retryKey)
+        this.fixtureStatsCache.set(cacheKey, { stats, cachedAt: now })
+        if (this.isTerminalStatus(stats.status)) {
+          await this.writePersistentCache(`fdo-fixture:${matchId}`, stats, null)
+        }
+        return stats
+      } catch (error) {
+        const previousFailures = this.fixtureRetryState.get(retryKey)?.failures || 0
+        const failures = previousFailures + 1
+        const backoffMs = [60_000, 300_000, 900_000, 3_600_000][
+          Math.min(failures - 1, 3)
+        ]
+        this.fixtureRetryState.set(retryKey, {
+          failures,
+          retryAt: Date.now() + backoffMs,
+        })
+        throw error
+      } finally {
+        this.fixtureRequests.delete(requestKey)
+      }
+    })()
+
+    this.fixtureRequests.set(requestKey, request)
+    return request
+  }
+
+  /**
+   * Query football-data.org by match ID.
+   */
+  async queryFootballDataOrgById(
+    matchId: number,
+  ): Promise<MatchStatistics | null> {
+    if (!Number.isInteger(matchId) || matchId <= 0) {
+      throw new ServiceUnavailableException("Invalid football-data.org match ID")
+    }
+    const apiKey = this.requireFootballDataOrgKey()
+    const url = `https://api.football-data.org/v4/matches/${matchId}`
+    this.logger.log(`Fetching match stats from football-data.org: ${url}`)
+
+    const match = await this.fetchFootballDataOrg(url, apiKey)
+    if (!match || !match.homeTeam) return null
+
+    return this.parseFootballDataOrgPayload(match)
+  }
+
+  /**
+   * Parse a football-data.org v4 match response into MatchStatistics.
+   */
+  private parseFootballDataOrgPayload(match: any): MatchStatistics {
+    const homeTeam = match.homeTeam?.name || "Team A"
+    const awayTeam = match.awayTeam?.name || "Team B"
+    const homeGoals = Number(match.score?.fullTime?.home ?? 0)
+    const awayGoals = Number(match.score?.fullTime?.away ?? 0)
+
+    const availableStatistics: string[] = []
+    let homeCorners = 0, awayCorners = 0
+    let homeYellows = 0, awayYellows = 0
+    let homeReds = 0, awayReds = 0
+    let homeOffsides = 0, awayOffsides = 0
+    let homeFouls = 0, awayFouls = 0
+
+    // Parse team statistics (may be folded on free tier)
+    const homeStats = match.homeTeam?.statistics
+    const awayStats = match.awayTeam?.statistics
+    const hasStatistics = homeStats && awayStats
+
+    if (hasStatistics) {
+      if (homeStats.corner_kicks != null || awayStats.corner_kicks != null) {
+        homeCorners = Number(homeStats.corner_kicks ?? 0)
+        awayCorners = Number(awayStats.corner_kicks ?? 0)
+        availableStatistics.push("corners")
+      }
+      if (homeStats.yellow_cards != null || awayStats.yellow_cards != null) {
+        homeYellows = Number(homeStats.yellow_cards ?? 0)
+        awayYellows = Number(awayStats.yellow_cards ?? 0)
+        availableStatistics.push("yellow_cards")
+      }
+      if (homeStats.red_cards != null || awayStats.red_cards != null) {
+        homeReds = Number(homeStats.red_cards ?? 0)
+        awayReds = Number(awayStats.red_cards ?? 0)
+        availableStatistics.push("red_cards")
+      }
+      if (homeStats.offsides != null || awayStats.offsides != null) {
+        homeOffsides = Number(homeStats.offsides ?? 0)
+        awayOffsides = Number(awayStats.offsides ?? 0)
+        availableStatistics.push("offsides")
+      }
+      if (homeStats.fouls != null || awayStats.fouls != null) {
+        homeFouls = Number(homeStats.fouls ?? 0)
+        awayFouls = Number(awayStats.fouls ?? 0)
+      }
+    }
+
+    // Parse bookings for card counts (fallback if statistics are folded)
+    const bookingsAvailable = Array.isArray(match.bookings) && match.bookings.length > 0
+    if (bookingsAvailable && !hasStatistics) {
+      for (const booking of match.bookings) {
+        const isHome = booking.team?.id === match.homeTeam?.id
+        if (booking.card === "YELLOW") {
+          if (isHome) homeYellows++
+          else awayYellows++
+        } else if (booking.card === "RED" || booking.card === "YELLOW_RED") {
+          if (isHome) homeReds++
+          else awayReds++
+        }
+      }
+      availableStatistics.push("yellow_cards", "red_cards")
+    }
+
+    // Parse goals for first team to score
+    const goalsAvailable = Array.isArray(match.goals) && match.goals.length > 0
+    let firstTeamToScore: string | undefined =
+      homeGoals === 0 && awayGoals === 0 ? "No Goal" : undefined
+    let firstGoalMinute: number | null = null
+
+    if (goalsAvailable) {
+      const sortedGoals = [...match.goals].sort(
+        (a: any, b: any) => (a.minute || 0) - (b.minute || 0),
+      )
+      for (const goal of sortedGoals) {
+        if (goal.type === "OWN") continue // own goals are scored by the opposing team
+        if (firstGoalMinute === null) {
+          firstTeamToScore = goal.team?.name || undefined
+          firstGoalMinute = goal.minute || null
+        }
+      }
+    } else if (!goalsAvailable && (homeGoals > 0 || awayGoals > 0)) {
+      // Infer from score when no goal events available
+      if (homeGoals > 0 && awayGoals === 0) firstTeamToScore = homeTeam
+      else if (awayGoals > 0 && homeGoals === 0) firstTeamToScore = awayTeam
+    }
+
+    // Map football-data.org status to our normalized format
+    let normalizedStatus = match.status || "UNKNOWN"
+    if (normalizedStatus === "FINISHED") normalizedStatus = "FT"
+
+    return {
+      fixtureId: match.id,
+      homeTeam,
+      awayTeam,
+      status: normalizedStatus,
+      homeGoals,
+      awayGoals,
+      homeCorners,
+      awayCorners,
+      homeYellowCards: homeYellows,
+      awayYellowCards: awayYellows,
+      homeRedCards: homeReds,
+      awayRedCards: awayReds,
+      homeOffsides,
+      awayOffsides,
+      homeFouls,
+      awayFouls,
+      firstTeamToScore,
+      firstGoalMinute,
+      availableStatistics,
+      eventsAvailable: goalsAvailable || bookingsAvailable,
+      detailedStatisticsChecked: hasStatistics === true,
+      sourceUrl: `https://www.football-data.org/v4/matches/${match.id || ""}`,
+    }
+  }
+
   isTerminalStatus(status: string): boolean {
-    return ["FT", "AET", "PEN"].includes(status)
+    return ["FT", "AET", "PEN", "FINISHED"].includes(status)
   }
 
   private invalidResolution(

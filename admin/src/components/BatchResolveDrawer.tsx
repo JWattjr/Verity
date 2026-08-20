@@ -84,7 +84,8 @@ export default function BatchResolveDrawer({
     {},
   )
   const isTerminalFixture = Boolean(
-    previewData && ["FT", "AET", "PEN"].includes(previewData.matchStats.status),
+    previewData &&
+      ["FT", "AET", "PEN", "FINISHED"].includes(previewData.matchStats.status),
   )
   const hasValidOutcomes = Boolean(
     previewData?.evaluations.every((item) =>

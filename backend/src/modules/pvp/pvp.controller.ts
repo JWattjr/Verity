@@ -157,6 +157,21 @@ export class PvpController {
     )
   }
 
+  @Get("schedule/football-data")
+  @ApiOperation({
+    summary:
+      "Fetch live official upcoming or finished Premier League fixture schedule from football-data.org",
+  })
+  async getFootballDataOrgSchedule(
+    @Query("type") type?: "upcoming" | "finished" | "live",
+    @Query("season") season?: string,
+  ) {
+    return this.pvpService.getFootballDataOrgSchedule(
+      type,
+      season ? Number(season) : undefined,
+    )
+  }
+
   @Get("schedule/mock")
   @ApiOperation({
     summary:

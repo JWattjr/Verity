@@ -132,21 +132,36 @@ export class MarketsKeeperService implements OnModuleInit, OnModuleDestroy {
       `Found ${markets.length} expired markets to resolve via Sports Oracle...`,
     )
 
-    const fixtureGroups = new Map<number, MarketDocument[]>()
+    // Group markets by fixture ID AND provider for batched fetching
+    const apiFootballGroups = new Map<number, MarketDocument[]>()
+    const footballDataGroups = new Map<number, MarketDocument[]>()
+
     for (const market of markets) {
       const isSportsMarket =
         market.category?.toLowerCase() === "pvp" ||
         market.marketType === "child"
-      const fixtureId = market.apiFootballFixtureId
-      if (!isSportsMarket || !fixtureId) continue
-      const group = fixtureGroups.get(fixtureId) || []
-      group.push(market)
-      fixtureGroups.set(fixtureId, group)
+      if (!isSportsMarket) continue
+
+      const provider = market.resolutionProvider || "api-football"
+
+      if (provider === "football-data" && market.footballDataOrgMatchId) {
+        const matchId = market.footballDataOrgMatchId
+        const group = footballDataGroups.get(matchId) || []
+        group.push(market)
+        footballDataGroups.set(matchId, group)
+      } else if (market.apiFootballFixtureId) {
+        const fixtureId = market.apiFootballFixtureId
+        const group = apiFootballGroups.get(fixtureId) || []
+        group.push(market)
+        apiFootballGroups.set(fixtureId, group)
+      }
     }
 
     const fixtureStats = new Map<number, MatchStatistics>()
-    const failedFixtures = new Set<number>()
-    for (const [fixtureId, fixtureMarkets] of fixtureGroups) {
+    const failedFixtures = new Set<string>() // "af:{id}" or "fdo:{id}"
+
+    // Fetch API-Football stats
+    for (const [fixtureId, fixtureMarkets] of apiFootballGroups) {
       const fixtureMarket = fixtureMarkets[0]
       try {
         const requiredStatistics =
@@ -159,9 +174,31 @@ export class MarketsKeeperService implements OnModuleInit, OnModuleDestroy {
         )
         fixtureStats.set(fixtureId, stats)
       } catch (error) {
-        failedFixtures.add(fixtureId)
+        failedFixtures.add(`af:${fixtureId}`)
         this.logger.error(
           `Failed to fetch API-Football fixture ${fixtureId} for ${fixtureMarkets.length} market${fixtureMarkets.length === 1 ? "" : "s"}: ${error.message}`,
+        )
+      }
+    }
+
+    // Fetch football-data.org stats
+    for (const [matchId, matchMarkets] of footballDataGroups) {
+      const matchMarket = matchMarkets[0]
+      try {
+        const requiredStatistics =
+          this.sportsOracleService.requiredStatisticsForMarkets(matchMarkets)
+        const stats =
+          await this.sportsOracleService.fetchMatchStatsFromFootballDataOrg(
+            matchMarket.question,
+            matchMarket.deadline,
+            matchId,
+            requiredStatistics,
+          )
+        fixtureStats.set(matchId + 1_000_000_000, stats) // Offset to avoid key collision
+      } catch (error) {
+        failedFixtures.add(`fdo:${matchId}`)
+        this.logger.error(
+          `Failed to fetch football-data.org match ${matchId} for ${matchMarkets.length} market${matchMarkets.length === 1 ? "" : "s"}: ${error.message}`,
         )
       }
     }
@@ -171,10 +208,26 @@ export class MarketsKeeperService implements OnModuleInit, OnModuleDestroy {
       const isSportsMarket =
         market.category?.toLowerCase() === "pvp" ||
         market.marketType === "child"
-      const fixtureId = market.apiFootballFixtureId
-      if (isSportsMarket && fixtureId && failedFixtures.has(fixtureId)) {
-        continue
+      const provider = market.resolutionProvider || "api-football"
+
+      // Check if this market's fixture failed to fetch
+      if (isSportsMarket) {
+        if (
+          provider === "football-data" &&
+          market.footballDataOrgMatchId &&
+          failedFixtures.has(`fdo:${market.footballDataOrgMatchId}`)
+        ) {
+          continue
+        }
+        if (
+          provider !== "football-data" &&
+          market.apiFootballFixtureId &&
+          failedFixtures.has(`af:${market.apiFootballFixtureId}`)
+        ) {
+          continue
+        }
       }
+
       try {
         this.logger.log(
           `Invoking Sports Oracle to resolve market: "${market.question}" (${marketIdStr})`,
@@ -188,10 +241,26 @@ export class MarketsKeeperService implements OnModuleInit, OnModuleDestroy {
         }
 
         if (isSportsMarket) {
-          if (!fixtureId) {
-            throw new Error("A genuine API-Football fixture ID is required")
+          let stats: MatchStatistics | undefined
+
+          if (provider === "football-data") {
+            const matchId = market.footballDataOrgMatchId
+            if (!matchId) {
+              throw new Error(
+                "A genuine football-data.org match ID is required",
+              )
+            }
+            stats = fixtureStats.get(matchId + 1_000_000_000)
+          } else {
+            const fixtureId = market.apiFootballFixtureId
+            if (!fixtureId) {
+              throw new Error(
+                "A genuine API-Football fixture ID is required",
+              )
+            }
+            stats = fixtureStats.get(fixtureId)
           }
-          const stats = fixtureStats.get(fixtureId)
+
           if (!stats) continue
           const evaluation = this.sportsOracleService.evaluateProposition(
             {

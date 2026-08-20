@@ -99,6 +99,11 @@ export default function CreateMarketDrawer({
     "Premier League Official / BBC Sport",
   )
 
+  // Resolution provider state
+  const [resolutionProvider, setResolutionProvider] = useState<
+    "api-football" | "football-data"
+  >("api-football")
+
   // EPL Schedule state
   const [scheduleType, setScheduleType] = useState<"upcoming" | "finished">(
     "upcoming",
@@ -125,18 +130,28 @@ export default function CreateMarketDrawer({
   const [customOptions, setCustomOptions] = useState<string[]>([])
   const [customOptionText, setCustomOptionText] = useState("")
 
-  // Fetch EPL schedule when drawer opens or type changes
-  async function loadEplSchedule(type: "upcoming" | "finished" = scheduleType) {
+  // Fetch EPL schedule when drawer opens, type changes, or provider changes
+  async function loadEplSchedule(
+    type: "upcoming" | "finished" = scheduleType,
+    provider: "api-football" | "football-data" = resolutionProvider,
+  ) {
     setFixturesLoading(true)
     try {
+      const endpoint =
+        provider === "football-data"
+          ? `/pvp/schedule/football-data?type=${type}`
+          : `/pvp/schedule/premier-league?type=${type}`
       const data = await apiRequest<{
         league: string
         count: number
         fixtures: EplFixture[]
-      }>(`/pvp/schedule/premier-league?type=${type}`)
+      }>(endpoint)
       setFixtures(data.fixtures || [])
     } catch (err: any) {
-      toast.error(err.message || "Failed to load the API-Football schedule.")
+      toast.error(
+        err.message ||
+          `Failed to load the ${provider === "football-data" ? "football-data.org" : "API-Football"} schedule.`,
+      )
     } finally {
       setFixturesLoading(false)
     }
@@ -144,9 +159,9 @@ export default function CreateMarketDrawer({
 
   useEffect(() => {
     if (isOpen) {
-      void loadEplSchedule(scheduleType)
+      void loadEplSchedule(scheduleType, resolutionProvider)
     }
-  }, [isOpen, scheduleType])
+  }, [isOpen, scheduleType, resolutionProvider])
 
   // Select fixture from live schedule
   function handleSelectFixture(fixture: EplFixture) {
@@ -318,7 +333,15 @@ export default function CreateMarketDrawer({
             ? new Date(pvpLockTime).toISOString()
             : undefined,
           resolutionSource: pvpResolutionSource.trim(),
-          apiFootballFixtureId: selectedFixtureId || undefined,
+          resolutionProvider,
+          apiFootballFixtureId:
+            resolutionProvider === "api-football"
+              ? selectedFixtureId || undefined
+              : undefined,
+          footballDataOrgMatchId:
+            resolutionProvider === "football-data"
+              ? selectedFixtureId || undefined
+              : undefined,
           options: generatedOptions.map((opt) => opt.trim()),
         }),
       })
@@ -356,15 +379,22 @@ export default function CreateMarketDrawer({
                 Create Football Duel Match
               </DrawerTitle>
               <DrawerDescription className="text-xs text-stone-500 mt-1">
-                Select a genuine API-Football fixture from the available date
-                window or enter custom details.
+                Select a genuine fixture from the available schedule or enter
+                custom details. Provider:{" "}
+                <strong>
+                  {resolutionProvider === "football-data"
+                    ? "football-data.org"
+                    : "API-Football"}
+                </strong>
               </DrawerDescription>
             </div>
             <Button
               type="button"
               variant="outline"
               size="sm"
-              onClick={() => void loadEplSchedule(scheduleType)}
+              onClick={() =>
+                void loadEplSchedule(scheduleType, resolutionProvider)
+              }
               disabled={fixturesLoading}
               className="h-8 px-2.5 rounded text-xs border border-stone-200 cursor-pointer"
             >
@@ -380,12 +410,52 @@ export default function CreateMarketDrawer({
           onSubmit={handleDeployPvpEvent}
           className="flex flex-col gap-5 py-4"
         >
-          {/* Live Premier League Schedule Selector */}
+          {/* Resolution Provider Selector */}
           <div className="flex flex-col gap-2.5 p-3.5 bg-indigo-50/40 border border-indigo-100 rounded-lg">
+            <div className="flex flex-col gap-2.5">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-900">
+                  Resolution Provider
+                </span>
+                <div className="flex items-center gap-1 bg-white/80 p-0.5 rounded border border-indigo-200">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setResolutionProvider("api-football")
+                      setSelectedFixtureId(null)
+                    }}
+                    className={`px-2.5 py-1 text-[9px] font-bold uppercase tracking-wider rounded transition-colors cursor-pointer ${
+                      resolutionProvider === "api-football"
+                        ? "bg-indigo-600 text-white shadow-2xs font-black"
+                        : "text-stone-500 hover:text-stone-900"
+                    }`}
+                  >
+                    API-Football
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setResolutionProvider("football-data")
+                      setSelectedFixtureId(null)
+                    }}
+                    className={`px-2.5 py-1 text-[9px] font-bold uppercase tracking-wider rounded transition-colors cursor-pointer ${
+                      resolutionProvider === "football-data"
+                        ? "bg-emerald-600 text-white shadow-2xs font-black"
+                        : "text-stone-500 hover:text-stone-900"
+                    }`}
+                  >
+                    football-data.org
+                  </button>
+                </div>
+              </div>
+            </div>
+
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-900 flex items-center gap-1.5">
                 <Calendar className="h-3.5 w-3.5 text-indigo-600" />
-                API-Football Fixture Schedule Feed
+                {resolutionProvider === "football-data"
+                  ? "football-data.org Fixture Schedule"
+                  : "API-Football Fixture Schedule Feed"}
               </span>
 
               {/* Feed Type Switcher */}

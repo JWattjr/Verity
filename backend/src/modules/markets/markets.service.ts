@@ -31,7 +31,10 @@ import { PostsService, MarketResponse } from "../posts/posts.service"
 import { SocketGateway } from "../socket/socket.gateway"
 import { NotificationsService } from "../notifications/notifications.service"
 import { PvpService } from "../pvp/pvp.service"
-import { SportsOracleService } from "../agent/sports-oracle.service"
+import {
+  MatchStatistics,
+  SportsOracleService,
+} from "../agent/sports-oracle.service"
 
 export interface DailyVotesResponse {
   votesLimit: number
@@ -1231,7 +1234,9 @@ export class MarketsService implements OnModuleInit {
         propositionsCount: pChildren.length,
         resolvedPropositionsCount: resolvedChildren.length,
         marketType: p.marketType,
+        resolutionProvider: p.resolutionProvider || null,
         apiFootballFixtureId: p.apiFootballFixtureId || null,
+        footballDataOrgMatchId: p.footballDataOrgMatchId || null,
         childMarkets: pChildren.map((c) => ({
           id: c.id,
           question: c.question,
@@ -1245,7 +1250,9 @@ export class MarketsService implements OnModuleInit {
           outcomeCount: c.outcomeCount,
           resolvedOutcome: c.resolvedOutcome,
           liquidity: c.liquidity,
+          resolutionProvider: c.resolutionProvider || null,
           apiFootballFixtureId: c.apiFootballFixtureId || null,
+          footballDataOrgMatchId: c.footballDataOrgMatchId || null,
         })),
       }
     })
@@ -1260,12 +1267,24 @@ export class MarketsService implements OnModuleInit {
     const children = await this.marketModel.find({ parentMarketId: parent._id })
     const requiredStatistics =
       this.sportsOracleService.requiredStatisticsForMarkets(children)
-    const stats = await this.sportsOracleService.fetchMatchStats(
-      parent.question,
-      parent.deadline,
-      parent.apiFootballFixtureId || undefined,
-      requiredStatistics,
-    )
+    
+    let stats: MatchStatistics
+    if (parent.resolutionProvider === "football-data") {
+      stats =
+        await this.sportsOracleService.fetchMatchStatsFromFootballDataOrg(
+          parent.question,
+          parent.deadline,
+          parent.footballDataOrgMatchId || undefined,
+          requiredStatistics,
+        )
+    } else {
+      stats = await this.sportsOracleService.fetchMatchStats(
+        parent.question,
+        parent.deadline,
+        parent.apiFootballFixtureId || undefined,
+        requiredStatistics,
+      )
+    }
 
     const evaluations = children.map((child) => ({
       marketId: child.id,
@@ -1311,11 +1330,21 @@ export class MarketsService implements OnModuleInit {
         "Batch resolution requires a PvP fixture parent",
       )
     }
-    const verifiedStats = await this.sportsOracleService.fetchMatchStats(
-      parent.question,
-      parent.deadline,
-      parent.apiFootballFixtureId || undefined,
-    )
+    let verifiedStats: MatchStatistics
+    if (parent.resolutionProvider === "football-data") {
+      verifiedStats =
+        await this.sportsOracleService.fetchMatchStatsFromFootballDataOrg(
+          parent.question,
+          parent.deadline,
+          parent.footballDataOrgMatchId || undefined,
+        )
+    } else {
+      verifiedStats = await this.sportsOracleService.fetchMatchStats(
+        parent.question,
+        parent.deadline,
+        parent.apiFootballFixtureId || undefined,
+      )
+    }
     if (!this.sportsOracleService.isTerminalStatus(verifiedStats.status)) {
       throw new BadRequestException(
         `Fixture ${verifiedStats.fixtureId || ""} is not final (status ${verifiedStats.status})`,

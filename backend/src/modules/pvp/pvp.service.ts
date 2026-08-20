@@ -294,6 +294,8 @@ export class PvpService {
       status: "tradable",
       marketType: "parent",
       apiFootballFixtureId: dto.apiFootballFixtureId ?? null,
+      resolutionProvider: dto.resolutionProvider ?? null,
+      footballDataOrgMatchId: dto.footballDataOrgMatchId ?? null,
     })
 
     const childMarkets: MarketDocument[] = []
@@ -378,6 +380,8 @@ export class PvpService {
         outcomes: outcomes,
         handicap: handicap,
         apiFootballFixtureId: dto.apiFootballFixtureId ?? null,
+        resolutionProvider: dto.resolutionProvider ?? null,
+        footballDataOrgMatchId: dto.footballDataOrgMatchId ?? null,
       })
       childMarkets.push(child)
     }
@@ -2821,6 +2825,20 @@ export class PvpService {
       Number(league),
       Number(season),
     )
+  }
+
+  async getFootballDataOrgSchedule(
+    type: "upcoming" | "finished" | "live" = "upcoming",
+    season = new Date().getUTCFullYear(),
+  ) {
+    const fixtures =
+      await this.sportsOracleService.fetchFootballDataOrgFixtures(type, season)
+    return {
+      league: "Premier League",
+      provider: "football-data.org",
+      count: fixtures.length,
+      fixtures,
+    }
   }
 
   getMockPremierLeagueSchedule() {

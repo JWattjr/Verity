@@ -7,9 +7,11 @@ import {
 
 describe("SportsOracleService", () => {
   const config = {
-    get: jest.fn((key: string) =>
-      key === "API_FOOTBALL_KEY" ? "test-api-key" : null,
-    ),
+    get: jest.fn((key: string) => {
+      if (key === "API_FOOTBALL_KEY") return "test-api-key"
+      if (key === "FOOTBALL_DATA_ORG_KEY") return "test-fdo-key"
+      return null
+    }),
   } as unknown as ConfigService
   let service: SportsOracleService
 
@@ -561,5 +563,193 @@ describe("SportsOracleService", () => {
 
     expect(matchStats.firstTeamToScore).toBe("Liverpool")
     expect(matchStats.firstGoalMinute).toBe(25)
+  })
+
+  it("fetches and normalizes fixtures from football-data.org", async () => {
+    jest.spyOn(global, "fetch").mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: { get: () => "10" },
+      json: async () => ({
+        competition: { name: "Premier League" },
+        matches: [
+          {
+            id: 4001,
+            matchday: 5,
+            utcDate: "2026-08-22T14:00:00Z",
+            status: "FINISHED",
+            homeTeam: { name: "Chelsea FC", tla: "CHE", crest: "che.png" },
+            awayTeam: { name: "Arsenal FC", tla: "ARS", crest: "ars.png" },
+            score: { fullTime: { home: 2, away: 1 } },
+          },
+        ],
+      }),
+    } as unknown as Response)
+
+    const fixtures = await service.fetchFootballDataOrgFixtures("finished")
+
+    expect(fixtures).toHaveLength(1)
+    expect(fixtures[0].id).toBe(4001)
+    expect(fixtures[0].homeTeam).toBe("Chelsea FC")
+    expect(fixtures[0].awayTeam).toBe("Arsenal FC")
+    expect(fixtures[0].score).toBe("2 - 1")
+    expect(fixtures[0].resolutionSource).toContain("football-data.org")
+  })
+
+  it("parses detailed match statistics from football-data.org when available", async () => {
+    jest.spyOn(global, "fetch").mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: { get: () => "10" },
+      json: async () => ({
+        id: 4001,
+        status: "FINISHED",
+        homeTeam: {
+          id: 61,
+          name: "Chelsea FC",
+          statistics: {
+            corner_kicks: 7,
+            yellow_cards: 2,
+            red_cards: 0,
+            offsides: 3,
+            fouls: 11,
+          },
+        },
+        awayTeam: {
+          id: 57,
+          name: "Arsenal FC",
+          statistics: {
+            corner_kicks: 4,
+            yellow_cards: 3,
+            red_cards: 1,
+            offsides: 1,
+            fouls: 14,
+          },
+        },
+        score: {
+          fullTime: { home: 2, away: 1 },
+        },
+        goals: [
+          {
+            minute: 15,
+            team: { name: "Chelsea FC" },
+            scorer: { name: "Palmer" },
+          },
+          {
+            minute: 60,
+            team: { name: "Arsenal FC" },
+            scorer: { name: "Saka" },
+          },
+          {
+            minute: 85,
+            team: { name: "Chelsea FC" },
+            scorer: { name: "Jackson" },
+          },
+        ],
+      }),
+    } as unknown as Response)
+
+    const matchStats = await service.fetchMatchStatsFromFootballDataOrg(
+      "Chelsea FC vs Arsenal FC",
+      undefined,
+      4001,
+      ["corners", "yellow_cards"],
+    )
+
+    expect(matchStats.status).toBe("FT")
+    expect(matchStats.homeCorners).toBe(7)
+    expect(matchStats.awayCorners).toBe(4)
+    expect(matchStats.homeYellowCards).toBe(2)
+    expect(matchStats.awayYellowCards).toBe(3)
+    expect(matchStats.homeRedCards).toBe(0)
+    expect(matchStats.awayRedCards).toBe(1)
+    expect(matchStats.firstTeamToScore).toBe("Chelsea FC")
+    expect(matchStats.firstGoalMinute).toBe(15)
+    expect(matchStats.availableStatistics).toEqual(
+      expect.arrayContaining(["corners", "yellow_cards", "red_cards", "offsides"]),
+    )
+
+    // Verify proposition evaluation works seamlessly with this payload
+    const evalResult = service.evaluateProposition(
+      {
+        question: "Chelsea FC vs Arsenal FC - Total Corners",
+        optionGroup: "corners",
+        handicap: 9.5,
+        outcomes: ["Total Corners Over 9.5", "Total Corners Under 9.5"],
+      },
+      matchStats,
+    )
+    expect(evalResult.outcome).toBe("Total Corners Over 9.5")
+    expect(evalResult.isConfident).toBe(true)
+  })
+
+  it("handles folded statistics gracefully on football-data.org free tier", async () => {
+    jest.spyOn(global, "fetch").mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: { get: () => "10" },
+      json: async () => ({
+        id: 4002,
+        status: "FINISHED",
+        homeTeam: {
+          id: 61,
+          name: "Chelsea FC",
+        },
+        awayTeam: {
+          id: 57,
+          name: "Arsenal FC",
+        },
+        score: {
+          fullTime: { home: 1, away: 1 },
+        },
+        bookings: [
+          {
+            minute: 40,
+            team: { id: 61 },
+            card: "YELLOW",
+          },
+          {
+            minute: 75,
+            team: { id: 57 },
+            card: "YELLOW",
+          },
+        ],
+      }),
+    } as unknown as Response)
+
+    const matchStats = await service.fetchMatchStatsFromFootballDataOrg(
+      "Chelsea FC vs Arsenal FC",
+      undefined,
+      4002,
+    )
+
+    expect(matchStats.homeGoals).toBe(1)
+    expect(matchStats.awayGoals).toBe(1)
+    expect(matchStats.homeYellowCards).toBe(1)
+    expect(matchStats.awayYellowCards).toBe(1)
+    expect(matchStats.availableStatistics).toContain("yellow_cards")
+
+    // BTTS resolves accurately from score
+    const bttsEval = service.evaluateProposition(
+      {
+        question: "Chelsea FC vs Arsenal FC - Both Teams To Score",
+        optionGroup: "btts",
+        outcomes: ["Both Teams To Score - Yes", "Both Teams To Score - No"],
+      },
+      matchStats,
+    )
+    expect(bttsEval.outcome).toBe("Both Teams To Score - Yes")
+
+    // Corner market fails gracefully because statistics were folded
+    const cornerEval = service.evaluateProposition(
+      {
+        question: "Chelsea FC vs Arsenal FC - Total Corners",
+        optionGroup: "corners",
+        handicap: 9.5,
+        outcomes: ["Total Corners Over 9.5", "Total Corners Under 9.5"],
+      },
+      matchStats,
+    )
+    expect(cornerEval.outcome).toBe("INVALID")
   })
 })

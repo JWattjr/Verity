@@ -60,6 +60,27 @@ export class CreatePvpEventDto {
   apiFootballFixtureId?: number
 
   @ApiProperty({
+    description:
+      'Resolution provider: "api-football" or "football-data". Defaults to "api-football" when omitted.',
+    example: "api-football",
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  resolutionProvider?: string
+
+  @ApiProperty({
+    description:
+      "Optional football-data.org match ID for deterministic resolution",
+    example: 330299,
+    required: false,
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  footballDataOrgMatchId?: number
+
+  @ApiProperty({
     description: "Proposition questions/options (minimum 3)",
     type: [String],
   })
