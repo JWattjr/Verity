@@ -224,13 +224,13 @@ export default function LivePortfolioPreview() {
         aria-label="Portfolio actions"
         className="verity-portfolio-actions verity-preview-portfolio-actions"
       >
-        <button disabled title="Sign in to send USDC" type="button">
+        <button disabled title="Get started to send USDC" type="button">
           <ArrowUpRight aria-hidden="true" />
           <span>SEND</span>
         </button>
         <button
           disabled
-          title="Sign in to view your receive address"
+          title="Get started to view your receive address"
           type="button"
         >
           <ArrowDownLeft aria-hidden="true" />

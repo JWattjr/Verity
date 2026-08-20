@@ -124,7 +124,7 @@ export default function NotificationsPage() {
             </h1>
           </div>
           <p className="max-w-md text-xs leading-relaxed text-graphite sm:text-sm">
-            Sign in with your wallet to view real-time Arena match invites, duel results,
+            Connect to view real-time Arena match invites, duel results,
             market settlements, winnings, and XP rewards.
           </p>
           <button
@@ -132,7 +132,7 @@ export default function NotificationsPage() {
             type="button"
             className="mt-2 flex h-11 items-center justify-center rounded-[2px] bg-accent px-6 font-sans text-xs font-black uppercase tracking-[0.12em] text-black transition-colors hover:bg-black hover:text-white cursor-pointer"
           >
-            SIGN IN TO CONTINUE
+            GET STARTED
           </button>
         </section>
       </div>

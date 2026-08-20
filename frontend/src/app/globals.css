@@ -3605,7 +3605,11 @@ body {
   }
 
   .verity-header-cta {
-    display: none;
+    display: inline-grid;
+    min-height: 32px;
+    padding: 0 12px;
+    font-size: 11px;
+    letter-spacing: 0.04em;
   }
 
   .verity-mobile-nav {

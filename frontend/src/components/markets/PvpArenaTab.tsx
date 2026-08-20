@@ -263,7 +263,7 @@ export default function PvpArenaTab({
 
   async function handleSubmitPvpTicket(couponCode?: string) {
     if (!profile) {
-      toast.error("Please sign in to queue for the Arena.")
+      toast.error("Please click Get Started to queue for the Arena.")
       return
     }
     if (!selectedPvpEvent) return

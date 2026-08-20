@@ -85,7 +85,7 @@ export default function ProfileEditor() {
           Access Your Profile
         </h3>
         <p className="mt-2 text-sm text-ash max-w-sm">
-          Log in or sign up to view and customize your profile, copy referral
+          Get started to view and customize your profile, copy referral
           links, and track your stats.
         </p>
         <div className="mt-6 w-full max-w-[240px]">
