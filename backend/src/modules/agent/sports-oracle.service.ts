@@ -1,5 +1,13 @@
-import { Injectable, Logger, ServiceUnavailableException } from "@nestjs/common"
+import {
+  Injectable,
+  Logger,
+  Optional,
+  ServiceUnavailableException,
+} from "@nestjs/common"
 import { ConfigService } from "@nestjs/config"
+import { InjectModel } from "@nestjs/mongoose"
+import { Model } from "mongoose"
+import { SportsOracleCache } from "./sports-oracle-cache.model"
 
 export interface MatchStatistics {
   fixtureId?: number
@@ -22,6 +30,7 @@ export interface MatchStatistics {
   firstGoalMinute?: number | null
   availableStatistics: string[]
   eventsAvailable: boolean
+  detailedStatisticsChecked?: boolean
   completedAt?: Date
   sourceUrl?: string
 }
@@ -49,6 +58,12 @@ class ApiFootballPlanRestrictionError extends Error {
   constructor(message: string) {
     super(message)
     this.name = "ApiFootballPlanRestrictionError"
+  }
+}
+
+class ApiFootballQuotaExceededError extends ServiceUnavailableException {
+  constructor(message: string) {
+    super(message)
   }
 }
 
@@ -85,8 +100,106 @@ export class SportsOracleService {
     string,
     { data: ApiFootballFixtureItem[]; cachedAt: number }
   >()
+  private readonly fixtureRequests = new Map<string, Promise<MatchStatistics>>()
+  private readonly fixtureRetryState = new Map<
+    number,
+    { failures: number; retryAt: number }
+  >()
+  private quotaBlockedUntil = 0
 
-  constructor(private configService: ConfigService) {}
+  constructor(
+    private configService: ConfigService,
+    @Optional()
+    @InjectModel(SportsOracleCache.name)
+    private readonly cacheModel?: Model<SportsOracleCache>,
+  ) {}
+
+  private scheduleTtl(type: "upcoming" | "finished" | "live"): number {
+    if (type === "live") return 2 * 60 * 1000
+    if (type === "finished") return 6 * 60 * 60 * 1000
+    return 2 * 60 * 60 * 1000
+  }
+
+  private scheduleWindowDays(): number {
+    const configured = Number(
+      this.configService.get<string>("API_FOOTBALL_SCHEDULE_DAYS") || 3,
+    )
+    if (!Number.isFinite(configured)) return 3
+    return Math.min(7, Math.max(1, Math.floor(configured)))
+  }
+
+  private async readPersistentCache<T>(key: string): Promise<T | null> {
+    if (!this.cacheModel) return null
+    try {
+      const entry = await this.cacheModel.findOne({ key }).lean().exec()
+      if (!entry) return null
+      if (
+        entry.expiresAt &&
+        new Date(entry.expiresAt).getTime() <= Date.now()
+      ) {
+        return null
+      }
+      return entry.data as T
+    } catch (error) {
+      this.logger.warn(
+        `Unable to read persistent sports cache ${key}: ${error.message}`,
+      )
+      return null
+    }
+  }
+
+  private async writePersistentCache(
+    key: string,
+    data: unknown,
+    expiresAt: Date | null,
+  ): Promise<void> {
+    if (!this.cacheModel) return
+    try {
+      await this.cacheModel.updateOne(
+        { key },
+        { $set: { data, expiresAt } },
+        { upsert: true },
+      )
+    } catch (error) {
+      this.logger.warn(
+        `Unable to write persistent sports cache ${key}: ${error.message}`,
+      )
+    }
+  }
+
+  private nextUtcDay(): number {
+    const now = new Date()
+    return Date.UTC(
+      now.getUTCFullYear(),
+      now.getUTCMonth(),
+      now.getUTCDate() + 1,
+      0,
+      5,
+    )
+  }
+
+  private assertQuotaAvailable(): void {
+    if (Date.now() < this.quotaBlockedUntil) {
+      throw new ApiFootballQuotaExceededError(
+        `API-Football daily quota is exhausted; requests are paused until ${new Date(this.quotaBlockedUntil).toISOString()}`,
+      )
+    }
+  }
+
+  private cachedStatsSatisfy(
+    stats: MatchStatistics,
+    requiredStatistics: string[],
+  ): boolean {
+    if (requiredStatistics.length === 0) return true
+    if (
+      requiredStatistics.every((stat) =>
+        stats.availableStatistics.includes(stat),
+      )
+    ) {
+      return true
+    }
+    return stats.detailedStatisticsChecked === true
+  }
 
   private getApiKey(): string | null {
     return (
@@ -113,8 +226,8 @@ export class SportsOracleService {
 
   /**
    * Fetch fixtures schedule from API-Football.
-   * Queries a rolling seven-day window so development can use genuine recent
-   * or upcoming fixtures even when the Premier League is out of season.
+   * Queries a configurable rolling date window so development can use genuine
+   * recent or upcoming fixtures without exhausting the provider quota.
    */
   async fetchApiFootballFixtures(
     type: "upcoming" | "finished" | "live" = "upcoming",
@@ -122,27 +235,41 @@ export class SportsOracleService {
     season = new Date().getUTCFullYear(),
   ): Promise<ApiFootballFixtureItem[]> {
     const cacheKey = `${league || "all"}_${season}_${type}`
+    const persistentCacheKey = `schedule:${cacheKey}`
     const cached = this.scheduleCache.get(cacheKey)
     const now = Date.now()
+    const ttl = this.scheduleTtl(type)
 
-    // 5-minute cache TTL for schedule
-    if (cached && now - cached.cachedAt < 5 * 60 * 1000) {
+    if (cached && now - cached.cachedAt < ttl) {
       this.logger.log(
         `Serving API-Football ${type} schedule from cache (${cacheKey})`,
       )
       return cached.data
     }
 
+    const persisted =
+      await this.readPersistentCache<ApiFootballFixtureItem[]>(
+        persistentCacheKey,
+      )
+    if (persisted) {
+      this.scheduleCache.set(cacheKey, { data: persisted, cachedAt: now })
+      this.logger.log(
+        `Serving API-Football ${type} schedule from persistent cache (${cacheKey})`,
+      )
+      return persisted
+    }
+
     const apiKey = this.requireApiKey()
 
     let rawFixtures: any[] = []
 
+    const scheduleDays = this.scheduleWindowDays()
     const dayOffsets =
       type === "live"
         ? [0]
         : type === "finished"
-          ? [0, -1, -2, -3, -4, -5, -6]
-          : [0, 1, 2, 3, 4, 5, 6]
+          ? Array.from({ length: scheduleDays }, (_, index) => -index)
+          : Array.from({ length: scheduleDays }, (_, index) => index)
 
     const responses = await Promise.allSettled(
       dayOffsets.map(async (offset) => {
@@ -176,9 +303,6 @@ export class SportsOracleService {
       )
     }
 
-    if (rawFixtures.length === 0) {
-      return []
-    }
     rawFixtures = [
       ...new Map(
         rawFixtures
@@ -250,8 +374,14 @@ export class SportsOracleService {
         }
       })
 
-    // Cache schedule
+    // Cache successful and empty schedules so unavailable dates are not queried
+    // again whenever the creation drawer is opened.
     this.scheduleCache.set(cacheKey, { data: items, cachedAt: now })
+    await this.writePersistentCache(
+      persistentCacheKey,
+      items,
+      new Date(now + ttl),
+    )
     return items
   }
 
@@ -263,6 +393,7 @@ export class SportsOracleService {
     fixtureTitle: string,
     _fallbackDate?: Date,
     fixtureId?: number,
+    requiredStatistics: string[] = [],
   ): Promise<MatchStatistics> {
     const { homeTeam, awayTeam } = this.parseTeams(fixtureTitle)
     const cacheKey =
@@ -274,7 +405,8 @@ export class SportsOracleService {
     if (
       cached &&
       (this.isTerminalStatus(cached.stats.status) ||
-        now - cached.cachedAt < 60 * 1000)
+        now - cached.cachedAt < 60 * 1000) &&
+      this.cachedStatsSatisfy(cached.stats, requiredStatistics)
     ) {
       this.logger.log(`Serving match stats from memory cache: ${cacheKey}`)
       return cached.stats
@@ -286,16 +418,88 @@ export class SportsOracleService {
       )
     }
 
-    const liveStats = await this.queryApiFootballById(fixtureId)
-    if (!liveStats) {
+    const persistentStats = await this.readPersistentCache<MatchStatistics>(
+      `fixture:${fixtureId}`,
+    )
+    if (
+      persistentStats &&
+      this.isTerminalStatus(persistentStats.status) &&
+      this.cachedStatsSatisfy(persistentStats, requiredStatistics)
+    ) {
+      this.assertFixtureIdentity(homeTeam, awayTeam, persistentStats)
+      this.fixtureStatsCache.set(cacheKey, {
+        stats: persistentStats,
+        cachedAt: now,
+      })
+      this.fixtureStatsCache.set(fixtureId, {
+        stats: persistentStats,
+        cachedAt: now,
+      })
+      this.logger.log(
+        `Serving finished match stats from persistent cache: ${fixtureId}`,
+      )
+      return persistentStats
+    }
+
+    const retryState = this.fixtureRetryState.get(fixtureId)
+    if (retryState && now < retryState.retryAt) {
       throw new ServiceUnavailableException(
-        `API-Football returned no fixture for ID ${fixtureId}`,
+        `API-Football retry for fixture ${fixtureId} is paused until ${new Date(retryState.retryAt).toISOString()}`,
       )
     }
-    this.assertFixtureIdentity(homeTeam, awayTeam, liveStats)
-    this.fixtureStatsCache.set(cacheKey, { stats: liveStats, cachedAt: now })
-    this.fixtureStatsCache.set(fixtureId, { stats: liveStats, cachedAt: now })
-    return liveStats
+
+    const requestKey = `${fixtureId}:${[...new Set(requiredStatistics)].sort().join(",")}`
+    const existingRequest = this.fixtureRequests.get(requestKey)
+    if (existingRequest) return existingRequest
+
+    const request = (async () => {
+      try {
+        const liveStats = await this.queryApiFootballById(
+          fixtureId,
+          requiredStatistics,
+        )
+        if (!liveStats) {
+          throw new ServiceUnavailableException(
+            `API-Football returned no fixture for ID ${fixtureId}`,
+          )
+        }
+        this.assertFixtureIdentity(homeTeam, awayTeam, liveStats)
+        this.fixtureRetryState.delete(fixtureId)
+        this.fixtureStatsCache.set(cacheKey, {
+          stats: liveStats,
+          cachedAt: now,
+        })
+        this.fixtureStatsCache.set(fixtureId, {
+          stats: liveStats,
+          cachedAt: now,
+        })
+        if (this.isTerminalStatus(liveStats.status)) {
+          await this.writePersistentCache(
+            `fixture:${fixtureId}`,
+            liveStats,
+            null,
+          )
+        }
+        return liveStats
+      } catch (error) {
+        const previousFailures =
+          this.fixtureRetryState.get(fixtureId)?.failures || 0
+        const failures = previousFailures + 1
+        const backoffMs = [60_000, 300_000, 900_000, 3_600_000][
+          Math.min(failures - 1, 3)
+        ]
+        this.fixtureRetryState.set(fixtureId, {
+          failures,
+          retryAt: Date.now() + backoffMs,
+        })
+        throw error
+      } finally {
+        this.fixtureRequests.delete(requestKey)
+      }
+    })()
+
+    this.fixtureRequests.set(requestKey, request)
+    return request
   }
 
   /**
@@ -303,6 +507,7 @@ export class SportsOracleService {
    */
   async queryApiFootballById(
     fixtureId: number,
+    requiredStatistics: string[] = [],
   ): Promise<MatchStatistics | null> {
     if (!Number.isInteger(fixtureId) || fixtureId <= 0) {
       throw new ServiceUnavailableException("Invalid API-Football fixture ID")
@@ -318,12 +523,16 @@ export class SportsOracleService {
 
     // Some competitions omit statistics from the combined fixture response even
     // when they are available through API-Football's dedicated endpoint.
-    if (!Array.isArray(match.statistics) || match.statistics.length === 0) {
+    if (
+      requiredStatistics.length > 0 &&
+      (!Array.isArray(match.statistics) || match.statistics.length === 0)
+    ) {
       const statisticsUrl = `https://v3.football.api-sports.io/fixtures/statistics?fixture=${fixtureId}`
       const statisticsData = await this.fetchApiFootball(statisticsUrl, apiKey)
       if (statisticsData.response.length > 0) {
         match.statistics = statisticsData.response
       }
+      match.detailedStatisticsChecked = true
     }
 
     return this.parseApiFootballMatchPayload(match)
@@ -340,15 +549,39 @@ export class SportsOracleService {
   }
 
   private async fetchApiFootball(url: string, apiKey: string): Promise<any> {
+    this.assertQuotaAvailable()
     const res = await fetch(url, { headers: { "x-apisports-key": apiKey } })
+    const data = await res.json().catch(() => null)
     if (!res.ok) {
+      if (res.status === 429) {
+        const retryAfterSeconds = Number(
+          res.headers?.get?.("retry-after") || 60,
+        )
+        this.quotaBlockedUntil = Math.max(
+          this.quotaBlockedUntil,
+          Date.now() +
+            (Number.isFinite(retryAfterSeconds) ? retryAfterSeconds : 60) *
+              1000,
+        )
+        throw new ApiFootballQuotaExceededError(
+          `API-Football rate limit reached; requests are paused until ${new Date(this.quotaBlockedUntil).toISOString()}`,
+        )
+      }
       throw new ServiceUnavailableException(
         `API-Football request failed with HTTP ${res.status}`,
       )
     }
-    const data = await res.json()
     const errors = data?.errors
     if (errors && Object.keys(errors).length > 0) {
+      if (
+        typeof errors.requests === "string" &&
+        /request limit|quota|requests.*reached/i.test(errors.requests)
+      ) {
+        this.quotaBlockedUntil = this.nextUtcDay()
+        throw new ApiFootballQuotaExceededError(
+          `API-Football daily quota is exhausted; requests are paused until ${new Date(this.quotaBlockedUntil).toISOString()}`,
+        )
+      }
       if (typeof errors.plan === "string") {
         throw new ApiFootballPlanRestrictionError(errors.plan)
       }
@@ -359,6 +592,13 @@ export class SportsOracleService {
     if (!Array.isArray(data?.response)) {
       throw new ServiceUnavailableException(
         "API-Football returned an invalid response",
+      )
+    }
+    const remaining = res.headers?.get?.("x-ratelimit-requests-remaining")
+    if (remaining === "0") {
+      this.quotaBlockedUntil = this.nextUtcDay()
+      this.logger.warn(
+        `API-Football reports zero daily requests remaining; pausing requests until ${new Date(this.quotaBlockedUntil).toISOString()}.`,
       )
     }
     return data
@@ -519,6 +759,9 @@ export class SportsOracleService {
         .filter(([, count]) => count >= 2)
         .map(([name]) => name),
       eventsAvailable,
+      detailedStatisticsChecked:
+        match.detailedStatisticsChecked === true ||
+        (Array.isArray(match.statistics) && match.statistics.length > 0),
       sourceUrl: `https://www.api-football.com/match/${match.fixture?.id || ""}`,
     }
   }
@@ -609,6 +852,17 @@ export class SportsOracleService {
       return "major"
     }
     return (market.optionGroup || "").toLowerCase()
+  }
+
+  requiredStatisticsForMarkets(markets: PropositionMarket[]): string[] {
+    const required = new Set<string>()
+    for (const market of markets) {
+      const group = this.inferPropositionGroup(market)
+      if (group === "corners" || group === "offsides") {
+        required.add(group)
+      }
+    }
+    return [...required]
   }
 
   evaluateProposition(

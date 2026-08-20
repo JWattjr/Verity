@@ -292,7 +292,10 @@ describe("SportsOracleService", () => {
       } as Response
     })
 
-    const result = await service.queryApiFootballById(1493950)
+    const result = await service.queryApiFootballById(1493950, [
+      "corners",
+      "offsides",
+    ])
 
     expect(result?.homeCorners).toBe(4)
     expect(result?.awayCorners).toBe(6)
@@ -300,6 +303,132 @@ describe("SportsOracleService", () => {
     expect(result?.awayOffsides).toBe(2)
     expect(result?.availableStatistics).toEqual(
       expect.arrayContaining(["corners", "offsides"]),
+    )
+  })
+
+  it("does not spend a statistics request when no detailed market requires it", async () => {
+    const fetchSpy = jest.spyOn(global, "fetch").mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        errors: [],
+        response: [
+          {
+            fixture: { id: 1493950, status: { short: "FT" } },
+            teams: {
+              home: { name: "Corpus Christi" },
+              away: { name: "NY Cosmos" },
+            },
+            goals: { home: 0, away: 2 },
+            events: [],
+            statistics: [],
+          },
+        ],
+      }),
+    } as Response)
+
+    await service.queryApiFootballById(1493950)
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1)
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "https://v3.football.api-sports.io/fixtures?id=1493950",
+      expect.any(Object),
+    )
+  })
+
+  it("stops issuing requests after API-Football reports exhausted daily quota", async () => {
+    const fetchSpy = jest.spyOn(global, "fetch").mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        errors: {
+          requests:
+            "You have reached the request limit for the day, upgrade your plan.",
+        },
+        response: [],
+      }),
+    } as Response)
+
+    await expect(
+      service.fetchMatchStats(
+        "Corpus Christi vs NY Cosmos",
+        undefined,
+        1493950,
+      ),
+    ).rejects.toThrow("daily quota is exhausted")
+    await expect(
+      service.fetchMatchStats(
+        "Corpus Christi vs NY Cosmos",
+        undefined,
+        1493951,
+      ),
+    ).rejects.toThrow("daily quota is exhausted")
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1)
+  })
+
+  it("caches empty schedule responses", async () => {
+    const fetchSpy = jest.spyOn(global, "fetch").mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ errors: [], response: [] }),
+    } as Response)
+
+    await service.fetchApiFootballFixtures("upcoming")
+    await service.fetchApiFootballFixtures("upcoming")
+
+    expect(fetchSpy).toHaveBeenCalledTimes(3)
+  })
+
+  it("reuses a persisted finished fixture after a service restart", async () => {
+    let storedEntry: any = null
+    const cacheModel = {
+      findOne: jest.fn(() => ({
+        lean: () => ({ exec: async () => storedEntry }),
+      })),
+      updateOne: jest.fn(async ({ key }, update) => {
+        storedEntry = { key, ...update.$set }
+      }),
+    }
+    const fetchSpy = jest.spyOn(global, "fetch").mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        errors: [],
+        response: [
+          {
+            fixture: { id: 1493950, status: { short: "FT" } },
+            teams: {
+              home: { name: "Corpus Christi" },
+              away: { name: "NY Cosmos" },
+            },
+            goals: { home: 0, away: 2 },
+            events: [],
+            statistics: [],
+          },
+        ],
+      }),
+    } as Response)
+    const firstService = new SportsOracleService(config, cacheModel as any)
+    const restartedService = new SportsOracleService(config, cacheModel as any)
+
+    await firstService.fetchMatchStats(
+      "Corpus Christi vs NY Cosmos",
+      undefined,
+      1493950,
+    )
+    const restored = await restartedService.fetchMatchStats(
+      "Corpus Christi vs NY Cosmos",
+      undefined,
+      1493950,
+    )
+
+    expect(restored.status).toBe("FT")
+    expect(fetchSpy).toHaveBeenCalledTimes(1)
+    expect(cacheModel.updateOne).toHaveBeenCalledWith(
+      { key: "fixture:1493950" },
+      expect.objectContaining({ $set: expect.any(Object) }),
+      { upsert: true },
     )
   })
 
@@ -376,7 +505,7 @@ describe("SportsOracleService", () => {
 
     expect(fixtures).toHaveLength(1)
     expect(fixtures[0].id).toBe(999)
-    expect(global.fetch).toHaveBeenCalledTimes(7)
+    expect(global.fetch).toHaveBeenCalledTimes(3)
   })
 
   it("ignores missed penalties when determining the first scoring team", async () => {

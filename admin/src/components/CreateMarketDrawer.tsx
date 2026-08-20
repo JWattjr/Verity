@@ -356,8 +356,8 @@ export default function CreateMarketDrawer({
                 Create Football Duel Match
               </DrawerTitle>
               <DrawerDescription className="text-xs text-stone-500 mt-1">
-                Select a genuine API-Football fixture from the seven-day window
-                or enter custom details.
+                Select a genuine API-Football fixture from the available date
+                window or enter custom details.
               </DrawerDescription>
             </div>
             <Button

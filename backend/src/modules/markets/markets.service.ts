@@ -1258,10 +1258,13 @@ export class MarketsService implements OnModuleInit {
     }
 
     const children = await this.marketModel.find({ parentMarketId: parent._id })
+    const requiredStatistics =
+      this.sportsOracleService.requiredStatisticsForMarkets(children)
     const stats = await this.sportsOracleService.fetchMatchStats(
       parent.question,
       parent.deadline,
       parent.apiFootballFixtureId || undefined,
+      requiredStatistics,
     )
 
     const evaluations = children.map((child) => ({
