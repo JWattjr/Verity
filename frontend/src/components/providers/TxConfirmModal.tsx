@@ -17,16 +17,16 @@ export default function TxConfirmModal() {
 
   return (
     <div className="fixed inset-0 z-1000 flex items-center justify-center bg-midnight/40 backdrop-blur-md px-4 py-6 animate-fade-in">
-      <div className="w-full max-w-[460px] overflow-hidden rounded-[12px] border border-border bg-surface-solid p-6 shadow-2xl transition-all duration-300">
+      <div className="w-full max-w-[460px] overflow-hidden rounded-[2px] border border-border bg-surface-solid p-6 shadow-2xl transition-all duration-300">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-stone-surface pb-4 mb-5">
+        <div className="flex items-center justify-between border-b border-border pb-4 mb-5">
           <h3 className="text-lg font-bold text-charcoal-primary">
             Confirm Action
           </h3>
           {!isExecutingTx && (
             <button
               onClick={handleCancelTx}
-              className="rounded-lg p-1.5 text-ash hover:bg-stone-surface hover:text-midnight transition-colors"
+              className="rounded-[2px] p-1.5 text-ash hover:bg-stone-surface hover:text-midnight transition-colors"
             >
               <X className="h-4 w-4" />
             </button>
@@ -35,7 +35,7 @@ export default function TxConfirmModal() {
 
         {/* Content Body */}
         <div className="space-y-5">
-          <div className="rounded-[10px] border border-stone-surface bg-white-surface p-4 space-y-3">
+          <div className="rounded-[2px] border border-border bg-surface p-4 space-y-3">
             <p className="text-xs font-mono font-bold uppercase tracking-wider text-ash">
               Action Detail
             </p>
@@ -45,7 +45,7 @@ export default function TxConfirmModal() {
           </div>
 
           {/* Cost Summary Table */}
-          <div className="rounded-[10px] border border-stone-surface bg-parchment-card p-4 space-y-3.5">
+          <div className="rounded-[2px] border border-border bg-surface-muted p-4 space-y-3.5">
             <div className="flex items-center justify-between text-sm">
               <span className="text-ash">
                 {isRedeemOrClaim ? "Total USDC Claimed" : "Total USDC Value"}
@@ -66,7 +66,7 @@ export default function TxConfirmModal() {
                     Paid by Wallet (ARC)
                   </span>
                 </div>
-                <div className="h-px bg-white/5" />
+                <div className="h-px bg-border/40" />
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-midnight font-medium">
                     Estimated Total Cost
@@ -85,7 +85,7 @@ export default function TxConfirmModal() {
               type="button"
               onClick={handleCancelTx}
               disabled={isExecutingTx}
-              className="flex-1 h-11 rounded-[10px] border border-border bg-transparent text-graphite text-sm font-semibold hover:bg-stone-surface transition-colors disabled:opacity-50"
+              className="flex-1 h-11 rounded-[2px] border border-border bg-transparent text-graphite text-sm font-semibold hover:bg-stone-surface transition-colors disabled:opacity-50"
             >
               Cancel
             </button>
@@ -93,7 +93,7 @@ export default function TxConfirmModal() {
               type="button"
               onClick={handleConfirmTx}
               disabled={isExecutingTx}
-              className="flex-1 h-11 rounded-[10px] bg-meadow-green hover:bg-meadow-green/90 text-inverse-text text-sm font-semibold transition-colors shadow-lg shadow-emerald-950/20 disabled:opacity-50 flex items-center justify-center gap-2"
+              className="flex-1 h-11 rounded-[2px] bg-meadow-green hover:bg-meadow-green/90 text-inverse-text text-sm font-semibold transition-colors shadow-lg shadow-emerald-950/20 disabled:opacity-50 flex items-center justify-center gap-2"
             >
               {isExecutingTx ? (
                 <>

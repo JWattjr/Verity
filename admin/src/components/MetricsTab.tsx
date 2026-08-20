@@ -70,13 +70,8 @@ interface MetricsTabProps {
   fetchMetricsData: () => void
   timeframe: string
   setTimeframe: (tf: string) => void
-  contractBalances: {
-    fpmmUsdcBalance: number
-    factoryUsdcBalance: number
-    adminUsdcBalance: number
-    adminAddress: string
-  } | null
-  contractBalancesLoading: boolean
+  contractBalances?: any
+  contractBalancesLoading?: boolean
 }
 
 export default function MetricsTab({
@@ -85,8 +80,6 @@ export default function MetricsTab({
   fetchMetricsData,
   timeframe,
   setTimeframe,
-  contractBalances,
-  contractBalancesLoading,
 }: MetricsTabProps) {
   // Calculate unique active markets count
   const activeMarketsCount = useMemo(() => {
@@ -95,29 +88,21 @@ export default function MetricsTab({
     return ids.size
   }, [metricsData])
 
-  // Calculate unclaimed rewards / payout contract balances
-  const unclaimedRewards = useMemo(() => {
-    if (!contractBalances) return 0
-    return (
-      contractBalances.fpmmUsdcBalance + contractBalances.factoryUsdcBalance
-    )
-  }, [contractBalances])
-
   if (metricsLoading && !metricsData) {
     return (
-      <div className="verity-card p-16 text-center text-sm text-stone-500 animate-pulse font-medium bg-white border border-stone-200 shadow-xs rounded-2xl">
-        Loading database metrics...
+      <div className="verity-card p-16 text-center text-sm text-stone-500 animate-pulse font-medium bg-white border border-stone-200 shadow-xs rounded-[2px]">
+        Loading platform database metrics...
       </div>
     )
   }
 
   if (!metricsData) {
     return (
-      <div className="verity-card p-16 text-center text-sm text-stone-400 font-medium bg-white border border-stone-200 shadow-xs rounded-2xl">
+      <div className="verity-card p-16 text-center text-sm text-stone-400 font-medium bg-white border border-stone-200 shadow-xs rounded-[2px]">
         Failed to load platform metrics. Click refresh to retry.
         <button
           onClick={fetchMetricsData}
-          className="mt-4 px-5 py-2 bg-indigo-650 hover:bg-indigo-600 text-white rounded-lg font-bold text-xs uppercase tracking-wider transition-colors cursor-pointer mx-auto block"
+          className="mt-4 px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-[2px] font-bold text-xs uppercase tracking-wider transition-colors cursor-pointer mx-auto block"
         >
           Refresh Metrics
         </button>
@@ -136,22 +121,21 @@ export default function MetricsTab({
         <div>
           <h2 className="text-xl font-extrabold text-stone-900 tracking-tight flex items-center gap-2">
             <BarChart4 className="h-5 w-5 text-indigo-600" />
-            Platform Analytics
+            Platform Analytics & Duel Metrics
           </h2>
           <p className="text-xs text-stone-500 mt-0.5">
-            Real-time on-chain volume, active wallets, trading stats, and
-            contract balances.
+            Real-time PvP matches, volume, active predictors, and trading activity (Off-Chain Engine).
           </p>
         </div>
 
         <div className="flex items-center gap-2">
           {/* Timeframe selector pills */}
-          <div className="bg-stone-100 p-0.5 rounded-xl border border-stone-200 flex items-center">
+          <div className="bg-stone-100 p-0.5 rounded-[2px] border border-stone-200 flex items-center">
             {["1h", "1d", "7d", "30d"].map((tf) => (
               <button
                 key={tf}
                 onClick={() => setTimeframe(tf)}
-                className={`px-3 py-1 text-[10px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
+                className={`px-3 py-1 text-[10px] font-black uppercase tracking-wider rounded-[2px] transition-all cursor-pointer ${
                   timeframe === tf
                     ? "bg-white text-stone-900 shadow-xs border border-stone-200/50"
                     : "text-stone-500 hover:text-stone-800"
@@ -165,7 +149,7 @@ export default function MetricsTab({
           <button
             onClick={fetchMetricsData}
             disabled={metricsLoading}
-            className="h-8.5 w-8.5 rounded-xl hover:bg-stone-50 bg-white border border-stone-200 flex items-center justify-center text-stone-500 hover:text-stone-950 transition-colors shadow-2xs cursor-pointer disabled:opacity-50"
+            className="h-8.5 w-8.5 rounded-[2px] hover:bg-stone-50 bg-white border border-stone-200 flex items-center justify-center text-stone-500 hover:text-stone-950 transition-colors shadow-2xs cursor-pointer disabled:opacity-50"
           >
             <RefreshCw
               className={`h-4 w-4 ${metricsLoading ? "animate-spin" : ""}`}
@@ -174,10 +158,10 @@ export default function MetricsTab({
         </div>
       </div>
 
-      {/* Metrics Summary Row (7 columns) */}
+      {/* Metrics Summary Row */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
         {/* Total Volume */}
-        <div className="bg-white border border-stone-200 p-5 rounded-2xl shadow-xs flex flex-col gap-1.5">
+        <div className="bg-white border border-stone-200 p-5 rounded-[2px] shadow-xs flex flex-col gap-1.5">
           <div className="flex items-center justify-between text-stone-400">
             <span className="text-[10px] font-black text-stone-500 uppercase tracking-wider">
               Total Volume
@@ -197,7 +181,7 @@ export default function MetricsTab({
         </div>
 
         {/* Total Users */}
-        <div className="bg-white border border-stone-200 p-5 rounded-2xl shadow-xs flex flex-col gap-1.5">
+        <div className="bg-white border border-stone-200 p-5 rounded-[2px] shadow-xs flex flex-col gap-1.5">
           <div className="flex items-center justify-between text-stone-400">
             <span className="text-[10px] font-black text-stone-500 uppercase tracking-wider">
               Total Users
@@ -208,15 +192,15 @@ export default function MetricsTab({
             {metricsData.users.real}
           </span>
           <span className="text-[10px] font-semibold text-stone-450 mt-1">
-            Unique registered wallets
+            Registered predictor accounts
           </span>
         </div>
 
-        {/* Total Bets */}
-        <div className="bg-white border border-stone-200 p-5 rounded-2xl shadow-xs flex flex-col gap-1.5">
+        {/* Total Bets / Duels */}
+        <div className="bg-white border border-stone-200 p-5 rounded-[2px] shadow-xs flex flex-col gap-1.5">
           <div className="flex items-center justify-between text-stone-400">
             <span className="text-[10px] font-black text-stone-500 uppercase tracking-wider">
-              Total Bets
+              Total Bets & Tickets
             </span>
             <Trophy className="h-4.5 w-4.5 text-indigo-600" />
           </div>
@@ -229,7 +213,7 @@ export default function MetricsTab({
         </div>
 
         {/* Platform Fees Collected */}
-        <div className="bg-white border border-stone-200 p-5 rounded-2xl shadow-xs flex flex-col gap-1.5">
+        <div className="bg-white border border-stone-200 p-5 rounded-[2px] shadow-xs flex flex-col gap-1.5">
           <div className="flex items-center justify-between text-stone-400">
             <span className="text-[10px] font-black text-stone-500 uppercase tracking-wider">
               Fees Collected
@@ -244,37 +228,28 @@ export default function MetricsTab({
             USDC
           </span>
           <span className="text-[10px] font-semibold text-stone-450 mt-1">
-            Standard & Creation fees
+            Platform prediction fees
           </span>
         </div>
 
-        {/* Unclaimed Rewards (Contract balances) */}
-        <div className="bg-white border border-stone-200 p-5 rounded-2xl shadow-xs flex flex-col gap-1.5">
+        {/* PvP Matches count */}
+        <div className="bg-white border border-stone-200 p-5 rounded-[2px] shadow-xs flex flex-col gap-1.5">
           <div className="flex items-center justify-between text-stone-400">
             <span className="text-[10px] font-black text-stone-500 uppercase tracking-wider">
-              Unclaimed Rewards
+              PvP Duel Matches
             </span>
-            <Clock className="h-4.5 w-4.5 text-indigo-600" />
+            <Swords className="h-4.5 w-4.5 text-indigo-600" />
           </div>
           <span className="text-2xl font-black text-stone-950 font-mono tracking-tight">
-            {contractBalancesLoading ? (
-              <span className="text-xs text-stone-400 animate-pulse">
-                Loading...
-              </span>
-            ) : (
-              `${unclaimedRewards.toLocaleString(undefined, {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2,
-              })} USDC`
-            )}
+            {metricsData.pvpMatchesCount}
           </span>
           <span className="text-[10px] font-semibold text-stone-450 mt-1">
-            Total pending claims
+            Head-to-head match cards
           </span>
         </div>
 
         {/* Market Creators */}
-        <div className="bg-white border border-stone-200 p-5 rounded-2xl shadow-xs flex flex-col gap-1.5">
+        <div className="bg-white border border-stone-200 p-5 rounded-[2px] shadow-xs flex flex-col gap-1.5">
           <div className="flex items-center justify-between text-stone-400">
             <span className="text-[10px] font-black text-stone-500 uppercase tracking-wider">
               Market Creators
@@ -289,11 +264,11 @@ export default function MetricsTab({
           </span>
         </div>
 
-        {/* Nanopayments Processed */}
-        <div className="bg-white border border-stone-200 p-5 rounded-2xl shadow-xs flex flex-col gap-1.5">
+        {/* Micro-transactions Processed */}
+        <div className="bg-white border border-stone-200 p-5 rounded-[2px] shadow-xs flex flex-col gap-1.5">
           <div className="flex items-center justify-between text-stone-400">
             <span className="text-[10px] font-black text-stone-500 uppercase tracking-wider">
-              Nanopayments
+              Off-chain Transactions
             </span>
             <Send className="h-4.5 w-4.5 text-indigo-600" />
           </div>
@@ -301,7 +276,7 @@ export default function MetricsTab({
             {metricsData.nanopaymentsProcessed}
           </span>
           <span className="text-[10px] font-semibold text-stone-450 mt-1">
-            Processed via Circle
+            Off-chain DB settlements
           </span>
         </div>
       </div>
@@ -322,7 +297,7 @@ export default function MetricsTab({
         </div>
 
         {/* PvP Funnel Chart */}
-        <div className="verity-card p-6 bg-white lg:col-span-5 flex flex-col gap-4 border border-stone-200 shadow-xs rounded-2xl">
+        <div className="verity-card p-6 bg-white lg:col-span-5 flex flex-col gap-4 border border-stone-200 shadow-xs rounded-[2px]">
           <h3 className="text-xs font-black text-stone-900 uppercase tracking-wider flex items-center gap-1.5 border-b border-stone-100 pb-3">
             <Layers className="h-4 w-4 text-indigo-600" />
             PvP Arena Player Funnel
@@ -337,8 +312,8 @@ export default function MetricsTab({
                   {metricsData.users.real}
                 </span>
               </div>
-              <div className="w-full bg-stone-100 h-2 rounded-full overflow-hidden">
-                <div className="bg-indigo-650 h-full rounded-full w-full" />
+              <div className="w-full bg-stone-100 h-2 rounded-[2px] overflow-hidden">
+                <div className="bg-indigo-600 h-full rounded-[2px] w-full" />
               </div>
             </div>
 
@@ -355,9 +330,9 @@ export default function MetricsTab({
                   %)
                 </span>
               </div>
-              <div className="w-full bg-stone-100 h-2 rounded-full overflow-hidden">
+              <div className="w-full bg-stone-100 h-2 rounded-[2px] overflow-hidden">
                 <div
-                  className="bg-indigo-500 h-full rounded-full"
+                  className="bg-indigo-500 h-full rounded-[2px]"
                   style={{
                     width: `${
                       (metricsData.pvpUsers.submitted.real /
@@ -382,9 +357,9 @@ export default function MetricsTab({
                   %)
                 </span>
               </div>
-              <div className="w-full bg-stone-100 h-2 rounded-full overflow-hidden">
+              <div className="w-full bg-stone-100 h-2 rounded-[2px] overflow-hidden">
                 <div
-                  className="bg-emerald-500 h-full rounded-full"
+                  className="bg-emerald-500 h-full rounded-[2px]"
                   style={{
                     width: `${
                       (metricsData.pvpUsers.played.real /

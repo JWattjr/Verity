@@ -3,15 +3,11 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import {
-  Home,
-  Search,
   Bell,
-  User,
-  Wallet,
-  CircleHelp,
   TrendingUp,
   Trophy,
   Sparkles,
+  Swords,
 } from "lucide-react"
 import ThemeToggle from "@/components/layout/ThemeToggle"
 import SidebarProfile from "@/components/layout/SidebarProfile"
@@ -21,13 +17,11 @@ import { useAuth } from "@/components/providers/AuthModals"
 import VerityMark from "@/components/brand/VerityMark"
 
 const NAV_ITEMS = [
-  { icon: Home, label: "Home", href: "/" },
-  { icon: TrendingUp, label: "Markets", href: "/markets" },
-  { icon: Sparkles, label: "Missions", href: "/missions" },
+  { icon: TrendingUp, label: "Markets", href: "/" },
+  { icon: Swords, label: "Arena", href: "/arena" },
   { icon: Trophy, label: "Leaderboard", href: "/leaderboard" },
+  { icon: Sparkles, label: "Missions", href: "/missions" },
   { icon: Bell, label: "Notifications", href: "/notifications" },
-  { icon: Wallet, label: "Portfolio", href: "/portfolio" },
-  { icon: User, label: "Profile", href: "/profile" },
 ]
 
 export default function Sidebar() {

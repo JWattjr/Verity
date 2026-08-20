@@ -313,39 +313,6 @@ export class CreatePostUnifiedDto {
   @ApiPropertyOptional() @IsOptional() @IsString() optionName?: string
 }
 
-export class AddCommentDto {
-  @ApiPropertyOptional({
-    description: "Author User ID",
-    example: "60d0fe4f5311236168a109ca",
-  })
-  @IsString()
-  @IsOptional()
-  authorId?: string
-
-  @ApiPropertyOptional({
-    description: "Alternative profile ID",
-    example: "60d0fe4f5311236168a109ca",
-  })
-  @IsString()
-  @IsOptional()
-  profileId?: string
-
-  @ApiProperty({
-    description: "Comment body content",
-    example: "This is a great market!",
-  })
-  @IsString()
-  @IsNotEmpty()
-  content: string
-
-  @ApiPropertyOptional({
-    description: "Optional parent Comment ID",
-    example: "60d0fe4f5311236168a109ca",
-  })
-  @IsMongoId()
-  @IsOptional()
-  parentId?: string
-}
 
 export class ToggleLikeDto {
   @ApiPropertyOptional({

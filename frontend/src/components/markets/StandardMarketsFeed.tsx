@@ -6,8 +6,6 @@ import { Search } from "lucide-react"
 import MarketFeedCard from "@/components/markets/MarketFeedCard"
 import { toast } from "@/lib/toast"
 import {
-  useCastFreeVoteMutation,
-  useDailyVotesQuery,
   useGetCategoriesQuery,
   useToggleLikeMutation,
 } from "@/store/verity/verityQueries"
@@ -34,11 +32,8 @@ export default function StandardMarketsFeed({
 }: StandardMarketsFeedProps) {
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
-  const castFreeVoteMutation = useCastFreeVoteMutation()
   const toggleLikeMutation = useToggleLikeMutation()
-  const { data: dailyVotesData } = useDailyVotesQuery(profile?.id || "")
   const { data: categoriesData } = useGetCategoriesQuery()
-  const dailyVotesRemaining = dailyVotesData?.votesRemaining ?? 10
 
   // Filtered standard markets
   const filteredMarkets = useMemo(() => {
@@ -78,27 +73,6 @@ export default function StandardMarketsFeed({
       return matchesSearch && matchesCategory
     })
   }, [feedItems, searchQuery, selectedCategory])
-
-  // Handle Free vote casting
-  async function handleFreeVote(marketId: string, side: "YES" | "NO") {
-    if (!profile) {
-      toast.error("Connect your wallet to cast a vote.")
-      return
-    }
-    try {
-      await castFreeVoteMutation.mutateAsync({
-        marketId,
-        userId: profile.id,
-        side,
-      })
-      toast.success(`Casted your ${side} signal!`)
-      void reloadFeed()
-    } catch (err: unknown) {
-      toast.error(
-        err instanceof Error ? err.message : "Failed to submit signal.",
-      )
-    }
-  }
 
   async function handleLike(postId: string, currentlyLiked: boolean) {
     if (!profile) {
@@ -177,13 +151,12 @@ export default function StandardMarketsFeed({
 
       <div className="flex items-center justify-between border-b border-border pb-2 font-mono text-[9px] font-semibold uppercase tracking-[0.16em] text-ash">
         <span>{filteredMarkets.length} open markets</span>
-        <span>{dailyVotesRemaining} free signals left</span>
+        <span>Verified live propositions</span>
       </div>
 
       <section className="grid grid-cols-1 border-l border-t border-border xl:grid-cols-2">
         {filteredMarkets.map((item) => (
           <MarketFeedCard
-            dailyVotesRemaining={dailyVotesRemaining}
             item={item}
             key={item.id}
             likePending={toggleLikeMutation.isPending}
@@ -197,38 +170,8 @@ export default function StandardMarketsFeed({
                 setActiveTab("pvp-arena")
               }
             }}
-            onVote={(market, side) => handleFreeVote(market.id, side)}
-            votePending={castFreeVoteMutation.isPending}
           />
         ))}
-
-        {filteredMarkets.length === 0 && feedItems.length > 0 && (
-          <div className="col-span-full flex min-h-52 items-center justify-center border-b border-r border-border bg-surface p-10 text-center font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-ash">
-            No open markets match these filters.
-          </div>
-        )}
-
-        {feedLoading &&
-          Array.from({ length: 6 }).map((_, i) => (
-            <article
-              key={i}
-              className="min-h-[300px] animate-pulse border-b border-r border-border bg-surface p-5"
-            >
-              <div className="h-3 w-24 bg-surface-muted" />
-              <div className="mt-5 h-7 w-11/12 bg-surface-muted" />
-              <div className="mt-2 h-7 w-3/4 bg-surface-muted" />
-              <div className="mt-6 grid grid-cols-3 border border-border">
-                <div className="h-14 border-r border-border bg-surface-muted" />
-                <div className="h-14 border-r border-border bg-surface-muted" />
-                <div className="h-14 bg-surface-muted" />
-              </div>
-              <div className="mt-5 h-1.5 w-full bg-surface-muted" />
-              <div className="mt-5 grid grid-cols-2 border border-border">
-                <div className="h-10 border-r border-border bg-surface-muted" />
-                <div className="h-10 bg-surface-muted" />
-              </div>
-            </article>
-          ))}
       </section>
     </div>
   )

@@ -99,11 +99,11 @@ export default function AuthModals() {
       {/* 1. PASSWORDLESS EMAIL OTP AUTHENTICATION MODAL */}
       {authModalStep !== "idle" && (
         <div className="fixed inset-0 z-1000 flex items-center justify-center bg-midnight/40 backdrop-blur-md px-4 py-6 animate-fade-in">
-          <div className="w-full max-w-[440px] overflow-hidden rounded-[12px] border border-border bg-surface-solid p-6 shadow-2xl transition-all duration-300">
+          <div className="w-full max-w-[440px] overflow-hidden rounded-[2px] border border-border bg-surface-solid p-6 shadow-2xl transition-all duration-300">
             {/* Header */}
             <div className="flex items-center justify-between border-b border-stone-surface pb-4 mb-5">
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-[10px] bg-sky-blue/10 border border-sky-blue/20">
+                <div className="flex h-10 w-10 items-center justify-center rounded-[2px] bg-sky-blue/10 border border-sky-blue/20">
                   <ShieldCheck className="h-5 w-5 text-sky-blue" />
                 </div>
                 <div>
@@ -122,7 +122,7 @@ export default function AuthModals() {
                 authModalStep !== "onboarding" && (
                   <button
                     onClick={() => setAuthModalStep("idle")}
-                    className="rounded-lg p-1.5 text-ash hover:bg-stone-surface hover:text-midnight transition-colors"
+                    className="rounded-[2px] p-1.5 text-ash hover:bg-stone-surface hover:text-midnight transition-colors"
                   >
                     <X className="h-4 w-4" />
                   </button>
@@ -138,7 +138,7 @@ export default function AuthModals() {
                   create one for you.
                 </p>
                 {authError && (
-                  <div className="rounded-md bg-red-500/10 p-2.5 text-xs font-semibold text-red-500 border border-red-500/20">
+                  <div className="rounded-[2px] bg-red-500/10 p-2.5 text-xs font-semibold text-red-500 border border-red-500/20">
                     {authError}
                   </div>
                 )}
@@ -146,7 +146,7 @@ export default function AuthModals() {
                   <label className="block text-xs font-mono font-bold tracking-wider text-ash">
                     Email address
                   </label>
-                  <div className="flex h-11 items-center rounded-[10px] border border-border bg-white-surface px-4 focus-within:border-sky-blue/50 transition-colors">
+                  <div className="flex h-11 items-center rounded-[2px] border border-border bg-white-surface px-4 focus-within:border-sky-blue/50 transition-colors">
                     <Mail className="h-4 w-4 text-ash mr-2" />
                     <Input
                       type="email"
@@ -163,7 +163,7 @@ export default function AuthModals() {
                 <button
                   type="submit"
                   disabled={isRequestingOtp}
-                  className="w-full flex h-11 items-center justify-center gap-2 verity-pill rounded-[10px] bg-inverse text-sm font-semibold text-inverse-text transition-opacity hover:opacity-90 disabled:opacity-50"
+                  className="w-full flex h-11 items-center justify-center gap-2 verity-pill rounded-[2px] bg-inverse text-sm font-semibold text-inverse-text transition-opacity hover:opacity-90 disabled:opacity-50"
                 >
                   {isRequestingOtp ? (
                     <>
@@ -185,7 +185,7 @@ export default function AuthModals() {
                   below to authorize.
                 </p>
                 {authError && (
-                  <div className="rounded-md bg-red-500/10 p-2.5 text-xs font-semibold text-red-500 border border-red-500/20">
+                  <div className="rounded-[2px] bg-red-500/10 p-2.5 text-xs font-semibold text-red-500 border border-red-500/20">
                     {authError}
                   </div>
                 )}
@@ -193,7 +193,7 @@ export default function AuthModals() {
                   <label className="block text-xs font-mono font-bold uppercase tracking-wider text-ash">
                     Verification Code
                   </label>
-                  <div className="flex h-11 items-center rounded-[10px] border border-border bg-white-surface px-4 focus-within:border-sky-blue/50 transition-colors">
+                  <div className="flex h-11 items-center rounded-[2px] border border-border bg-white-surface px-4 focus-within:border-sky-blue/50 transition-colors">
                     <Key className="h-4 w-4 text-ash mr-2" />
                     <Input
                       type="text"
@@ -213,14 +213,14 @@ export default function AuthModals() {
                   <button
                     type="button"
                     onClick={() => setAuthModalStep("email")}
-                    className="flex-1 h-11 rounded-[10px] border border-border bg-transparent text-graphite text-sm font-semibold hover:bg-stone-surface transition-colors"
+                    className="flex-1 h-11 rounded-[2px] border border-border bg-transparent text-graphite text-sm font-semibold hover:bg-stone-surface transition-colors"
                   >
                     Back
                   </button>
                   <button
                     type="submit"
                     disabled={isSubmittingOtp || otpCode.length !== 6}
-                    className="flex-1 w-full flex h-11 items-center justify-center gap-2 verity-pill rounded-[10px] bg-inverse text-sm font-semibold text-inverse-text transition-opacity hover:opacity-90 disabled:opacity-50"
+                    className="flex-1 w-full flex h-11 items-center justify-center gap-2 verity-pill rounded-[2px] bg-inverse text-sm font-semibold text-inverse-text transition-opacity hover:opacity-90 disabled:opacity-50"
                   >
                     {isSubmittingOtp ? (
                       <>
@@ -243,7 +243,7 @@ export default function AuthModals() {
                   Takes on Verity.
                 </p>
                 {authError && (
-                  <div className="rounded-md bg-red-500/10 p-2.5 text-xs font-semibold text-red-500 border border-red-500/20">
+                  <div className="rounded-[2px] bg-red-500/10 p-2.5 text-xs font-semibold text-red-500 border border-red-500/20">
                     {authError}
                   </div>
                 )}
@@ -251,7 +251,7 @@ export default function AuthModals() {
                   <label className="block text-xs font-mono font-bold uppercase tracking-wider text-ash">
                     Choose Username
                   </label>
-                  <div className="flex h-11 items-center rounded-[10px] border border-border bg-white-surface px-4 focus-within:border-sky-blue/50 transition-colors">
+                  <div className="flex h-11 items-center rounded-[2px] border border-border bg-white-surface px-4 focus-within:border-sky-blue/50 transition-colors">
                     <span className="text-sm font-mono text-ash mr-1">@</span>
                     <Input
                       type="text"
@@ -272,7 +272,7 @@ export default function AuthModals() {
                   <label className="block text-xs font-mono font-bold uppercase tracking-wider text-ash">
                     Referrer Username (Optional)
                   </label>
-                  <div className="flex h-11 items-center rounded-[10px] border border-border bg-white-surface px-4 focus-within:border-sky-blue/50 transition-colors">
+                  <div className="flex h-11 items-center rounded-[2px] border border-border bg-white-surface px-4 focus-within:border-sky-blue/50 transition-colors">
                     <span className="text-sm font-mono text-ash mr-1">@</span>
                     <Input
                       type="text"
@@ -292,7 +292,7 @@ export default function AuthModals() {
                 <button
                   type="submit"
                   disabled={isSubmittingOtp || usernameInput.length < 3}
-                  className="w-full flex h-11 items-center justify-center gap-2 verity-pill rounded-[10px] bg-inverse text-sm font-semibold text-inverse-text transition-opacity hover:opacity-90 disabled:opacity-50"
+                  className="w-full flex h-11 items-center justify-center gap-2 verity-pill rounded-[2px] bg-inverse text-sm font-semibold text-inverse-text transition-opacity hover:opacity-90 disabled:opacity-50"
                 >
                   {isSubmittingOtp ? (
                     <>
@@ -309,7 +309,7 @@ export default function AuthModals() {
             {/* Success Step (Wallet Address & Funding Details) */}
             {authModalStep === "success" && (
               <div className="space-y-5 py-2">
-                <div className="rounded-[10px] border border-stone-surface bg-parchment-card p-4 space-y-3">
+                <div className="rounded-[2px] border border-stone-surface bg-parchment-card p-4 space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="font-mono text-xs text-ash">
                       Your Circle SCA Wallet Address
@@ -331,12 +331,12 @@ export default function AuthModals() {
                       )}
                     </button>
                   </div>
-                  <div className="font-mono text-sm font-bold text-charcoal-primary break-all bg-surface-solid p-2.5 rounded-lg border border-stone-surface">
+                  <div className="font-mono text-sm font-bold text-charcoal-primary break-all bg-surface-solid p-2.5 rounded-[2px] border border-stone-surface">
                     {walletAddr || "Generating secure SCA wallet..."}
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between gap-4 p-4 rounded-[10px] bg-sky-blue/5 border border-sky-blue/20">
+                <div className="flex items-center justify-between gap-4 p-4 rounded-[2px] bg-sky-blue/5 border border-sky-blue/20">
                   <div className="space-y-1 text-left">
                     <h4 className="text-xs font-bold text-midnight">
                       Need Arc Testnet Funds?
@@ -359,7 +359,7 @@ export default function AuthModals() {
 
                 <button
                   onClick={() => setAuthModalStep("idle")}
-                  className="w-full flex h-11 items-center justify-center gap-2 verity-pill rounded-[10px] bg-inverse text-sm font-semibold text-inverse-text transition-opacity hover:opacity-90"
+                  className="w-full flex h-11 items-center justify-center gap-2 verity-pill rounded-[2px] bg-inverse text-sm font-semibold text-inverse-text transition-opacity hover:opacity-90"
                 >
                   Start Exploring
                   <Sparkles className="h-4 w-4 text-sunburst-yellow animate-pulse" />

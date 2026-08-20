@@ -56,12 +56,12 @@ const FALLBACK_POSITIONS: MarketPosition[] = [
   ),
   previewPosition(
     "portfolio-4",
-    "France vs Morocco - Extra Time / Penalties",
-    "No penalties",
+    "France vs Morocco - Yellow Cards",
+    "Under 4.5",
     41.23,
     20,
     "resolved",
-    "No penalties",
+    "Under 4.5",
   ),
   previewPosition(
     "portfolio-5",

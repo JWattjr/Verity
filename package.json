@@ -9,9 +9,10 @@
     "dev:resolver-test": "pnpm --filter verity-backend test:resolver-live",
     "build:frontend": "pnpm --filter verity build",
     "build:backend": "pnpm --filter verity-backend build",
-    "install:all": "pnpm install",
-    "wagmi:generate": "pnpm --filter verity wagmi"
-
+    "build:admin": "pnpm --filter verity-admin build",
+    "build:all": "pnpm build:backend && pnpm build:frontend && pnpm build:admin",
+    "clone:users": "pnpm --filter verity-backend clone:users",
+    "install:all": "pnpm install"
   },
   "devDependencies": {
     "@pythnetwork/pyth-sdk-solidity": "^4.3.1"

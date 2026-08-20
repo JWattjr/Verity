@@ -119,34 +119,16 @@ export class PvpController {
     return this.pvpService.getMatchHistory(req.user.id)
   }
 
-  @Get("claimable-winnings")
-  @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
-  @ApiOperation({
-    summary:
-      "Retrieve all unclaimed winning picks across all resolved PvP events for the authenticated user",
-  })
-  async getClaimableWinnings(@Request() req: any) {
-    return this.pvpService.getClaimableWinnings(req.user.id)
-  }
-
-  @Get("admin-status")
-  @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
-  @ApiOperation({
-    summary: "Admin-only: Get admin wallet balances and market fee details",
-  })
-  async getAdminStatus(@Request() req: any) {
-    return this.pvpService.getAdminStatus(req.user.id)
-  }
-
   @Get("admin-metrics")
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({
     summary: "Admin-only: Get system database metrics and platform statistics",
   })
-  async getAdminMetrics(@Request() req: any, @Query("timeframe") timeframe?: string) {
+  async getAdminMetrics(
+    @Request() req: any,
+    @Query("timeframe") timeframe?: string,
+  ) {
     return this.pvpService.getAdminMetrics(req.user.id, timeframe)
   }
 
@@ -158,28 +140,44 @@ export class PvpController {
     return this.pvpService.getPublicMetrics(timeframe)
   }
 
-  @Get("contract-balances")
-  @UseGuards(JwtAuthGuard, AdminGuard)
-  @ApiBearerAuth()
-  @ApiOperation({
-    summary: "Admin-only: Get USDC balances held by FPMM and Factory contracts",
-  })
-  async getContractBalances(@Request() req: any) {
-    return this.pvpService.getContractBalances(req.user.id)
-  }
-
-  @Post("admin/claim-creator-liquidity")
-  @UseGuards(JwtAuthGuard, AdminGuard)
-  @ApiBearerAuth()
+  @Get("schedule/premier-league")
   @ApiOperation({
     summary:
-      "Admin-only: Batch claim creator liquidity from all resolved PvP markets",
+      "Fetch live official upcoming or finished Premier League fixture schedule",
   })
-  @ApiResponse({
-    status: 200,
-    description: "Returns per-market claim results and summary",
+  async getPremierLeagueSchedule(
+    @Query("type") type?: "upcoming" | "finished" | "live",
+    @Query("league") league?: string,
+    @Query("season") season?: string,
+  ) {
+    return this.pvpService.getPremierLeagueSchedule(
+      type,
+      league ? Number(league) : undefined,
+      season ? Number(season) : undefined,
+    )
+  }
+
+  @Get("schedule/football-data")
+  @ApiOperation({
+    summary:
+      "Fetch live official upcoming or finished Premier League fixture schedule from football-data.org",
   })
-  async batchClaimCreatorLiquidity(@Request() req: any) {
-    return this.pvpService.batchClaimCreatorLiquidity(req.user.id)
+  async getFootballDataOrgSchedule(
+    @Query("type") type?: "upcoming" | "finished" | "live",
+    @Query("season") season?: string,
+  ) {
+    return this.pvpService.getFootballDataOrgSchedule(
+      type,
+      season ? Number(season) : undefined,
+    )
+  }
+
+  @Get("schedule/mock")
+  @ApiOperation({
+    summary:
+      "Fetch mock upcoming Premier League fixture schedule for development testing",
+  })
+  async getMockPremierLeagueSchedule() {
+    return this.pvpService.getMockPremierLeagueSchedule()
   }
 }

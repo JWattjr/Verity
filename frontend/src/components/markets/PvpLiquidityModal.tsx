@@ -37,7 +37,7 @@ export default function PvpLiquidityModal({
         className="absolute inset-0"
         onClick={() => setLiquidityMarketId(null)}
       />
-      <section className="verity-card relative z-10 w-full max-w-[420px] bg-white dark:bg-zinc-950 p-6 shadow-2xl animate-in fade-in-50 zoom-in-95 duration-150 rounded-2xl border border-border dark:border-zinc-800">
+      <section className="verity-card relative z-10 w-full max-w-[420px] bg-surface p-6 shadow-2xl animate-in fade-in-50 zoom-in-95 duration-150 rounded-[2px] border border-border">
         <div className="flex items-center justify-between pb-3 border-b border-dashed border-border dark:border-zinc-800">
           <span className="font-mono text-xs font-bold uppercase tracking-wider text-ash">
             Add Pool Liquidity
@@ -70,7 +70,7 @@ export default function PvpLiquidityModal({
                 Balance: {(Number(rawBalance) / 1e6).toLocaleString()} USDC
               </span>
             </div>
-            <div className="flex h-11 items-center rounded-[10px] border border-border dark:border-zinc-800 bg-white-surface dark:bg-zinc-900 px-3">
+            <div className="flex h-11 items-center rounded-[2px] border border-border bg-surface px-3">
               <Input
                 type="number"
                 min="1"
@@ -89,7 +89,7 @@ export default function PvpLiquidityModal({
             </div>
           </div>
 
-          <p className="text-[10px] font-mono text-ash leading-normal bg-stone-50 dark:bg-zinc-900/50 p-2.5 rounded-lg border border-border/40 dark:border-zinc-800/40">
+          <p className="text-[10px] font-mono text-ash leading-normal bg-surface-muted p-2.5 rounded-[2px] border border-border">
             • Deposits USDC liquidity into the child market pool to facilitate
             trading.
             <br />• Earn LP shares and trading fees from all BUY/SELL token
@@ -119,7 +119,7 @@ export default function PvpLiquidityModal({
               }
             }}
             disabled={isAddingLiquidity}
-            className="w-full h-11 bg-indigo-600 hover:bg-indigo-500 text-white font-bold uppercase tracking-wider text-xs shadow-md transition-all rounded-[10px] flex items-center justify-center gap-2 disabled:opacity-50"
+            className="w-full h-11 bg-accent text-black font-bold uppercase tracking-wider text-xs shadow-md transition-all rounded-[2px] flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
           >
             {isAddingLiquidity ? "Depositing..." : "Deposit Liquidity"}
           </button>

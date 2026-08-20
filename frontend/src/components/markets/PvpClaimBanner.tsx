@@ -15,7 +15,6 @@ export default function PvpClaimBanner({
   claimedMarketIds,
   onClaim,
   className = "",
-  showEmoji = false,
   showEmptyState = false,
 }: PvpClaimBannerProps) {
   const claimablePicks = useMemo(
@@ -43,7 +42,7 @@ export default function PvpClaimBanner({
   if (claimablePicks.length === 0) {
     if (showEmptyState) {
       return (
-        <div className="p-8 text-center text-sm text-ash border border-dashed border-border dark:border-zinc-800 rounded-[12px] bg-parchment-card dark:bg-zinc-950/20">
+        <div className="p-8 text-center text-xs text-[#8e8a85] font-mono border border-dashed border-[#222226] bg-[#101012]">
           No active PvP events right now. Check back soon for new matchups!
         </div>
       )
@@ -53,24 +52,26 @@ export default function PvpClaimBanner({
 
   return (
     <div
-      className={`p-4 rounded-xl bg-meadow-green/10 border border-meadow-green/20 flex flex-col md:flex-row items-center justify-between gap-3 text-left ${className}`}
+      className={`p-4 border border-[#222226] bg-[#101012] flex flex-col md:flex-row items-center justify-between gap-3 text-left ${className}`}
     >
       <div className="flex items-center gap-3">
-        <span className="text-4xl">🏆</span>
+        <div className="flex h-10 w-10 items-center justify-center border border-[#ff3b30] bg-[#1e1212] text-[#ff3b30] shrink-0">
+          <Trophy className="h-5 w-5" />
+        </div>
         <div>
-          <h4 className="text-sm font-bold text-meadow-green font-sans">
-            You have unclaimed winnings!
+          <h4 className="text-sm font-bold text-[#f4f1ea] font-heading uppercase">
+            Duel Victory Rewards Available
           </h4>
-          <p className="text-xs text-ash mt-0.5 font-medium font-sans">
-            Claim {totalWinnings.toFixed(2)} USDC.
+          <p className="text-xs text-[#8e8a85] mt-0.5 font-mono">
+            {claimablePicks.length} correct propositions settled.
           </p>
         </div>
       </div>
       <button
         onClick={handleClaimAll}
-        className="px-4 py-2 rounded-[8px] bg-meadow-green hover:bg-meadow-green/90 text-white text-sm font-bold transition-all shadow-sm shrink-0 font-sans cursor-pointer"
+        className="px-4 py-2 bg-[#ff3b30] hover:bg-[#ff3b30]/90 text-black text-xs font-black uppercase tracking-wider transition-all shadow-sm shrink-0 cursor-pointer"
       >
-        Claim
+        Claim Rewards
       </button>
     </div>
   )

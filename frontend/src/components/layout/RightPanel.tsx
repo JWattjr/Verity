@@ -27,7 +27,7 @@ export default function RightPanel() {
 
   return (
     <div className="flex h-full w-full flex-col gap-4 overflow-y-auto no-scrollbar pb-8">
-      <Link className="group relative block" href="/explore">
+      <Link className="group relative block" href="/">
         <div className="pointer-events-none absolute inset-y-0 left-4 flex items-center">
           <Search className="h-5 w-5 text-ash transition-colors group-focus-within:text-charcoal-primary" />
         </div>

@@ -13,15 +13,12 @@ import {
 import { PostsService } from "./posts.service"
 import {
   FeedQueryDto,
-  CreatePostDto,
-  CreateMarketPostDto,
   CreatePostUnifiedDto,
-  AddCommentDto,
+  CreateMarketPostDto,
   ToggleLikeDto,
   ToggleReshareDto,
   ValidateMarketPostDto,
 } from "./posts.dto"
-import { CommentsService } from "../comments/comments.service"
 import { InteractionsService } from "../interactions/interactions.service"
 import {
   ApiTags,
@@ -39,12 +36,11 @@ import { Throttle } from "@nestjs/throttler"
 export class PostsController {
   constructor(
     private readonly postsService: PostsService,
-    private readonly commentsService: CommentsService,
     private readonly interactionsService: InteractionsService,
   ) {}
 
   @Get()
-  @ApiOperation({ summary: "Fetch feed posts (normal posts and market posts)" })
+  @ApiOperation({ summary: "Fetch feed markets" })
   @ApiResponse({
     status: 200,
     description: "Feed posts retrieved successfully.",
@@ -59,7 +55,7 @@ export class PostsController {
   }
 
   @Get(":postId")
-  @ApiOperation({ summary: "Fetch a single post by ID" })
+  @ApiOperation({ summary: "Fetch a single market post by ID" })
   @ApiParam({
     name: "postId",
     description: "Post ID",
@@ -95,7 +91,7 @@ export class PostsController {
   @ApiBearerAuth()
   @Throttle({ default: { limit: 10, ttl: 60000 } })
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: "Create a new post (normal or market)" })
+  @ApiOperation({ summary: "Create a new market post" })
   @ApiBody({ type: CreatePostUnifiedDto })
   @ApiResponse({
     status: 201,
@@ -112,40 +108,12 @@ export class PostsController {
     return this.postsService.createNormalPost(authorId, dto.content)
   }
 
-  @Post(":postId/comment")
-  @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
-  @Throttle({ default: { limit: 10, ttl: 60000 } })
-  @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: "Add a comment to a feed post" })
-  @ApiParam({
-    name: "postId",
-    description: "Post ID comment is being added to",
-    example: "60d0fe4f5311236168a109ca",
-  })
-  @ApiBody({ type: AddCommentDto })
-  @ApiResponse({ status: 201, description: "Comment added successfully." })
-  async addPostComment(
-    @Param("postId") postId: string,
-    @Body() dto: AddCommentDto,
-    @Request() req: any,
-  ) {
-    const authorId = req.user.id
-    await this.commentsService.addComment(
-      postId,
-      authorId,
-      dto.content,
-      dto.parentId,
-    )
-    return null
-  }
-
   @Post(":postId/like")
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @Throttle({ default: { limit: 20, ttl: 60000 } })
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: "Toggle like interaction on a feed post" })
+  @ApiOperation({ summary: "Toggle like interaction on a market post" })
   @ApiParam({
     name: "postId",
     description: "Post ID",
@@ -175,7 +143,7 @@ export class PostsController {
   @ApiBearerAuth()
   @Throttle({ default: { limit: 20, ttl: 60000 } })
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: "Toggle reshare interaction on a feed post" })
+  @ApiOperation({ summary: "Toggle reshare interaction on a market post" })
   @ApiParam({
     name: "postId",
     description: "Post ID",
