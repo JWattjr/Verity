@@ -181,9 +181,9 @@ export default function MissionsPage() {
         </span>
         <p>Verity rewards</p>
         <h1>MISSIONS</h1>
-        <span>Sign in to track tasks, claim Arena XP, and unlock boosts.</span>
+        <span>Connect to track tasks, claim Arena XP, and unlock boosts.</span>
         <button onClick={login} type="button">
-          SIGN IN TO CONTINUE
+          GET STARTED
         </button>
       </section>
     )

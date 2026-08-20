@@ -111,7 +111,7 @@ export default function AuthModals() {
                     Verity Identity
                   </p>
                   <h3 className="text-lg font-bold text-charcoal-primary">
-                    {authModalStep === "email" && "Login or Signup"}
+                    {authModalStep === "email" && "Get Started"}
                     {authModalStep === "otp" && "Enter Verification Code"}
                     {authModalStep === "onboarding" && "Setup Profile"}
                     {authModalStep === "success" && "Welcome to Verity!"}

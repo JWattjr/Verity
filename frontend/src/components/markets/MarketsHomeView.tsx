@@ -64,7 +64,7 @@ export default function MarketsHomeView() {
 
   async function handleLike(postId: string, currentlyLiked: boolean) {
     if (!profile) {
-      toast.error("Please sign in to like this market.")
+      toast.error("Please click Get Started to like this market.")
       return
     }
     try {
