@@ -132,74 +132,181 @@ export class MarketsKeeperService implements OnModuleInit, OnModuleDestroy {
       `Found ${markets.length} expired markets to resolve via Sports Oracle...`,
     )
 
-    // Group markets by fixture ID AND provider for batched fetching
-    const apiFootballGroups = new Map<number, MarketDocument[]>()
-    const footballDataGroups = new Map<number, MarketDocument[]>()
-
+    // Group sports markets by fixture/parent
+    const fixtureGroups = new Map<string, MarketDocument[]>()
     for (const market of markets) {
       const isSportsMarket =
         market.category?.toLowerCase() === "pvp" ||
         market.marketType === "child"
       if (!isSportsMarket) continue
-
-      const provider = market.resolutionProvider || "api-football"
-
-      if (provider === "football-data" && market.footballDataOrgMatchId) {
-        const matchId = market.footballDataOrgMatchId
-        const group = footballDataGroups.get(matchId) || []
-        group.push(market)
-        footballDataGroups.set(matchId, group)
-      } else if (market.apiFootballFixtureId) {
-        const fixtureId = market.apiFootballFixtureId
-        const group = apiFootballGroups.get(fixtureId) || []
-        group.push(market)
-        apiFootballGroups.set(fixtureId, group)
-      }
+      const groupKey =
+        market.parentMarketId?.toString() ||
+        (market.apiFootballFixtureId
+          ? `af:${market.apiFootballFixtureId}`
+          : null) ||
+        (market.footballDataOrgMatchId
+          ? `fdo:${market.footballDataOrgMatchId}`
+          : null) ||
+        market.question
+      const group = fixtureGroups.get(groupKey) || []
+      group.push(market)
+      fixtureGroups.set(groupKey, group)
     }
 
-    const fixtureStats = new Map<number, MatchStatistics>()
-    const failedFixtures = new Set<string>() // "af:{id}" or "fdo:{id}"
-
-    // Fetch API-Football stats
-    for (const [fixtureId, fixtureMarkets] of apiFootballGroups) {
-      const fixtureMarket = fixtureMarkets[0]
-      try {
-        const requiredStatistics =
-          this.sportsOracleService.requiredStatisticsForMarkets(fixtureMarkets)
-        const stats = await this.sportsOracleService.fetchMatchStats(
-          fixtureMarket.question,
-          fixtureMarket.deadline,
-          fixtureId,
-          requiredStatistics,
-        )
-        fixtureStats.set(fixtureId, stats)
-      } catch (error) {
-        failedFixtures.add(`af:${fixtureId}`)
-        this.logger.error(
-          `Failed to fetch API-Football fixture ${fixtureId} for ${fixtureMarkets.length} market${fixtureMarkets.length === 1 ? "" : "s"}: ${error.message}`,
-        )
+    const fixtureStatsMap = new Map<
+      string,
+      {
+        stats: MatchStatistics
+        provider: "api-football" | "football-data"
+        isFallback: boolean
       }
-    }
+    >()
 
-    // Fetch football-data.org stats
-    for (const [matchId, matchMarkets] of footballDataGroups) {
-      const matchMarket = matchMarkets[0]
-      try {
-        const requiredStatistics =
-          this.sportsOracleService.requiredStatisticsForMarkets(matchMarkets)
-        const stats =
-          await this.sportsOracleService.fetchMatchStatsFromFootballDataOrg(
-            matchMarket.question,
-            matchMarket.deadline,
-            matchId,
-            requiredStatistics,
+    for (const [groupKey, groupMarkets] of fixtureGroups) {
+      const firstMarket = groupMarkets[0]
+      const primaryProvider = firstMarket.resolutionProvider || "api-football"
+      const requiredStatistics =
+        this.sportsOracleService.requiredStatisticsForMarkets(groupMarkets)
+      let fetched: {
+        stats: MatchStatistics
+        provider: "api-football" | "football-data"
+        isFallback: boolean
+      } | null = null
+
+      // Attempt 1: Primary Provider
+      const isPrimaryAf = primaryProvider !== "football-data"
+      const isPrimaryPaused = isPrimaryAf
+        ? Boolean(this.sportsOracleService?.isApiFootballRateLimited?.()) ||
+          Boolean(
+            firstMarket.apiFootballFixtureId &&
+              this.sportsOracleService?.isFixtureRetryPaused?.(
+                firstMarket.apiFootballFixtureId,
+              ),
           )
-        fixtureStats.set(matchId + 1_000_000_000, stats) // Offset to avoid key collision
-      } catch (error) {
-        failedFixtures.add(`fdo:${matchId}`)
-        this.logger.error(
-          `Failed to fetch football-data.org match ${matchId} for ${matchMarkets.length} market${matchMarkets.length === 1 ? "" : "s"}: ${error.message}`,
+        : Boolean(
+            firstMarket.footballDataOrgMatchId &&
+              this.sportsOracleService?.isFootballDataOrgMatchRetryPaused?.(
+                firstMarket.footballDataOrgMatchId,
+              ),
+          )
+
+      if (!isPrimaryPaused) {
+        try {
+          if (isPrimaryAf) {
+            const stats = await this.sportsOracleService.fetchMatchStats(
+              firstMarket.question,
+              firstMarket.deadline,
+              firstMarket.apiFootballFixtureId || undefined,
+              requiredStatistics,
+            )
+            fetched = { stats, provider: "api-football", isFallback: false }
+            if (stats.fixtureId && !firstMarket.apiFootballFixtureId) {
+              await this.marketModel.updateMany(
+                { _id: { $in: groupMarkets.map((m) => m._id) } },
+                { $set: { apiFootballFixtureId: stats.fixtureId } },
+              )
+              if (firstMarket.parentMarketId) {
+                await this.marketModel.findByIdAndUpdate(
+                  firstMarket.parentMarketId,
+                  { $set: { apiFootballFixtureId: stats.fixtureId } },
+                )
+              }
+            }
+          } else {
+            const stats =
+              await this.sportsOracleService.fetchMatchStatsFromFootballDataOrg(
+                firstMarket.question,
+                firstMarket.deadline,
+                firstMarket.footballDataOrgMatchId || undefined,
+                requiredStatistics,
+              )
+            fetched = { stats, provider: "football-data", isFallback: false }
+            if (stats.fixtureId && !firstMarket.footballDataOrgMatchId) {
+              await this.marketModel.updateMany(
+                { _id: { $in: groupMarkets.map((m) => m._id) } },
+                { $set: { footballDataOrgMatchId: stats.fixtureId } },
+              )
+              if (firstMarket.parentMarketId) {
+                await this.marketModel.findByIdAndUpdate(
+                  firstMarket.parentMarketId,
+                  { $set: { footballDataOrgMatchId: stats.fixtureId } },
+                )
+              }
+            }
+          }
+        } catch (error: any) {
+          this.logger.warn(
+            `Primary provider ${primaryProvider} failed for ${firstMarket.question}: ${error.message}. Attempting fallback provider...`,
+          )
+        }
+      } else {
+        this.logger.log(
+          `Primary provider ${primaryProvider} is currently rate-limited/paused. Attempting fallback provider for ${firstMarket.question}...`,
         )
+      }
+
+      // Attempt 2: Fallback Provider if primary failed/paused
+      if (!fetched) {
+        const fallbackProvider = isPrimaryAf ? "football-data" : "api-football"
+        const isFallbackPaused =
+          fallbackProvider === "api-football"
+            ? Boolean(this.sportsOracleService?.isApiFootballRateLimited?.())
+            : false
+
+        if (!isFallbackPaused) {
+          try {
+            if (fallbackProvider === "football-data") {
+              const stats =
+                await this.sportsOracleService.fetchMatchStatsFromFootballDataOrg(
+                  firstMarket.question,
+                  firstMarket.deadline,
+                  firstMarket.footballDataOrgMatchId || undefined,
+                  requiredStatistics,
+                )
+              fetched = { stats, provider: "football-data", isFallback: true }
+              if (stats.fixtureId && !firstMarket.footballDataOrgMatchId) {
+                await this.marketModel.updateMany(
+                  { _id: { $in: groupMarkets.map((m) => m._id) } },
+                  { $set: { footballDataOrgMatchId: stats.fixtureId } },
+                )
+                if (firstMarket.parentMarketId) {
+                  await this.marketModel.findByIdAndUpdate(
+                    firstMarket.parentMarketId,
+                    { $set: { footballDataOrgMatchId: stats.fixtureId } },
+                  )
+                }
+              }
+            } else {
+              const stats = await this.sportsOracleService.fetchMatchStats(
+                firstMarket.question,
+                firstMarket.deadline,
+                firstMarket.apiFootballFixtureId || undefined,
+                requiredStatistics,
+              )
+              fetched = { stats, provider: "api-football", isFallback: true }
+              if (stats.fixtureId && !firstMarket.apiFootballFixtureId) {
+                await this.marketModel.updateMany(
+                  { _id: { $in: groupMarkets.map((m) => m._id) } },
+                  { $set: { apiFootballFixtureId: stats.fixtureId } },
+                )
+                if (firstMarket.parentMarketId) {
+                  await this.marketModel.findByIdAndUpdate(
+                    firstMarket.parentMarketId,
+                    { $set: { apiFootballFixtureId: stats.fixtureId } },
+                  )
+                }
+              }
+            }
+          } catch (fallbackError: any) {
+            this.logger.error(
+              `Fallback provider ${fallbackProvider} also failed for ${firstMarket.question}: ${fallbackError.message}`,
+            )
+          }
+        }
+      }
+
+      if (fetched) {
+        fixtureStatsMap.set(groupKey, fetched)
       }
     }
 
@@ -208,25 +315,6 @@ export class MarketsKeeperService implements OnModuleInit, OnModuleDestroy {
       const isSportsMarket =
         market.category?.toLowerCase() === "pvp" ||
         market.marketType === "child"
-      const provider = market.resolutionProvider || "api-football"
-
-      // Check if this market's fixture failed to fetch
-      if (isSportsMarket) {
-        if (
-          provider === "football-data" &&
-          market.footballDataOrgMatchId &&
-          failedFixtures.has(`fdo:${market.footballDataOrgMatchId}`)
-        ) {
-          continue
-        }
-        if (
-          provider !== "football-data" &&
-          market.apiFootballFixtureId &&
-          failedFixtures.has(`af:${market.apiFootballFixtureId}`)
-        ) {
-          continue
-        }
-      }
 
       try {
         this.logger.log(
@@ -241,27 +329,20 @@ export class MarketsKeeperService implements OnModuleInit, OnModuleDestroy {
         }
 
         if (isSportsMarket) {
-          let stats: MatchStatistics | undefined
-
-          if (provider === "football-data") {
-            const matchId = market.footballDataOrgMatchId
-            if (!matchId) {
-              throw new Error(
-                "A genuine football-data.org match ID is required",
-              )
-            }
-            stats = fixtureStats.get(matchId + 1_000_000_000)
-          } else {
-            const fixtureId = market.apiFootballFixtureId
-            if (!fixtureId) {
-              throw new Error(
-                "A genuine API-Football fixture ID is required",
-              )
-            }
-            stats = fixtureStats.get(fixtureId)
+          const groupKey =
+            market.parentMarketId?.toString() ||
+            (market.apiFootballFixtureId
+              ? `af:${market.apiFootballFixtureId}`
+              : null) ||
+            (market.footballDataOrgMatchId
+              ? `fdo:${market.footballDataOrgMatchId}`
+              : null) ||
+            market.question
+          const fetchedEntry = fixtureStatsMap.get(groupKey)
+          if (!fetchedEntry) {
+            continue
           }
 
-          if (!stats) continue
           const evaluation = this.sportsOracleService.evaluateProposition(
             {
               question: market.question,
@@ -272,8 +353,18 @@ export class MarketsKeeperService implements OnModuleInit, OnModuleDestroy {
               handicap: market.handicap,
               outcomes: market.outcomes,
             },
-            stats,
+            fetchedEntry.stats,
           )
+
+          // If fallback provider was used and proposition could not be resolved (e.g. card/corner stats missing),
+          // keep market open for next keeper loop when primary provider cools down.
+          if (fetchedEntry.isFallback && evaluation.outcome === "INVALID") {
+            this.logger.log(
+              `Market ${marketIdStr} (${market.question}) cannot be resolved via fallback provider ${fetchedEntry.provider}. Keeping pending for primary provider cooldown.`,
+            )
+            continue
+          }
+
           result = {
             outcome: evaluation.outcome,
             outcomeIndex: evaluation.outcomeIndex,

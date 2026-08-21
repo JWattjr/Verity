@@ -76,8 +76,12 @@ export class MarketsController {
 
   @Get("fixture/:id/preview-resolution")
   @ApiOperation({ summary: "Admin: Preview deterministic match statistics and evaluated proposition outcomes" })
-  async previewFixtureResolution(@Param("id") id: string) {
-    return this.marketsService.previewFixtureResolution(id)
+  @ApiQuery({ name: "provider", required: false, enum: ["api-football", "football-data"] })
+  async previewFixtureResolution(
+    @Param("id") id: string,
+    @Query("provider") provider?: "api-football" | "football-data",
+  ) {
+    return this.marketsService.previewFixtureResolution(id, provider)
   }
 
   @Post("resolve-fixture")
@@ -90,6 +94,7 @@ export class MarketsController {
       dto.parentMarketId,
       dto.outcomes,
       dto.adminAddress,
+      dto.overrideProvider,
     )
   }
 

@@ -130,17 +130,13 @@ export default function CreateMarketDrawer({
   const [customOptions, setCustomOptions] = useState<string[]>([])
   const [customOptionText, setCustomOptionText] = useState("")
 
-  // Fetch EPL schedule when drawer opens, type changes, or provider changes
+  // Fetch EPL schedule exclusively from football-data.org
   async function loadEplSchedule(
     type: "upcoming" | "finished" = scheduleType,
-    provider: "api-football" | "football-data" = resolutionProvider,
   ) {
     setFixturesLoading(true)
     try {
-      const endpoint =
-        provider === "football-data"
-          ? `/pvp/schedule/football-data?type=${type}`
-          : `/pvp/schedule/premier-league?type=${type}`
+      const endpoint = `/pvp/schedule/football-data?type=${type}`
       const data = await apiRequest<{
         league: string
         count: number
@@ -149,8 +145,7 @@ export default function CreateMarketDrawer({
       setFixtures(data.fixtures || [])
     } catch (err: any) {
       toast.error(
-        err.message ||
-          `Failed to load the ${provider === "football-data" ? "football-data.org" : "API-Football"} schedule.`,
+        err.message || "Failed to load the football-data.org schedule.",
       )
     } finally {
       setFixturesLoading(false)
@@ -159,9 +154,9 @@ export default function CreateMarketDrawer({
 
   useEffect(() => {
     if (isOpen) {
-      void loadEplSchedule(scheduleType, resolutionProvider)
+      void loadEplSchedule(scheduleType)
     }
-  }, [isOpen, scheduleType, resolutionProvider])
+  }, [isOpen, scheduleType])
 
   // Select fixture from live schedule
   function handleSelectFixture(fixture: EplFixture) {
@@ -392,9 +387,7 @@ export default function CreateMarketDrawer({
               type="button"
               variant="outline"
               size="sm"
-              onClick={() =>
-                void loadEplSchedule(scheduleType, resolutionProvider)
-              }
+              onClick={() => void loadEplSchedule(scheduleType)}
               disabled={fixturesLoading}
               className="h-8 px-2.5 rounded text-xs border border-stone-200 cursor-pointer"
             >
@@ -422,7 +415,6 @@ export default function CreateMarketDrawer({
                     type="button"
                     onClick={() => {
                       setResolutionProvider("api-football")
-                      setSelectedFixtureId(null)
                     }}
                     className={`px-2.5 py-1 text-[9px] font-bold uppercase tracking-wider rounded transition-colors cursor-pointer ${
                       resolutionProvider === "api-football"
@@ -436,7 +428,6 @@ export default function CreateMarketDrawer({
                     type="button"
                     onClick={() => {
                       setResolutionProvider("football-data")
-                      setSelectedFixtureId(null)
                     }}
                     className={`px-2.5 py-1 text-[9px] font-bold uppercase tracking-wider rounded transition-colors cursor-pointer ${
                       resolutionProvider === "football-data"
@@ -453,9 +444,7 @@ export default function CreateMarketDrawer({
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-900 flex items-center gap-1.5">
                 <Calendar className="h-3.5 w-3.5 text-indigo-600" />
-                {resolutionProvider === "football-data"
-                  ? "football-data.org Fixture Schedule"
-                  : "API-Football Fixture Schedule Feed"}
+                football-data.org Fixture Schedule Feed
               </span>
 
               {/* Feed Type Switcher */}
@@ -487,7 +476,7 @@ export default function CreateMarketDrawer({
 
             {fixturesLoading && fixtures.length === 0 ? (
               <div className="py-6 text-center text-xs text-stone-400 font-medium animate-pulse font-mono">
-                Loading fixtures from API-Football feed...
+                Loading fixtures from football-data.org...
               </div>
             ) : fixtures.length === 0 ? (
               <div className="py-4 text-center text-xs text-stone-500">

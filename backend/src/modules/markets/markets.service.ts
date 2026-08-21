@@ -1258,18 +1258,22 @@ export class MarketsService implements OnModuleInit {
     })
   }
 
-  async previewFixtureResolution(parentMarketId: string) {
+  async previewFixtureResolution(
+    parentMarketId: string,
+    overrideProvider?: "api-football" | "football-data",
+  ) {
     const parent = await this.marketModel.findById(parentMarketId)
     if (!parent) {
       throw new NotFoundException("Fixture market not found")
     }
 
+    const effectiveProvider = overrideProvider || parent.resolutionProvider || "api-football"
     const children = await this.marketModel.find({ parentMarketId: parent._id })
     const requiredStatistics =
       this.sportsOracleService.requiredStatisticsForMarkets(children)
-    
+
     let stats: MatchStatistics
-    if (parent.resolutionProvider === "football-data") {
+    if (effectiveProvider === "football-data") {
       stats =
         await this.sportsOracleService.fetchMatchStatsFromFootballDataOrg(
           parent.question,
@@ -1277,6 +1281,15 @@ export class MarketsService implements OnModuleInit {
           parent.footballDataOrgMatchId || undefined,
           requiredStatistics,
         )
+      // Save discovered footballDataOrgMatchId if it was missing
+      if (stats.fixtureId && !parent.footballDataOrgMatchId) {
+        parent.footballDataOrgMatchId = stats.fixtureId
+        await parent.save()
+        await this.marketModel.updateMany(
+          { parentMarketId: parent._id },
+          { $set: { footballDataOrgMatchId: stats.fixtureId } },
+        )
+      }
     } else {
       stats = await this.sportsOracleService.fetchMatchStats(
         parent.question,
@@ -1284,6 +1297,15 @@ export class MarketsService implements OnModuleInit {
         parent.apiFootballFixtureId || undefined,
         requiredStatistics,
       )
+      // Save discovered apiFootballFixtureId if it was missing
+      if (stats.fixtureId && !parent.apiFootballFixtureId) {
+        parent.apiFootballFixtureId = stats.fixtureId
+        await parent.save()
+        await this.marketModel.updateMany(
+          { parentMarketId: parent._id },
+          { $set: { apiFootballFixtureId: stats.fixtureId } },
+        )
+      }
     }
 
     const evaluations = children.map((child) => ({
@@ -1308,6 +1330,8 @@ export class MarketsService implements OnModuleInit {
     return {
       parentMarketId: parent.id,
       fixtureQuestion: parent.question,
+      providerUsed: effectiveProvider,
+      originalProvider: parent.resolutionProvider || "api-football",
       matchStats: stats,
       evaluations,
       resolutionReady:
@@ -1320,6 +1344,7 @@ export class MarketsService implements OnModuleInit {
     parentMarketId: string,
     outcomes: Record<string, string>,
     adminAddress = "0x0000000000000000000000000000000000000000",
+    overrideProvider?: "api-football" | "football-data",
   ) {
     const parent = await this.marketModel.findById(parentMarketId)
     if (!parent) {
@@ -1330,20 +1355,38 @@ export class MarketsService implements OnModuleInit {
         "Batch resolution requires a PvP fixture parent",
       )
     }
+
+    const effectiveProvider = overrideProvider || parent.resolutionProvider || "api-football"
     let verifiedStats: MatchStatistics
-    if (parent.resolutionProvider === "football-data") {
+    if (effectiveProvider === "football-data") {
       verifiedStats =
         await this.sportsOracleService.fetchMatchStatsFromFootballDataOrg(
           parent.question,
           parent.deadline,
           parent.footballDataOrgMatchId || undefined,
         )
+      if (verifiedStats.fixtureId && !parent.footballDataOrgMatchId) {
+        parent.footballDataOrgMatchId = verifiedStats.fixtureId
+        await parent.save()
+        await this.marketModel.updateMany(
+          { parentMarketId: parent._id },
+          { $set: { footballDataOrgMatchId: verifiedStats.fixtureId } },
+        )
+      }
     } else {
       verifiedStats = await this.sportsOracleService.fetchMatchStats(
         parent.question,
         parent.deadline,
         parent.apiFootballFixtureId || undefined,
       )
+      if (verifiedStats.fixtureId && !parent.apiFootballFixtureId) {
+        parent.apiFootballFixtureId = verifiedStats.fixtureId
+        await parent.save()
+        await this.marketModel.updateMany(
+          { parentMarketId: parent._id },
+          { $set: { apiFootballFixtureId: verifiedStats.fixtureId } },
+        )
+      }
     }
     if (!this.sportsOracleService.isTerminalStatus(verifiedStats.status)) {
       throw new BadRequestException(

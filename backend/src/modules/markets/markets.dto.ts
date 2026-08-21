@@ -209,4 +209,12 @@ export class BatchResolveFixtureDto {
   @IsOptional()
   @IsString()
   adminAddress?: string
+
+  @ApiPropertyOptional({
+    description: "Override oracle provider used for resolving the fixture",
+    enum: ["api-football", "football-data"],
+  })
+  @IsOptional()
+  @IsString()
+  overrideProvider?: "api-football" | "football-data"
 }
