@@ -135,11 +135,11 @@ export default function PortfolioDashboard() {
         <p>Your Verity account</p>
         <h1>PORTFOLIO</h1>
         <span>
-          Sign in to monitor positions, P&amp;L, winnings, and your USDC
+          Connect to monitor positions, P&amp;L, winnings, and your USDC
           balance.
         </span>
         <button onClick={login} type="button">
-          SIGN IN TO CONTINUE
+          GET STARTED
         </button>
       </section>
     )

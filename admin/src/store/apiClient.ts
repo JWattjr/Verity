@@ -1,5 +1,5 @@
 const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:5050/api"
+  process.env.NEXT_PUBLIC_API_URL || "http://localhost:5080/api"
 
 function getAuthHeaders(): HeadersInit {
   const headers: Record<string, string> = {

@@ -27,7 +27,7 @@ src/components/
 27: ├── markets/     # PvpArenaTab, PvpTicketBuilder, DuelHistory, SwapTicket - trading & duels
 28: ├── social/      # CommentModal, CommentThread - interaction dialogs
 29: ├── profile/     # ProfileBio, PortfolioPositions - user dashboard blocks
-30: ├── layout/      # Sidebar, RightPanel, ThemeToggle - workspace shell
+30: ├── layout/      # VerityHeader, MobileNav - workspace shell
 31: ├── providers/   # AppProviders, QueryClient, ThemeProvider, AuthModals - bootstrap wrappers
 32: └── ui/          # Button, Input, Modal, Table, Skeleton - generic atomic elements
 ```

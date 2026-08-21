@@ -16,6 +16,7 @@ import {
   CastFreeVoteDto,
   ExecuteTradeDto,
   ResolveMarketDto,
+  BatchResolveFixtureDto,
 } from "./markets.dto"
 import {
   ApiTags,
@@ -65,6 +66,36 @@ export class MarketsController {
   @ApiParam({ name: "userId", description: "User profile ID" })
   async fetchAllUserTrades(@Param("userId") userId: string) {
     return this.marketsService.fetchAllUserTrades(userId)
+  }
+
+  @Get("fixtures/grouped")
+  @ApiOperation({ summary: "Admin: Fetch games grouped by fixture with child markets" })
+  async fetchGroupedFixtures(@Query() query: FetchMarketsQueryDto) {
+    return this.marketsService.fetchGroupedFixtures(query)
+  }
+
+  @Get("fixture/:id/preview-resolution")
+  @ApiOperation({ summary: "Admin: Preview deterministic match statistics and evaluated proposition outcomes" })
+  @ApiQuery({ name: "provider", required: false, enum: ["api-football", "football-data"] })
+  async previewFixtureResolution(
+    @Param("id") id: string,
+    @Query("provider") provider?: "api-football" | "football-data",
+  ) {
+    return this.marketsService.previewFixtureResolution(id, provider)
+  }
+
+  @Post("resolve-fixture")
+  @UseGuards(JwtAuthGuard, AdminGuard)
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: "Admin: Batch resolve an entire fixture and its child propositions" })
+  async batchResolveFixture(@Body() dto: BatchResolveFixtureDto) {
+    return this.marketsService.batchResolveFixture(
+      dto.parentMarketId,
+      dto.outcomes,
+      dto.adminAddress,
+      dto.overrideProvider,
+    )
   }
 
   @Get(":marketId")
@@ -290,10 +321,6 @@ export class MarketsController {
     name: "marketId",
     description: "Market ID",
     example: "60d0fe4f5311236168a109ca",
-  })
-  @ApiResponse({
-    status: 200,
-    description: "Market fast-tracked to qualified status.",
   })
   async devQualify(@Param("marketId") marketId: string) {
     return this.marketsService.devQualify(marketId)

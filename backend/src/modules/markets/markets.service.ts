@@ -2,7 +2,6 @@ import {
   Injectable,
   NotFoundException,
   ConflictException,
-  // NotImplementedException,
   Inject,
   forwardRef,
   BadRequestException,
@@ -11,7 +10,7 @@ import {
   OnModuleInit,
 } from "@nestjs/common"
 import { InjectModel } from "@nestjs/mongoose"
-import { Model, Types /*SortOrder*/ } from "mongoose"
+import { Model, Types } from "mongoose"
 import {
   Market,
   MarketDocument,
@@ -29,12 +28,13 @@ import {
 import { User, UserDocument } from "../users/users.model"
 import { Post, PostDocument } from "../posts/posts.model"
 import { PostsService, MarketResponse } from "../posts/posts.service"
-import { BlockchainService } from "../blockchain/blockchain.service"
 import { SocketGateway } from "../socket/socket.gateway"
 import { NotificationsService } from "../notifications/notifications.service"
 import { PvpService } from "../pvp/pvp.service"
-import { LiquidityService } from "../liquidity/liquidity.service"
-import { RoyaltyService } from "./royalty.service"
+import {
+  MatchStatistics,
+  SportsOracleService,
+} from "../agent/sports-oracle.service"
 
 export interface DailyVotesResponse {
   votesLimit: number
@@ -127,12 +127,11 @@ export class MarketsService implements OnModuleInit {
     @InjectModel(Post.name) private postModel: Model<PostDocument>,
     @Inject(forwardRef(() => PostsService))
     private readonly postsService: PostsService,
-    private readonly blockchainService: BlockchainService,
     private readonly socketGateway: SocketGateway,
     private readonly notificationsService: NotificationsService,
+    @Inject(forwardRef(() => PvpService))
     private readonly pvpService: PvpService,
-    private readonly liquidityService: LiquidityService,
-    private readonly royaltyService: RoyaltyService,
+    private readonly sportsOracleService: SportsOracleService,
   ) {}
 
   private todayKey(date = new Date()): string {
@@ -514,50 +513,14 @@ export class MarketsService implements OnModuleInit {
     const deadlineUnix = Math.floor(market.deadline.getTime() / 1000)
     const fundingDeadlineUnix = Math.floor(fundingDeadline.getTime() / 1000)
 
-    // Register market on-chain so depositPreMarketLiquidity won't revert
-    try {
-      if (
-        market.isPythMarket &&
-        market.priceFeedId &&
-        market.targetPrice != null
-      ) {
-        await this.blockchainService.registerPythMarket(
-          marketId,
-          creator.walletAddress,
-          deadlineUnix,
-          fundingDeadlineUnix,
-          market.priceFeedId,
-          market.targetPrice,
-          market.resolveAbove ?? true,
-        )
-      } else {
-        this.logger.log(
-          `Registering market ${marketId} on-chain with outcomeCount=${market.outcomeCount}`,
-        )
-        await this.blockchainService.registerMarket(
-          marketId,
-          creator.walletAddress,
-          deadlineUnix,
-          fundingDeadlineUnix,
-          market.outcomeCount,
-        )
-      }
-    } catch (error) {
-      // If already registered on-chain, ignore the error and continue
-      const msg = error?.message || ""
-      if (!msg.includes("MarketAlreadyRegistered")) {
-        throw error
-      }
-    }
-
     const updatedMarket = await this.marketModel.findByIdAndUpdate(
       marketId,
-      { status: "funding_pool", fundingDeadline },
+      { status: "tradable", fundingDeadline },
       { new: true, runValidators: true },
     )
 
     this.logger.log(
-      `Market ${marketId} status transitioned from ${market.status} to funding_pool`,
+      `Market ${marketId} status transitioned from ${market.status} to tradable`,
     )
 
     // Emit Socket events to update UI in real-time
@@ -580,28 +543,12 @@ export class MarketsService implements OnModuleInit {
       throw new NotFoundException("Market not found.")
     }
 
-    let txHash: string
-    if (market.status === "tradable") {
-      txHash = await this.blockchainService.adminAddActiveLiquidity(
-        marketId,
-        amount,
-      )
-    } else {
-      txHash = await this.blockchainService.adminDepositPreMarketLiquidity(
-        marketId,
-        amount,
-      )
-    }
-
-    // Sync database pool state from chain
-    await this.liquidityService.syncPoolFromChain(marketId)
-
-    // Sync market prices & balances
-    await this.syncMarketPrices(marketId)
+    market.liquidity = (market.liquidity || 0) + amount
+    await market.save()
 
     return {
       success: true,
-      txHash,
+      txHash: null,
     }
   }
 
@@ -609,194 +556,13 @@ export class MarketsService implements OnModuleInit {
     marketId: string,
     profileId: string,
   ): Promise<MarketPositionResponse[]> {
-    const user = await this.userModel.findById(profileId)
-    if (user && user.walletAddress) {
-      try {
-        const market = await this.marketModel.findById(marketId)
-        const isResolved =
-          market && (market.status === "resolved" || market.resolvedOutcome)
-        const winningOutcome = market?.resolvedOutcome
-        const outcomes =
-          market && market.outcomes && market.outcomes.length > 0
-            ? market.outcomes
-            : ["YES", "NO"]
-
-        const onChain = await this.blockchainService.getUserOnChainBalances(
-          marketId,
-          user.walletAddress,
-          outcomes,
-        )
-
-        const outcomeCount = market?.outcomeCount ?? 2
-        const isMulti = outcomeCount > 2
-
-        let normalizedWinningOutcome = winningOutcome
-        if (!isMulti && winningOutcome && outcomes.length >= 2) {
-          if (
-            winningOutcome.toUpperCase() === outcomes[0].toUpperCase() ||
-            winningOutcome.toUpperCase() === "YES"
-          ) {
-            normalizedWinningOutcome = "YES"
-          } else if (
-            winningOutcome.toUpperCase() === outcomes[1].toUpperCase() ||
-            winningOutcome.toUpperCase() === "NO"
-          ) {
-            normalizedWinningOutcome = "NO"
-          }
-        }
-
-        for (let idx = 0; idx < outcomes.length; idx++) {
-          const outcome = outcomes[idx]
-          const normalizedSide = isMulti ? outcome : idx === 0 ? "YES" : "NO"
-
-          const balance = onChain[outcome] ?? 0
-          const isLosing =
-            isResolved && normalizedWinningOutcome?.toUpperCase() !== normalizedSide?.toUpperCase()
-
-          // Find existing position first to retrieve avgPrice
-          const existingPos = await this.marketPositionModel.findOne({
-            marketId: new Types.ObjectId(marketId),
-            userId: new Types.ObjectId(profileId),
-            side: normalizedSide,
-          })
-
-          if (isResolved) {
-            const isWinner = !isLosing
-            if (isWinner) {
-              if (balance > 0) {
-                // Winning position, not yet redeemed. Scale investedUsdc to match current shares.
-                const avgPrice = existingPos?.avgPrice ?? 0.5
-                const investedUsdc = balance * avgPrice
-                await this.marketPositionModel.updateOne(
-                  {
-                    marketId: new Types.ObjectId(marketId),
-                    userId: new Types.ObjectId(profileId),
-                    side: normalizedSide,
-                  },
-                  {
-                    $set: {
-                      shares: balance,
-                      investedUsdc,
-                      avgPrice,
-                      isArchived: false,
-                    },
-                  },
-                  { upsert: true },
-                )
-              } else {
-                // Winning position, balance is 0. If they had shares before, they redeemed them!
-                if (existingPos && (existingPos.shares > 0 || existingPos.investedUsdc > 0)) {
-                  const avgPrice = existingPos.avgPrice ?? 0.5
-                  const redeemedShares = existingPos.shares || (existingPos.investedUsdc / avgPrice)
-                  const pnl = redeemedShares * (1.0 - avgPrice)
-                  await this.marketPositionModel.updateOne(
-                    { _id: existingPos._id },
-                    {
-                      $set: {
-                        shares: 0,
-                        investedUsdc: 0,
-                        realizedPnl: (existingPos.realizedPnl || 0) + pnl,
-                        isArchived: true,
-                      },
-                    },
-                  )
-                } else {
-                  // No position to redeem
-                  await this.marketPositionModel.updateOne(
-                    {
-                      marketId: new Types.ObjectId(marketId),
-                      userId: new Types.ObjectId(profileId),
-                      side: normalizedSide,
-                    },
-                    {
-                      $set: {
-                        shares: 0,
-                        isArchived: true,
-                      },
-                    },
-                  )
-                }
-              }
-            } else {
-              // Losing position. Realize loss!
-              if (existingPos && existingPos.investedUsdc > 0) {
-                const pnl = -existingPos.investedUsdc
-                await this.marketPositionModel.updateOne(
-                  { _id: existingPos._id },
-                  {
-                    $set: {
-                      shares: 0,
-                      investedUsdc: 0,
-                      realizedPnl: (existingPos.realizedPnl || 0) + pnl,
-                      isArchived: true,
-                    },
-                  },
-                )
-              } else {
-                await this.marketPositionModel.updateOne(
-                  {
-                    marketId: new Types.ObjectId(marketId),
-                    userId: new Types.ObjectId(profileId),
-                    side: normalizedSide,
-                  },
-                  {
-                    $set: {
-                      shares: 0,
-                      isArchived: true,
-                    },
-                  },
-                )
-              }
-            }
-          } else {
-            // Market is not resolved (active market)
-            if (balance > 0) {
-              const avgPrice = existingPos?.avgPrice ?? 0.5
-              const investedUsdc = balance * avgPrice
-              await this.marketPositionModel.updateOne(
-                {
-                  marketId: new Types.ObjectId(marketId),
-                  userId: new Types.ObjectId(profileId),
-                  side: normalizedSide,
-                },
-                {
-                  $set: {
-                    shares: balance,
-                    investedUsdc,
-                    avgPrice,
-                    isArchived: false,
-                  },
-                },
-                { upsert: true },
-              )
-            } else {
-              await this.marketPositionModel.updateOne(
-                {
-                  marketId: new Types.ObjectId(marketId),
-                  userId: new Types.ObjectId(profileId),
-                  side: normalizedSide,
-                },
-                {
-                  $set: {
-                    shares: 0,
-                    isArchived: true,
-                  },
-                },
-              )
-            }
-          }
-        }
-      } catch (err) {
-        // Fallback to DB if RPC call fails
-      }
-    }
-
     const positions = await this.marketPositionModel
       .find({
         marketId: new Types.ObjectId(marketId),
         userId: new Types.ObjectId(profileId),
         $or: [{ shares: { $gt: 0 } }, { isArchived: true }],
       })
+      .populate("marketId")
       .sort({ updatedAt: -1 })
 
     return positions.map((p) => this.serializePosition(p))
@@ -831,13 +597,6 @@ export class MarketsService implements OnModuleInit {
     if (new Date() >= lockTimeLimit) {
       throw new BadRequestException(
         "Trading deadline/lock time has passed for this market.",
-      )
-    }
-
-    // Verify txHash if provided
-    if (dto.txHash) {
-      await this.blockchainService.getTransactionReceipt(
-        dto.txHash as `0x${string}`,
       )
     }
 
@@ -957,72 +716,7 @@ export class MarketsService implements OnModuleInit {
   }
 
   async syncMarketPrices(marketId: string): Promise<void> {
-    try {
-      const market = await this.marketModel.findById(marketId)
-      if (!market) return
-
-      const balances = await this.blockchainService.readPoolBalances(
-        marketId as `0x${string}`,
-      )
-
-      const updateData: any = {
-        liquidity: Number(balances.totalDeposited) / 1e6,
-      }
-
-      const outcomeCount = market.outcomeCount ?? 2
-      if (outcomeCount > 2) {
-        try {
-          const rawBalances =
-            await this.blockchainService.readOutcomeBalances(marketId)
-          const outcomeBalances = rawBalances.map((b) => Number(b) / 1e6)
-          updateData.outcomeBalances = outcomeBalances
-
-          // Calculate outcome prices: p_j = (1/x_j) / sum(1/x_i)
-          const hasZero = outcomeBalances.some((b) => b === 0)
-          if (hasZero) {
-            updateData.outcomePrices = new Array(outcomeCount).fill(
-              1 / outcomeCount,
-            )
-          } else {
-            const invSum = outcomeBalances.reduce((sum, b) => sum + 1 / b, 0)
-            updateData.outcomePrices = outcomeBalances.map(
-              (b) => 1 / b / invSum,
-            )
-          }
-
-          updateData.usdcYesAmount = outcomeBalances[0] || 0
-          updateData.usdcNoAmount = outcomeBalances[1] || 0
-        } catch (e) {
-          this.logger.warn(
-            `Failed to read multi-outcome balances for ${marketId}: ${e.message}`,
-          )
-          const yesBal = Number(balances.yesBalance) / 1e6
-          const noBal = Number(balances.noBalance) / 1e6
-          updateData.outcomeBalances = [yesBal, noBal]
-          updateData.outcomePrices = [0.5, 0.5]
-        }
-      } else {
-        const yesBal = Number(balances.yesBalance) / 1e6
-        const noBal = Number(balances.noBalance) / 1e6
-        updateData.usdcYesAmount = yesBal
-        updateData.usdcNoAmount = noBal
-        updateData.outcomeBalances = [yesBal, noBal]
-
-        const total = yesBal + noBal
-        if (total === 0) {
-          updateData.outcomePrices = [0.5, 0.5]
-        } else {
-          const yesPrice = noBal / total
-          updateData.outcomePrices = [yesPrice, 1 - yesPrice]
-        }
-      }
-
-      await this.marketModel.findByIdAndUpdate(marketId, updateData)
-    } catch (e) {
-      this.logger.warn(
-        `Failed to sync market prices for ${marketId}: ${e.message}`,
-      )
-    }
+    // No-op for Web2 PvP prediction markets
   }
 
   async resolveMarket(
@@ -1065,51 +759,6 @@ export class MarketsService implements OnModuleInit {
       }
     }
 
-    if (finalTxHash) {
-      // Verify transaction receipt if provided
-      await this.blockchainService.getTransactionReceipt(
-        finalTxHash as `0x${string}`,
-      )
-    } else {
-      // No txHash provided: Backend executes the transaction on-chain on behalf of the admin!
-      if (market.marketType !== "parent") {
-        try {
-          const isDisputed = market.disputed || false
-          if (isDisputed) {
-            finalTxHash = await this.blockchainService.resolveDisputedMarket(
-              marketId,
-              winningIndex,
-            )
-          } else {
-            if (outcomeCount > 2) {
-              finalTxHash = await this.blockchainService.resolveMarketOutcome(
-                marketId,
-                winningIndex,
-              )
-            } else {
-              const winningIsYes = winningIndex === 0
-              finalTxHash = await this.blockchainService.resolveMarket(
-                marketId,
-                winningIsYes,
-              )
-            }
-          }
-          if (finalTxHash) {
-            this.logger.log(
-              `On-chain resolution executed by backend for market ${marketId}: tx ${finalTxHash}`,
-            )
-          }
-        } catch (error) {
-          this.logger.error(
-            `Failed to execute on-chain resolution directly for market ${marketId}: ${error.message}`,
-          )
-          throw new BadRequestException(
-            `Failed to resolve market on-chain: ${error.message}`,
-          )
-        }
-      }
-    }
-
     const oldStatus = market.status
     market.status = "resolved"
     market.resolvedByAdmin = adminAddress
@@ -1144,64 +793,29 @@ export class MarketsService implements OnModuleInit {
 
       for (const child of childMarkets) {
         if (child.outcomeCount > 2) {
-          // Multi-outcome child market
-          const winningIndex = child.outcomes.findIndex(
+          const winIdx = child.outcomes.findIndex(
             (o) =>
               o.toLowerCase().trim() === winningOutcome.toLowerCase().trim(),
           )
-          if (winningIndex >= 0) {
-            // Resolve child market on-chain FIRST
-            try {
-              await this.blockchainService.resolveMarketOutcome(
-                child._id.toString(),
-                winningIndex,
-              )
-              this.logger.log(
-                `Successfully resolved multi-outcome child market ${child._id} on-chain to index ${winningIndex}`,
-              )
+          if (winIdx >= 0) {
+            child.status = "resolved"
+            child.resolvedOutcome = child.outcomes[winIdx]
+            child.winningOutcomeIndex = winIdx
+            child.resolvedByAdmin = adminAddress
+            await child.save()
 
-              // Only save to DB if on-chain succeeded!
-              child.status = "resolved"
-              child.resolvedOutcome = child.outcomes[winningIndex]
-              child.winningOutcomeIndex = winningIndex
-              child.resolvedByAdmin = adminAddress
-              await child.save()
+            await this.pvpService.resolvePvpMatchesForMarket(
+              child._id.toString(),
+              child.outcomes[winIdx],
+            )
 
-              await this.notifyParticipantsOfResolution(
-                child._id.toString(),
-                child.resolvedOutcome,
-                adminAddress,
-                child.optionName || child.question || market.question,
-                market.authorId.toString(),
-              )
-
-              // Trigger PvP match resolution for each child market
-              await this.pvpService.resolvePvpMatchesForMarket(
-                child._id.toString(),
-                child.outcomes[winningIndex],
-              )
-
-              this.logger.log(
-                `Resolved multi-outcome child market ${child._id} (${child.optionName || child.question}) -> ${child.outcomes[winningIndex]}`,
-              )
-
-              // Emit socket events for each child market
-              this.socketGateway.broadcastToRoom(
-                `market:${child._id.toString()}`,
-                "market-updated",
-                { marketId: child._id.toString() },
-              )
-            } catch (err) {
-              this.logger.error(
-                `Failed to resolve multi-outcome child market ${child._id} on-chain: ${err.message}`,
-              )
-              throw new BadRequestException(
-                `Failed to resolve child market ${child.optionName || child.question} on-chain: ${err.message}`,
-              )
-            }
+            this.socketGateway.broadcastToRoom(
+              `market:${child._id.toString()}`,
+              "market-updated",
+              { marketId: child._id.toString() },
+            )
           }
         } else {
-          // Binary child market
           const isYesMatch =
             child.outcomes[0]?.toLowerCase().trim() ===
             winningOutcome.toLowerCase().trim()
@@ -1211,64 +825,36 @@ export class MarketsService implements OnModuleInit {
 
           if (isYesMatch || isNoMatch) {
             const childResolvedOutcome = isYesMatch ? "YES" : "NO"
+            child.status = "resolved"
+            child.resolvedOutcome = childResolvedOutcome
+            child.winningOutcomeIndex = isYesMatch ? 0 : 1
+            child.resolvedByAdmin = adminAddress
+            await child.save()
 
-            // Resolve child market on-chain FIRST
-            try {
-              const winningIsYes = isYesMatch
-              await this.blockchainService.resolveMarket(
-                child._id.toString(),
-                winningIsYes,
-              )
-              this.logger.log(
-                `Successfully resolved binary child market ${child._id} on-chain (winningIsYes: ${winningIsYes})`,
-              )
+            await this.pvpService.resolvePvpMatchesForMarket(
+              child._id.toString(),
+              childResolvedOutcome,
+            )
 
-              // Only save to DB if on-chain succeeded!
-              child.status = "resolved"
-              child.resolvedOutcome = childResolvedOutcome
-              child.winningOutcomeIndex = isYesMatch ? 0 : 1
-              child.resolvedByAdmin = adminAddress
-              await child.save()
-
-              await this.notifyParticipantsOfResolution(
-                child._id.toString(),
-                childResolvedOutcome,
-                adminAddress,
-                child.optionName || child.question || market.question,
-                market.authorId.toString(),
-              )
-
-              // Trigger PvP match resolution for each child market
-              await this.pvpService.resolvePvpMatchesForMarket(
-                child._id.toString(),
-                childResolvedOutcome,
-              )
-
-              this.logger.log(
-                `Resolved binary child market ${child._id} (${child.optionName || child.question}) -> ${childResolvedOutcome}`,
-              )
-
-              // Emit socket events for each child market
-              this.socketGateway.broadcastToRoom(
-                `market:${child._id.toString()}`,
-                "market-updated",
-                { marketId: child._id.toString() },
-              )
-            } catch (err) {
-              this.logger.error(
-                `Failed to resolve binary child market ${child._id} on-chain: ${err.message}`,
-              )
-              throw new BadRequestException(
-                `Failed to resolve child market ${child.optionName || child.question} on-chain: ${err.message}`,
-              )
-            }
+            this.socketGateway.broadcastToRoom(
+              `market:${child._id.toString()}`,
+              "market-updated",
+              { marketId: child._id.toString() },
+            )
           }
         }
       }
     } else {
-      // For non-parent markets, trigger PvP match resolution directly
-      await this.pvpService.resolvePvpMatchesForMarket(marketId, winningOutcome)
+      await this.pvpService.resolvePvpMatchesForMarket(
+        marketId,
+        market.resolvedOutcome as string,
+      )
     }
+
+    this.socketGateway.broadcastToRoom("feed", "feed-updated", {})
+    this.socketGateway.broadcastToRoom(`market:${marketId}`, "market-updated", {
+      marketId,
+    })
 
     this.logger.log(
       `Market ${marketId} status transitioned from ${oldStatus} to resolved (outcome: ${winningOutcome}, by admin: ${adminAddress})`,
@@ -1347,7 +933,8 @@ export class MarketsService implements OnModuleInit {
       const actorId = adminUser ? adminUser.id : authorId
 
       for (const pos of participants) {
-        const isWinner = pos.side.toUpperCase() === resolvedOutcome.toUpperCase()
+        const isWinner =
+          pos.side.toUpperCase() === resolvedOutcome.toUpperCase()
         const recipientId = pos.userId.toString()
 
         const title = isWinner ? "You won a prediction!" : "Market resolved"
@@ -1383,30 +970,14 @@ export class MarketsService implements OnModuleInit {
       throw new NotFoundException("Market not found.")
     }
 
-    try {
-      // Execute on-chain dispute
-      const txHash = await this.blockchainService.disputeResolution(marketId)
-      await this.blockchainService.getTransactionReceipt(
-        txHash as `0x${string}`,
-      )
+    market.disputed = true
+    market.proposalDisputer = adminAddress
+    market.status = "resolving"
+    await market.save()
 
-      // Update DB
-      market.disputed = true
-      market.proposalDisputer = adminAddress
-      market.status = "resolving"
-      await market.save()
-
-      this.logger.log(
-        `Market ${marketId} disputed on-chain by admin. tx: ${txHash}`,
-      )
-    } catch (error) {
-      this.logger.error(
-        `Failed to dispute market ${marketId}: ${error.message}`,
-      )
-      throw new BadRequestException(
-        `Failed to dispute market on-chain: ${error.message}`,
-      )
-    }
+    this.logger.log(
+      `Market ${marketId} flagged as disputed by admin ${adminAddress}.`,
+    )
 
     // Emit Socket events
     this.socketGateway.broadcastToRoom("feed", "feed-updated", {})
@@ -1606,5 +1177,303 @@ export class MarketsService implements OnModuleInit {
         market_question,
       }
     })
+  }
+
+  async fetchGroupedFixtures(filters: any = {}) {
+    const query: Record<string, any> = {
+      $or: [
+        { marketType: "parent" },
+        { marketType: "binary", category: { $ne: "pvp" } },
+      ],
+    }
+    if (filters.status && filters.status !== "all") {
+      query.status = filters.status
+    }
+    if (filters.category && filters.category !== "all") {
+      query.category = filters.category
+    }
+
+    const sort: Record<string, any> = { createdAt: -1 }
+    const parents = await this.marketModel.find(query).sort(sort).limit(100)
+
+    const parentIds = parents
+      .filter((m) => m.marketType === "parent")
+      .map((m) => m._id)
+
+    const children =
+      parentIds.length > 0
+        ? await this.marketModel.find({ parentMarketId: { $in: parentIds } })
+        : []
+
+    const childMap = new Map<string, MarketDocument[]>()
+    for (const child of children) {
+      const pid = child.parentMarketId!.toString()
+      if (!childMap.has(pid)) childMap.set(pid, [])
+      childMap.get(pid)!.push(child)
+    }
+
+    return parents.map((p) => {
+      const pChildren = childMap.get(p.id) || []
+      const resolvedChildren = pChildren.filter((c) => c.status === "resolved")
+      const totalLiquidity =
+        p.liquidity + pChildren.reduce((sum, c) => sum + (c.liquidity || 0), 0)
+
+      return {
+        id: p.id,
+        question: p.question,
+        category: p.category,
+        deadline: p.deadline?.toISOString(),
+        status: p.status,
+        resolutionSource: p.resolutionSource,
+        yesCondition: p.yesCondition,
+        noCondition: p.noCondition,
+        outcomes: p.outcomes,
+        outcomeCount: p.outcomeCount,
+        resolvedOutcome: p.resolvedOutcome,
+        liquidity: totalLiquidity,
+        propositionsCount: pChildren.length,
+        resolvedPropositionsCount: resolvedChildren.length,
+        marketType: p.marketType,
+        resolutionProvider: p.resolutionProvider || null,
+        apiFootballFixtureId: p.apiFootballFixtureId || null,
+        footballDataOrgMatchId: p.footballDataOrgMatchId || null,
+        childMarkets: pChildren.map((c) => ({
+          id: c.id,
+          question: c.question,
+          optionName: c.optionName,
+          category: c.category,
+          status: c.status,
+          deadline: c.deadline?.toISOString(),
+          yesCondition: c.yesCondition,
+          noCondition: c.noCondition,
+          outcomes: c.outcomes,
+          outcomeCount: c.outcomeCount,
+          resolvedOutcome: c.resolvedOutcome,
+          liquidity: c.liquidity,
+          resolutionProvider: c.resolutionProvider || null,
+          apiFootballFixtureId: c.apiFootballFixtureId || null,
+          footballDataOrgMatchId: c.footballDataOrgMatchId || null,
+        })),
+      }
+    })
+  }
+
+  async previewFixtureResolution(
+    parentMarketId: string,
+    overrideProvider?: "api-football" | "football-data",
+  ) {
+    const parent = await this.marketModel.findById(parentMarketId)
+    if (!parent) {
+      throw new NotFoundException("Fixture market not found")
+    }
+
+    const effectiveProvider = overrideProvider || parent.resolutionProvider || "api-football"
+    const children = await this.marketModel.find({ parentMarketId: parent._id })
+    const requiredStatistics =
+      this.sportsOracleService.requiredStatisticsForMarkets(children)
+
+    let stats: MatchStatistics
+    if (effectiveProvider === "football-data") {
+      stats =
+        await this.sportsOracleService.fetchMatchStatsFromFootballDataOrg(
+          parent.question,
+          parent.deadline,
+          parent.footballDataOrgMatchId || undefined,
+          requiredStatistics,
+        )
+      // Save discovered footballDataOrgMatchId if it was missing
+      if (stats.fixtureId && !parent.footballDataOrgMatchId) {
+        parent.footballDataOrgMatchId = stats.fixtureId
+        await parent.save()
+        await this.marketModel.updateMany(
+          { parentMarketId: parent._id },
+          { $set: { footballDataOrgMatchId: stats.fixtureId } },
+        )
+      }
+    } else {
+      stats = await this.sportsOracleService.fetchMatchStats(
+        parent.question,
+        parent.deadline,
+        parent.apiFootballFixtureId || undefined,
+        requiredStatistics,
+      )
+      // Save discovered apiFootballFixtureId if it was missing
+      if (stats.fixtureId && !parent.apiFootballFixtureId) {
+        parent.apiFootballFixtureId = stats.fixtureId
+        await parent.save()
+        await this.marketModel.updateMany(
+          { parentMarketId: parent._id },
+          { $set: { apiFootballFixtureId: stats.fixtureId } },
+        )
+      }
+    }
+
+    const evaluations = children.map((child) => ({
+      marketId: child.id,
+      question: child.question,
+      optionName: child.optionName || child.question,
+      outcomes: child.outcomes,
+      evaluation: this.sportsOracleService.evaluateProposition(
+        {
+          question: child.question,
+          yesCondition: child.yesCondition,
+          noCondition: child.noCondition,
+          optionName: child.optionName,
+          optionGroup: child.optionGroup,
+          handicap: child.handicap,
+          outcomes: child.outcomes,
+        },
+        stats,
+      ),
+    }))
+
+    return {
+      parentMarketId: parent.id,
+      fixtureQuestion: parent.question,
+      providerUsed: effectiveProvider,
+      originalProvider: parent.resolutionProvider || "api-football",
+      matchStats: stats,
+      evaluations,
+      resolutionReady:
+        this.sportsOracleService.isTerminalStatus(stats.status) &&
+        evaluations.every((item) => item.evaluation.outcome !== "INVALID"),
+    }
+  }
+
+  async batchResolveFixture(
+    parentMarketId: string,
+    outcomes: Record<string, string>,
+    adminAddress = "0x0000000000000000000000000000000000000000",
+    overrideProvider?: "api-football" | "football-data",
+  ) {
+    const parent = await this.marketModel.findById(parentMarketId)
+    if (!parent) {
+      throw new NotFoundException("Fixture not found")
+    }
+    if (parent.marketType !== "parent" || parent.category !== "pvp") {
+      throw new BadRequestException(
+        "Batch resolution requires a PvP fixture parent",
+      )
+    }
+
+    const effectiveProvider = overrideProvider || parent.resolutionProvider || "api-football"
+    let verifiedStats: MatchStatistics
+    if (effectiveProvider === "football-data") {
+      verifiedStats =
+        await this.sportsOracleService.fetchMatchStatsFromFootballDataOrg(
+          parent.question,
+          parent.deadline,
+          parent.footballDataOrgMatchId || undefined,
+        )
+      if (verifiedStats.fixtureId && !parent.footballDataOrgMatchId) {
+        parent.footballDataOrgMatchId = verifiedStats.fixtureId
+        await parent.save()
+        await this.marketModel.updateMany(
+          { parentMarketId: parent._id },
+          { $set: { footballDataOrgMatchId: verifiedStats.fixtureId } },
+        )
+      }
+    } else {
+      verifiedStats = await this.sportsOracleService.fetchMatchStats(
+        parent.question,
+        parent.deadline,
+        parent.apiFootballFixtureId || undefined,
+      )
+      if (verifiedStats.fixtureId && !parent.apiFootballFixtureId) {
+        parent.apiFootballFixtureId = verifiedStats.fixtureId
+        await parent.save()
+        await this.marketModel.updateMany(
+          { parentMarketId: parent._id },
+          { $set: { apiFootballFixtureId: verifiedStats.fixtureId } },
+        )
+      }
+    }
+    if (!this.sportsOracleService.isTerminalStatus(verifiedStats.status)) {
+      throw new BadRequestException(
+        `Fixture ${verifiedStats.fixtureId || ""} is not final (status ${verifiedStats.status})`,
+      )
+    }
+
+    const childMarkets = await this.marketModel.find({
+      parentMarketId: parent._id,
+    })
+
+    const unresolvedChildren = childMarkets.filter(
+      (child) => child.status !== "resolved",
+    )
+    const resolutions = unresolvedChildren.map((child) => {
+      const submittedOutcome = outcomes[child.id]
+      const requestedOutcome =
+        typeof submittedOutcome === "string" ? submittedOutcome.trim() : ""
+      if (!requestedOutcome) {
+        throw new BadRequestException(
+          `Missing outcome for child market ${child.id}`,
+        )
+      }
+      let winningOutcomeIndex = child.outcomes.findIndex(
+        (outcome) =>
+          outcome.toLowerCase().trim() === requestedOutcome.toLowerCase(),
+      )
+      if (
+        winningOutcomeIndex < 0 &&
+        child.outcomes.length === 2 &&
+        ["YES", "NO"].includes(requestedOutcome.toUpperCase())
+      ) {
+        winningOutcomeIndex = requestedOutcome.toUpperCase() === "YES" ? 0 : 1
+      }
+      if (winningOutcomeIndex < 0) {
+        throw new BadRequestException(
+          `Outcome "${requestedOutcome}" is not valid for child market ${child.id}`,
+        )
+      }
+      return {
+        child,
+        winningOutcomeIndex,
+        winningOutcome: child.outcomes[winningOutcomeIndex],
+      }
+    })
+
+    // Validate the complete settlement before creating bot matches or mutating markets.
+    await this.pvpService.matchRemainingTicketsWithBot(parentMarketId)
+
+    const results: any[] = []
+    for (const resolution of resolutions) {
+      const { child, winningOutcomeIndex, winningOutcome } = resolution
+      child.status = "resolved"
+      child.resolvedOutcome = winningOutcome
+      child.winningOutcomeIndex = winningOutcomeIndex
+      child.resolvedByAdmin = adminAddress
+
+      await child.save()
+
+      await this.pvpService.resolvePvpMatchesForMarket(child.id, winningOutcome)
+
+      this.socketGateway.broadcastToRoom(
+        `market:${child.id}`,
+        "market-updated",
+        { marketId: child.id, resolvedOutcome: winningOutcome },
+      )
+
+      results.push({ marketId: child.id, outcome: winningOutcome })
+    }
+
+    // Mark parent as resolved
+    parent.status = "resolved"
+    parent.resolvedOutcome = "COMPLETED"
+    parent.resolvedByAdmin = adminAddress
+    await parent.save()
+
+    this.socketGateway.broadcastToRoom(
+      `market:${parent.id}`,
+      "market-updated",
+      { marketId: parent.id, resolvedOutcome: parent.resolvedOutcome },
+    )
+
+    return {
+      success: true,
+      parentMarketId: parent.id,
+      resolvedCount: results.length,
+      results,
+    }
   }
 }

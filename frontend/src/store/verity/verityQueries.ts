@@ -90,31 +90,6 @@ export function useFeedQuery(viewerProfileId?: string, onlyMarkets = false) {
   })
 }
 
-export function usePostCommentsQuery(postId: string) {
-  return useQuery({
-    queryKey: verityKeys.comments(postId),
-    queryFn: () =>
-      apiRequest<MarketComment[]>(
-        `/comments?postId=${encodeURIComponent(postId)}`,
-      ),
-    enabled: Boolean(postId),
-  })
-}
-
-export function usePostQuery(postId: string, viewerProfileId?: string) {
-  return useQuery({
-    queryKey: ["post", postId, viewerProfileId || ""] as const,
-    queryFn: () => {
-      const params = new URLSearchParams()
-      if (viewerProfileId) params.set("viewerProfileId", viewerProfileId)
-      const query = params.toString()
-      return apiRequest<FeedPost>(
-        `/posts/${encodeURIComponent(postId)}${query ? `?${query}` : ""}`,
-      )
-    },
-    enabled: Boolean(postId),
-  })
-}
 
 export function useMarketPositionsQuery(marketId: string, profileId: string) {
   return useQuery({
@@ -164,44 +139,6 @@ export function useTopPredictorsQuery() {
   })
 }
 
-export function useCreateNormalPostMutation() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: (body: { authorId: string; content: string }) =>
-      apiRequest<unknown>("/posts", {
-        method: "POST",
-        body: JSON.stringify({ ...body, type: "normal" }),
-      }),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["feed"] })
-    },
-  })
-}
-
-export function useValidateMarketPostMutation() {
-  return useMutation({
-    mutationFn: (body: MarketInput) =>
-      apiRequest<unknown>("/posts/validate", {
-        method: "POST",
-        body: JSON.stringify(body),
-      }),
-  })
-}
-
-export function useCreateMarketPostMutation() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: (body: { authorId: string } & MarketInput) =>
-      apiRequest<{ post: FeedPost; warning: string | null }>("/posts", {
-        method: "POST",
-        body: JSON.stringify({ ...body, type: "market" }),
-      }),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["feed"] })
-    },
-  })
-}
-
 export function useToggleLikeMutation() {
   const qc = useQueryClient()
   return useMutation({
@@ -222,56 +159,6 @@ export function useToggleLikeMutation() {
         }),
       }),
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["feed"] })
-    },
-  })
-}
-
-export function useToggleReshareMutation() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: ({
-      postId,
-      profileId,
-      currentlyReshared,
-    }: {
-      postId: string
-      profileId: string
-      currentlyReshared: boolean
-    }) =>
-      apiRequest<null>(`/posts/${postId}/reshare`, {
-        method: "POST",
-        body: JSON.stringify({
-          userId: profileId,
-          currentlyActive: currentlyReshared,
-        }),
-      }),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["feed"] })
-    },
-  })
-}
-
-export function useAddCommentMutation() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: ({
-      postId,
-      authorId,
-      content,
-      parentId,
-    }: {
-      postId: string
-      authorId: string
-      content: string
-      parentId?: string
-    }) =>
-      apiRequest<null>(`/posts/${postId}/comment`, {
-        method: "POST",
-        body: JSON.stringify({ authorId, content, parentId }),
-      }),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["comments"] })
       void qc.invalidateQueries({ queryKey: ["feed"] })
     },
   })

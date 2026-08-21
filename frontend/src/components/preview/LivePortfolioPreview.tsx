@@ -56,12 +56,12 @@ const FALLBACK_POSITIONS: MarketPosition[] = [
   ),
   previewPosition(
     "portfolio-4",
-    "France vs Morocco - Extra Time / Penalties",
-    "No penalties",
+    "France vs Morocco - Yellow Cards",
+    "Under 4.5",
     41.23,
     20,
     "resolved",
-    "No penalties",
+    "Under 4.5",
   ),
   previewPosition(
     "portfolio-5",
@@ -224,13 +224,13 @@ export default function LivePortfolioPreview() {
         aria-label="Portfolio actions"
         className="verity-portfolio-actions verity-preview-portfolio-actions"
       >
-        <button disabled title="Sign in to send USDC" type="button">
+        <button disabled title="Get started to send USDC" type="button">
           <ArrowUpRight aria-hidden="true" />
           <span>SEND</span>
         </button>
         <button
           disabled
-          title="Sign in to view your receive address"
+          title="Get started to view your receive address"
           type="button"
         >
           <ArrowDownLeft aria-hidden="true" />

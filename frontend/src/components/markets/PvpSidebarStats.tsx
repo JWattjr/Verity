@@ -107,7 +107,7 @@ export default function PvpSidebarStats({
       </div>
 
       {/* Arena XP Box */}
-      <div className="rounded-2xl bg-[#FAF9F6] dark:bg-zinc-900/40 p-4 shadow-inner text-center border border-stone-200/20 dark:border-zinc-850/10">
+      <div className="rounded-[2px] bg-surface-muted p-4 text-center border border-border">
         <span className="text-[10px] font-mono text-ash uppercase font-bold tracking-wider block">
           Arena XP
         </span>
@@ -118,7 +118,7 @@ export default function PvpSidebarStats({
 
       {/* Unclaimed Winnings Box */}
       {hasClaimable && (
-        <div className="rounded-2xl bg-[#FAF9F6] dark:bg-zinc-900/40 p-4 shadow-inner text-center border border-stone-200/20 dark:border-zinc-850/10 flex flex-col items-center gap-2">
+        <div className="rounded-[2px] bg-surface-muted p-4 text-center border border-border flex flex-col items-center gap-2">
           <span className="text-[10px] font-mono text-ash uppercase font-bold tracking-wider block">
             Unclaimed Winnings
           </span>
@@ -132,7 +132,7 @@ export default function PvpSidebarStats({
           <button
             onClick={handleClaimAll}
             disabled={isClaiming}
-            className="w-full mt-2 py-3 rounded-lg bg-charcoal-primary dark:bg-white text-white dark:text-zinc-950 hover:opacity-90 active:opacity-100 disabled:opacity-60 disabled:cursor-not-allowed text-sm font-bold transition-all shadow-xs flex items-center justify-center gap-1.5 font-sans cursor-pointer"
+            className="w-full mt-2 py-3 rounded-[2px] bg-charcoal-primary dark:bg-white text-white dark:text-zinc-950 hover:opacity-90 active:opacity-100 disabled:opacity-60 disabled:cursor-not-allowed text-sm font-bold transition-all shadow-xs flex items-center justify-center gap-1.5 font-sans cursor-pointer"
           >
             {isClaiming ? (
               <>
@@ -163,7 +163,7 @@ export default function PvpSidebarStats({
             Earn XP boosts
           </span>
         </div>
-        <div className="flex h-11 items-center rounded-xl bg-[#FAF9F6] dark:bg-zinc-900/40 px-3.5 border border-stone-200/10 dark:border-zinc-850/10 transition-colors">
+        <div className="flex h-11 items-center rounded-[2px] bg-surface-muted px-3.5 border border-border transition-colors">
           <span className="w-full text-xs text-black dark:text-white font-bold truncate select-all font-mono">
             {referralsData?.referralLink
               ? `${window.location.origin.replace(/^https?:\/\//, "")}/?ref=${referralsData.referralLink}`
@@ -172,7 +172,7 @@ export default function PvpSidebarStats({
           <button
             onClick={handleCopyReferral}
             disabled={!referralsData?.referralLink}
-            className="ml-2 px-3 py-1.5 shrink-0 rounded-lg bg-white dark:bg-zinc-800 border border-border dark:border-zinc-700 text-[10px] font-bold uppercase tracking-wider text-charcoal-primary dark:text-white hover:bg-stone-100 dark:hover:bg-zinc-700 transition-colors shadow-xs cursor-pointer"
+            className="ml-2 px-3 py-1.5 shrink-0 rounded-[2px] bg-surface border border-border text-[10px] font-bold uppercase tracking-wider text-charcoal-primary dark:text-white hover:bg-surface-muted transition-colors cursor-pointer"
           >
             {copiedCode ? "Copied" : "Copy"}
           </button>

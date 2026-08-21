@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo, useCallback } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { apiRequest } from "@/store/apiClient"
 import { toast } from "react-hot-toast"
 import { Button } from "@/components/ui/button"
@@ -20,25 +20,39 @@ import {
   AlertTriangle,
   Plus,
   Minus,
+  Calendar,
+  RefreshCw,
+  Sparkles,
+  ChevronRight,
 } from "lucide-react"
-
-interface AdminBalances {
-  adminAddress: string
-  arcBalance: number
-  usdcBalance: number
-  preDepositUsdcPerOption: number
-  creationFeeUsdc: number
-}
 
 interface CategoryState {
   enabled: boolean
   line?: number
 }
 
+interface EplFixture {
+  id: number
+  gameweek: number
+  homeTeam: string
+  awayTeam: string
+  homeTeamShort: string
+  awayTeamShort: string
+  homeTeamLogo?: string
+  awayTeamLogo?: string
+  question: string
+  score?: string | null
+  status?: string
+  kickoffTime: string
+  lockTime: string
+  deadline: string
+  resolutionSource: string
+  leagueName?: string
+}
+
 interface CreateMarketDrawerProps {
   isOpen: boolean
   onClose: () => void
-  adminBalances: AdminBalances | null
   fetchMarkets: () => void
   fetchAdminStatus: () => void
   fetchMetricsData: () => void
@@ -58,101 +72,21 @@ function parseTeams(question: string): { teamA: string; teamB: string } {
   return { teamA: "Team A", teamB: "Team B" }
 }
 
-function determineOptionGroup(
-  optionName: string,
-  teamA: string,
-  teamB: string,
-): string {
-  const name = optionName.toLowerCase().trim()
-  const tA = teamA.toLowerCase().trim()
-  const tB = teamB.toLowerCase().trim()
-
-  if (
-    name.includes("wins the match") ||
-    name.includes("ends in a draw") ||
-    name === `${tA} wins` ||
-    name === `${tB} wins` ||
-    name === "draw"
-  ) {
-    return "major"
-  }
-
-  if (
-    name.includes("scores first goal") ||
-    name.includes("first goal") ||
-    name.includes("scores first") ||
-    name === "no goal in the match" ||
-    name === "no goal"
-  ) {
-    return "first_goal"
-  }
-
-  if (name.includes("leads at halftime") || name.includes("halftime")) {
-    return "halftime_leader"
-  }
-
-  if (name.includes("keeps a clean sheet") || name.includes("clean sheet")) {
-    return "clean_sheet"
-  }
-
-  if (
-    name.includes("commits more fouls") ||
-    name.includes("fouls") ||
-    name.includes("foul")
-  ) {
-    return "fouls_leader"
-  }
-
-  if (name.includes("red card") || name.includes("red cards")) {
-    return "red_card"
-  }
-
-  if (
-    name.includes("yellow card") ||
-    name.includes("yellow cards") ||
-    name.includes("card") ||
-    name.includes("cards")
-  ) {
-    return "yellow_cards"
-  }
-
-  if (name.includes("corner") || name.includes("corners")) {
-    return "corners"
-  }
-
-  if (name.includes("goals") || name.includes("goal")) {
-    return "goals"
-  }
-
-  if (
-    name.includes("both teams to score") ||
-    name.includes("both teams score") ||
-    name.includes("btts")
-  ) {
-    return "btts"
-  }
-
-  if (name.includes("offsides") || name.includes("offside")) {
-    return "offsides"
-  }
-
-  if (
-    name.includes("on penalties") ||
-    name.includes("penalty shootout") ||
-    name.includes("wins shootout") ||
-    name.includes("no penalties") ||
-    name.includes("decided in extra time")
-  ) {
-    return "extra_time_penalties"
-  }
-
-  return `unique_${optionName.replace(/\s+/g, "_").toLowerCase()}`
+function toLocalDatetimeInputString(dateStr: string): string {
+  const d = new Date(dateStr)
+  if (isNaN(d.getTime())) return ""
+  const pad = (n: number) => String(n).padStart(2, "0")
+  const year = d.getFullYear()
+  const month = pad(d.getMonth() + 1)
+  const day = pad(d.getDate())
+  const hours = pad(d.getHours())
+  const minutes = pad(d.getMinutes())
+  return `${year}-${month}-${day}T${hours}:${minutes}`
 }
 
 export default function CreateMarketDrawer({
   isOpen,
   onClose,
-  adminBalances,
   fetchMarkets,
   fetchAdminStatus,
   fetchMetricsData,
@@ -161,128 +95,206 @@ export default function CreateMarketDrawer({
   const [pvpQuestion, setPvpQuestion] = useState("")
   const [pvpDeadline, setPvpDeadline] = useState("")
   const [pvpLockTime, setPvpLockTime] = useState("")
-  const [pvpResolutionSource, setPvpResolutionSource] =
-    useState("World Cup Oracle")
+  const [pvpResolutionSource, setPvpResolutionSource] = useState(
+    "Premier League Official / BBC Sport",
+  )
 
-  // Category-based proposition builder state
+  // Resolution provider state
+  const [resolutionProvider, setResolutionProvider] = useState<
+    "api-football" | "football-data"
+  >("api-football")
+
+  // EPL Schedule state
+  const [scheduleType, setScheduleType] = useState<"upcoming" | "finished">(
+    "upcoming",
+  )
+  const [fixtures, setFixtures] = useState<EplFixture[]>([])
+  const [fixturesLoading, setFixturesLoading] = useState(false)
+  const [selectedFixtureId, setSelectedFixtureId] = useState<number | null>(
+    null,
+  )
+
+  // 9 Category-based proposition builder state
   const [categories, setCategories] = useState<Record<string, CategoryState>>({
-    winner: { enabled: false },
+    winner: { enabled: true },
+    firstScore: { enabled: true },
+    redCard: { enabled: true },
     corners: { enabled: false, line: 9.5 },
-    goals: { enabled: false, line: 2.5 },
-    cards: { enabled: false, line: 3.5 },
-    firstScore: { enabled: false },
-    redCard: { enabled: false },
-    btts: { enabled: false },
+    goals: { enabled: true, line: 2.5 },
+    cards: { enabled: true, line: 3.5 },
+    btts: { enabled: true },
     offsides: { enabled: false, line: 3.5 },
-    extraTimePenalties: { enabled: false },
   })
 
   // Custom propositions
   const [customOptions, setCustomOptions] = useState<string[]>([])
   const [customOptionText, setCustomOptionText] = useState("")
 
+  // Fetch EPL schedule exclusively from football-data.org
+  async function loadEplSchedule(
+    type: "upcoming" | "finished" = scheduleType,
+  ) {
+    setFixturesLoading(true)
+    try {
+      const endpoint = `/pvp/schedule/football-data?type=${type}`
+      const data = await apiRequest<{
+        league: string
+        count: number
+        fixtures: EplFixture[]
+      }>(endpoint)
+      setFixtures(data.fixtures || [])
+    } catch (err: any) {
+      toast.error(
+        err.message || "Failed to load the football-data.org schedule.",
+      )
+    } finally {
+      setFixturesLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    if (isOpen) {
+      void loadEplSchedule(scheduleType)
+    }
+  }, [isOpen, scheduleType])
+
+  // Select fixture from live schedule
+  function handleSelectFixture(fixture: EplFixture) {
+    setSelectedFixtureId(fixture.id)
+    setPvpQuestion(fixture.question)
+    setPvpLockTime(toLocalDatetimeInputString(fixture.lockTime))
+    setPvpDeadline(toLocalDatetimeInputString(fixture.deadline))
+    setPvpResolutionSource(
+      fixture.resolutionSource || "Premier League Official / BBC Sport",
+    )
+    setCategories({
+      winner: { enabled: true },
+      firstScore: { enabled: true },
+      redCard: { enabled: true },
+      corners: { enabled: false, line: 9.5 },
+      goals: { enabled: true, line: 2.5 },
+      cards: { enabled: true, line: 3.5 },
+      btts: { enabled: true },
+      offsides: { enabled: false, line: 3.5 },
+    })
+    toast.success(`Selected ${fixture.question}! Match options pre-configured.`)
+  }
+
+  // Group fixtures by gameweek
+  const groupedFixtures = useMemo(() => {
+    const groups: Record<number, EplFixture[]> = {}
+    for (const f of fixtures) {
+      const gw = f.gameweek || 1
+      if (!groups[gw]) groups[gw] = []
+      groups[gw].push(f)
+    }
+    return groups
+  }, [fixtures])
+
   // Parse team names from question
   const { teamA, teamB } = useMemo(() => parseTeams(pvpQuestion), [pvpQuestion])
   const hasTeams = pvpQuestion.trim().length > 0
 
-  // Build propositions from enabled categories
+  // Build propositions from enabled categories (9 standard categories)
   const generatedOptions = useMemo(() => {
     const opts: string[] = []
     const a = hasTeams ? teamA : "Team A"
     const b = hasTeams ? teamB : "Team B"
 
-    if (categories.winner.enabled) {
+    // 1. Match Winner (3 options)
+    if (categories.winner?.enabled) {
       opts.push(`${a} wins the match`)
       opts.push(`Match ends in a draw`)
       opts.push(`${b} wins the match`)
     }
 
-    if (categories.firstScore.enabled) {
-      opts.push(`${a} scores first`)
+    // 3. First Team to Score (3 options)
+    if (categories.firstScore?.enabled) {
+      opts.push(`${a} scores first goal`)
       opts.push(`No goal in the match`)
-      opts.push(`${b} scores first`)
+      opts.push(`${b} scores first goal`)
     }
 
-    if (categories.redCard.enabled) {
-      opts.push(`At least one red card shown`)
-      opts.push(`No red cards shown`)
+    // 4. Red Card (2 options)
+    if (categories.redCard?.enabled) {
+      opts.push(`Red Card in Match - Yes`)
+      opts.push(`Red Card in Match - No`)
     }
 
-    if (categories.corners.enabled && categories.corners.line != null) {
-      const line = categories.corners.line
-      opts.push(`Match has under ${line} corners`)
-      opts.push(`Match has over ${line} corners`)
+    // 5. Corners (2 options)
+    if (categories.corners?.enabled) {
+      const line = categories.corners.line ?? 9.5
+      opts.push(`Total Corners Over ${line}`)
+      opts.push(`Total Corners Under ${line}`)
     }
 
-    if (categories.goals.enabled && categories.goals.line != null) {
-      const line = categories.goals.line
-      opts.push(`Match has under ${line} goals`)
-      opts.push(`Match has over ${line} goals`)
+    // 6. Goals (2 options)
+    if (categories.goals?.enabled) {
+      const line = categories.goals.line ?? 2.5
+      opts.push(`Total Goals Over ${line}`)
+      opts.push(`Total Goals Under ${line}`)
     }
 
-    if (categories.cards.enabled && categories.cards.line != null) {
-      const line = categories.cards.line
-      opts.push(`Match has under ${line} yellow cards`)
-      opts.push(`Match has over ${line} yellow cards`)
+    // 7. Yellow Cards (2 options)
+    if (categories.cards?.enabled) {
+      const line = categories.cards.line ?? 3.5
+      opts.push(`Total Yellow Cards Over ${line}`)
+      opts.push(`Total Yellow Cards Under ${line}`)
     }
 
+    // 8. Both Teams to Score (2 options)
     if (categories.btts?.enabled) {
-      opts.push(`Both teams to score - Yes`)
-      opts.push(`Both teams to score - No`)
+      opts.push(`Both Teams To Score - Yes`)
+      opts.push(`Both Teams To Score - No`)
     }
 
-    if (categories.offsides?.enabled && categories.offsides.line != null) {
-      const line = categories.offsides.line
-      opts.push(`Match has under ${line} offsides`)
-      opts.push(`Match has over ${line} offsides`)
-    }
-
-    if (categories.extraTimePenalties?.enabled) {
-      opts.push(`${a} wins on penalties`)
-      opts.push(`No penalties`)
-      opts.push(`${b} wins on penalties`)
+    // 9. Offsides (2 options)
+    if (categories.offsides?.enabled) {
+      const line = categories.offsides.line ?? 3.5
+      opts.push(`Total Offsides Over ${line}`)
+      opts.push(`Total Offsides Under ${line}`)
     }
 
     return [...opts, ...customOptions]
   }, [categories, customOptions, teamA, teamB, hasTeams])
 
-  // Calculate actual count of unique markets after option grouping
   const actualMarketsCount = useMemo(() => {
-    if (generatedOptions.length === 0) return 0
-    const groups = new Set<string>()
-    generatedOptions.forEach((opt) => {
-      const group = determineOptionGroup(opt, teamA || "Team A", teamB || "Team B")
-      groups.add(group)
-    })
-    return groups.size
-  }, [generatedOptions, teamA, teamB])
+    let count = 0
+    if (categories.winner?.enabled) count += 1
+    if (categories.firstScore?.enabled) count += 1
+    if (categories.redCard?.enabled) count += 1
+    if (categories.corners?.enabled) count += 1
+    if (categories.goals?.enabled) count += 1
+    if (categories.cards?.enabled) count += 1
+    if (categories.btts?.enabled) count += 1
+    if (categories.offsides?.enabled) count += 1
+    count += customOptions.length
+    return count
+  }, [categories, customOptions])
 
-  const toggleCategory = useCallback((key: string) => {
+  function toggleCategory(catKey: string) {
     setCategories((prev) => ({
       ...prev,
-      [key]: { ...prev[key], enabled: !prev[key].enabled },
+      [catKey]: {
+        ...prev[catKey],
+        enabled: !prev[catKey]?.enabled,
+      },
     }))
-  }, [])
+  }
 
-  const setCategoryLine = useCallback((key: string, line: number) => {
+  function setCategoryLine(catKey: string, line: number) {
     setCategories((prev) => ({
       ...prev,
-      [key]: { ...prev[key], line },
+      [catKey]: {
+        ...prev[catKey],
+        line,
+      },
     }))
-  }, [])
+  }
 
   function handleAddCustomOption() {
-    const text = customOptionText.trim()
-    if (!text) return
-    if (
-      [...generatedOptions]
-        .map((o) => o.toLowerCase())
-        .includes(text.toLowerCase())
-    ) {
-      toast.error("Option already exists.")
-      return
-    }
-    setCustomOptions([...customOptions, text])
+    if (!customOptionText.trim()) return
+    setCustomOptions([...customOptions, customOptionText.trim()])
     setCustomOptionText("")
   }
 
@@ -293,7 +305,7 @@ export default function CreateMarketDrawer({
   async function handleDeployPvpEvent(e: React.FormEvent) {
     e.preventDefault()
     if (!pvpQuestion.trim() || !pvpDeadline || !pvpResolutionSource.trim()) {
-      toast.error("Please fill all fields.")
+      toast.error("Please fill all required match fields.")
       return
     }
 
@@ -301,9 +313,7 @@ export default function CreateMarketDrawer({
       generatedOptions.length < 3 ||
       generatedOptions.some((opt) => !opt.trim())
     ) {
-      toast.error(
-        "You must enable enough categories for at least 3 propositions.",
-      )
+      toast.error("You must enable options for at least 3 propositions.")
       return
     }
 
@@ -318,26 +328,25 @@ export default function CreateMarketDrawer({
             ? new Date(pvpLockTime).toISOString()
             : undefined,
           resolutionSource: pvpResolutionSource.trim(),
+          resolutionProvider,
+          apiFootballFixtureId:
+            resolutionProvider === "api-football"
+              ? selectedFixtureId || undefined
+              : undefined,
+          footballDataOrgMatchId:
+            resolutionProvider === "football-data"
+              ? selectedFixtureId || undefined
+              : undefined,
           options: generatedOptions.map((opt) => opt.trim()),
         }),
       })
       toast.success(
-        `Successfully deployed PvP Event + ${generatedOptions.length} Options (${actualMarketsCount} markets)!`,
+        `Successfully deployed PvP Duel Event: ${pvpQuestion} with ${actualMarketsCount} propositions!`,
       )
       setPvpQuestion("")
       setPvpDeadline("")
       setPvpLockTime("")
-      setCategories({
-        winner: { enabled: false },
-        corners: { enabled: false, line: 9.5 },
-        goals: { enabled: false, line: 2.5 },
-        cards: { enabled: false, line: 3.5 },
-        firstScore: { enabled: false },
-        redCard: { enabled: false },
-        btts: { enabled: false },
-        offsides: { enabled: false, line: 3.5 },
-        extraTimePenalties: { enabled: false },
-      })
+      setSelectedFixtureId(null)
       setCustomOptions([])
       onClose()
       void fetchMarkets()
@@ -352,125 +361,301 @@ export default function CreateMarketDrawer({
 
   return (
     <Drawer
+      direction="right"
       open={isOpen}
       onOpenChange={(open) => !open && onClose()}
-      direction="right"
     >
-      <DrawerContent className="p-6 h-full flex flex-col bg-white border-l border-stone-200 data-[vaul-drawer-direction=right]:sm:max-w-2xl">
-        <DrawerHeader className="px-0">
-          <DrawerTitle className="text-lg font-bold text-stone-900 flex items-center gap-2">
-            <Swords className="h-5 w-5 text-indigo-600" />
-            Deploy PvP World Cup Matchup
-          </DrawerTitle>
-          <DrawerDescription className="text-xs text-stone-500">
-            Create a parent matchup event and launch multiple corresponding
-            child prediction markets automatically funded with escrow
-            pre-deposits.
-          </DrawerDescription>
+      <DrawerContent className="fixed inset-y-0 right-0 z-50 flex h-full flex-col bg-white border-l border-stone-200 shadow-2xl overflow-y-auto w-full sm:w-[750px] sm:min-w-[700px] p-6 rounded-none">
+        <DrawerHeader className="px-0 pt-0 pb-4 border-b border-stone-150">
+          <div className="flex items-center justify-between">
+            <div>
+              <DrawerTitle className="text-lg font-bold text-stone-900 flex items-center gap-2">
+                <Swords className="h-5 w-5 text-indigo-600" />
+                Create Football Duel Match
+              </DrawerTitle>
+              <DrawerDescription className="text-xs text-stone-500 mt-1">
+                Select a genuine fixture from the available schedule or enter
+                custom details. Provider:{" "}
+                <strong>
+                  {resolutionProvider === "football-data"
+                    ? "football-data.org"
+                    : "API-Football"}
+                </strong>
+              </DrawerDescription>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => void loadEplSchedule(scheduleType)}
+              disabled={fixturesLoading}
+              className="h-8 px-2.5 rounded text-xs border border-stone-200 cursor-pointer"
+            >
+              <RefreshCw
+                className={`h-3.5 w-3.5 mr-1.5 ${fixturesLoading ? "animate-spin" : ""}`}
+              />
+              Refresh Schedule
+            </Button>
+          </div>
         </DrawerHeader>
 
         <form
           onSubmit={handleDeployPvpEvent}
-          className="flex-1 flex flex-col gap-4 overflow-y-auto pr-1 mt-4"
+          className="flex flex-col gap-5 py-4"
         >
-          {/* Match Title */}
-          <div className="space-y-1.5">
-            <label className="block text-[10px] font-bold uppercase tracking-wider text-stone-500">
-              Match Title / Question
-            </label>
-            <input
-              type="text"
-              required
-              placeholder="e.g. Paraguay vs Japan"
-              value={pvpQuestion}
-              onChange={(e) => setPvpQuestion(e.target.value)}
-              className="w-full h-11 px-3 border border-stone-200 bg-transparent text-sm rounded-[10px] outline-none focus:border-indigo-500 transition-colors"
-            />
-            {hasTeams && (
-              <div className="flex items-center gap-2 mt-1.5">
-                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-indigo-50 border border-indigo-100 text-[11px] font-semibold text-indigo-700">
-                  <Flag className="h-3 w-3" />
-                  {teamA}
+          {/* Resolution Provider Selector */}
+          <div className="flex flex-col gap-2.5 p-3.5 bg-indigo-50/40 border border-indigo-100 rounded-lg">
+            <div className="flex flex-col gap-2.5">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-900">
+                  Resolution Provider
                 </span>
-                <span className="text-[10px] font-bold text-stone-400">vs</span>
-                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-rose-50 border border-rose-100 text-[11px] font-semibold text-rose-700">
-                  <Flag className="h-3 w-3" />
-                  {teamB}
-                </span>
+                <div className="flex items-center gap-1 bg-white/80 p-0.5 rounded border border-indigo-200">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setResolutionProvider("api-football")
+                    }}
+                    className={`px-2.5 py-1 text-[9px] font-bold uppercase tracking-wider rounded transition-colors cursor-pointer ${
+                      resolutionProvider === "api-football"
+                        ? "bg-indigo-600 text-white shadow-2xs font-black"
+                        : "text-stone-500 hover:text-stone-900"
+                    }`}
+                  >
+                    API-Football
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setResolutionProvider("football-data")
+                    }}
+                    className={`px-2.5 py-1 text-[9px] font-bold uppercase tracking-wider rounded transition-colors cursor-pointer ${
+                      resolutionProvider === "football-data"
+                        ? "bg-emerald-600 text-white shadow-2xs font-black"
+                        : "text-stone-500 hover:text-stone-900"
+                    }`}
+                  >
+                    football-data.org
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-900 flex items-center gap-1.5">
+                <Calendar className="h-3.5 w-3.5 text-indigo-600" />
+                football-data.org Fixture Schedule Feed
+              </span>
+
+              {/* Feed Type Switcher */}
+              <div className="flex items-center gap-1 bg-white/80 p-0.5 rounded border border-indigo-200">
+                <button
+                  type="button"
+                  onClick={() => setScheduleType("upcoming")}
+                  className={`px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider rounded transition-colors cursor-pointer ${
+                    scheduleType === "upcoming"
+                      ? "bg-indigo-600 text-white shadow-2xs font-black"
+                      : "text-stone-500 hover:text-stone-900"
+                  }`}
+                >
+                  Upcoming (7 Days)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setScheduleType("finished")}
+                  className={`px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider rounded transition-colors cursor-pointer ${
+                    scheduleType === "finished"
+                      ? "bg-emerald-600 text-white shadow-2xs font-black"
+                      : "text-stone-500 hover:text-stone-900"
+                  }`}
+                >
+                  Finished (Instant Oracle Test)
+                </button>
+              </div>
+            </div>
+
+            {fixturesLoading && fixtures.length === 0 ? (
+              <div className="py-6 text-center text-xs text-stone-400 font-medium animate-pulse font-mono">
+                Loading fixtures from football-data.org...
+              </div>
+            ) : fixtures.length === 0 ? (
+              <div className="py-4 text-center text-xs text-stone-500">
+                No fixtures found in this category. Click refresh or enter match
+                details manually below.
+              </div>
+            ) : (
+              <div className="flex flex-col gap-3.5 max-h-60 overflow-y-auto pr-1">
+                {Object.entries(groupedFixtures).map(([gw, gwFixtures]) => (
+                  <div key={gw} className="flex flex-col gap-2">
+                    <div className="flex items-center gap-2 px-0.5">
+                      <span className="text-[10px] font-black uppercase tracking-wider text-indigo-700 bg-indigo-100/70 px-2 py-0.5 rounded">
+                        {scheduleType === "finished"
+                          ? `Finished · Round ${gw}`
+                          : `Round ${gw}`}
+                      </span>
+                      <div className="h-px bg-indigo-100 flex-1" />
+                      <span className="text-[10px] text-stone-400 font-mono">
+                        {gwFixtures.length}{" "}
+                        {gwFixtures.length === 1 ? "match" : "matches"}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {gwFixtures.map((f) => {
+                        const isSelected = selectedFixtureId === f.id
+                        const kickDate = new Date(f.kickoffTime)
+                        const timeFormatted = kickDate.toLocaleDateString(
+                          undefined,
+                          {
+                            weekday: "short",
+                            month: "short",
+                            day: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          },
+                        )
+
+                        return (
+                          <button
+                            key={f.id}
+                            type="button"
+                            onClick={() => handleSelectFixture(f)}
+                            className={`p-2.5 text-left rounded border transition-all flex items-center justify-between cursor-pointer ${
+                              isSelected
+                                ? "bg-indigo-600 border-indigo-600 text-white shadow-xs"
+                                : "bg-white border-stone-200 hover:border-indigo-300 hover:bg-white text-stone-800"
+                            }`}
+                          >
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-1.5 font-bold text-xs">
+                                <span className="truncate">{f.homeTeam}</span>
+                                <span
+                                  className={
+                                    isSelected
+                                      ? "text-indigo-200 text-[10px]"
+                                      : "text-stone-400 text-[10px]"
+                                  }
+                                >
+                                  vs
+                                </span>
+                                <span className="truncate">{f.awayTeam}</span>
+                                {f.score && (
+                                  <span
+                                    className={`px-1.5 py-0.2 rounded text-[10px] font-mono font-black ${isSelected ? "bg-white/20 text-white" : "bg-emerald-100 text-emerald-800"}`}
+                                  >
+                                    {f.score}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2 mt-0.5">
+                                <span
+                                  className={`max-w-28 truncate text-[10px] font-semibold ${
+                                    isSelected
+                                      ? "text-indigo-100"
+                                      : "text-stone-500"
+                                  }`}
+                                >
+                                  {f.leagueName || "Competition"}
+                                </span>
+                                <span
+                                  className={`text-[10px] font-mono ${isSelected ? "text-indigo-100" : "text-stone-400"}`}
+                                >
+                                  {timeFormatted}
+                                </span>
+                                <span
+                                  className={`text-[9px] font-mono px-1 rounded ${isSelected ? "bg-white/10 text-white" : "bg-stone-100 text-stone-500"}`}
+                                >
+                                  ID #{f.id}
+                                </span>
+                              </div>
+                            </div>
+                            <ChevronRight
+                              className={`h-4 w-4 shrink-0 ${isSelected ? "text-white" : "text-stone-300"}`}
+                            />
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </div>
 
-          {/* Deadline & Lock Time */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <label className="block text-[10px] font-bold uppercase tracking-wider text-stone-500">
-                Lock Time (Optional)
+          {/* Core Event Inputs */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="flex flex-col gap-1.5 md:col-span-2">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-stone-500">
+                Match Title (Team A vs Team B) *
               </label>
               <input
+                required
+                type="text"
+                placeholder="e.g. Arsenal vs Chelsea"
+                value={pvpQuestion}
+                onChange={(e) => setPvpQuestion(e.target.value)}
+                className="w-full h-10 px-3 border border-stone-200 bg-white text-sm font-semibold rounded outline-none focus:border-indigo-500 transition-colors"
+              />
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-stone-500">
+                Kickoff & Lock Time (Betting closes) *
+              </label>
+              <input
+                required
                 type="datetime-local"
                 value={pvpLockTime}
                 onChange={(e) => setPvpLockTime(e.target.value)}
-                onClick={(e) => {
-                  try {
-                    e.currentTarget.showPicker()
-                  } catch (err) {}
-                }}
-                className="w-full h-11 px-3 border border-stone-200 bg-transparent text-sm rounded-[10px] outline-none focus:border-indigo-500 transition-colors text-stone-600 cursor-pointer"
+                className="w-full h-10 px-3 border border-stone-200 bg-white text-xs rounded outline-none focus:border-indigo-500 transition-colors font-mono"
               />
             </div>
-            <div className="space-y-1.5">
-              <label className="block text-[10px] font-bold uppercase tracking-wider text-stone-500">
-                Resolution Deadline
+
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-stone-500">
+                Match End / Resolution Deadline *
               </label>
               <input
-                type="datetime-local"
                 required
+                type="datetime-local"
                 value={pvpDeadline}
                 onChange={(e) => setPvpDeadline(e.target.value)}
-                onClick={(e) => {
-                  try {
-                    e.currentTarget.showPicker()
-                  } catch (err) {}
-                }}
-                className="w-full h-11 px-3 border border-stone-200 bg-transparent text-sm rounded-[10px] outline-none focus:border-indigo-500 transition-colors text-stone-600 cursor-pointer"
+                className="w-full h-10 px-3 border border-stone-200 bg-white text-xs rounded outline-none focus:border-indigo-500 transition-colors font-mono"
+              />
+            </div>
+
+            <div className="flex flex-col gap-1.5 md:col-span-2">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-stone-500">
+                Resolution Oracle Source *
+              </label>
+              <input
+                required
+                type="text"
+                value={pvpResolutionSource}
+                onChange={(e) => setPvpResolutionSource(e.target.value)}
+                className="w-full h-10 px-3 border border-stone-200 bg-white text-xs rounded outline-none focus:border-indigo-500 transition-colors"
               />
             </div>
           </div>
 
-          {/* Resolution Source */}
-          <div className="space-y-1.5">
-            <label className="block text-[10px] font-bold uppercase tracking-wider text-stone-500">
-              Resolution Oracle Source
-            </label>
-            <input
-              type="text"
-              required
-              placeholder="World Cup Match Stats API"
-              value={pvpResolutionSource}
-              onChange={(e) => setPvpResolutionSource(e.target.value)}
-              className="w-full h-11 px-3 border border-stone-200 bg-transparent text-sm rounded-[10px] outline-none focus:border-indigo-500 transition-colors"
-            />
-          </div>
-
-          {/* Category selection */}
-          <div className="space-y-3">
+          {/* Proposition Options Builder */}
+          <div className="space-y-3 pt-2 border-t border-stone-150">
             <div className="flex items-center justify-between">
-              <span className="block text-[10px] font-bold uppercase tracking-wider text-stone-500">
-                Market Propositions
-              </span>
-              <span
-                className={`text-[10px] font-bold font-mono px-1.5 py-0.5 rounded ${
-                  generatedOptions.length >= 3
-                    ? "bg-green-100 text-green-800"
-                    : "bg-amber-100 text-amber-800"
-                }`}
-              >
-                {generatedOptions.length} propositions
+              <div>
+                <h4 className="text-xs font-bold uppercase tracking-wider text-stone-900">
+                  Duel Proposition Markets
+                </h4>
+                <p className="text-[11px] text-stone-500 mt-0.5">
+                  Toggle the proposition lines to generate for this match.
+                </p>
+              </div>
+              <span className="text-[10px] font-bold font-mono px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded border border-indigo-100">
+                {actualMarketsCount} Markets Configured (
+                {generatedOptions.length} Options)
               </span>
             </div>
 
-            {/* Match Winner */}
+            {/* 1. Match Winner */}
             <CategoryCard
               title="Match Winner"
               subtitle="Win / Draw / Win"
@@ -480,11 +665,11 @@ export default function CreateMarketDrawer({
               accentColor="indigo"
             >
               <div className="grid grid-cols-3 gap-2">
-                <div className="flex flex-col items-center gap-1.5 p-2 rounded-lg bg-indigo-50/50 border border-indigo-100">
+                <div className="flex flex-col items-center gap-1.5 p-2 rounded-lg bg-indigo-50/30 border border-indigo-100">
                   <span className="text-[9px] font-bold uppercase text-stone-400">
                     Home
                   </span>
-                  <span className="text-xs font-bold text-indigo-700 text-center leading-tight">
+                  <span className="text-xs font-bold text-indigo-700 text-center truncate w-full">
                     {hasTeams ? teamA : "Team A"}
                   </span>
                 </div>
@@ -492,96 +677,59 @@ export default function CreateMarketDrawer({
                   <span className="text-[9px] font-bold uppercase text-stone-400">
                     Draw
                   </span>
-                  <span className="text-xs font-bold text-stone-600 text-center leading-tight">
+                  <span className="text-xs font-bold text-stone-600 text-center">
                     Draw
                   </span>
                 </div>
-                <div className="flex flex-col items-center gap-1.5 p-2 rounded-lg bg-rose-50/50 border border-rose-100">
+                <div className="flex flex-col items-center gap-1.5 p-2 rounded-lg bg-indigo-50/30 border border-indigo-100">
                   <span className="text-[9px] font-bold uppercase text-stone-400">
                     Away
                   </span>
-                  <span className="text-xs font-bold text-rose-700 text-center leading-tight">
+                  <span className="text-xs font-bold text-indigo-700 text-center truncate w-full">
                     {hasTeams ? teamB : "Team B"}
                   </span>
                 </div>
               </div>
             </CategoryCard>
 
-            {/* Extra Time / Penalties Winner */}
-            <CategoryCard
-              title="Extra Time / Penalties Winner"
-              subtitle="Shootout / Decided in ET / Shootout"
-              icon={<Swords className="h-4 w-4" />}
-              enabled={categories.extraTimePenalties?.enabled}
-              onToggle={() => toggleCategory("extraTimePenalties")}
-              accentColor="emerald"
-            >
-              <div className="grid grid-cols-3 gap-2">
-                <div className="flex flex-col items-center gap-1.5 p-2 rounded-lg bg-emerald-50/50 border border-emerald-100">
-                  <span className="text-[9px] font-bold uppercase text-stone-400">
-                    Pens Winner
-                  </span>
-                  <span className="text-xs font-bold text-emerald-700 text-center leading-tight">
-                    {hasTeams ? teamA : "Team A"}
-                  </span>
-                </div>
-                <div className="flex flex-col items-center gap-1.5 p-2 rounded-lg bg-stone-50 border border-stone-200">
-                  <span className="text-[9px] font-bold uppercase text-stone-400">
-                    No Shootout
-                  </span>
-                  <span className="text-xs font-bold text-stone-600 text-center leading-tight">
-                    No Penalty
-                  </span>
-                </div>
-                <div className="flex flex-col items-center gap-1.5 p-2 rounded-lg bg-emerald-50/50 border border-emerald-100">
-                  <span className="text-[9px] font-bold uppercase text-stone-400">
-                    Pens Winner
-                  </span>
-                  <span className="text-xs font-bold text-emerald-700 text-center leading-tight">
-                    {hasTeams ? teamB : "Team B"}
-                  </span>
-                </div>
-              </div>
-            </CategoryCard>
-
-            {/* First Team to Score */}
+            {/* 3. First Team to Score */}
             <CategoryCard
               title="First Team to Score"
               subtitle="Team A / No Goal / Team B"
               icon={<Target className="h-4 w-4" />}
               enabled={categories.firstScore.enabled}
               onToggle={() => toggleCategory("firstScore")}
-              accentColor="amber"
+              accentColor="indigo"
             >
               <div className="grid grid-cols-3 gap-2">
-                <div className="flex flex-col items-center gap-1.5 p-2 rounded-lg bg-amber-50/30 border border-amber-100">
+                <div className="flex flex-col items-center gap-1.5 p-2 rounded-lg bg-indigo-50/30 border border-indigo-100">
                   <span className="text-[9px] font-bold uppercase text-stone-400">
-                    Home
+                    First Goal
                   </span>
-                  <span className="text-xs font-bold text-amber-700 text-center leading-tight">
+                  <span className="text-xs font-bold text-indigo-700 text-center truncate w-full">
                     {hasTeams ? teamA : "Team A"}
                   </span>
                 </div>
                 <div className="flex flex-col items-center gap-1.5 p-2 rounded-lg bg-stone-50 border border-stone-200">
                   <span className="text-[9px] font-bold uppercase text-stone-400">
-                    No Goal
+                    None
                   </span>
-                  <span className="text-xs font-bold text-stone-600 text-center leading-tight">
+                  <span className="text-xs font-bold text-stone-600 text-center">
                     No Goal
                   </span>
                 </div>
-                <div className="flex flex-col items-center gap-1.5 p-2 rounded-lg bg-rose-50/50 border border-rose-100">
+                <div className="flex flex-col items-center gap-1.5 p-2 rounded-lg bg-indigo-50/30 border border-indigo-100">
                   <span className="text-[9px] font-bold uppercase text-stone-400">
-                    Away
+                    First Goal
                   </span>
-                  <span className="text-xs font-bold text-rose-700 text-center leading-tight">
+                  <span className="text-xs font-bold text-indigo-700 text-center truncate w-full">
                     {hasTeams ? teamB : "Team B"}
                   </span>
                 </div>
               </div>
             </CategoryCard>
 
-            {/* Red Card */}
+            {/* 4. Red Card */}
             <CategoryCard
               title="Red Card"
               subtitle="Red card shown in match"
@@ -610,7 +758,7 @@ export default function CreateMarketDrawer({
               </div>
             </CategoryCard>
 
-            {/* Corners */}
+            {/* 5. Corners */}
             <CategoryCard
               title="Corners"
               subtitle={`Over / Under ${categories.corners.line}`}
@@ -642,7 +790,7 @@ export default function CreateMarketDrawer({
               </div>
             </CategoryCard>
 
-            {/* Goals */}
+            {/* 6. Goals */}
             <CategoryCard
               title="Goals"
               subtitle={`Over / Under ${categories.goals.line}`}
@@ -674,7 +822,7 @@ export default function CreateMarketDrawer({
               </div>
             </CategoryCard>
 
-            {/* Yellow Cards */}
+            {/* 7. Yellow Cards */}
             <CategoryCard
               title="Yellow Cards"
               subtitle={`Over / Under ${categories.cards.line}`}
@@ -706,7 +854,7 @@ export default function CreateMarketDrawer({
               </div>
             </CategoryCard>
 
-            {/* Both Teams to Score */}
+            {/* 8. Both Teams to Score */}
             <CategoryCard
               title="Both Teams to Score"
               subtitle="Both Teams to Score - Yes / No"
@@ -735,7 +883,7 @@ export default function CreateMarketDrawer({
               </div>
             </CategoryCard>
 
-            {/* Offsides */}
+            {/* 9. Offsides */}
             <CategoryCard
               title="Offsides"
               subtitle={`Over / Under ${categories.offsides?.line}`}
@@ -766,95 +914,83 @@ export default function CreateMarketDrawer({
                 </div>
               </div>
             </CategoryCard>
-
-            {/* Custom options */}
-            <div className="rounded-xl border border-dashed border-stone-200 p-3 space-y-2.5 bg-stone-50/30">
-              <span className="block text-[10px] font-bold uppercase text-stone-500">
-                Custom Propositions
-              </span>
-              {customOptions.length > 0 && (
-                <div className="flex flex-wrap gap-1.5">
-                  {customOptions.map((opt, idx) => (
-                    <span
-                      key={idx}
-                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-stone-100 border border-stone-200 text-[11px] font-medium text-stone-700"
-                    >
-                      {opt}
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveCustomOption(idx)}
-                        className="text-stone-400 hover:text-red-500 transition-colors ml-0.5 cursor-pointer"
-                      >
-                        <Minus className="h-3 w-3" />
-                      </button>
-                    </span>
-                  ))}
-                </div>
-              )}
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  placeholder="Type custom proposition..."
-                  value={customOptionText}
-                  onChange={(e) => setCustomOptionText(e.target.value)}
-                  className="flex-1 h-9 px-3 border border-stone-200 bg-white text-xs rounded-lg outline-none focus:border-indigo-500 transition-colors"
-                />
-                <button
-                  type="button"
-                  onClick={handleAddCustomOption}
-                  className="px-3 h-9 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded-lg text-xs font-semibold flex items-center gap-1 transition-all border border-indigo-100 cursor-pointer"
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                  Add
-                </button>
-              </div>
-            </div>
           </div>
 
-          {/* Deploy estimates preview */}
-          {generatedOptions.length > 0 && adminBalances && (
-            <div className="rounded-xl bg-indigo-50/50 border border-indigo-100 p-3 text-[11px] text-indigo-950 flex flex-col gap-1">
-              <span className="font-bold uppercase text-[9px] text-indigo-700 tracking-wider">
-                Deploy Estimates
+          {/* Custom Proposition Inputs */}
+          <div className="space-y-2 pt-2 border-t border-stone-150">
+            <label className="block text-[10px] font-bold uppercase tracking-wider text-stone-500">
+              Add Custom Proposition Option (Optional)
+            </label>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                placeholder="e.g. Over 5.5 Yellow Cards"
+                value={customOptionText}
+                onChange={(e) => setCustomOptionText(e.target.value)}
+                className="flex-1 h-9 px-3 border border-stone-200 bg-white text-xs rounded outline-none focus:border-indigo-500 transition-colors"
+              />
+              <Button
+                type="button"
+                onClick={handleAddCustomOption}
+                className="h-9 px-3 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded cursor-pointer"
+              >
+                <Plus className="h-3.5 w-3.5 mr-1" /> Add
+              </Button>
+            </div>
+            {customOptions.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 pt-1">
+                {customOptions.map((opt, i) => (
+                  <span
+                    key={i}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-stone-100 text-stone-800 text-xs font-semibold rounded border border-stone-200"
+                  >
+                    {opt}
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveCustomOption(i)}
+                      className="text-stone-400 hover:text-red-600 cursor-pointer"
+                    >
+                      &times;
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Deploy Preview Card */}
+          {generatedOptions.length > 0 && (
+            <div className="rounded bg-indigo-50/50 border border-indigo-100 p-3 text-[11px] text-indigo-950 flex flex-col gap-1">
+              <span className="font-bold uppercase text-[9px] text-indigo-700 tracking-wider flex items-center gap-1">
+                <Sparkles className="h-3 w-3" />
+                Match Deployment Summary
               </span>
               <div>
-                Deployment will create{" "}
-                <strong className="font-semibold text-indigo-900">
-                  {actualMarketsCount} markets
-                </strong>
-                .
-              </div>
-              <div>
-                Pre-deposit balance required:{" "}
-                <strong className="font-extrabold text-indigo-900">
-                  {(
-                    adminBalances.preDepositUsdcPerOption *
-                    actualMarketsCount
-                  ).toFixed(2)}{" "}
-                  USDC
-                </strong>
-                .
+                Will create{" "}
+                <strong>{actualMarketsCount} duel propositions</strong> (
+                {generatedOptions.length} total betting outcomes) ready for
+                predictors.
               </div>
             </div>
           )}
 
-          <div className="mt-4 pt-4 border-t border-stone-100 flex items-center gap-2">
+          <div className="pt-4 border-t border-stone-150 flex items-center gap-2">
             <Button
               type="button"
               variant="outline"
               onClick={onClose}
-              className="flex-1 h-11 border border-stone-200 text-stone-700 text-xs font-semibold uppercase tracking-wider rounded-lg cursor-pointer transition-colors"
+              className="flex-1 h-11 border border-stone-200 text-stone-700 text-xs font-semibold uppercase tracking-wider rounded cursor-pointer"
             >
               Cancel
             </Button>
             <Button
               type="submit"
               disabled={loading || generatedOptions.length < 3}
-              className="flex-2 h-11 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold uppercase tracking-wider rounded-lg shadow-sm disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
+              className="flex-2 h-11 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold uppercase tracking-wider rounded shadow-xs disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
             >
               {loading
-                ? "Deploying..."
-                : `Deploy Matchup & ${generatedOptions.length} Options`}
+                ? "Deploying Match..."
+                : `Deploy Match (${actualMarketsCount} Propositions)`}
             </Button>
           </div>
         </form>
@@ -863,7 +999,7 @@ export default function CreateMarketDrawer({
   )
 }
 
-/* CategoryCard inline utility */
+/* CategoryCard inline helper with original toggle switch */
 interface CategoryCardProps {
   title: string
   subtitle: string
@@ -889,25 +1025,25 @@ function CategoryCard({
   > = {
     indigo: {
       bg: "bg-indigo-50/50",
-      border: "border-indigo-250",
+      border: "border-indigo-200",
       text: "text-indigo-600",
       toggle: "bg-indigo-600",
     },
     emerald: {
       bg: "bg-emerald-50/50",
-      border: "border-emerald-250",
+      border: "border-emerald-200",
       text: "text-emerald-600",
       toggle: "bg-emerald-600",
     },
     amber: {
       bg: "bg-amber-50/50",
-      border: "border-amber-250",
+      border: "border-amber-200",
       text: "text-amber-600",
       toggle: "bg-amber-500",
     },
     yellow: {
       bg: "bg-yellow-50/50",
-      border: "border-yellow-250",
+      border: "border-yellow-200",
       text: "text-yellow-600",
       toggle: "bg-yellow-500",
     },
@@ -917,7 +1053,7 @@ function CategoryCard({
 
   return (
     <div
-      className={`rounded-xl border transition-all overflow-hidden ${
+      className={`rounded border transition-all overflow-hidden ${
         enabled ? `${colors.bg} ${colors.border}` : "border-stone-200 bg-white"
       }`}
     >
@@ -928,7 +1064,7 @@ function CategoryCard({
       >
         <div className="flex items-center gap-2.5 min-w-0">
           <div
-            className={`h-8 w-8 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
+            className={`h-8 w-8 rounded flex items-center justify-center shrink-0 transition-colors ${
               enabled
                 ? `${colors.toggle} text-white shadow-xs`
                 : "bg-stone-100 text-stone-400 group-hover:text-stone-600"

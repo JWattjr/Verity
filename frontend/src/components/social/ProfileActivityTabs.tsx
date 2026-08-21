@@ -2,13 +2,8 @@
 
 import React, { useState } from "react"
 import Link from "next/link"
-import UserHoverCard from "@/components/social/UserHoverCard"
 import MarketFeedCard from "@/components/markets/MarketFeedCard"
-import { FeedSkeleton } from "@/components/feed/FeedShell"
 import {
-  displayHandle,
-  displayName,
-  relativeTime,
   getMarketPrice,
   type FeedPost,
   type MarketPost,
@@ -18,13 +13,11 @@ import {
 import { ArrowUpRight, ChevronRight, ChevronLeft } from "lucide-react"
 import { useQueryClient } from "@tanstack/react-query"
 import {
-  useCastFreeVoteMutation,
-  useDailyVotesQuery,
   useToggleLikeMutation,
 } from "@/store/verity/verityQueries"
 import { toast } from "@/lib/toast"
 
-export type ProfileActivityTab = "predictions" | "markets" | "activity"
+export type ProfileActivityTab = "predictions" | "markets"
 
 interface ProfileActivityTabsProps {
   activeTab: ProfileActivityTab
@@ -34,8 +27,20 @@ interface ProfileActivityTabsProps {
   viewerProfile?: Profile | null
   onOpenMarket: (market: MarketPost) => void
   onOpenPvp?: (market: MarketPost) => void
-  onOpenPost?: (post: FeedPost) => void
   loading?: boolean
+}
+
+export function ProfileSkeleton() {
+  return (
+    <div className="flex flex-col gap-3">
+      {[1, 2, 3].map((i) => (
+        <div
+          key={i}
+          className="h-28 rounded-[2px] border border-border bg-surface animate-pulse"
+        />
+      ))}
+    </div>
+  )
 }
 
 export default function ProfileActivityTabs({
@@ -46,42 +51,15 @@ export default function ProfileActivityTabs({
   viewerProfile,
   onOpenMarket,
   onOpenPvp,
-  onOpenPost,
   loading = false,
 }: ProfileActivityTabsProps) {
   const queryClient = useQueryClient()
-  const castFreeVoteMutation = useCastFreeVoteMutation()
   const toggleLikeMutation = useToggleLikeMutation()
-  const { data: dailyVotesData } = useDailyVotesQuery(viewerProfile?.id || "")
-  const dailyVotesRemaining = dailyVotesData?.votesRemaining ?? 10
   const [predictionFilter, setPredictionFilter] = useState<
     "all" | "unresolved" | "resolved" | "won" | "lost"
   >("all")
   const [predictionPage, setPredictionPage] = useState(1)
   const PREDICTIONS_PER_PAGE = 5
-
-  async function handleFreeVote(market: MarketPost, side: "YES" | "NO") {
-    if (!viewerProfile) {
-      toast.error("Connect your wallet to cast a vote.")
-      return
-    }
-
-    try {
-      await castFreeVoteMutation.mutateAsync({
-        marketId: market.id,
-        userId: viewerProfile.id,
-        side,
-      })
-      toast.success(`Casted your ${side} signal!`)
-      void queryClient.invalidateQueries({
-        queryKey: ["profile-activity", profile.id],
-      })
-    } catch (err: unknown) {
-      toast.error(
-        err instanceof Error ? err.message : "Failed to submit signal.",
-      )
-    }
-  }
 
   async function handleLike(item: FeedPost) {
     if (!viewerProfile) {
@@ -104,7 +82,7 @@ export default function ProfileActivityTabs({
   }
 
   if (loading) {
-    return <FeedSkeleton />
+    return <ProfileSkeleton />
   }
 
   if (activeTab === "predictions") {
@@ -142,22 +120,22 @@ export default function ProfileActivityTabs({
             className="verity-profile-predictions__filters"
             role="group"
           >
-          {(["all", "unresolved", "resolved", "won", "lost"] as const).map(
-            (filter) => (
-              <button
-                aria-pressed={predictionFilter === filter}
-                key={filter}
-                onClick={() => {
-                  setPredictionFilter(filter)
-                  setPredictionPage(1)
-                }}
-                className={predictionFilter === filter ? "is-active" : ""}
-                type="button"
-              >
-                {filter.charAt(0).toUpperCase() + filter.slice(1)}
-              </button>
-            ),
-          )}
+            {(["all", "unresolved", "resolved", "won", "lost"] as const).map(
+              (filter) => (
+                <button
+                  aria-pressed={predictionFilter === filter}
+                  key={filter}
+                  onClick={() => {
+                    setPredictionFilter(filter)
+                    setPredictionPage(1)
+                  }}
+                  className={predictionFilter === filter ? "is-active" : ""}
+                  type="button"
+                >
+                  {filter.charAt(0).toUpperCase() + filter.slice(1)}
+                </button>
+              ),
+            )}
           </div>
         </div>
         {paginatedPositions.length > 0 ? (
@@ -190,7 +168,7 @@ export default function ProfileActivityTabs({
 
                 const isPvp = pos.category?.toLowerCase() === "pvp"
                 const href = isPvp
-                  ? "/markets?tab=pvp-arena"
+                  ? "/arena"
                   : `/markets/${pos.market_id}`
 
                 return (
@@ -287,177 +265,27 @@ export default function ProfileActivityTabs({
     )
   }
 
-  if (activeTab === "activity") {
-    const rows = items
-    return (
-      <section className="flex flex-col gap-3">
-        {rows.length > 0 ? (
-          rows.map((item) => (
-            <CommentActivityRow
-              item={item}
-              key={item.id}
-              onOpenMarket={onOpenMarket}
-              onOpenPost={onOpenPost}
-            />
-          ))
-        ) : (
-          <div className="verity-card p-8 text-center text-sm tracking-[-0.18px] text-ash">
-            No activity comments or replies recorded yet.
-          </div>
-        )}
-      </section>
-    )
-  }
+  // Markets Tab
+  const marketItems = items.filter((item) => item.market)
 
-  // Default is "markets" tab (custom created markets by user)
-  const rows = items
   return (
-    <section className="grid grid-cols-1 border-l border-t border-border xl:grid-cols-2">
-      {rows.length > 0 ? (
-        rows.map((item) => (
-          <MarketFeedCard
-            dailyVotesRemaining={dailyVotesRemaining}
-            item={item}
-            key={item.id}
-            likePending={toggleLikeMutation.isPending}
-            onLike={handleLike}
-            onOpenPvp={onOpenPvp ?? onOpenMarket}
-            onVote={handleFreeVote}
-            votePending={castFreeVoteMutation.isPending}
-          />
-        ))
+    <div className="flex flex-col gap-3">
+      {marketItems.length === 0 ? (
+        <div className="rounded-[2px] border border-border bg-surface p-12 text-center text-xs font-mono text-ash font-bold">
+          No markets found for this user.
+        </div>
       ) : (
-        <div className="col-span-full flex min-h-52 items-center justify-center border-b border-r border-border bg-surface p-10 text-center font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-ash">
-          No created markets yet.
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {marketItems.map((item) => (
+            <MarketFeedCard
+              key={item.id}
+              item={item}
+              onLike={() => handleLike(item)}
+              onOpenPvp={onOpenPvp || onOpenMarket}
+            />
+          ))}
         </div>
       )}
-    </section>
-  )
-}
-
-function CommentActivityRow({
-  item,
-  onOpenMarket,
-  onOpenPost,
-}: {
-  item: FeedPost
-  onOpenMarket: (market: MarketPost) => void
-  onOpenPost?: (post: FeedPost) => void
-}) {
-  const profileHref = `/profile/${encodeURIComponent(item.author.id)}`
-  const avatarColor = "bg-sunburst-yellow"
-
-  return (
-    <article className="verity-card flex gap-3 p-4 sm:gap-4 sm:p-5">
-      <div className="shrink-0">
-        {profileHref ? (
-          <UserHoverCard href={profileHref} profile={item.author}>
-            <Link
-              className={`clickable verity-blob h-10 w-10 ${avatarColor}`}
-              href={profileHref}
-              onClick={(event) => event.stopPropagation()}
-            >
-              <span className="verity-blob-smile" />
-            </Link>
-          </UserHoverCard>
-        ) : (
-          <div className={`verity-blob h-10 w-10 ${avatarColor}`}>
-            <span className="verity-blob-smile" />
-          </div>
-        )}
-      </div>
-
-      <div className="min-w-0 flex-1">
-        <div className="mb-0.5 flex items-center gap-1.5 text-sm">
-          {profileHref ? (
-            <UserHoverCard href={profileHref} profile={item.author}>
-              <Link
-                className="clickable-link truncate font-semibold tracking-[-0.18px] text-charcoal-primary"
-                href={profileHref}
-                onClick={(event) => event.stopPropagation()}
-              >
-                {displayName(item.author)}
-              </Link>
-            </UserHoverCard>
-          ) : (
-            <span className="truncate font-semibold tracking-[-0.18px] text-charcoal-primary hover:underline">
-              {displayName(item.author)}
-            </span>
-          )}
-          {profileHref ? (
-            <Link
-              className="clickable-link truncate font-mono text-xs text-ash"
-              href={profileHref}
-              onClick={(event) => event.stopPropagation()}
-            >
-              {displayHandle(item.author)}
-            </Link>
-          ) : (
-            <span className="truncate font-mono text-xs text-ash">
-              {displayHandle(item.author)}
-            </span>
-          )}
-          <span className="text-ash">{"\u00B7"}</span>
-          <span className="font-mono text-xs text-ash hover:underline">
-            {relativeTime(item.created_at)}
-          </span>
-        </div>
-
-        {item.parentPost?.author && (
-          <div className="mb-2 text-xs font-mono text-ash">
-            Replying to{" "}
-            <span className="text-graphite font-semibold">
-              @{displayHandle(item.parentPost.author)}
-            </span>
-          </div>
-        )}
-
-        <p className="mb-4 whitespace-pre-wrap text-[15px] leading-[1.47] tracking-[-0.2px] text-graphite">
-          {item.content}
-        </p>
-
-        {item.parentPost && (
-          <div
-            className="border border-stone-surface rounded-xl overflow-hidden hover:bg-stone-surface/30 transition-colors duration-200 cursor-pointer"
-            onClick={(e) => {
-              e.stopPropagation()
-              if (item.parentPost?.market) {
-                onOpenMarket(item.parentPost.market)
-              } else if (item.parentPost) {
-                onOpenPost?.(item.parentPost)
-              }
-            }}
-          >
-            <div className="p-3.5 sm:p-4">
-              <div className="flex items-center gap-1.5 text-xs mb-1.5">
-                <span className="font-semibold text-charcoal-primary">
-                  {displayName(item.parentPost.author)}
-                </span>
-                <span className="font-mono text-ash">
-                  {displayHandle(item.parentPost.author)}
-                </span>
-              </div>
-              {item.parentPost.market ? (
-                <div>
-                  <span className="font-mono text-[10px] font-bold text-meadow-green uppercase tracking-wider block mb-1">
-                    Market
-                  </span>
-                  <h4 className="text-[14px] font-semibold text-charcoal-primary leading-[1.3] mb-1">
-                    {item.parentPost.market.question}
-                  </h4>
-                  <p className="text-xs text-ash line-clamp-2">
-                    {item.parentPost.content}
-                  </p>
-                </div>
-              ) : (
-                <p className="text-sm text-graphite line-clamp-3 leading-[1.4]">
-                  {item.parentPost.content}
-                </p>
-              )}
-            </div>
-          </div>
-        )}
-      </div>
-    </article>
+    </div>
   )
 }

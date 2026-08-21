@@ -13,7 +13,6 @@ import {
   OtpCode,
   OtpCodeDocument,
 } from "../users/users.model"
-import { CircleWalletService } from "../circle-wallet/circle-wallet.service"
 import { JwtService } from "@nestjs/jwt"
 import { ConfigService } from "@nestjs/config"
 import { Resend } from "resend"
@@ -144,7 +143,6 @@ export class AuthService {
   constructor(
     @InjectModel(User.name) private userModel: Model<UserDocument>,
     @InjectModel(OtpCode.name) private otpCodeModel: Model<OtpCodeDocument>,
-    private circleWalletService: CircleWalletService,
     private jwtService: JwtService,
     private configService: ConfigService,
     private readonly socketGateway: SocketGateway,
@@ -287,27 +285,6 @@ export class AuthService {
 
       // Broadcast new user creation in real-time
       this.socketGateway.broadcastToRoom("feed", "feed-updated", {})
-    }
-
-    // Provision Circle SCA Wallet if the user doesn't have one
-    if (!user.circleWalletId) {
-      this.logger.log(
-        `Provisioning on-chain Circle SCA Wallet for user ID: ${user._id}`,
-      )
-      try {
-        await this.circleWalletService.createWalletForUser(user._id.toString())
-        // Fetch reloaded user to get walletAddress and circleWalletId
-        user = await this.userModel.findById(user._id)
-      } catch (err) {
-        this.logger.error(
-          `Failed to provision Circle wallet during verification: ${err.message}`,
-        )
-        // If this is a new user and wallet creation fails, delete user to prevent half-created states
-        if (isNewUser && user) {
-          await this.userModel.findByIdAndDelete(user._id)
-        }
-        throw new BadRequestException(`Wallet setup failed: ${err.message}`)
-      }
     }
 
     if (!user) {

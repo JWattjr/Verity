@@ -20,9 +20,6 @@ import { MarketsController } from "./markets.controller"
 import { PostsModule } from "../posts/posts.module"
 import { AgentModule } from "../agent/agent.module"
 import { PvpModule } from "../pvp/pvp.module"
-import { LiquidityModule } from "../liquidity/liquidity.module"
-import { RoyaltyService } from "./royalty.service"
-import { CircleWalletModule } from "../circle-wallet/circle-wallet.module"
 
 @Module({
   imports: [
@@ -37,12 +34,10 @@ import { CircleWalletModule } from "../circle-wallet/circle-wallet.module"
       { name: Post.name, schema: PostSchema },
     ]),
     forwardRef(() => PostsModule),
-    PvpModule,
-    LiquidityModule,
-    CircleWalletModule,
+    forwardRef(() => PvpModule),
   ],
   controllers: [MarketsController],
-  providers: [MarketsService, MarketsKeeperService, RoyaltyService],
-  exports: [MarketsService, MarketsKeeperService, RoyaltyService],
+  providers: [MarketsService, MarketsKeeperService],
+  exports: [MarketsService, MarketsKeeperService],
 })
 export class MarketsModule {}

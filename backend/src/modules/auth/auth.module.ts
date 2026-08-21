@@ -6,7 +6,6 @@ import { User, UserSchema, OtpCode, OtpCodeSchema } from "../users/users.model"
 import { AuthService } from "./auth.service"
 import { AuthController } from "./auth.controller"
 import { JwtAuthGuard } from "../../common/guards/jwt-auth.guard"
-import { CircleWalletModule } from "../circle-wallet/circle-wallet.module"
 
 @Module({
   imports: [
@@ -14,7 +13,6 @@ import { CircleWalletModule } from "../circle-wallet/circle-wallet.module"
       { name: User.name, schema: UserSchema },
       { name: OtpCode.name, schema: OtpCodeSchema },
     ]),
-    CircleWalletModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],

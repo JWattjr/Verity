@@ -1,164 +1,68 @@
 "use client"
 
-import { toast } from "react-hot-toast"
 import { Button } from "@/components/ui/button"
-import { Wallet, Copy, Plus, Coins, ArrowDownToLine, RefreshCw } from "lucide-react"
+import { Users, Swords, Plus, ShieldCheck, Activity } from "lucide-react"
 
 interface BalancesCardProps {
-  adminBalances: {
-    adminAddress: string
-    arcBalance: number
-    usdcBalance: number
-    preDepositUsdcPerOption: number
-    creationFeeUsdc: number
-  } | null
-  contractBalances: {
-    fpmmUsdcBalance: number
-    factoryUsdcBalance: number
-    adminUsdcBalance: number
-    adminAddress: string
-  } | null
-  contractBalancesLoading: boolean
-  onRefreshContractBalances: () => void
+  totalUsers?: number
+  totalMarkets?: number
   activeTab: string
   onOpenCreateDrawer: () => void
-  onBatchClaimCreatorLiquidity: () => void
-  isClaiming: boolean
 }
 
 export default function BalancesCard({
-  adminBalances,
-  contractBalances,
-  contractBalancesLoading,
-  onRefreshContractBalances,
+  totalUsers = 0,
+  totalMarkets = 0,
   activeTab,
   onOpenCreateDrawer,
-  onBatchClaimCreatorLiquidity,
-  isClaiming,
 }: BalancesCardProps) {
-  if (!adminBalances) return null
-
-  function copyToClipboard(text: string) {
-    void navigator.clipboard.writeText(text)
-    toast.success("Address copied to clipboard!")
-  }
-
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 w-full">
-      {/* Admin Wallet Card */}
-      <div className="p-5 bg-white border border-stone-200 rounded-2xl flex items-center gap-4 shadow-sm relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-50 rounded-full -mr-8 -mt-8 opacity-50 pointer-events-none" />
-        <div className="h-10 w-10 rounded-xl bg-indigo-600 flex items-center justify-center text-white shadow-md shrink-0">
-          <Wallet className="h-5 w-5" />
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 w-full">
+      {/* Users Count Card */}
+      <div className="p-4 bg-white border border-stone-200 rounded-[2px] flex items-center gap-3.5 shadow-sm">
+        <div className="h-10 w-10 rounded-[2px] bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-600 shrink-0">
+          <Users className="h-5 w-5" />
         </div>
         <div className="min-w-0 flex-1">
-          <h3 className="text-[10px] font-bold uppercase tracking-widest text-indigo-700">
-            Admin Wallet
+          <h3 className="text-[10px] font-bold uppercase tracking-widest text-stone-500">
+            Registered Users
           </h3>
-          <div className="flex items-center gap-1.5 mt-0.5">
-            <span className="font-mono text-xs font-semibold text-stone-800 truncate block">
-              {adminBalances.adminAddress}
-            </span>
-            <button
-              type="button"
-              onClick={() => copyToClipboard(adminBalances.adminAddress)}
-              className="text-indigo-600 hover:text-indigo-800 p-1 rounded-md hover:bg-indigo-50 transition-colors cursor-pointer shrink-0"
-              title="Copy Address"
-            >
-              <Copy className="h-3 w-3" />
-            </button>
-          </div>
-          <div className="mt-1.5">
-            <span className="font-mono text-base font-bold text-stone-900">
-              {adminBalances.usdcBalance.toLocaleString(undefined, {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2,
-              })}{" "}
-              USDC
-            </span>
-          </div>
+          <p className="font-heading text-2xl font-extrabold text-stone-900">
+            {totalUsers.toLocaleString()}
+          </p>
+          <span className="text-[10px] text-stone-400 font-medium">
+            Active predictor accounts
+          </span>
         </div>
       </div>
 
-      {/* Contract Balances Card */}
-      <div className="p-5 bg-white border border-stone-200 rounded-2xl flex items-start gap-4 shadow-sm relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-24 h-24 bg-amber-50 rounded-full -mr-8 -mt-8 opacity-50 pointer-events-none" />
-        <div className="h-10 w-10 rounded-xl bg-amber-500 flex items-center justify-center text-white shadow-md shrink-0">
-          <Coins className="h-5 w-5" />
+      {/* Markets & Events Card */}
+      <div className="p-4 bg-white border border-stone-200 rounded-[2px] flex items-center gap-3.5 shadow-sm">
+        <div className="h-10 w-10 rounded-[2px] bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-600 shrink-0">
+          <Swords className="h-5 w-5" />
         </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center justify-between">
-            <h3 className="text-[10px] font-bold uppercase tracking-widest text-amber-700">
-              On-Chain Contracts
-            </h3>
-            <button
-              onClick={onRefreshContractBalances}
-              disabled={contractBalancesLoading}
-              className="text-stone-400 hover:text-stone-600 p-1 rounded-md hover:bg-stone-50 transition-all cursor-pointer"
-              title="Refresh contract balances"
-            >
-              <RefreshCw className={`h-3 w-3 ${contractBalancesLoading ? "animate-spin" : ""}`} />
-            </button>
-          </div>
-          
-          <div className="mt-2 space-y-1">
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-stone-500 font-medium">FPMM Pools:</span>
-              <span className="font-mono font-semibold text-stone-900">
-                {contractBalances ? (
-                  `${contractBalances.fpmmUsdcBalance.toLocaleString(undefined, {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })} USDC`
-                ) : (
-                  <span className="text-stone-300">...</span>
-                )}
-              </span>
-            </div>
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-stone-500 font-medium">Factory Escrow:</span>
-              <span className="font-mono font-semibold text-stone-900">
-                {contractBalances ? (
-                  `${contractBalances.factoryUsdcBalance.toLocaleString(undefined, {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })} USDC`
-                ) : (
-                  <span className="text-stone-300">...</span>
-                )}
-              </span>
-            </div>
-          </div>
+        <div className="min-w-0 flex-1">
+          <h3 className="text-[10px] font-bold uppercase tracking-widest text-stone-500">
+            PvP Events & Markets
+          </h3>
+          <p className="font-heading text-2xl font-extrabold text-stone-900">
+            {totalMarkets.toLocaleString()}
+          </p>
+          <span className="text-[10px] text-stone-400 font-medium">
+            Active propositions
+          </span>
         </div>
       </div>
 
-      {/* Admin Actions Card */}
-      <div className="p-5 bg-stone-50 border border-stone-200 rounded-2xl flex flex-col justify-center gap-2 shadow-inner">
-        {activeTab === "moderation" ? (
-          <>
-            <Button
-              onClick={onBatchClaimCreatorLiquidity}
-              disabled={isClaiming}
-              className="w-full bg-amber-600 hover:bg-amber-700 text-white font-semibold rounded-lg h-9 text-xs tracking-wide shadow-xs flex items-center justify-center gap-2 transition-all cursor-pointer"
-            >
-              <ArrowDownToLine className={`h-3.5 w-3.5 ${isClaiming ? "animate-bounce" : ""}`} />
-              {isClaiming ? "Claiming LP..." : "Batch Claim Creator LP"}
-            </Button>
-            <Button
-              onClick={onOpenCreateDrawer}
-              className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg h-9 text-xs tracking-wide shadow-xs flex items-center justify-center gap-2 transition-all cursor-pointer"
-            >
-              <Plus className="h-3.5 w-3.5" />
-              Create PvP Event
-            </Button>
-          </>
-        ) : (
-          <div className="text-center py-2">
-            <span className="text-xs text-stone-500 italic">
-              Switch to Moderation tab to perform actions.
-            </span>
-          </div>
-        )}
+      {/* Quick Action */}
+      <div className="p-4 bg-stone-50 border border-stone-200 rounded-[2px] flex flex-col justify-center gap-2">
+        <Button
+          onClick={onOpenCreateDrawer}
+          className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-[2px] h-10 text-xs tracking-wider uppercase shadow-xs flex items-center justify-center gap-2 transition-all cursor-pointer"
+        >
+          <Plus className="h-4 w-4" />
+          Deploy PvP Match Card
+        </Button>
       </div>
     </div>
   )

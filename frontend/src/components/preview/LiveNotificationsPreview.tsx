@@ -159,7 +159,7 @@ function buildPreviewNotifications(
       Icon: CheckCircle2,
       label: "Prediction result",
       title: "You won a prediction!",
-      body: `Your prediction on “${market(1, "France vs Spain - Extra Time / Penalties Winner")}" was correct. Claim your winnings now.`,
+      body: `Your prediction on “${market(1, "France vs Spain - Total Goals")}" was correct. Claim your winnings now.`,
       href: marketHref(1),
       time: "13 days ago",
     },

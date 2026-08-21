@@ -38,7 +38,6 @@ interface DuelStatusData {
 
 export default function PvpDuelPicks({
   pvpStatus,
-  onAddLiquidity,
 }: PvpDuelPicksProps) {
   const userPicks = pvpStatus.ticket?.picks || []
   const oppPicks = pvpStatus.opponent?.picks || []
@@ -79,30 +78,29 @@ export default function PvpDuelPicks({
   }
 
   return (
-    <section className="border border-border bg-surface">
-      <div className="flex min-h-12 items-center justify-between border-b border-border px-4">
+    <section className="border border-[#222226] bg-[#101012] text-[#f4f1ea]">
+      <div className="flex min-h-12 items-center justify-between border-b border-[#222226] px-4">
         <div>
-          <h3 className="font-heading text-xl font-black uppercase tracking-[0.03em] text-charcoal-primary">
+          <h3 className="font-heading text-lg font-black uppercase tracking-tight text-[#f4f1ea]">
             Card breakdown
           </h3>
-          <p className="font-mono text-[8px] font-semibold uppercase tracking-[0.12em] text-ash">
+          <p className="font-mono text-[8px] font-semibold uppercase tracking-wider text-[#8e8a85]">
             Your picks · Rival picks · Official outcomes
           </p>
         </div>
-        <span className="bg-black px-3 py-2 font-mono text-[8px] font-bold uppercase tracking-[0.14em] text-white">
+        <span className="bg-[#161619] border border-[#222226] px-3 py-1.5 font-mono text-[8px] font-bold uppercase tracking-wider text-[#aaa6a1]">
           Head to head
         </span>
       </div>
 
       {/* Per-pick rows */}
-      <div className="grid grid-cols-1 border-l border-t border-border xl:grid-cols-2">
+      <div className="grid grid-cols-1 border-l border-t border-[#222226] xl:grid-cols-2">
         {allMarketIds.map((marketId) => {
           const pick = userPicks.find((item) => item.marketId === marketId)
           const childOpt = pvpStatus.event?.options?.find(
             (option) => option.id === marketId,
           )
           const oppPick = oppPicks.find((item) => item.marketId === marketId)
-          const invested = pick?.investedUsdc ?? 0
 
           const isResolved =
             childOpt?.status === "resolved" ||
@@ -124,11 +122,11 @@ export default function PvpDuelPicks({
           return (
             <div
               key={marketId}
-              className="flex flex-col gap-3 border-b border-r border-border bg-surface p-4 transition-colors hover:bg-surface-muted"
+              className="flex flex-col gap-3 border-b border-r border-[#222226] bg-[#101012] p-4 transition-colors hover:bg-[#141417]"
             >
-              {/* Top row: Title + Shares */}
+              {/* Top row: Title */}
               <div className="flex items-baseline justify-between gap-2">
-                <span className="text-xs font-bold tracking-wide text-charcoal-primary dark:text-zinc-200 uppercase truncate">
+                <span className="text-xs font-bold tracking-tight text-[#f4f1ea] uppercase truncate">
                   {(
                     childOpt?.optionName ||
                     pick?.optionName ||
@@ -136,32 +134,19 @@ export default function PvpDuelPicks({
                     "Pick"
                   ).toUpperCase()}
                 </span>
-                <div className="flex items-center gap-3 shrink-0">
-                  <span className="font-mono text-[9px] text-ash">
-                    Shares: <strong>{invested.toFixed(2)}</strong>
-                  </span>
-                  {childOpt && !isResolved && onAddLiquidity && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        onAddLiquidity(marketId)
-                      }}
-                      className="border border-border bg-black px-2 py-1 font-mono text-[8px] font-bold uppercase tracking-wider text-white transition-colors hover:bg-accent hover:text-black"
-                    >
-                      + LP
-                    </button>
-                  )}
-                </div>
+                <span className="font-mono text-[9px] uppercase tracking-wider text-[#8e8a85]">
+                  {childOpt?.optionGroup?.replace(/_/g, " ") || "Proposition"}
+                </span>
               </div>
 
               {/* Bottom row: Selections */}
               <div className="grid grid-cols-2 md:flex md:items-stretch gap-2">
                 {/* Your Pick */}
-                <div className="flex min-w-0 flex-1 flex-col items-start border border-border bg-black px-3 py-2 text-white">
-                  <span className="font-mono text-[8px] uppercase tracking-[0.12em] text-ash">
+                <div className="flex min-w-0 flex-1 flex-col items-start border border-[#222226] bg-[#161619] px-3 py-2 text-[#f4f1ea]">
+                  <span className="font-mono text-[8px] uppercase tracking-wider text-[#8e8a85]">
                     You
                   </span>
-                  <span className="max-w-full truncate text-xs font-semibold">
+                  <span className="max-w-full truncate text-xs font-bold mt-0.5">
                     {pick
                       ? formatPickSelection(pick.selection, childOpt) || "—"
                       : "—"}
@@ -169,16 +154,16 @@ export default function PvpDuelPicks({
                 </div>
 
                 {/* Opponent's Pick */}
-                <div className="flex min-w-0 flex-1 flex-col items-start border border-border bg-black px-3 py-2 text-white">
-                  <span className="font-mono text-[8px] uppercase tracking-[0.12em] text-ash">
+                <div className="flex min-w-0 flex-1 flex-col items-start border border-[#222226] bg-[#161619] px-3 py-2 text-[#f4f1ea]">
+                  <span className="font-mono text-[8px] uppercase tracking-wider text-[#8e8a85]">
                     Opponent
                   </span>
                   {pvpStatus.status === "queued" ? (
-                    <span className="text-xs font-semibold text-ash italic animate-pulse">
+                    <span className="text-xs font-semibold text-[#8e8a85] italic animate-pulse mt-0.5">
                       Waiting...
                     </span>
                   ) : (
-                    <span className="max-w-full truncate text-xs font-semibold">
+                    <span className="max-w-full truncate text-xs font-bold mt-0.5">
                       {oppPick
                         ? formatPickSelection(oppPick.selection, childOpt) ||
                           "—"
@@ -189,11 +174,11 @@ export default function PvpDuelPicks({
 
                 {/* Outcome — only shown when resolved */}
                 {isResolved && (
-                  <div className="flex min-w-0 flex-1 flex-col items-start border border-accent bg-accent px-3 py-2 text-black">
-                    <span className="font-mono text-[8px] uppercase tracking-[0.12em] text-black/60">
+                  <div className="flex min-w-0 flex-1 flex-col items-start border border-[#ff3b30] bg-[#1e1212] px-3 py-2 text-[#f4f1ea]">
+                    <span className="font-mono text-[8px] uppercase tracking-wider text-[#ff3b30]">
                       Outcome
                     </span>
-                    <span className="max-w-full truncate text-xs font-bold">
+                    <span className="max-w-full truncate text-xs font-bold mt-0.5">
                       {formatPickSelection(resolvedOutcome, childOpt) || ""}
                     </span>
                   </div>
@@ -203,12 +188,12 @@ export default function PvpDuelPicks({
                 {((pick && (pick.arenaCorrect ?? pick.isCorrect) !== null) ||
                   (oppPick &&
                     (oppPick.arenaCorrect ?? oppPick.isCorrect) !== null)) && (
-                  <div className="flex shrink-0 flex-col items-center justify-center border border-border px-3 py-2">
-                    <span className="font-mono text-[8px] uppercase tracking-[0.12em] text-ash">
+                  <div className="flex shrink-0 flex-col items-center justify-center border border-[#222226] bg-[#161619] px-3 py-2">
+                    <span className="font-mono text-[8px] uppercase tracking-wider text-[#8e8a85]">
                       Points
                     </span>
                     <span
-                      className={`text-xs font-bold ${(pick?.arenaCorrect ?? pick?.isCorrect) ? "text-meadow-green" : "text-charcoal-primary dark:text-zinc-400"}`}
+                      className={`text-xs font-bold mt-0.5 ${(pick?.arenaCorrect ?? pick?.isCorrect) ? "text-[#00ca48]" : "text-[#8e8a85]"}`}
                     >
                       {(pick?.arenaCorrect ?? pick?.isCorrect)
                         ? "+1 pt"

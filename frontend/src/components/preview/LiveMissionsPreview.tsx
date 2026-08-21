@@ -164,9 +164,7 @@ function getMissionDescription(mission: Mission) {
     case "has_liked":
       return "Like a market or community post in the Verity feed."
     case "has_traded":
-      return "Trade on an open USDC-backed market."
-    case "has_added_liquidity":
-      return "Provide liquidity to an active market pool."
+      return "Trade on an open market."
     case "has_created_market":
       return "Create a new prediction market for the community."
     case "has_set_profile":

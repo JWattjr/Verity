@@ -45,7 +45,7 @@ export default function MobileHeader() {
             onClick={login}
             type="button"
           >
-            <span>Login</span>
+            <span>Get Started</span>
           </button>
         ) : null}
       </div>

@@ -1,7 +1,7 @@
 "use client"
 
 import type { ReactNode } from "react"
-import { Activity, Crosshair, Trophy } from "lucide-react"
+import { Crosshair, Trophy } from "lucide-react"
 import type { Profile } from "@/lib/verity"
 import { displayHandle, displayName } from "@/lib/verity"
 import type { ProfileActivityTab } from "@/components/social/ProfileActivityTabs"
@@ -19,9 +19,8 @@ interface ProfileOverviewProps {
 }
 
 const tabs: Array<{ id: ProfileActivityTab; label: string }> = [
-  { id: "markets", label: "Markets" },
   { id: "predictions", label: "Predictions" },
-  { id: "activity", label: "Activity" },
+  { id: "markets", label: "Markets" },
 ]
 
 export default function ProfileOverview({
@@ -114,7 +113,7 @@ export default function ProfileOverview({
         />
       </dl>
 
-      <div className="grid grid-cols-3 border-t border-border">
+      <div className="grid grid-cols-2 border-t border-border">
         {tabs.map((tab) => {
           const isActive = activeTab === tab.id
           return (
@@ -128,7 +127,6 @@ export default function ProfileOverview({
               onClick={() => onTabChange(tab.id)}
               type="button"
             >
-              {tab.id === "activity" && <Activity className="h-3.5 w-3.5" />}
               {tab.label}
             </button>
           )

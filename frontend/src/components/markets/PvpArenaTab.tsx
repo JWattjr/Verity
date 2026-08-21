@@ -3,19 +3,13 @@
 import { useState, useEffect, useMemo, useCallback } from "react"
 import { useQueryClient } from "@tanstack/react-query"
 import { useAuth } from "@/components/providers/AuthModals"
-import { useMarketResolution } from "@/hooks/useMarketResolution"
-import { useUsdcBalance } from "@/hooks/useUsdcBalance"
-import { arcUsdcAddress, FPMM_ADDRESS, publicClient } from "@/lib/arc"
-import { maxUint256 } from "viem"
 import {
   useSubmitPvpTicketMutation,
-  useExecuteMarketTradeMutation,
 } from "@/store/verity/verityQueries"
 import { toast } from "@/lib/toast"
-import PvpMatchupCarousel, {
-  getCountryFlag,
-  parseEventTeams,
-} from "./PvpMatchupCarousel"
+import { parseEventTeams } from "./PvpMatchupCarousel"
+import ArenaPlayerStatsHeader from "./ArenaPlayerStatsHeader"
+import TeamBadge from "@/components/common/TeamBadge"
 import PvpClaimBanner from "./PvpClaimBanner"
 import { useDrawerStore } from "@/store/drawerStore"
 import {
@@ -25,21 +19,15 @@ import {
   DrawerTitle,
   DrawerClose,
 } from "@/components/ui/drawer"
+import Link from "next/link"
 import MarketDetail from "@/components/markets/MarketDetail"
-import { X, Lock, ArrowRight, Loader2, Swords } from "lucide-react"
+import { X, Lock, ArrowRight, Loader2, Swords, History } from "lucide-react"
 
 // Sub-components
 import PvpArenaSkeleton from "./PvpArenaSkeleton"
 import PvpDuelStatus from "./PvpDuelStatus"
 import PvpDuelPicks from "./PvpDuelPicks"
 import PvpTicketBuilder from "./PvpTicketBuilder"
-import PvpLiquidityModal from "./PvpLiquidityModal"
-import { useMarketLiquidity } from "@/hooks/useMarketLiquidity"
-
-function formatMarketId(marketId: string): `0x${string}` {
-  const clean = marketId.replace(/^0x/, "")
-  return `0x${clean.padEnd(64, "0")}` as `0x${string}`
-}
 
 interface PvpArenaTabProps {
   pvpEvents: any[]
@@ -69,9 +57,6 @@ export default function PvpArenaTab({
   setClaimedMarketIds,
 }: PvpArenaTabProps) {
   const queryClient = useQueryClient()
-  const { user, executeTxBatch, closeTxConfirm } = useAuth()
-  const { redeemMultipleWinnings } = useMarketResolution()
-  const { rawBalance } = useUsdcBalance()
   const {
     tradeMarketId,
     isTradeDrawerOpen,
@@ -79,22 +64,16 @@ export default function PvpArenaTab({
     closeTradeDrawer,
   } = useDrawerStore()
   const submitTicketMutation = useSubmitPvpTicketMutation()
-  const { mutateAsync: executeMarketTrade } = useExecuteMarketTradeMutation()
-  const { batchAddPoolLiquidity } = useMarketLiquidity()
 
   // ─── Local state ────────────────────────────────────────────
   const [mounted, setMounted] = useState<boolean>(false)
   const [showBuilderOverride, setShowBuilderOverride] = useState<boolean>(false)
-  const [betAmountPerSelection, setBetAmountPerSelection] = useState<number>(5)
   const [allPvpSelections, setAllPvpSelections] = useState<
     Record<string, Record<string, string>>
   >({})
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false)
   const [isRegisteringQueue, setIsRegisteringQueue] = useState<boolean>(false)
   const [showTooltip, setShowTooltip] = useState<boolean>(false)
-  const [liquidityMarketId, setLiquidityMarketId] = useState<string | null>(
-    null,
-  )
 
   useEffect(() => {
     setMounted(true)
@@ -155,10 +134,6 @@ export default function PvpArenaTab({
     ).length
   }, [pvpStatus])
 
-  const optionForLP = useMemo(() => {
-    if (!liquidityMarketId || !selectedPvpEvent) return null
-    return selectedPvpEvent.options.find((o: any) => o.id === liquidityMarketId)
-  }, [liquidityMarketId, selectedPvpEvent])
 
   const totalVolume = useMemo(() => {
     if (!selectedPvpEvent?.options) return 0
@@ -261,9 +236,8 @@ export default function PvpArenaTab({
   )
 
   const handleClaim = useCallback(
-    async (marketIds: string[], totalWinnings: number) => {
+    async (marketIds: string[]) => {
       try {
-        await redeemMultipleWinnings(marketIds, totalWinnings)
         setClaimedMarketIds((prev) => {
           const next = new Set(prev)
           marketIds.forEach((id) => next.add(id))
@@ -279,18 +253,18 @@ export default function PvpArenaTab({
           queryKey: ["pvp-my-active-tickets"],
         })
         void queryClient.invalidateQueries({ queryKey: ["positions"] })
-        void queryClient.invalidateQueries({ queryKey: ["usdcBalance"] })
         void queryClient.invalidateQueries({ queryKey: ["wallet-profile"] })
+        toast.success("Winnings and Arena XP claimed!")
       } catch (err) {
-        console.error("Failed to claim all winnings", err)
+        console.error("Failed to claim winnings", err)
       }
     },
-    [redeemMultipleWinnings, queryClient, setClaimedMarketIds],
+    [queryClient, setClaimedMarketIds],
   )
 
   async function handleSubmitPvpTicket(couponCode?: string) {
-    if (!profile || !user?.walletAddress) {
-      toast.error("Connect your wallet to queue for the Arena.")
+    if (!profile) {
+      toast.error("Please click Get Started to queue for the Arena.")
       return
     }
     if (!selectedPvpEvent) return
@@ -298,44 +272,15 @@ export default function PvpArenaTab({
     const lockTimeLimit = new Date(
       selectedPvpEvent.lockTime || selectedPvpEvent.deadline,
     )
-    const txBufferMs = 30000 // 30 seconds buffer for transaction processing
-    if (new Date().getTime() + txBufferMs >= lockTimeLimit.getTime()) {
+    if (new Date().getTime() >= lockTimeLimit.getTime()) {
       toast.error("This matchup is too close to kickoff or has already started")
       return
     }
 
-    const picks = Object.keys(pvpSelections).map((marketId) => {
-      const selection = pvpSelections[marketId]
-      const opt = selectedPvpEvent.options.find((o: any) => o.id === marketId)
-
-      let price = 0.5
-      const isMulti = opt && opt.outcomeCount && opt.outcomeCount > 2
-      if (isMulti) {
-        const outcomeIndex = opt.outcomes.findIndex(
-          (o: any) => o.toLowerCase().trim() === selection.toLowerCase().trim(),
-        )
-        const validIndex = outcomeIndex >= 0 ? outcomeIndex : 0
-        price = opt.outcomePrices?.[validIndex] ?? 1 / opt.outcomeCount
-      } else {
-        const yesPool = Number(opt?.usdcYesAmount ?? 0)
-        const noPool = Number(opt?.usdcNoAmount ?? 0)
-        const totalPool = yesPool + noPool
-        let yesProb = 50
-        if (totalPool > 0) {
-          yesProb = (yesPool / totalPool) * 100
-        }
-        const noProb = 100 - yesProb
-        price = selection === "YES" ? yesProb / 100 : noProb / 100
-      }
-      const shares = betAmountPerSelection / (price || 0.5)
-
-      return { marketId, selection, shares }
-    })
-
-    if (betAmountPerSelection < 1) {
-      toast.error("Please enter a bet amount of at least 1 USDC per selection.")
-      return
-    }
+    const picks = Object.keys(pvpSelections).map((marketId) => ({
+      marketId,
+      selection: pvpSelections[marketId],
+    }))
 
     if (picks.length < 3) {
       toast.error(
@@ -344,191 +289,30 @@ export default function PvpArenaTab({
       return
     }
 
-    const totalAmount = betAmountPerSelection * picks.length
-    const rawTotalAmount = BigInt(Math.round(totalAmount * 1e6))
-
-    if (rawBalance < rawTotalAmount) {
-      toast.error(
-        `Insufficient USDC balance. You need at least ${totalAmount} USDC to submit this ticket, but your balance is ${(Number(rawBalance) / 1e6).toFixed(2)} USDC.`,
-      )
-      return
-    }
-
     setIsSubmitting(true)
-    const toastId = toast.loading("Preparing ticket transaction batch...")
+    setIsRegisteringQueue(true)
     try {
-      // 1. Check current USDC allowance to FPMM_ADDRESS
-      const allowance = await publicClient.readContract({
-        abi: [
-          {
-            name: "allowance",
-            type: "function",
-            stateMutability: "view",
-            inputs: [
-              { name: "owner", type: "address" },
-              { name: "spender", type: "address" },
-            ],
-            outputs: [{ name: "", type: "uint256" }],
-          },
-        ] as const,
-        address: arcUsdcAddress,
-        functionName: "allowance",
-        args: [user.walletAddress as `0x${string}`, FPMM_ADDRESS],
-      })
-
-      const batchCalls: Array<{
-        contractAddress: string
-        abiFunctionSignature: string
-        abiParameters: any[]
-      }> = []
-
-      // If allowance is too low, add approval call
-      if (allowance < rawTotalAmount) {
-        batchCalls.push({
-          contractAddress: arcUsdcAddress,
-          abiFunctionSignature: "approve(address,uint256)",
-          abiParameters: [FPMM_ADDRESS, maxUint256],
-        })
-      }
-
-      // 2. Build child buy calls
-      const rawAmountPerSelection = BigInt(
-        Math.round(betAmountPerSelection * 1e6),
-      )
-      picks.forEach((pick) => {
-        const opt = selectedPvpEvent.options.find(
-          (o: any) => o.id === pick.marketId,
-        )
-        const isMulti = opt && opt.outcomeCount && opt.outcomeCount > 2
-
-        if (isMulti) {
-          const outcomeIndex = opt.outcomes.findIndex(
-            (o: any) =>
-              o.toLowerCase().trim() === pick.selection.toLowerCase().trim(),
-          )
-          const validIndex = outcomeIndex >= 0 ? outcomeIndex : 0
-
-          batchCalls.push({
-            contractAddress: FPMM_ADDRESS,
-            abiFunctionSignature: "buyOutcome(bytes32,uint256,uint256)",
-            abiParameters: [
-              formatMarketId(pick.marketId),
-              BigInt(validIndex),
-              rawAmountPerSelection,
-            ],
-          })
-        } else {
-          const isYes = pick.selection === "YES"
-          batchCalls.push({
-            contractAddress: FPMM_ADDRESS,
-            abiFunctionSignature: "buy(bytes32,bool,uint256)",
-            abiParameters: [
-              formatMarketId(pick.marketId),
-              isYes,
-              rawAmountPerSelection,
-            ],
-          })
-        }
-      })
-
-      toast.dismiss(toastId)
-
-      // 3. Execute batched on-chain buy calls
-      const hash = await executeTxBatch(
-        batchCalls,
-        `Purchase ${picks.length}-selection PvP ticket for ${totalAmount} USDC`,
-        totalAmount,
-        undefined,
-        false, // Defer closing confirmation modal
-      )
-
-      // 4. Close confirmation modal and show immediate feedback
-      closeTxConfirm()
-      setIsRegisteringQueue(true)
-      setIsSubmitting(false)
-      setShowBuilderOverride(false)
-      setAllPvpSelections((prev) => {
-        const next = { ...prev }
-        delete next[selectedPvpEvent.id]
-        return next
-      })
-
-      // 5. Register trades and submit ticket to queue in background
-      const tradePromises = picks.map((pick) => {
-        return executeMarketTrade({
-          marketId: pick.marketId,
-          profileId: profile.id,
-          side: pick.selection,
-          action: "BUY",
-          amount: betAmountPerSelection,
-          grossAmount: pick.shares,
-          txHash: hash,
-        })
-      })
-      const ticketPromise = submitTicketMutation.mutateAsync({
+      await submitTicketMutation.mutateAsync({
         parentMarketId: selectedPvpEvent.id,
         picks,
         couponCode,
       })
 
-      // Run database sync asynchronously in the background
-      Promise.all([...tradePromises, ticketPromise])
-        .then(async () => {
-          await refetchPvpStatus()
-          toast.success(
-            "Successfully purchased picks & submitted ticket! Queued for opponent...",
-          )
-        })
-        .catch((err: any) => {
-          console.error(
-            "Failed to register trade or ticket in background:",
-            err,
-          )
-          toast.error("Failed to queue. Please refresh the page to try again.")
-        })
-        .finally(() => {
-          setIsRegisteringQueue(false)
-        })
-    } catch (err: any) {
-      closeTxConfirm() // Close modal on error
-      toast.error("Failed to purchase tickets.")
-      toast.dismiss(toastId)
-      if (!err.message?.includes("rejected")) {
-        toast.error("Failed to purchase tickets.")
-      }
       setIsSubmitting(false)
-    }
-  }
-
-  const handleProvideLiquidity = async (amounts: Record<string, number>) => {
-    if (!profile) {
-      toast.error("Please connect your wallet first.")
-      return
-    }
-
-    const deposits = Object.entries(amounts).map(([optId, amt]) => ({
-      marketId: optId,
-      amount: amt,
-    }))
-
-    if (deposits.length === 0) return
-
-    setIsSubmitting(true)
-    try {
-      await batchAddPoolLiquidity(deposits, profile.id)
-
-      // Clear selections for this event after providing liquidity
+      setShowBuilderOverride(false)
       setAllPvpSelections((prev) => {
         const next = { ...prev }
         delete next[selectedPvpEvent.id]
         return next
       })
-      setShowBuilderOverride(false)
-      void refetchPvpStatus()
-    } catch (error: any) {
-      // Error handled by hook
+
+      await refetchPvpStatus()
+      toast.success("Duel card submitted! Matching you with an opponent...")
+    } catch (err: any) {
+      toast.error(err.message || "Failed to submit ticket.")
     } finally {
       setIsSubmitting(false)
+      setIsRegisteringQueue(false)
     }
   }
 
@@ -546,14 +330,13 @@ export default function PvpArenaTab({
   // ─── Render ─────────────────────────────────────────────────
   return (
     <div className="lg:col-span-2 flex flex-col gap-4">
-      {/* Event Selector Header Card (Matchup Carousel) */}
-      {sortedPvpEvents.length > 0 && (
-        <PvpMatchupCarousel
-          pvpEvents={sortedPvpEvents}
-          selectedPvpEventId={selectedPvpEventId}
-          setSelectedPvpEventId={setSelectedPvpEventId}
-        />
-      )}
+      {/* Player Stats Header with Match Switcher */}
+      <ArenaPlayerStatsHeader
+        profile={profile}
+        pvpEvents={sortedPvpEvents}
+        selectedPvpEventId={selectedPvpEventId}
+        setSelectedPvpEventId={setSelectedPvpEventId}
+      />
 
       {isPvpStatusPending ? (
         <PvpArenaSkeleton
@@ -561,18 +344,16 @@ export default function PvpArenaTab({
           hideCarouselHeader={true}
         />
       ) : isRegisteringQueue ? (
-        <div className="verity-card p-8 md:p-10 flex flex-col items-center justify-center text-center gap-6 relative overflow-hidden bg-linear-to-b from-indigo-50/40 to-stone-100/30 dark:from-indigo-950/10 dark:to-zinc-900/10 border border-indigo-200/40 dark:border-indigo-900/20 shadow-sm min-h-[300px]">
-          {/* Pulsing indigo loading ring */}
-          <div className="relative flex items-center justify-center w-16 h-16 rounded-full bg-indigo-100 dark:bg-indigo-900/30 border border-indigo-200/50 dark:border-indigo-900/50 shadow-inner">
-            <Loader2 className="h-7 w-7 text-indigo-600 dark:text-indigo-400 animate-spin absolute" />
-            <Swords className="h-5 w-5 text-indigo-500 relative z-10" />
+        <div className="border border-[#222226] bg-[#101012] p-8 md:p-10 flex flex-col items-center justify-center text-center gap-6 min-h-[300px]">
+          <div className="flex items-center justify-center w-14 h-14 border border-[#ff3b30] bg-[#1e1212] text-[#ff3b30]">
+            <Loader2 className="h-6 w-6 animate-spin" />
           </div>
 
           <div className="space-y-2 max-w-sm">
-            <h3 className="text-xl font-black font-sans leading-tight text-charcoal-primary dark:text-white">
+            <h3 className="text-xl font-black uppercase text-[#f4f1ea] font-heading">
               Entering the Arena...
             </h3>
-            <p className="text-xs text-ash leading-relaxed font-sans">
+            <p className="text-xs text-[#8e8a85] leading-relaxed">
               We are finalising your ticket registration and queueing you for an
               opponent.
             </p>
@@ -598,7 +379,6 @@ export default function PvpArenaTab({
               />
               <PvpDuelPicks
                 pvpStatus={pvpStatus}
-                onAddLiquidity={(id) => setLiquidityMarketId(id)}
               />
             </div>
           )}
@@ -606,28 +386,25 @@ export default function PvpArenaTab({
           {/* Ticket Builder Form */}
           {(!hasActiveDuel || showBuilderOverride) &&
             (isEventEnded ? (
-              <div className="verity-card p-8 md:p-10 flex flex-col gap-6 relative overflow-hidden bg-linear-to-b from-amber-50/40 to-stone-100/30 dark:from-amber-950/10 dark:to-zinc-900/10 border border-amber-200/40 dark:border-amber-900/20 shadow-sm">
+              <div className="border border-[#222226] bg-[#101012] p-6 md:p-8 flex flex-col gap-6 text-[#f4f1ea]">
                 {/* Locked Content */}
-                <div className="flex flex-col md:flex-row items-center md:items-start gap-5">
-                  {/* Circular Gold Icon Container */}
-                  <div className="relative flex items-center justify-center w-16 h-16 rounded-full bg-amber-100 dark:bg-amber-900/30 border border-amber-200/50 dark:border-amber-900/50 shadow-inner shrink-0">
-                    <div className="relative z-10 text-amber-600 dark:text-amber-400">
-                      <Lock className="h-6 w-6" strokeWidth={2.5} />
-                    </div>
+                <div className="flex flex-col md:flex-row items-center md:items-start gap-4">
+                  <div className="flex items-center justify-center w-12 h-12 border border-[#28282e] bg-[#161619] text-[#8e8a85] shrink-0">
+                    <Lock className="h-5 w-5" />
                   </div>
 
                   {/* Text Area */}
-                  <div className="flex-1 text-center md:text-left space-y-2.5">
-                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-100 dark:bg-amber-950/40 text-[10px] font-bold text-amber-700 dark:text-amber-400 uppercase tracking-wider font-mono">
-                      🔒 Predictions Closed
+                  <div className="flex-1 text-center md:text-left space-y-2">
+                    <span className="inline-flex items-center gap-1.5 border border-[#28282e] bg-[#161619] px-2.5 py-0.5 text-[9px] font-bold text-[#8e8a85] uppercase tracking-wider font-mono">
+                      Predictions Closed
                     </span>
-                    <h3 className="text-2xl font-black font-sans leading-tight text-charcoal-primary dark:text-white">
+                    <h3 className="text-2xl font-black font-heading uppercase leading-tight text-[#f4f1ea]">
                       Whistle's blown on {parsedTeams.teamA} vs{" "}
                       {parsedTeams.teamB}
                     </h3>
-                    <p className="text-xs text-ash leading-relaxed font-sans max-w-xl">
-                      Kickoff has passed — but the arena's still buzzing. Jump
-                      into one of these open matches and keep building Arena XP.
+                    <p className="text-xs text-[#8e8a85] leading-relaxed max-w-xl">
+                      Kickoff has passed for this fixture. Switch to an open match
+                      above or below to build your duel card and earn Arena XP.
                     </p>
                   </div>
                 </div>
@@ -689,23 +466,23 @@ export default function PvpArenaTab({
                             <div
                               key={evt.id}
                               onClick={() => setSelectedPvpEventId(evt.id)}
-                              className="flex items-center justify-between p-3.5 rounded-xl border border-border dark:border-zinc-800/80 bg-white dark:bg-zinc-900/30 hover:border-indigo-500 transition-all cursor-pointer group shadow-xs hover:shadow-sm"
+                              className="flex items-center justify-between p-3.5 rounded-[2px] border border-border bg-surface hover:border-accent transition-all cursor-pointer group"
                             >
                               <div className="text-left space-y-1 min-w-0 flex-1 pr-2">
-                                <div className="flex items-center gap-1.5 text-xs font-bold text-charcoal-primary dark:text-zinc-200 truncate">
-                                  <span>{getCountryFlag(recTeamA)}</span>
-                                  <span>vs</span>
-                                  <span>{getCountryFlag(recTeamB)}</span>
-                                  <span className="truncate ml-0.5">
+                                <div className="flex items-center gap-2 text-xs font-bold text-charcoal-primary dark:text-zinc-200 truncate">
+                                  <div className="flex items-center -space-x-1">
+                                    <TeamBadge team={recTeamA} className="h-4.5 w-4.5" />
+                                    <TeamBadge team={recTeamB} className="h-4.5 w-4.5" />
+                                  </div>
+                                  <span className="truncate">
                                     {recTeamA} vs {recTeamB}
                                   </span>
                                 </div>
-                                <span className="block text-[9px] font-mono text-ash font-medium">
-                                  {timeLabel ? `${timeLabel} · ` : ""}$
-                                  {vol.toLocaleString()}
+                                <span className="block text-[9px] font-mono text-ash font-medium uppercase tracking-wider">
+                                  {timeLabel ? timeLabel : "Open now"}
                                 </span>
                               </div>
-                              <div className="h-7 w-7 rounded-full bg-stone-100 dark:bg-zinc-850 flex items-center justify-center shrink-0 text-charcoal-primary dark:text-zinc-300 group-hover:bg-indigo-600 group-hover:text-white transition-all">
+                              <div className="h-7 w-7 rounded-full bg-stone-100 dark:bg-zinc-850 flex items-center justify-center shrink-0 text-charcoal-primary dark:text-zinc-300 group-hover:bg-brand-accent group-hover:text-black transition-all">
                                 <ArrowRight className="h-3.5 w-3.5" />
                               </div>
                             </div>
@@ -722,39 +499,98 @@ export default function PvpArenaTab({
                 pvpEvents={sortedPvpEvents}
                 pvpStatus={pvpStatus}
                 pvpSelections={pvpSelections}
-                betAmountPerSelection={betAmountPerSelection}
                 isSubmitting={isSubmitting}
                 showTooltip={showTooltip}
                 referralsData={referralsData}
                 parsedTeams={parsedTeams}
                 groupedOptions={groupedOptions}
                 onToggleSelection={handleToggleSelection}
-                onSetBetAmount={setBetAmountPerSelection}
                 onSetShowTooltip={setShowTooltip}
                 onSubmitTicket={handleSubmitPvpTicket}
-                onAddLiquidity={(id) => setLiquidityMarketId(id)}
-                onProvideLiquidity={handleProvideLiquidity}
               />
             ))}
         </>
       )}
 
-      {/* Liquidity Modal */}
-      <PvpLiquidityModal
-        liquidityMarketId={liquidityMarketId}
-        setLiquidityMarketId={setLiquidityMarketId}
-        optionForLP={optionForLP}
-        selectedPvpEvent={selectedPvpEvent}
-        refetchPvpStatus={refetchPvpStatus}
-        profile={profile}
-      />
+      {/* Dedicated Duel History Link Card */}
+      <div className="flex items-center justify-between p-4 border border-[#222226] bg-[#101012] hover:bg-[#161619] transition-colors">
+        <div className="flex items-center gap-3">
+          <div className="flex items-center justify-center w-9 h-9 border border-[#ff3b30]/30 bg-[#ff3b30]/10 text-[#ff3b30]">
+            <History className="h-4 w-4" />
+          </div>
+          <div>
+            <h4 className="font-heading text-xs sm:text-sm font-black uppercase text-[#f4f1ea] tracking-tight">
+              Looking for duel records?
+            </h4>
+            <p className="text-[11px] font-mono text-[#8e8a85]">
+              View your lifetime head-to-head combat archive and settled match scorelines.
+            </p>
+          </div>
+        </div>
+
+        <Link
+          href="/arena/history"
+          className="flex items-center gap-1.5 px-3 py-1.5 border border-[#ff3b30]/40 bg-[#ff3b30]/10 hover:bg-[#ff3b30]/20 font-mono text-[10px] font-bold uppercase tracking-wider text-[#ff3b30] transition-colors shrink-0"
+        >
+          <span>Duel History</span>
+          <ArrowRight className="h-3 w-3" />
+        </Link>
+      </div>
+
+      {/* Sticky Mobile Duel Submission Bar */}
+      {(!hasActiveDuel || showBuilderOverride) && !isEventEnded && (
+        <div className="fixed bottom-[58px] inset-x-0 z-30 border-t border-[#202023] bg-[#0e0e10]/95 backdrop-blur-md px-4 py-2.5 md:hidden shadow-[0_-4px_16px_rgba(0,0,0,0.5)]">
+          <div className="flex items-center justify-between gap-3 max-w-md mx-auto">
+            <div className="flex flex-col min-w-0">
+              <div className="flex items-center gap-1.5">
+                <span className="font-mono text-xs font-black text-[#f4f1ea]">
+                  {Object.keys(pvpSelections).length}/3
+                </span>
+                <span className="text-[11px] font-medium text-[#8e8a85]">
+                  {Object.keys(pvpSelections).length >= 3
+                    ? "Card complete"
+                    : "Picks chosen"}
+                </span>
+              </div>
+              <span className="text-[9px] font-mono text-[#8e8a85] truncate">
+                {Object.keys(pvpSelections).length >= 3
+                  ? "Ready to queue match"
+                  : `Need ${3 - Object.keys(pvpSelections).length} more pick${3 - Object.keys(pvpSelections).length === 1 ? "" : "s"}`}
+              </span>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => void handleSubmitPvpTicket()}
+              disabled={Object.keys(pvpSelections).length < 3 || isSubmitting}
+              className={`flex items-center justify-center gap-2 px-4 py-2 rounded-[2px] font-heading uppercase text-xs font-black tracking-wider transition-all select-none cursor-pointer ${
+                Object.keys(pvpSelections).length >= 3 && !isSubmitting
+                  ? "bg-[#ff3b30] text-white hover:bg-[#e0342a] active:scale-95 shadow-[0_0_12px_rgba(255,59,48,0.3)]"
+                  : "bg-[#1c1c1f] text-[#5a5651] cursor-not-allowed border border-[#28282e]"
+              }`}
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  Queueing...
+                </>
+              ) : (
+                <>
+                  <Swords className="h-3.5 w-3.5" />
+                  Submit Duel
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Dynamic Trade Drawer for PvP Picks */}
       <Drawer
         open={isTradeDrawerOpen}
         onOpenChange={(open) => !open && closeTradeDrawer()}
       >
-        <DrawerContent className="max-h-[92vh] rounded-t-3xl border-t border-stone-surface bg-warm-canvas pb-6 px-4 outline-none overflow-y-auto">
+        <DrawerContent className="max-h-[92vh] rounded-t-[2px] border-t border-border bg-background pb-6 px-4 outline-none overflow-y-auto">
           <DrawerHeader className="relative flex items-center justify-between border-b border-stone-surface pb-3 pt-2 mb-4">
             <DrawerTitle className="font-heading text-lg font-bold text-charcoal-primary">
               Trade Outcome Shares

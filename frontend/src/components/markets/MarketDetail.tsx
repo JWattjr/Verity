@@ -7,10 +7,8 @@ import { useQueryClient } from "@tanstack/react-query"
 import { toast } from "@/lib/toast"
 
 import VerityAgentPanel from "@/components/markets/VerityAgentPanel"
-import CommentModal from "@/components/social/CommentModal"
 import { useDailyVotes } from "@/hooks/useDailyVotes"
 import { useFeed } from "@/hooks/useFeed"
-import { useSetRightPanelSlot } from "@/hooks/useRightPanelSlot"
 import { useUsdcBalance } from "@/hooks/useUsdcBalance"
 import { useAuth } from "@/components/providers/AuthModals"
 import { useSocket } from "@/hooks/useSocket"
@@ -23,20 +21,16 @@ import {
   calculateTradingFee,
   calculateGrossUsdc,
   FeedPost,
-  MarketComment,
   MarketTradeAction,
   MarketPost,
   VoteSide,
 } from "@/lib/verity"
 
 import {
-  useAddCommentMutation,
   useApproveMarketForTradingMutation,
   useCastFreeVoteMutation,
   useMarketPositionsQuery,
-  usePostCommentsQuery,
   useToggleLikeMutation,
-  useToggleReshareMutation,
   useDevQualifyMutation,
   useLPPositionsQuery,
   usePoolStateQuery,
@@ -54,7 +48,6 @@ import OutcomesPanel from "./detail/OutcomesPanel"
 import TradeTicket from "./detail/TradeTicket"
 import SentimentPanel from "./detail/SentimentPanel"
 import PositionPanel from "./detail/PositionPanel"
-import CommentsPanel from "./detail/CommentsPanel"
 import PreMarketFundingPanel from "./detail/PreMarketFundingPanel"
 import ActiveMarketLPPanel from "./detail/ActiveMarketLPPanel"
 import ResolutionPanel from "./detail/ResolutionPanel"
@@ -93,16 +86,12 @@ export default function MarketDetail({
 
   // State declarations
   const [actionPending, setActionPending] = useState<string | null>(null)
-  const [commentDraft, setCommentDraft] = useState("")
-  const [commentLoading, setCommentLoading] = useState(false)
   const [tradeAmount, setTradeAmount] = useState("1")
   const isTradingRef = useRef(false)
   const [tradeAction, setTradeAction] = useState<MarketTradeAction>(
     queryAction || "BUY",
   )
   const [selectedSide, setSelectedSide] = useState<VoteSide>(querySide || "YES")
-  const [replyingToComment, setReplyingToComment] =
-    useState<MarketComment | null>(null)
   const [selectedChildId, setSelectedChildId] = useState<string | null>(null)
 
   const { dailyVotes, refetch: reloadDailyVotes } = useDailyVotes(profileId)
@@ -198,19 +187,16 @@ export default function MarketDetail({
     profileId || "",
   )
   const { data: fetchedTrades } = useMarketTradesQuery(activeMarketId || "")
-  const { data: fetchedComments } = usePostCommentsQuery(postId || "")
   const { data: fetchedPositions } = useMarketPositionsQuery(
     activeMarketId || "",
     profileId || "",
   )
 
   // Mutations
-  const { mutateAsync: addComment } = useAddCommentMutation()
   const { mutateAsync: approveMarketForTrading } =
     useApproveMarketForTradingMutation()
   const { mutateAsync: castFreeVote } = useCastFreeVoteMutation()
   const { mutateAsync: toggleLike } = useToggleLikeMutation()
-  const { mutateAsync: toggleReshare } = useToggleReshareMutation()
   const { mutateAsync: devQualifyMarket } = useDevQualifyMutation()
 
   // Liquidity and Resolution hooks
@@ -318,7 +304,6 @@ export default function MarketDetail({
       )
   }, [item, items])
 
-  const comments = fetchedComments || EMPTY_ARRAY
   const positions = fetchedPositions || EMPTY_ARRAY
   const trades = fetchedTrades || EMPTY_ARRAY
   const lpPositions = lpPositionsData || EMPTY_ARRAY
@@ -573,28 +558,6 @@ export default function MarketDetail({
     ],
   )
 
-  async function submitComment() {
-    if (!item || !market || !commentDraft.trim()) return
-    if (!profile) {
-      toast.error("Connect your wallet before commenting.")
-      return
-    }
-
-    setCommentLoading(true)
-    try {
-      await addComment({
-        postId: item.id,
-        authorId: profile.id,
-        content: commentDraft,
-      })
-      setCommentDraft("")
-    } catch (caught) {
-      toast.error(caught instanceof Error ? caught.message : "Comment failed.")
-    } finally {
-      setCommentLoading(false)
-    }
-  }
-
   // Sidebar elements definition
   const sidebarPanels = useMemo(() => {
     if (!market || !postId) return null
@@ -727,15 +690,6 @@ export default function MarketDetail({
     activeOptionName,
   ])
 
-  const rightPanelSlot = useMemo(
-    () =>
-      sidebarPanels ? (
-        <div className="flex flex-col gap-3">{sidebarPanels}</div>
-      ) : null,
-    [sidebarPanels],
-  )
-  useSetRightPanelSlot(rightPanelSlot)
-
   // Loading skeleton state
   if (itemLoading) {
     return (
@@ -830,15 +784,7 @@ export default function MarketDetail({
         )}
 
       <SocialActions
-        comments={item.commentsCount}
-        freeNoVotes={market.free_no_votes}
-        freeYesVotes={market.free_yes_votes}
         likes={item.likesCount}
-        dailyVotesRemaining={dailyVotes?.votesRemaining ?? 0}
-        marketStatus={activeMarket.status}
-        onComment={() =>
-          document.getElementById("market-comment-input")?.focus()
-        }
         onLike={() =>
           runAction("like", () =>
             toggleLike({
@@ -849,30 +795,11 @@ export default function MarketDetail({
           )
         }
         onShare={() => sharePost(item)}
-        onVote={(side) =>
-          runAction("free_vote", () =>
-            castFreeVote({
-              marketId: market.id,
-              userId: profile!.id,
-              side,
-            }),
-          )
-        }
         viewerLiked={item.viewerLiked}
-        viewerVote={item.viewerVote}
       />
 
-      <CommentsPanel
-        commentDraft={commentDraft}
-        comments={comments}
-        loading={commentLoading}
-        onChange={setCommentDraft}
-        onSubmit={submitComment}
-        onReplyClick={setReplyingToComment}
-      />
-
-      {/* Mobile Right Sidebar Slots */}
-      <div className="flex flex-col gap-3 lg:hidden">{sidebarPanels}</div>
+      {/* Market Trading & Stats Panels */}
+      <div className="flex flex-col gap-3">{sidebarPanels}</div>
 
       {activeMarket.status === "tradable" && (
         <ActiveMarketLPPanel
@@ -925,12 +852,6 @@ export default function MarketDetail({
           setTradeAction("SELL")
         }}
         positions={positions}
-      />
-
-      <CommentModal
-        replyToComment={replyingToComment}
-        isOpen={Boolean(replyingToComment)}
-        onClose={() => setReplyingToComment(null)}
       />
     </div>
   )
