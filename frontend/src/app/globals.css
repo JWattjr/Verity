@@ -2946,7 +2946,7 @@ body {
 }
 
 .verity-app-frame {
-  display: grid;
+  display: block;
   width: 100%;
   max-width: 1200px;
   min-height: calc(100vh - 71px);
@@ -2954,20 +2954,9 @@ body {
   padding: 0 40px 80px;
 }
 
-.verity-app-frame.has-rail {
-  grid-template-columns: minmax(0, 1fr) 320px;
-  gap: 38px;
-}
-
 .verity-app-main {
   min-width: 0;
-}
-
-.verity-app-rail {
-  position: sticky;
-  top: 94px;
-  height: calc(100vh - 118px);
-  padding-top: 30px;
+  width: 100%;
 }
 
 /* Pick'ems-first product experience */
@@ -3695,14 +3684,9 @@ body {
     transform: translateX(0);
   }
 
-  .verity-app-frame,
-  .verity-app-frame.has-rail {
+  .verity-app-frame {
     display: block;
     padding: 0 16px 88px;
-  }
-
-  .verity-app-rail {
-    display: none;
   }
 
   .arena-page {

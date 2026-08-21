@@ -9,7 +9,6 @@ import { toast } from "@/lib/toast"
 import VerityAgentPanel from "@/components/markets/VerityAgentPanel"
 import { useDailyVotes } from "@/hooks/useDailyVotes"
 import { useFeed } from "@/hooks/useFeed"
-import { useSetRightPanelSlot } from "@/hooks/useRightPanelSlot"
 import { useUsdcBalance } from "@/hooks/useUsdcBalance"
 import { useAuth } from "@/components/providers/AuthModals"
 import { useSocket } from "@/hooks/useSocket"
@@ -691,15 +690,6 @@ export default function MarketDetail({
     activeOptionName,
   ])
 
-  const rightPanelSlot = useMemo(
-    () =>
-      sidebarPanels ? (
-        <div className="flex flex-col gap-3">{sidebarPanels}</div>
-      ) : null,
-    [sidebarPanels],
-  )
-  useSetRightPanelSlot(rightPanelSlot)
-
   // Loading skeleton state
   if (itemLoading) {
     return (
@@ -808,8 +798,8 @@ export default function MarketDetail({
         viewerLiked={item.viewerLiked}
       />
 
-      {/* Mobile Right Sidebar Slots */}
-      <div className="flex flex-col gap-3 lg:hidden">{sidebarPanels}</div>
+      {/* Market Trading & Stats Panels */}
+      <div className="flex flex-col gap-3">{sidebarPanels}</div>
 
       {activeMarket.status === "tradable" && (
         <ActiveMarketLPPanel

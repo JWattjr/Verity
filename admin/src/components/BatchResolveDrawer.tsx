@@ -57,6 +57,8 @@ interface PropositionEvaluation {
 interface FixturePreviewResponse {
   parentMarketId: string
   fixtureQuestion: string
+  providerUsed?: "api-football" | "football-data"
+  originalProvider?: "api-football" | "football-data"
   matchStats: MatchStatistics
   evaluations: PropositionEvaluation[]
   resolutionReady: boolean
@@ -77,6 +79,9 @@ export default function BatchResolveDrawer({
 }: BatchResolveDrawerProps) {
   const [loading, setLoading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  const [overrideProvider, setOverrideProvider] = useState<
+    "api-football" | "football-data" | null
+  >(null)
   const [previewData, setPreviewData] = useState<FixturePreviewResponse | null>(
     null,
   )
@@ -96,20 +101,25 @@ export default function BatchResolveDrawer({
 
   useEffect(() => {
     if (isOpen && selectedFixtureId) {
-      void fetchPreview()
+      setOverrideProvider(null)
+      void fetchPreview(null)
     } else {
       setPreviewData(null)
       setCustomOutcomes({})
+      setOverrideProvider(null)
     }
   }, [isOpen, selectedFixtureId])
 
-  async function fetchPreview() {
+  async function fetchPreview(
+    providerOverride: "api-football" | "football-data" | null = overrideProvider,
+  ) {
     if (!selectedFixtureId) return
     setLoading(true)
     try {
-      const data = await apiRequest<FixturePreviewResponse>(
-        `/markets/fixture/${selectedFixtureId}/preview-resolution`,
-      )
+      const url = providerOverride
+        ? `/markets/fixture/${selectedFixtureId}/preview-resolution?provider=${providerOverride}`
+        : `/markets/fixture/${selectedFixtureId}/preview-resolution`
+      const data = await apiRequest<FixturePreviewResponse>(url)
       setPreviewData(data)
       // Pre-fill outcomes map with auto-evaluated values
       const initial: Record<string, string> = {}
@@ -122,6 +132,15 @@ export default function BatchResolveDrawer({
     } finally {
       setLoading(false)
     }
+  }
+
+  function handleToggleProvider() {
+    const current =
+      overrideProvider || previewData?.providerUsed || "api-football"
+    const next =
+      current === "football-data" ? "api-football" : "football-data"
+    setOverrideProvider(next)
+    void fetchPreview(next)
   }
 
   function handleOutcomeChange(marketId: string, value: string) {
@@ -149,6 +168,7 @@ export default function BatchResolveDrawer({
           parentMarketId: selectedFixtureId,
           outcomes: customOutcomes,
           adminAddress: "0x0000000000000000000000000000000000000000",
+          overrideProvider: overrideProvider || previewData.providerUsed,
         }),
       })
 
@@ -184,7 +204,7 @@ export default function BatchResolveDrawer({
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={fetchPreview}
+                  onClick={() => void fetchPreview(overrideProvider)}
                   disabled={loading}
                   className="w-full gap-1.5 font-mono text-xs rounded-[2px] sm:w-auto"
                 >
@@ -216,7 +236,36 @@ export default function BatchResolveDrawer({
                         {previewData.fixtureQuestion}
                       </h3>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <div className="flex items-center gap-1.5 bg-muted/60 border border-border px-2.5 py-1 rounded-[2px]">
+                        <span className="font-mono text-[9px] uppercase text-muted-foreground">
+                          Oracle:
+                        </span>
+                        <span className="font-mono text-[9px] font-bold text-foreground">
+                          {previewData.providerUsed === "football-data"
+                            ? "football-data.org"
+                            : "API-Football"}
+                        </span>
+                        {previewData.originalProvider &&
+                          previewData.providerUsed ===
+                            previewData.originalProvider && (
+                            <span className="font-mono text-[8px] uppercase bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 px-1 py-0.5 rounded-[2px]">
+                              Soulbound
+                            </span>
+                          )}
+                      </div>
+
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={handleToggleProvider}
+                        disabled={loading}
+                        className="h-7 px-2 font-mono text-[10px] uppercase font-bold border-border cursor-pointer hover:bg-muted"
+                      >
+                        Switch Oracle Provider
+                      </Button>
+
                       <span
                         className={`font-mono text-[10px] font-bold uppercase px-2.5 py-1 rounded-[2px] border ${
                           isTerminalFixture

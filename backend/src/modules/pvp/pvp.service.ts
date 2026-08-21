@@ -566,14 +566,18 @@ export class PvpService {
     }
   }
 
-  async getActiveEvents() {
+  async getActiveEvents(includeResolved = true) {
+    const filter: any = {
+      category: "pvp",
+      marketType: "parent",
+    }
+    if (!includeResolved) {
+      filter.status = { $ne: "resolved" }
+    }
+
     const parents = await this.marketModel
-      .find({
-        category: "pvp",
-        marketType: "parent",
-        status: { $ne: "resolved" },
-      })
-      .sort({ deadline: 1 })
+      .find(filter)
+      .sort({ deadline: -1 })
 
     if (parents.length === 0) return []
 

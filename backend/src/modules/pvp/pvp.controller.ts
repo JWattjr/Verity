@@ -51,10 +51,11 @@ export class PvpController {
 
   @Get("active-events")
   @ApiOperation({
-    summary: "Fetch all active/unexpired PvP parent matches and child markets",
+    summary: "Fetch all active and previous PvP parent matches and child markets",
   })
-  async getActiveEvents() {
-    return this.pvpService.getActiveEvents()
+  async getActiveEvents(@Query("includeResolved") includeResolved?: string) {
+    const shouldInclude = includeResolved !== "false"
+    return this.pvpService.getActiveEvents(shouldInclude)
   }
 
   @Post("ticket")

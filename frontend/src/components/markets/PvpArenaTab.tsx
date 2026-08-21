@@ -19,8 +19,9 @@ import {
   DrawerTitle,
   DrawerClose,
 } from "@/components/ui/drawer"
+import Link from "next/link"
 import MarketDetail from "@/components/markets/MarketDetail"
-import { X, Lock, ArrowRight, Loader2, Swords } from "lucide-react"
+import { X, Lock, ArrowRight, Loader2, Swords, History } from "lucide-react"
 
 // Sub-components
 import PvpArenaSkeleton from "./PvpArenaSkeleton"
@@ -510,6 +511,31 @@ export default function PvpArenaTab({
             ))}
         </>
       )}
+
+      {/* Dedicated Duel History Link Card */}
+      <div className="flex items-center justify-between p-4 border border-[#222226] bg-[#101012] hover:bg-[#161619] transition-colors">
+        <div className="flex items-center gap-3">
+          <div className="flex items-center justify-center w-9 h-9 border border-[#ff3b30]/30 bg-[#ff3b30]/10 text-[#ff3b30]">
+            <History className="h-4 w-4" />
+          </div>
+          <div>
+            <h4 className="font-heading text-xs sm:text-sm font-black uppercase text-[#f4f1ea] tracking-tight">
+              Looking for duel records?
+            </h4>
+            <p className="text-[11px] font-mono text-[#8e8a85]">
+              View your lifetime head-to-head combat archive and settled match scorelines.
+            </p>
+          </div>
+        </div>
+
+        <Link
+          href="/arena/history"
+          className="flex items-center gap-1.5 px-3 py-1.5 border border-[#ff3b30]/40 bg-[#ff3b30]/10 hover:bg-[#ff3b30]/20 font-mono text-[10px] font-bold uppercase tracking-wider text-[#ff3b30] transition-colors shrink-0"
+        >
+          <span>Duel History</span>
+          <ArrowRight className="h-3 w-3" />
+        </Link>
+      </div>
 
       {/* Sticky Mobile Duel Submission Bar */}
       {(!hasActiveDuel || showBuilderOverride) && !isEventEnded && (

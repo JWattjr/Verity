@@ -391,13 +391,24 @@ export class SportsOracleService {
    */
   async fetchMatchStats(
     fixtureTitle: string,
-    _fallbackDate?: Date,
+    fallbackDate?: Date,
     fixtureId?: number,
     requiredStatistics: string[] = [],
   ): Promise<MatchStatistics> {
     const { homeTeam, awayTeam } = this.parseTeams(fixtureTitle)
+    let effectiveFixtureId = fixtureId
+
+    if (!effectiveFixtureId) {
+      const discoveredId = await this.findApiFootballFixtureByMatch(
+        homeTeam,
+        awayTeam,
+        fallbackDate,
+      )
+      if (discoveredId) effectiveFixtureId = discoveredId
+    }
+
     const cacheKey =
-      fixtureId || `${homeTeam.toLowerCase()}__${awayTeam.toLowerCase()}`
+      effectiveFixtureId || `${homeTeam.toLowerCase()}__${awayTeam.toLowerCase()}`
     const cached = this.fixtureStatsCache.get(cacheKey)
     const now = Date.now()
 
@@ -412,14 +423,14 @@ export class SportsOracleService {
       return cached.stats
     }
 
-    if (!fixtureId) {
+    if (!effectiveFixtureId) {
       throw new ServiceUnavailableException(
-        "A genuine API-Football fixture ID is required for oracle resolution",
+        `A genuine API-Football fixture ID is required for oracle resolution (${homeTeam} vs ${awayTeam})`,
       )
     }
 
     const persistentStats = await this.readPersistentCache<MatchStatistics>(
-      `fixture:${fixtureId}`,
+      `fixture:${effectiveFixtureId}`,
     )
     if (
       persistentStats &&
@@ -431,51 +442,51 @@ export class SportsOracleService {
         stats: persistentStats,
         cachedAt: now,
       })
-      this.fixtureStatsCache.set(fixtureId, {
+      this.fixtureStatsCache.set(effectiveFixtureId, {
         stats: persistentStats,
         cachedAt: now,
       })
       this.logger.log(
-        `Serving finished match stats from persistent cache: ${fixtureId}`,
+        `Serving finished match stats from persistent cache: ${effectiveFixtureId}`,
       )
       return persistentStats
     }
 
-    const retryState = this.fixtureRetryState.get(fixtureId)
+    const retryState = this.fixtureRetryState.get(effectiveFixtureId)
     if (retryState && now < retryState.retryAt) {
       throw new ServiceUnavailableException(
-        `API-Football retry for fixture ${fixtureId} is paused until ${new Date(retryState.retryAt).toISOString()}`,
+        `API-Football retry for fixture ${effectiveFixtureId} is paused until ${new Date(retryState.retryAt).toISOString()}`,
       )
     }
 
-    const requestKey = `${fixtureId}:${[...new Set(requiredStatistics)].sort().join(",")}`
+    const requestKey = `${effectiveFixtureId}:${[...new Set(requiredStatistics)].sort().join(",")}`
     const existingRequest = this.fixtureRequests.get(requestKey)
     if (existingRequest) return existingRequest
 
     const request = (async () => {
       try {
         const liveStats = await this.queryApiFootballById(
-          fixtureId,
+          effectiveFixtureId,
           requiredStatistics,
         )
         if (!liveStats) {
           throw new ServiceUnavailableException(
-            `API-Football returned no fixture for ID ${fixtureId}`,
+            `API-Football returned no fixture for ID ${effectiveFixtureId}`,
           )
         }
         this.assertFixtureIdentity(homeTeam, awayTeam, liveStats)
-        this.fixtureRetryState.delete(fixtureId)
+        this.fixtureRetryState.delete(effectiveFixtureId)
         this.fixtureStatsCache.set(cacheKey, {
           stats: liveStats,
           cachedAt: now,
         })
-        this.fixtureStatsCache.set(fixtureId, {
+        this.fixtureStatsCache.set(effectiveFixtureId, {
           stats: liveStats,
           cachedAt: now,
         })
         if (this.isTerminalStatus(liveStats.status)) {
           await this.writePersistentCache(
-            `fixture:${fixtureId}`,
+            `fixture:${effectiveFixtureId}`,
             liveStats,
             null,
           )
@@ -483,12 +494,12 @@ export class SportsOracleService {
         return liveStats
       } catch (error) {
         const previousFailures =
-          this.fixtureRetryState.get(fixtureId)?.failures || 0
+          this.fixtureRetryState.get(effectiveFixtureId)?.failures || 0
         const failures = previousFailures + 1
         const backoffMs = [60_000, 300_000, 900_000, 3_600_000][
           Math.min(failures - 1, 3)
         ]
-        this.fixtureRetryState.set(fixtureId, {
+        this.fixtureRetryState.set(effectiveFixtureId, {
           failures,
           retryAt: Date.now() + backoffMs,
         })
@@ -500,6 +511,130 @@ export class SportsOracleService {
 
     this.fixtureRequests.set(requestKey, request)
     return request
+  }
+
+  /**
+   * Helper to normalize team names for cross-provider matching.
+   */
+  private normalizeTeamName(name: string): string {
+    return (name || "")
+      .toLowerCase()
+      .replace(/\b(fc|afc|cf|sc|united|city|town|wanderers|rovers|albion|athletic|hotspur)\b/gi, "")
+      .replace(/[^a-z0-9]/g, "")
+      .trim()
+  }
+
+  private teamsMatch(nameA: string, nameB: string): boolean {
+    const normA = this.normalizeTeamName(nameA)
+    const normB = this.normalizeTeamName(nameB)
+    if (!normA || !normB) return false
+    return normA === normB || normA.includes(normB) || normB.includes(normA)
+  }
+
+  /**
+   * Dynamically find an API-Football fixture ID by team names and date.
+   */
+  async findApiFootballFixtureByMatch(
+    homeTeam: string,
+    awayTeam: string,
+    kickoffDate?: string | Date,
+    league = 39,
+  ): Promise<number | null> {
+    const targetDate = kickoffDate ? new Date(kickoffDate) : new Date()
+    const dateStr = targetDate.toISOString().split("T")[0]
+    const cacheKey = `af-mapping:${this.normalizeTeamName(homeTeam)}_${this.normalizeTeamName(awayTeam)}_${dateStr}`
+
+    const persistentId = await this.readPersistentCache<number>(cacheKey)
+    if (persistentId) return persistentId
+
+    const apiKey = this.getApiKey()
+    if (!apiKey) return null
+
+    const year = targetDate.getUTCFullYear()
+    const season = targetDate.getUTCMonth() < 6 ? year - 1 : year
+    const url = `https://v3.football.api-sports.io/fixtures?date=${dateStr}&league=${league}&season=${season}`
+
+    try {
+      this.logger.log(`Searching API-Football fixture for ${homeTeam} vs ${awayTeam} on ${dateStr}`)
+      const data = await this.fetchApiFootball(url, apiKey)
+      const fixtures = data.response || []
+      for (const f of fixtures) {
+        const fHome = f.teams?.home?.name || ""
+        const fAway = f.teams?.away?.name || ""
+        if (this.teamsMatch(homeTeam, fHome) && this.teamsMatch(awayTeam, fAway)) {
+          const id = f.fixture?.id
+          if (id) {
+            this.logger.log(`Found matching API-Football fixture ID ${id} for ${homeTeam} vs ${awayTeam}`)
+            await this.writePersistentCache(cacheKey, id, null)
+            return id
+          }
+        }
+      }
+    } catch (err: any) {
+      this.logger.warn(`Failed to search API-Football fixture for ${homeTeam} vs ${awayTeam} on ${dateStr}: ${err.message}`)
+    }
+    return null
+  }
+
+  /**
+   * Dynamically find a football-data.org match ID by team names and date.
+   */
+  async findFootballDataOrgMatchByTeams(
+    homeTeam: string,
+    awayTeam: string,
+    kickoffDate?: string | Date,
+  ): Promise<number | null> {
+    const targetDate = kickoffDate ? new Date(kickoffDate) : new Date()
+    const dateStr = targetDate.toISOString().split("T")[0]
+    const cacheKey = `fdo-mapping:${this.normalizeTeamName(homeTeam)}_${this.normalizeTeamName(awayTeam)}_${dateStr}`
+
+    const persistentId = await this.readPersistentCache<number>(cacheKey)
+    if (persistentId) return persistentId
+
+    const apiKey = this.getFootballDataOrgKey()
+    if (!apiKey) return null
+
+    const dMinus1 = new Date(targetDate.getTime() - 86400000).toISOString().split("T")[0]
+    const dPlus1 = new Date(targetDate.getTime() + 86400000).toISOString().split("T")[0]
+    const url = `https://api.football-data.org/v4/competitions/PL/matches?dateFrom=${dMinus1}&dateTo=${dPlus1}`
+
+    try {
+      this.logger.log(`Searching football-data.org match for ${homeTeam} vs ${awayTeam} between ${dMinus1} and ${dPlus1}`)
+      const data = await this.fetchFootballDataOrg(url, apiKey)
+      const matches = data.matches || []
+      for (const m of matches) {
+        const mHome = m.homeTeam?.name || ""
+        const mAway = m.awayTeam?.name || ""
+        if (this.teamsMatch(homeTeam, mHome) && this.teamsMatch(awayTeam, mAway)) {
+          const id = m.id
+          if (id) {
+            this.logger.log(`Found matching football-data.org match ID ${id} for ${homeTeam} vs ${awayTeam}`)
+            await this.writePersistentCache(cacheKey, id, null)
+            return id
+          }
+        }
+      }
+    } catch (err: any) {
+      this.logger.warn(`Failed to search football-data.org match for ${homeTeam} vs ${awayTeam} on ${dateStr}: ${err.message}`)
+    }
+    return null
+  }
+
+  isApiFootballRateLimited(): boolean {
+    return Date.now() < this.quotaBlockedUntil
+  }
+
+  getApiFootballBlockedUntil(): number {
+    return this.quotaBlockedUntil
+  }
+
+  isFixtureRetryPaused(fixtureId: number): boolean {
+    return Date.now() < (this.fixtureRetryState.get(fixtureId)?.retryAt || 0)
+  }
+
+  isFootballDataOrgMatchRetryPaused(matchId: number): boolean {
+    const retryKey = matchId + 1_000_000_000
+    return Date.now() < (this.fixtureRetryState.get(retryKey)?.retryAt || 0)
   }
 
   /**
@@ -602,10 +737,6 @@ export class SportsOracleService {
       )
     }
     return data
-  }
-
-  private normalizeTeamName(value: string): string {
-    return value.toLowerCase().replace(/[^a-z0-9]/g, "")
   }
 
   private assertFixtureIdentity(
@@ -991,13 +1122,24 @@ export class SportsOracleService {
    */
   async fetchMatchStatsFromFootballDataOrg(
     fixtureTitle: string,
-    _fallbackDate?: Date,
+    fallbackDate?: Date,
     matchId?: number,
     requiredStatistics: string[] = [],
   ): Promise<MatchStatistics> {
     const { homeTeam, awayTeam } = this.parseTeams(fixtureTitle)
-    const cacheKey = matchId
-      ? `fdo:${matchId}`
+    let effectiveMatchId = matchId
+
+    if (!effectiveMatchId) {
+      const discoveredId = await this.findFootballDataOrgMatchByTeams(
+        homeTeam,
+        awayTeam,
+        fallbackDate,
+      )
+      if (discoveredId) effectiveMatchId = discoveredId
+    }
+
+    const cacheKey = effectiveMatchId
+      ? `fdo:${effectiveMatchId}`
       : `fdo:${homeTeam.toLowerCase()}__${awayTeam.toLowerCase()}`
     const cached = this.fixtureStatsCache.get(cacheKey)
     const now = Date.now()
@@ -1012,14 +1154,14 @@ export class SportsOracleService {
       return cached.stats
     }
 
-    if (!matchId) {
+    if (!effectiveMatchId) {
       throw new ServiceUnavailableException(
-        "A genuine football-data.org match ID is required for oracle resolution",
+        `A genuine football-data.org match ID is required for oracle resolution (${homeTeam} vs ${awayTeam})`,
       )
     }
 
     const persistentStats = await this.readPersistentCache<MatchStatistics>(
-      `fdo-fixture:${matchId}`,
+      `fdo-fixture:${effectiveMatchId}`,
     )
     if (
       persistentStats &&
@@ -1029,40 +1171,45 @@ export class SportsOracleService {
       this.assertFixtureIdentity(homeTeam, awayTeam, persistentStats)
       this.fixtureStatsCache.set(cacheKey, { stats: persistentStats, cachedAt: now })
       this.logger.log(
-        `Serving finished football-data.org match from persistent cache: ${matchId}`,
+        `Serving finished football-data.org match from persistent cache: ${effectiveMatchId}`,
       )
       return persistentStats
     }
 
-    const retryKey = matchId + 1_000_000_000 // Offset to avoid collision with API-Football IDs
+    const retryKey = effectiveMatchId + 1_000_000_000 // Offset to avoid collision with API-Football IDs
     const retryState = this.fixtureRetryState.get(retryKey)
     if (retryState && now < retryState.retryAt) {
       throw new ServiceUnavailableException(
-        `football-data.org retry for match ${matchId} is paused until ${new Date(retryState.retryAt).toISOString()}`,
+        `football-data.org retry for match ${effectiveMatchId} is paused until ${new Date(retryState.retryAt).toISOString()}`,
       )
     }
 
-    const requestKey = `fdo:${matchId}:${[...new Set(requiredStatistics)].sort().join(",")}`
+    const requestKey = `fdo:${effectiveMatchId}:${[...new Set(requiredStatistics)].sort().join(",")}`
     const existingRequest = this.fixtureRequests.get(requestKey)
     if (existingRequest) return existingRequest
 
     const request = (async () => {
       try {
-        const stats = await this.queryFootballDataOrgById(matchId)
+        const stats = await this.queryFootballDataOrgById(effectiveMatchId)
         if (!stats) {
           throw new ServiceUnavailableException(
-            `football-data.org returned no match for ID ${matchId}`,
+            `football-data.org returned no match for ID ${effectiveMatchId}`,
           )
         }
         this.assertFixtureIdentity(homeTeam, awayTeam, stats)
         this.fixtureRetryState.delete(retryKey)
         this.fixtureStatsCache.set(cacheKey, { stats, cachedAt: now })
         if (this.isTerminalStatus(stats.status)) {
-          await this.writePersistentCache(`fdo-fixture:${matchId}`, stats, null)
+          await this.writePersistentCache(
+            `fdo-fixture:${effectiveMatchId}`,
+            stats,
+            null,
+          )
         }
         return stats
       } catch (error) {
-        const previousFailures = this.fixtureRetryState.get(retryKey)?.failures || 0
+        const previousFailures =
+          this.fixtureRetryState.get(retryKey)?.failures || 0
         const failures = previousFailures + 1
         const backoffMs = [60_000, 300_000, 900_000, 3_600_000][
           Math.min(failures - 1, 3)
