@@ -1,6 +1,8 @@
 "use client"
 
-import { Trophy, Flame, Zap, Shield, Swords } from "lucide-react"
+import { useState, useMemo } from "react"
+import Link from "next/link"
+import { Trophy, Flame, Zap, Shield, Swords, History } from "lucide-react"
 import TeamBadge from "@/components/common/TeamBadge"
 import { parseEventTeams } from "./PvpMatchupCarousel"
 
@@ -17,6 +19,8 @@ export default function ArenaPlayerStatsHeader({
   selectedPvpEventId,
   setSelectedPvpEventId,
 }: ArenaPlayerStatsHeaderProps) {
+  const [fixtureFilter, setFixtureFilter] = useState<"all" | "open" | "settled">("all")
+
   const arenaXp = Number(profile?.arenaXp ?? 0)
   const won = Number(profile?.pvpMatchesWonCount ?? 0)
   const lost = Number(profile?.pvpMatchesLostCount ?? 0)
@@ -41,6 +45,33 @@ export default function ArenaPlayerStatsHeader({
     : profile?.walletAddress
       ? `${profile.walletAddress.slice(0, 6)}...${profile.walletAddress.slice(-4)}`
       : "Guest Duelist"
+
+  const { openEvents, settledEvents } = useMemo(() => {
+    const open: any[] = []
+    const settled: any[] = []
+    const now = Date.now()
+
+    for (const evt of pvpEvents || []) {
+      const lockTime = new Date(evt.lockTime || evt.deadline || 0).getTime()
+      const isResolved = evt.status === "resolved"
+      const isClosed = isResolved || evt.status === "closed" || (lockTime > 0 && lockTime <= now)
+
+      if (isResolved) {
+        settled.push(evt)
+      } else if (!isClosed) {
+        open.push(evt)
+      } else {
+        settled.push(evt)
+      }
+    }
+    return { openEvents: open, settledEvents: settled }
+  }, [pvpEvents])
+
+  const displayedEvents = useMemo(() => {
+    if (fixtureFilter === "open") return openEvents
+    if (fixtureFilter === "settled") return settledEvents
+    return pvpEvents || []
+  }, [fixtureFilter, openEvents, settledEvents, pvpEvents])
 
   return (
     <div className="border border-[#222226] bg-[#101012] text-[#f4f1ea]">
@@ -81,8 +112,16 @@ export default function ArenaPlayerStatsHeader({
             </div>
           </div>
 
-          {/* Quick Rank / Tier */}
+          {/* Top Actions: Duel History & Tier */}
           <div className="flex items-center gap-2 self-start sm:self-auto">
+            <Link
+              href="/arena/history"
+              className="flex items-center gap-1.5 border border-[#ff3b30]/30 bg-[#ff3b30]/10 hover:bg-[#ff3b30]/20 px-3 py-1.5 font-mono text-[10px] font-bold uppercase tracking-wider text-[#ff3b30] transition-colors"
+            >
+              <History className="h-3.5 w-3.5" />
+              <span>Duel History</span>
+            </Link>
+
             <div className="flex items-center gap-2 border border-[#28282e] bg-[#161619] px-3 py-1.5">
               <Trophy className="h-3.5 w-3.5 text-[#ff3b30]" />
               <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-[#aaa6a1]">
@@ -126,14 +165,10 @@ export default function ArenaPlayerStatsHeader({
               <span className="font-heading text-lg font-bold tracking-tight text-[#8e8a85]">
                 {lost}L
               </span>
-              {drawn > 0 && (
-                <>
-                  <span className="font-mono text-xs text-[#8e8a85]">·</span>
-                  <span className="font-heading text-lg font-bold tracking-tight text-[#8e8a85]">
-                    {drawn}D
-                  </span>
-                </>
-              )}
+              <span className="font-mono text-xs text-[#8e8a85]">·</span>
+              <span className="font-heading text-lg font-bold tracking-tight text-[#8e8a85]">
+                {drawn}D
+              </span>
             </div>
           </div>
 
@@ -172,19 +207,48 @@ export default function ArenaPlayerStatsHeader({
         </div>
 
         {/* Match Slate Selector Pills */}
-        {pvpEvents && pvpEvents.length > 1 && (
-          <div className="flex flex-col gap-2 border-t border-[#222226] pt-3">
-            <span className="font-mono text-[9px] font-bold uppercase tracking-wider text-[#8e8a85]">
-              Select Fixture
-            </span>
+        {pvpEvents && pvpEvents.length > 0 && (
+          <div className="flex flex-col gap-2.5 border-t border-[#222226] pt-3">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+              <span className="font-mono text-[9px] font-bold uppercase tracking-wider text-[#8e8a85]">
+                Match Slate ({pvpEvents.length})
+              </span>
+
+              {/* Filter Tabs */}
+              <div className="flex items-center gap-1">
+                {(
+                  [
+                    { key: "all", label: "All", count: pvpEvents.length },
+                    { key: "open", label: "Open", count: openEvents.length },
+                    { key: "settled", label: "Settled", count: settledEvents.length },
+                  ] as const
+                ).map((tab) => (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    onClick={() => setFixtureFilter(tab.key)}
+                    className={`px-2 py-0.5 rounded-[2px] font-mono text-[9px] font-bold uppercase tracking-wider transition-colors cursor-pointer ${
+                      fixtureFilter === tab.key
+                        ? "bg-[#ff3b30] text-white"
+                        : "bg-[#161619] text-[#8e8a85] hover:text-[#f4f1ea] border border-[#222226]"
+                    }`}
+                  >
+                    {tab.label} ({tab.count})
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
-              {pvpEvents.map((evt) => {
+              {displayedEvents.map((evt) => {
                 const { teamA, teamB } = parseEventTeams(evt.question || evt.title || "")
                 const isSelected = evt.id === selectedPvpEventId
+                const isResolved = evt.status === "resolved"
+                const lockTime = new Date(evt.lockTime || evt.deadline || 0).getTime()
                 const isClosed =
-                  new Date() >= new Date(evt.lockTime || evt.deadline) ||
-                  evt.status === "resolved" ||
-                  evt.status === "closed"
+                  isResolved ||
+                  evt.status === "closed" ||
+                  (lockTime > 0 && lockTime <= Date.now())
 
                 return (
                   <button
@@ -193,7 +257,7 @@ export default function ArenaPlayerStatsHeader({
                     onClick={() => setSelectedPvpEventId(evt.id)}
                     className={`flex items-center gap-2.5 shrink-0 px-3 py-2 border transition-all cursor-pointer ${
                       isSelected
-                        ? "border-[#ff3b30] bg-[#1e1212] text-[#f4f1ea] font-bold"
+                        ? "border-[#ff3b30] bg-[#1e1212] text-[#f4f1ea] font-bold shadow-[0_0_8px_rgba(255,59,48,0.25)]"
                         : "border-[#222226] bg-[#161619] hover:border-[#333338] text-[#aaa6a1] hover:text-[#f4f1ea]"
                     }`}
                   >
@@ -204,12 +268,16 @@ export default function ArenaPlayerStatsHeader({
                     <span className="font-heading text-xs uppercase tracking-tight">
                       {teamA} vs {teamB}
                     </span>
-                    {isClosed ? (
+                    {isResolved ? (
+                      <span className="font-mono text-[8px] uppercase tracking-wider text-[#ff9500] bg-[#ff9500]/10 border border-[#ff9500]/30 px-1.5 py-0.5">
+                        Settled
+                      </span>
+                    ) : isClosed ? (
                       <span className="font-mono text-[8px] uppercase tracking-wider text-[#8e8a85] bg-[#222226] px-1.5 py-0.5">
                         Closed
                       </span>
                     ) : (
-                      <span className="font-mono text-[8px] uppercase tracking-wider text-[#00ca48] bg-[#00ca48]/10 px-1.5 py-0.5">
+                      <span className="font-mono text-[8px] uppercase tracking-wider text-[#00ca48] bg-[#00ca48]/10 border border-[#00ca48]/30 px-1.5 py-0.5">
                         Open
                       </span>
                     )}
